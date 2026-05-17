@@ -52,7 +52,7 @@ def build_system_prompt(knowledge_entries: list[KnowledgeEntry] | None = None) -
         no_hallucination_rule = "绝不编造商品信息！只依据下方店铺知识回答"
     else:
         knowledge_text = "(店铺数据库中暂无相关知识)"
-        no_hallucination_rule = "顾客询问的商品不在店铺当前产品列表中！必须如实告知"查不到该商品"，绝对不能编造价格或推荐本店没有的虚构产品"
+        no_hallucination_rule = '顾客询问的商品不在店铺当前产品列表中！必须如实告知"查不到该商品"，绝对不能编造价格或推荐本店没有的虚构产品'
 
     return SYSTEM_PROMPT_TPL.format(
         knowledge=knowledge_text,

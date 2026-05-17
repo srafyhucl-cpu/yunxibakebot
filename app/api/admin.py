@@ -7,6 +7,7 @@
 页面使用 Session Cookie 鉴权，API 使用 Bearer Token 鉴权。
 """
 
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -151,9 +152,14 @@ def create_admin_router(
             return {"code": 422, "message": "内容不能为空"}
         from app.service.llm.intent import detect_intent
         intent = await detect_intent(content)
+        # 转人工状态后重置，避免阻塞后续测试
+        s = await session_repo.get_active("admin_tester", "admin_test")
+        if s and s.status in ("transfer_pending", "human_service"):
+            await session_repo.update_status(s.id, "active")
         reply = await chat_service.handle_message(
             channel="admin_test",
             user_id="admin_tester",
+            channel_msg_id=str(uuid.uuid4()),
             content=content,
         )
         return {"code": 0, "reply": reply or "(无回复)", "intent": intent}
