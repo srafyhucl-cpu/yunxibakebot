@@ -1,0 +1,43 @@
+"""
+配置管理。
+
+使用 pydantic-settings 从 .env 文件和环境变量加载配置。
+所有敏感信息（API Key、Secret）不进代码仓库。
+"""
+
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """应用配置，字段默认值可被 .env 和环境变量覆盖。"""
+
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",  # .env 中未定义的额外字段忽略，不报错
+    }
+
+    # ── 服务配置 ──
+    SERVER_HOST: str = "127.0.0.1"
+    SERVER_PORT: int = 7001
+    LOG_LEVEL: str = "info"
+
+    # ── 数据库 ──
+    DB_PATH: str = "data/bot.db"
+
+    # ── DeepSeek 大模型 ──
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+
+    # ── 有赞云 ──
+    YOUZAN_CLIENT_ID: str = ""
+    YOUZAN_CLIENT_SECRET: str = ""
+    YOUZAN_KDT_ID: str = ""
+    YOUZAN_WEBHOOK_TOKEN: str = ""
+
+    # ── 管理后台 ──
+    ADMIN_API_TOKEN: str = ""
+
+
+settings = Settings()
