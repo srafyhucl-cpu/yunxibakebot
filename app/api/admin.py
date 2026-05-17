@@ -126,6 +126,34 @@ def create_admin_router(
         )
         return HTMLResponse(html)
 
+    # ── 对话测试页 ──
+    @router.get("/admin/chat-test", response_class=HTMLResponse)
+    async def chat_test_page(request: Request):
+        if not check_login(request):
+            return RedirectResponse(url="/admin/login", status_code=302)
+        html = _jinja_env.get_template("admin/chat_test.html").render(
+            request=request, active="chat_test",
+        )
+        return HTMLResponse(html)
+
+    # ── 对话测试 API ──
+    @api_router.post("/chat-test", dependencies=[Depends(verify_token)])
+    async def chat_test_api(request: Request) -> dict:
+        import json
+        body = await request.json()
+        content = body.get("content", "").strip()
+        if not content:
+            return {"code": 422, "message": "内容不能为空"}
+        # 用固定测试用户对话
+        from app.service.llm.intent import detect_intent
+        intent = await detect_intent(content)
+        reply = await chat_service.handle_message(
+            channel="admin_test",
+            user_id="admin_tester",
+            content=content,
+        )
+        return {"code": 0, "reply": reply or "(无回复)", "intent": intent, "knowledge_hits": 0}
+
     # ────────────────────────────── API 路由 ──────────────────────────────
 
     @api_router.get("/transfers/pending", dependencies=[Depends(verify_token)])

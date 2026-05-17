@@ -1,0 +1,63 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<h1>💬 对话测试</h1>
+
+<div class="card">
+  <div class="chat-preview" id="chat-box" style="max-height:500px;overflow-y:auto;min-height:200px;">
+    <div class="msg msg-assistant">👋 你好，我是在线客服，有什么可以帮你的~</div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <input type="text" id="user-input" placeholder="输入测试问题..." style="flex:1" onkeydown="if(event.key=='Enter')send()">
+    <button class="btn btn-primary" onclick="send()">发送</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:8px;">
+    <select id="intent-filter" onchange="if(this.value) send(this.value)" style="font-size:13px;padding:4px 8px;">
+      <option value="">快捷测试...</option>
+      <option value="提拉米苏多少钱">提拉米苏多少钱</option>
+      <option value="明天下午能送到吗">明天下午能送到吗</option>
+      <option value="蛋糕坏了我要退款">蛋糕坏了我要退款</option>
+      <option value="哈喽在吗">哈喽在吗</option>
+    </select>
+  </div>
+</div>
+
+<div class="card">
+  <h3>意图识别 + 知识命中</h3>
+  <table id="debug-table">
+    <tr><td style="width:80px;">意图</td><td id="debug-intent">-</td></tr>
+    <tr><td>耗时</td><td id="debug-time">-</td></tr>
+    <tr><td>知识命中</td><td id="debug-knowledge">-</td></tr>
+  </table>
+</div>
+
+<script>
+async function send(preset) {
+  var input = document.getElementById('user-input');
+  var msg = preset || input.value.trim();
+  if (!msg) return;
+  if (!preset) input.value = '';
+
+  var box = document.getElementById('chat-box');
+  box.innerHTML += '<div class="msg msg-user">' + msg + '</div>';
+  box.innerHTML += '<div class="msg msg-assistant" id="loading">⏳ 思考中...</div>';
+  box.scrollTop = box.scrollHeight;
+
+  var t0 = Date.now();
+  try {
+    var resp = await fetch('/api/v1/admin/chat-test', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer yunxi-admin-dev-2026'},
+      body: JSON.stringify({content: msg})
+    });
+    var data = await resp.json();
+    document.getElementById('loading').textContent = data.reply || '(无回复)';
+    document.getElementById('debug-intent').textContent = {1:'商品',2:'规则',3:'售后',4:'闲聊'}[data.intent] || data.intent;
+    document.getElementById('debug-time').textContent = (Date.now()-t0)+'ms';
+    document.getElementById('debug-knowledge').textContent = (data.knowledge_hits||0)+' 条';
+  } catch(e) {
+    document.getElementById('loading').textContent = '❌ 请求失败';
+  }
+  box.scrollTop = box.scrollHeight;
+}
+</script>
+{% endblock %}
