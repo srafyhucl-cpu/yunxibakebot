@@ -166,7 +166,9 @@ def create_admin_router(
             channel_msg_id=str(uuid.uuid4()),
             content=content,
         )
-        return {"code": 0, "reply": reply or "(无回复)", "intent": intent}
+        # 清理 Markdown 星号
+        clean = (reply or "(无回复)").replace("**", "").replace("*", "")
+        return {"code": 0, "reply": clean, "intent": intent}
 
     # ────────────────────────────── API 路由 ──────────────────────────────
 
