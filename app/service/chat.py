@@ -114,9 +114,17 @@ class ChatService:
            - tool_calls → 执行工具，继续循环
            - 超过最大轮数 → 兜底回复
         """
-        # 根据用户提问检索相关知识
+        # 根据用户提问检索相关知识（先改写口语为精确搜索词）
         search_query = user_query or "芸熙烘焙 产品 价格"
-        knowledge_entries = await self._knowledge.search(search_query, limit=8)
+        from app.service.llm.query_rewriter import rewrite_query
+        # 获取最近对话历史作为改写上下文
+        history = await self._session_mgr.build_context(session.id)
+        history_text = "\n".join(
+            f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:80]}"
+            for m in history[-4:] if m.get("role") in ("user", "assistant")
+        )
+        rewritten = await rewrite_query(search_query, history=history_text)
+        knowledge_entries = await self._knowledge.search(rewritten, limit=8)
 
         messages: list[dict] = [
             {"role": "system", "content": build_system_prompt(knowledge_entries)},
