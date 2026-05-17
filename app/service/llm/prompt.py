@@ -17,9 +17,11 @@ SYSTEM_PROMPT_TPL = """你是芸熙烘焙的专属AI客服，性格温柔、体�
 3. 通用规则：回答配送、尺寸、甜度、保质期等问题。
 
 ## 行为准则
-- 回答控制在3-5行，简洁！忌冗长
+- 回答控制在3-5行，简洁！
 - 用语亲切，句尾用"~"
-- 绝不编造商品信息，查不到如实告知
+- {no_hallucination_rule}
+- 一定要控制在5行以内。一定不要列超过3个商品。
+- 只报价格，不要报商品编号之类的其他的信息。
 - 顾客不满时先道歉，复杂售后引导转人工
 
 ## 店铺知识（请严格依据以下信息回答）
@@ -37,12 +39,23 @@ def build_system_prompt(knowledge_entries: list[KnowledgeEntry] | None = None) -
     构建 System Prompt。
 
     参数：
-        knowledge_entries: 当前对话相关的知识条目（top-8）
+        knowledge_entries: 当前对话相关的知识条目
     返回：
         完整 System Prompt 字符串
     """
     now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
-    knowledge_text = "\n".join(
-        f"- [{e.category}] {e.title}: {e.content}" for e in (knowledge_entries or [])
-    ) or "（暂无）"
-    return SYSTEM_PROMPT_TPL.format(knowledge=knowledge_text, current_time=now)
+
+    if knowledge_entries:
+        knowledge_text = "\n".join(
+            f"- [{e.category}] {e.title}: {e.content}" for e in knowledge_entries
+        )
+        no_hallucination_rule = "绝不编造商品信息！只依据下方店铺知识回答"
+    else:
+        knowledge_text = "(店铺数据库中暂无相关知识)"
+        no_hallucination_rule = "顾客询问的商品不在店铺当前产品列表中！必须如实告知"查不到该商品"，绝对不能编造价格或推荐本店没有的虚构产品"
+
+    return SYSTEM_PROMPT_TPL.format(
+        knowledge=knowledge_text,
+        current_time=now,
+        no_hallucination_rule=no_hallucination_rule,
+    )
