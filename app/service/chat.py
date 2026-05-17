@@ -89,8 +89,8 @@ class ChatService:
             logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
             return None
 
-        # 5. 进入 AI 对话循环
-        reply = await self._ai_conversation_loop(session)
+        # 5. 进入 AI 对话循环（传入用户消息作为知识搜索关键词）
+        reply = await self._ai_conversation_loop(session, user_query=content)
 
         # 6. 保存 AI 回复
         if reply:
@@ -102,7 +102,7 @@ class ChatService:
 
         return reply
 
-    async def _ai_conversation_loop(self, session: Session) -> str | None:
+    async def _ai_conversation_loop(self, session: Session, user_query: str = "") -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
 
@@ -114,11 +114,9 @@ class ChatService:
            - tool_calls → 执行工具，继续循环
            - 超过最大轮数 → 兜底回复
         """
-        # 检索相关知识
-        knowledge_entries = await self._knowledge.search(
-            "芸熙烘焙 产品 价格",
-            limit=5,
-        )
+        # 根据用户提问检索相关知识
+        search_query = user_query or "芸熙烘焙 产品 价格"
+        knowledge_entries = await self._knowledge.search(search_query, limit=8)
 
         messages: list[dict] = [
             {"role": "system", "content": build_system_prompt(knowledge_entries)},
