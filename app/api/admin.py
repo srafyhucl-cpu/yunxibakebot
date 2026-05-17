@@ -23,7 +23,7 @@ from app.service.transfer_manager import TransferManager
 
 # 模板引擎（独立初始化，避免 Starlette Jinja2Templates 兼容问题）
 BASE_DIR = Path(__file__).resolve().parent.parent
-_jinja_env = Environment(loader=FileSystemLoader(str(BASE_DIR / "templates")))
+_jinja_env = Environment(loader=FileSystemLoader(str(BASE_DIR / "templates")), cache_size=0)
 
 logger = setup_logger()
 
