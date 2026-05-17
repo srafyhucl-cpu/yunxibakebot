@@ -1,45 +1,119 @@
 {% extends "admin/base.html" %}
 {% block content %}
-<h1>💬 对话测试</h1>
+<style>
+.chat-wrapper {
+  display: flex; gap: 20px; height: calc(100vh - 140px);
+}
+.chat-main { flex: 3; display: flex; flex-direction: column; }
+.chat-panel {
+  background: #f0ece7; border-radius: 12px; flex: 1;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.chat-header {
+  background: var(--primary); color: #fff; text-align: center;
+  padding: 14px; font-size: 15px; font-weight: 600;
+}
+.chat-box {
+  flex: 1; overflow-y: auto; padding: 20px 16px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.chat-input {
+  display: flex; gap: 8px; padding: 12px 16px;
+  background: #fff; border-top: 1px solid var(--border);
+}
+.chat-input input {
+  flex: 1; border: 1px solid var(--border); border-radius: 24px;
+  padding: 10px 16px; font-size: 14px; outline: none;
+}
+.chat-input input:focus { border-color: var(--primary); }
+.msg-row { display: flex; max-width: 80%; }
+.msg-row.end { align-self: flex-end; }
+.msg-row.start { align-self: flex-start; }
+.bubble {
+  padding: 10px 14px; border-radius: 14px; font-size: 14px;
+  line-height: 1.6; word-break: break-word;
+}
+.bubble.user {
+  background: var(--primary); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.bubble.ai {
+  background: #fff; color: var(--text);
+  border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.bubble.ai.loading { opacity: 0.6; }
+.msg-time {
+  font-size: 11px; color: var(--text-muted); margin: 2px 8px 0;
+}
+.sidebar-test {
+  flex: 1; min-width: 200px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.quick-btn {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 14px; border: 1px solid var(--border);
+  border-radius: 8px; background: #fff; cursor: pointer;
+  font-size: 13px; transition: all 0.15s;
+}
+.quick-btn:hover { border-color: var(--primary); background: #fef8f8; }
+.debug-card {
+  background: #fff; border-radius: 8px; padding: 14px;
+  border: 1px solid var(--border);
+}
+.debug-card table { width: 100%; font-size: 13px; }
+.debug-card td { padding: 6px 0; border: none; }
+.debug-card td:first-child { color: var(--text-muted); width: 60px; }
+</style>
 
-<div class="card">
-  <div class="chat-preview" id="chat-box" style="max-height:500px;overflow-y:auto;min-height:200px;">
-    <div class="msg msg-assistant">👋 你好，我是在线客服，有什么可以帮你的~</div>
+<div class="chat-wrapper">
+  <div class="chat-main">
+    <div class="chat-panel">
+      <div class="chat-header">芸熙烘焙 · 智能客服</div>
+      <div class="chat-box" id="chat-box">
+        <div class="msg-row start">
+          <div class="bubble ai">
+            👋 你好，我是在线客服，有什么可以帮你的~
+          </div>
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" id="user-input" placeholder="输入问题..." autofocus
+               onkeydown="if(event.key=='Enter')send()">
+        <button class="btn btn-primary" onclick="send()">发送</button>
+      </div>
+    </div>
   </div>
-  <div style="display:flex;gap:8px;margin-top:12px;">
-    <input type="text" id="user-input" placeholder="输入测试问题..." style="flex:1" onkeydown="if(event.key=='Enter')send()">
-    <button class="btn btn-primary" onclick="send()">发送</button>
-  </div>
-  <div style="display:flex;gap:8px;margin-top:8px;">
-    <select id="intent-filter" onchange="if(this.value) send(this.value)" style="font-size:13px;padding:4px 8px;">
-      <option value="">快捷测试...</option>
-      <option value="提拉米苏多少钱">提拉米苏多少钱</option>
-      <option value="明天下午能送到吗">明天下午能送到吗</option>
-      <option value="蛋糕坏了我要退款">蛋糕坏了我要退款</option>
-      <option value="哈喽在吗">哈喽在吗</option>
-    </select>
-  </div>
-</div>
 
-<div class="card">
-  <h3>意图识别 + 知识命中</h3>
-  <table id="debug-table">
-    <tr><td style="width:80px;">意图</td><td id="debug-intent">-</td></tr>
-    <tr><td>耗时</td><td id="debug-time">-</td></tr>
-    <tr><td>知识命中</td><td id="debug-knowledge">-</td></tr>
-  </table>
+  <div class="sidebar-test">
+    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="提拉米苏多少钱">🍰 提拉米苏多少钱</button>
+    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="明天下午能送到吗">🚚 明天下午能送到吗</button>
+    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="蛋糕坏了我要退款">⚠️ 蛋糕坏了要退款</button>
+    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="哈喽在吗">👋 哈喽在吗</button>
+
+    <div class="debug-card">
+      <table>
+        <tr><td>意图</td><td id="dbg-intent">-</td></tr>
+        <tr><td>耗时</td><td id="dbg-time">-</td></tr>
+        <tr><td>Token</td><td id="dbg-tokens">-</td></tr>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script>
-async function send(preset) {
+function now() { return new Date().toLocaleTimeString(); }
+
+async function send(msg) {
   var input = document.getElementById('user-input');
-  var msg = preset || input.value.trim();
-  if (!msg) return;
-  if (!preset) input.value = '';
+  var text = msg || input.value.trim();
+  if (!text) return;
+  if (!msg) input.value = '';
 
   var box = document.getElementById('chat-box');
-  box.innerHTML += '<div class="msg msg-user">' + msg + '</div>';
-  box.innerHTML += '<div class="msg msg-assistant" id="loading">⏳ 思考中...</div>';
+  // 用户气泡
+  box.innerHTML += '<div class="msg-row end"><div class="bubble user">' + escapeHtml(text) + '</div></div><div style="align-self:flex-end;text-align:right" class="msg-time">' + now() + '</div>';
+  // 加载动画
+  box.innerHTML += '<div class="msg-row start" id="loading-row"><div class="bubble ai loading">⏳ 正在思考...</div></div>';
   box.scrollTop = box.scrollHeight;
 
   var t0 = Date.now();
@@ -47,17 +121,26 @@ async function send(preset) {
     var resp = await fetch('/api/v1/admin/chat-test', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer yunxi-admin-dev-2026'},
-      body: JSON.stringify({content: msg})
+      body: JSON.stringify({content: text})
     });
     var data = await resp.json();
-    document.getElementById('loading').textContent = data.reply || '(无回复)';
-    document.getElementById('debug-intent').textContent = {1:'商品',2:'规则',3:'售后',4:'闲聊'}[data.intent] || data.intent;
-    document.getElementById('debug-time').textContent = (Date.now()-t0)+'ms';
-    document.getElementById('debug-knowledge').textContent = (data.knowledge_hits||0)+' 条';
+    document.getElementById('loading-row').outerHTML =
+      '<div class="msg-row start"><div class="bubble ai">' + escapeHtml(data.reply || '(无回复)') + '</div></div>' +
+      '<div style="align-self:flex-start" class="msg-time">' + now() + '</div>';
+    document.getElementById('dbg-intent').textContent = {1:'商品查价',2:'规则物流',3:'售后转人工',4:'闲聊'}[data.intent] || data.intent;
+    document.getElementById('dbg-time').textContent = ((Date.now()-t0)/1000).toFixed(1) + 's';
+    document.getElementById('dbg-tokens').textContent = data.tokens || '-';
   } catch(e) {
-    document.getElementById('loading').textContent = '❌ 请求失败';
+    document.getElementById('loading-row').outerHTML =
+      '<div class="msg-row start"><div class="bubble ai" style="color:var(--danger)">❌ 请求失败，请检查服务状态</div></div>';
   }
   box.scrollTop = box.scrollHeight;
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 </script>
 {% endblock %}

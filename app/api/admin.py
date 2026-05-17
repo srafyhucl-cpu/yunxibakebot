@@ -140,11 +140,15 @@ def create_admin_router(
     @api_router.post("/chat-test", dependencies=[Depends(verify_token)])
     async def chat_test_api(request: Request) -> dict:
         import json
-        body = await request.json()
+        raw = await request.body()
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            # Windows GBK 兼容
+            body = json.loads(raw.decode("gbk"))
         content = body.get("content", "").strip()
         if not content:
             return {"code": 422, "message": "内容不能为空"}
-        # 用固定测试用户对话
         from app.service.llm.intent import detect_intent
         intent = await detect_intent(content)
         reply = await chat_service.handle_message(
@@ -152,7 +156,7 @@ def create_admin_router(
             user_id="admin_tester",
             content=content,
         )
-        return {"code": 0, "reply": reply or "(无回复)", "intent": intent, "knowledge_hits": 0}
+        return {"code": 0, "reply": reply or "(无回复)", "intent": intent}
 
     # ────────────────────────────── API 路由 ──────────────────────────────
 
