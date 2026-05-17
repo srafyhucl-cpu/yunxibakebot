@@ -104,11 +104,14 @@
 <script>
 function now() { return new Date().toLocaleTimeString(); }
 
+var _testId = Date.now();
 async function send(msg) {
   var input = document.getElementById('user-input');
   var text = msg || input.value.trim();
   if (!text) return;
   if (!msg) input.value = '';
+  // 快速测试按钮走新会话，避免上下文拉偏
+  var userId = msg ? ('test_' + Date.now()) : 'admin_tester';
 
   var box = document.getElementById('chat-box');
   // 用户气泡
@@ -122,7 +125,7 @@ async function send(msg) {
     var resp = await fetch('/api/v1/admin/chat-test', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer yunxi-admin-dev-2026'},
-      body: JSON.stringify({content: text})
+      body: JSON.stringify({content: text, user_id: userId})
     });
     var data = await resp.json();
     document.getElementById('loading-row').outerHTML =

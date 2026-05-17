@@ -152,16 +152,17 @@ def create_admin_router(
             return {"code": 422, "message": "内容不能为空"}
         from app.service.llm.intent import detect_intent
         intent = await detect_intent(content)
-        # 转人工状态后重置，避免阻塞后续测试
-        s = await session_repo.get_active("admin_tester", "admin_test")
-        if s and s.status in ("transfer_pending", "human_service"):
-            await session_repo.update_status(s.id, "active")
-        # 意图 3 直接返回转人工提示，不走 AI 对话
+        # 支持前端传入独立测试用户 ID，快速测试按钮每次用新用户避免拉偏
+        test_user = body.get("user_id", "admin_tester")
+        if test_user == "admin_tester":
+            s = await session_repo.get_active("admin_tester", "admin_test")
+            if s and s.status in ("transfer_pending", "human_service"):
+                await session_repo.update_status(s.id, "active")
         if intent == 3:
             return {"code": 0, "reply": "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~", "intent": 3}
         reply = await chat_service.handle_message(
             channel="admin_test",
-            user_id="admin_tester",
+            user_id=test_user,
             channel_msg_id=str(uuid.uuid4()),
             content=content,
         )
