@@ -51,8 +51,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     knowledge_repo = KnowledgeRepo(db)
     transfer_repo = TransferRepo(db)
 
+    # Vector Search 服务（加载已有向量或构建新的）
+    from app.service.vector_search import VectorSearcher
+    vs = VectorSearcher()
+    vs_path = settings.VECTOR_PATH
+    if Path(vs_path).exists():
+        vs.load(vs_path)
+        logger.info("向量索引已加载: %d 条文档", vs.doc_count)
+    else:
+        docs = await knowledge_repo.get_all_titles()
+        if docs:
+            vs.build(docs)
+            vs.save(vs_path)
+            logger.info("向量索引已构建: %d 条文档", vs.doc_count)
+
     # Service 层
-    knowledge_retriever = KnowledgeRetriever(knowledge_repo)
+    knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs)
     chat_service = ChatService(
         session_repo=session_repo,
         message_repo=message_repo,

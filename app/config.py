@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # ── 数据库 ──
     DB_PATH: str = "data/bot.db"
+    VECTOR_PATH: str = "data/vectors.pkl"
 
     # ── DeepSeek 大模型 ──
     DEEPSEEK_API_KEY: str = ""
