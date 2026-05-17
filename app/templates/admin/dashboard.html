@@ -1,0 +1,29 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<h1>📊 概览</h1>
+
+<div class="stats">
+  <div class="card">
+    <h3>待处理转人工</h3>
+    <div class="number" id="pending-count">{{ pending_count }}</div>
+  </div>
+  <div class="card">
+    <h3>活跃会话</h3>
+    <div class="number" id="active-sessions">{{ active_sessions }}</div>
+  </div>
+  <div class="card">
+    <h3>知识库条目</h3>
+    <div class="number">{{ kb_count }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>📋 系统状态</h3>
+  <table>
+    <tr><td style="width:140px;">DeepSeek API</td><td><span class="badge badge-accepted">已连接</span></td></tr>
+    <tr><td>知识库</td><td><span class="badge badge-accepted">{{ kb_count }} 条</span></td></tr>
+    <tr><td>有赞对接</td><td><span class="badge badge-pending">待认证</span></td></tr>
+    <tr><td>企业微信</td><td><span class="badge badge-pending">待接入</span></td></tr>
+  </table>
+</div>
+{% endblock %}

@@ -10,9 +10,11 @@ FastAPI 应用入口。
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db, close_db
@@ -63,7 +65,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.api.webhook import create_webhook_router
 
     app.include_router(create_webhook_router(chat_service))
-    app.include_router(create_admin_router(chat_service, session_repo, transfer_repo))
+    app.include_router(create_admin_router(
+        chat_service, session_repo, transfer_repo, knowledge_repo=knowledge_repo,
+    ))
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口 %d", settings.SERVER_PORT)
     yield
@@ -78,6 +82,10 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# ── 静态文件 ──
+BASE_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
 # ── 全局异常处理器 ──

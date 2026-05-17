@@ -38,3 +38,8 @@ class KnowledgeRepo:
             (category,),
         )
         return [KnowledgeEntry(**dict(r)) for r in rows]
+
+    async def count_all(self) -> int:
+        """返回知识库总条目数。"""
+        row = await self._db.execute_fetchall("SELECT COUNT(*) as c FROM knowledge_base")
+        return row[0]["c"] if row else 0

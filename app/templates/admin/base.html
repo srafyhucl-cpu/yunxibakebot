@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>芸熙烘焙 AI 客服 - 管理后台</title>
+  <link rel="stylesheet" href="/static/admin/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍰</text></svg>">
+</head>
+<body>
+  {% if request.cookies.get("admin_token") %}
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>🍰 芸熙烘焙</h2>
+      <nav>
+        <a href="/admin/dashboard" class="{{ 'active' if active == 'dashboard' }}">📊 概览</a>
+        <a href="/admin/transfers" class="{{ 'active' if active == 'transfers' }}">🔔 转人工</a>
+        <a href="/admin/logout">🚪 退出</a>
+      </nav>
+    </aside>
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% else %}
+    {% block login_content %}{% endblock %}
+  {% endif %}
+
+  <div id="toast" class="toast"></div>
+  <script>
+    function showToast(msg, type) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show toast-' + type;
+      setTimeout(function(){ t.className = 'toast'; }, 3000);
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

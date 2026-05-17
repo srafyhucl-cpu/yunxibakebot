@@ -1,0 +1,79 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<h1>🔔 转人工队列</h1>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>客户</th>
+        <th>渠道</th>
+        <th>原因</th>
+        <th>等待时间</th>
+        <th>状态</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if transfers %}
+      {% for t in transfers %}
+      <tr>
+        <td>{{ t.user_id[:8] }}...</td>
+        <td>{{ t.channel or "小程序" }}</td>
+        <td>{{ t.reason[:20] or "-" }}</td>
+        <td>{{ t.wait_time }}</td>
+        <td><span class="badge badge-pending">等待中</span></td>
+        <td class="form-actions">
+          <button class="btn btn-success btn-sm" onclick="acceptTransfer('{{ t.id }}')">接单</button>
+          <button class="btn btn-danger btn-sm" onclick="closeTransfer('{{ t.id }}')">关闭</button>
+        </td>
+      </tr>
+      {% endfor %}
+      {% else %}
+      <tr><td colspan="6"><div class="empty">暂无待处理的转人工请求</div></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% if recent_sessions %}
+<div class="card">
+  <h3>最近会话</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>会话 ID</th>
+        <th>渠道</th>
+        <th>状态</th>
+        <th>创建时间</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in recent_sessions %}
+      <tr>
+        <td>{{ s.id[:8] }}...</td>
+        <td>{{ s.channel }}</td>
+        <td><span class="badge badge-{{ 'accepted' if s.status == 'active' else 'pending' }}">{{ s.status }}</span></td>
+        <td>{{ s.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+function acceptTransfer(id) {
+  fetch('/api/v1/admin/transfers/' + id + '/accept', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { showToast('已接单', 'success'); location.reload(); })
+    .catch(e => showToast('操作失败', 'error'));
+}
+function closeTransfer(id) {
+  fetch('/api/v1/admin/transfers/' + id + '/close', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { showToast('已关闭', 'success'); location.reload(); })
+    .catch(e => showToast('操作失败', 'error'));
+}
+</script>
+{% endblock %}

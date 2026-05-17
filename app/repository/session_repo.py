@@ -75,3 +75,21 @@ class SessionRepo:
             (status.value, now, session_id),
         )
         await self._db.commit()
+
+    async def get_all_active(self) -> list[Session]:
+        """获取所有活跃会话。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, channel, user_id, staff_id, status, extra_info, created_at, updated_at "
+            "FROM sessions WHERE status IN ('active', 'transfer_pending', 'human_service') "
+            "ORDER BY updated_at DESC",
+        )
+        return [Session(**dict(r)) for r in rows]
+
+    async def get_recent(self, limit: int = 10) -> list[Session]:
+        """获取最近创建的会话。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, channel, user_id, staff_id, status, extra_info, created_at, updated_at "
+            "FROM sessions ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+        return [Session(**dict(r)) for r in rows]
