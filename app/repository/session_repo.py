@@ -67,12 +67,13 @@ class SessionRepo:
             updated_at=now,
         )
 
-    async def update_status(self, session_id: str, status: SessionStatus) -> None:
+    async def update_status(self, session_id: str, status: SessionStatus | str) -> None:
         """更新会话状态并记录时间戳。"""
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        val = status.value if isinstance(status, SessionStatus) else status
         await self._db.execute(
             "UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?",
-            (status.value, now, session_id),
+            (val, now, session_id),
         )
         await self._db.commit()
 
