@@ -11,6 +11,7 @@
 - DeepSeek (OpenAI 协议, openai SDK)
 - Nginx (HTTPS 反向代理)
 - 域名: hclstudio.cn (已备案)
+- 管理后台: yunxi.hclstudio.cn/admin (子域名, 免费)
 
 ## 核心设计决策
 
