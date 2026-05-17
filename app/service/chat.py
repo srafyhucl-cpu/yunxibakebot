@@ -89,8 +89,33 @@ class ChatService:
             logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
             return None
 
-        # 5. 进入 AI 对话循环（传入用户消息作为知识搜索关键词）
-        reply = await self._ai_conversation_loop(session, user_query=content)
+        # 5. 意图识别（决定走售后、知识搜索还是闲聊）
+        from app.service.llm.intent import detect_intent
+        history = await self._session_mgr.build_context(session.id)
+        history_text = "\n".join(
+            f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:80]}"
+            for m in history[-4:] if m.get("role") in ("user", "assistant")
+        )
+        intent = await detect_intent(content, history=history_text)
+        logger.info("会话 %s 意图: %d", session.id, intent)
+
+        # 意图 3 = 售后/转人工 → 自动创建转人工工单
+        if intent == 3:
+            transfer = await self._transfer_mgr.request_transfer(
+                session.id, user_id, reason=content,
+                summary=history_text[-200:],
+            )
+            await self._session_repo.update_status(session.id, "transfer_pending")
+            reply = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
+            assistant_msg = Message(
+                id="", session_id=session.id, role=MessageRole.ASSISTANT,
+                content=reply,
+            )
+            await self._message_repo.save(assistant_msg)
+            return reply
+
+        # 6. 进入 AI 对话循环
+        reply = await self._ai_conversation_loop(session, user_query=content, intent=intent)
 
         # 6. 保存 AI 回复
         if reply:
@@ -102,7 +127,7 @@ class ChatService:
 
         return reply
 
-    async def _ai_conversation_loop(self, session: Session, user_query: str = "") -> str | None:
+    async def _ai_conversation_loop(self, session: Session, user_query: str = "", intent: int = 1) -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
 
@@ -114,17 +139,21 @@ class ChatService:
            - tool_calls → 执行工具，继续循环
            - 超过最大轮数 → 兜底回复
         """
-        # 根据用户提问检索相关知识（先改写口语为精确搜索词）
-        search_query = user_query or "芸熙烘焙 产品 价格"
+        # 根据意图调整检索策略
         from app.service.llm.query_rewriter import rewrite_query
-        # 获取最近对话历史作为改写上下文
         history = await self._session_mgr.build_context(session.id)
         history_text = "\n".join(
             f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:80]}"
             for m in history[-4:] if m.get("role") in ("user", "assistant")
         )
-        rewritten = await rewrite_query(search_query, history=history_text)
-        knowledge_entries = await self._knowledge.search(rewritten, limit=8)
+        if intent == 4:
+            # 闲聊：不需要知识检索
+            knowledge_entries = []
+        else:
+            # 商品(1) / 规则(2)：改写后检索
+            search_query = user_query or "芸熙烘焙 产品 价格"
+            rewritten = await rewrite_query(search_query, history=history_text)
+            knowledge_entries = await self._knowledge.search(rewritten, limit=8)
 
         messages: list[dict] = [
             {"role": "system", "content": build_system_prompt(knowledge_entries)},
