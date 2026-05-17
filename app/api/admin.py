@@ -143,10 +143,10 @@ def create_admin_router(
         import json
         raw = await request.body()
         try:
-            body = json.loads(raw)
-        except json.JSONDecodeError:
-            # Windows GBK 兼容
-            body = json.loads(raw.decode("gbk"))
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("gbk")
+        body = json.loads(text)
         content = body.get("content", "").strip()
         if not content:
             return {"code": 422, "message": "内容不能为空"}
@@ -156,6 +156,9 @@ def create_admin_router(
         s = await session_repo.get_active("admin_tester", "admin_test")
         if s and s.status in ("transfer_pending", "human_service"):
             await session_repo.update_status(s.id, "active")
+        # 意图 3 直接返回转人工提示，不走 AI 对话
+        if intent == 3:
+            return {"code": 0, "reply": "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~", "intent": 3}
         reply = await chat_service.handle_message(
             channel="admin_test",
             user_id="admin_tester",

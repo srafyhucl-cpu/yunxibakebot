@@ -80,6 +80,7 @@
         <input type="text" id="user-input" placeholder="输入问题..." autofocus
                onkeydown="if(event.key=='Enter')send()">
         <button class="btn btn-primary" onclick="send()">发送</button>
+        <button class="btn" style="background:var(--text-muted);color:#fff" onclick="newChat()">新对话</button>
       </div>
     </div>
   </div>
@@ -135,6 +136,14 @@ async function send(msg) {
       '<div class="msg-row start"><div class="bubble ai" style="color:var(--danger)">❌ 请求失败，请检查服务状态</div></div>';
   }
   box.scrollTop = box.scrollHeight;
+}
+
+async function newChat() {
+  document.getElementById('chat-box').innerHTML =
+    '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
+  document.getElementById('dbg-intent').textContent = '-';
+  document.getElementById('dbg-time').textContent = '-';
+  document.getElementById('dbg-tokens').textContent = '-';
 }
 
 function escapeHtml(str) {
