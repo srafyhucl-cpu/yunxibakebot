@@ -117,7 +117,12 @@ class ChatService:
         # 6. 进入 AI 对话循环
         reply = await self._ai_conversation_loop(session, user_query=content, intent=intent)
 
-        # 6. 保存 AI 回复
+        # 安抚策略：检测到敏感词时附加道歉前缀
+        from app.service.llm.soothe import needs_soothe, apply_soothe
+        if reply and needs_soothe(content):
+            reply = apply_soothe(reply)
+
+        # 7. 保存 AI 回复
         if reply:
             assistant_msg = Message(
                 id="", session_id=session.id, role=MessageRole.ASSISTANT,
