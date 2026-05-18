@@ -6,10 +6,10 @@
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class SessionStatus(StrEnum):
+class SessionStatus(str, Enum):
     """会话状态：AI 接待 / 转人工排队 / 人工服务中 / 已结束"""
     ACTIVE = "active"
     TRANSFER_PENDING = "transfer_pending"

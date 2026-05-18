@@ -6,10 +6,10 @@ tool 类型的消息记录 Function Calling 的调用和结果。
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class MessageRole(StrEnum):
+class MessageRole(str, Enum):
     """消息角色：用户 / AI / 系统指令 / 工具调用结果"""
     USER = "user"
     ASSISTANT = "assistant"

@@ -6,10 +6,10 @@ LLM 对话时自动检索相关内容注入到 System Prompt 中。
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class KnowledgeCategory(StrEnum):
+class KnowledgeCategory(str, Enum):
     """知识分类：门店信息 / 产品 / 政策 / 常见问题 / 售后"""
     STORE_INFO = "store_info"
     PRODUCT = "product"

@@ -5,10 +5,10 @@
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class TransferStatus(StrEnum):
+class TransferStatus(str, Enum):
     """转人工状态：等待接单 / 已接入 / 已拒绝 / 已结束"""
     PENDING = "pending"
     ACCEPTED = "accepted"
