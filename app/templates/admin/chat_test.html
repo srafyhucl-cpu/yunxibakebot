@@ -106,7 +106,7 @@
 }
 .drawer-item:hover { background: #f5f5f5; }
 .drawer-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drawer-item .del { color: #ccc; cursor: pointer; padding: 2px 6px; font-size: 12px; }
+.drawer-item .del { color: #ccc; cursor: pointer; padding: 6px 10px; font-size: 16px; }
 .drawer-item .del:hover { color: var(--danger); }
 .drawer-item.active { background: #fff3e0; }
 
@@ -171,7 +171,7 @@
 <div class="drawer" id="drawer">
   <div class="drawer-header">
     菜单
-    <button onclick="drawerClose()">✕</button>
+    <button onclick="drawerClose()" style="width:36px;height:36px;font-size:18px;background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
   </div>
 
   <div class="drawer-section">
@@ -217,10 +217,18 @@
 
 <script>
 var _auth = {headers: {'Authorization': 'Bearer 100200'}};
-var _currentSessionId = '';
-var _userId = 'admin_tester';
-var _hasName = false;
 var _userScrolledUp = false;
+
+// ── localStorage 持久化 ──
+function _ls(key, val) {
+  if (val === undefined) return localStorage.getItem('chat_' + key) || '';
+  if (val === null) localStorage.removeItem('chat_' + key);
+  else localStorage.setItem('chat_' + key, val);
+}
+
+var _userId = _ls('userId') || 'admin_tester';
+var _currentSessionId = _ls('sessionId');
+var _hasName = false;
 
 // ── 消息区 ──
 var _msgs = document.getElementById('chat-msgs');
@@ -241,7 +249,7 @@ function drawerClose() {
   document.getElementById('drawer-overlay').classList.remove('show');
 }
 
-// ── 已保存对话 ──
+// ── 已保存对话列表 ──
 async function loadSaved() {
   try {
     var r = await fetch('/api/v1/admin/chat-test/sessions', _auth);
@@ -252,43 +260,29 @@ async function loadSaved() {
     }
     var html = '';
     for (var s of d.data) {
-      html += '<div class="drawer-item" onclick="loadSession(\'' + s.id + '\')"><span class="name">' + esc(s.name) + '</span><span class="del" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')">✕</span></div>';
+      html += '<div class="drawer-item" onclick="loadSession(\'' + s.id + '\',\'' + s.user_id + '\')"><span class="name">' + esc(s.name) + '</span><span class="del" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')">✕</span></div>';
     }
     document.getElementById('saved-list').innerHTML = html;
+    // 检查当前会话是否已命名
+    _hasName = d.data.some(function(s) { return s.id === _currentSessionId; });
   } catch(e) {}
 }
 
-async function loadHistory() {
-  if (_userId) {
-    try {
-      var r = await fetch('/api/v1/admin/chat-test/messages?user_id=' + _userId, _auth);
-      var d = await r.json();
-      if (d.code !== 0 || !d.data || d.data.length === 0) return;
-      _currentSessionId = d.session_id || '';
-      _msgs.innerHTML = '';
-      for (var m of d.data) {
-        var cls = m.role === 'user' ? 'msg-row end' : 'msg-row start';
-        var bubble = m.role === 'user' ? 'bubble user' : 'bubble ai';
-        _msgs.innerHTML += '<div class="' + cls + '"><div class="' + bubble + '">' + esc(m.content) + '</div></div>';
-      }
-      scrollBottom();
-    } catch(e) {}
-  }
-}
-
-async function loadSession(sessionId) {
+// ── 加载历史（页面启动 / 恢复对话） ──
+async function loadSession(sessionId, userId) {
+  if (userId) { _userId = userId; _ls('userId', userId); }
+  _currentSessionId = sessionId; _ls('sessionId', sessionId);
   _hasName = true;
   try {
     var r = await fetch('/api/v1/admin/sessions/' + sessionId + '/messages', _auth);
     var d = await r.json();
     if (d.code !== 0 || !d.data) return;
-    _currentSessionId = sessionId;
     _msgs.innerHTML = '';
     for (var m of d.data) {
       addMsg(m.role, m.content);
     }
-    scrollBottom();
-    drawerClose();
+    scrollBottom(); drawerClose();
+    // 高亮
     document.querySelectorAll('.drawer-item').forEach(function(el) { el.classList.remove('active'); });
     var items = document.querySelectorAll('.drawer-item');
     for (var i = 0; i < items.length; i++) {
@@ -297,14 +291,30 @@ async function loadSession(sessionId) {
   } catch(e) {}
 }
 
+// ── 恢复上次对话（页面刷新时） ──
+async function restoreSession() {
+  if (_currentSessionId) {
+    // 有 localStorage sessionId → 直接恢复
+    await loadSession(_currentSessionId, _userId);
+  } else {
+    // 无 localStorage → 按 userId 查活跃会话
+    try {
+      var r = await fetch('/api/v1/admin/chat-test/messages?user_id=' + _userId, _auth);
+      var d = await r.json();
+      if (d.code === 0 && d.data && d.data.length > 0 && d.session_id) {
+        await loadSession(d.session_id, _userId);
+      }
+    } catch(e) {}
+  }
+}
+
 async function deleteSession(sessionId) {
   if (!confirm('确定丢弃？')) return;
   try {
     await fetch('/api/v1/admin/chat-test/session/' + sessionId, { method: 'DELETE', ..._auth });
     if (_currentSessionId === sessionId) {
-      _currentSessionId = '';
-      _hasName = false;
-      resetChat();
+      _currentSessionId = ''; _ls('sessionId', null);
+      _hasName = false; resetChat();
     }
     loadSaved();
   } catch(e) {}
@@ -322,8 +332,8 @@ function addMsg(role, content) {
 function onNewChat() {
   drawerClose();
   if (_hasName) {
-    _currentSessionId = ''; _userId = 'test_' + Date.now();
-    _hasName = false; resetChat(); return;
+    startNewChat();
+    return;
   }
   document.getElementById('modal').classList.add('show');
   document.getElementById('modal-name').value = '';
@@ -331,6 +341,12 @@ function onNewChat() {
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+function startNewChat() {
+  _currentSessionId = ''; _ls('sessionId', null);
+  _hasName = false; _userId = 'test_' + Date.now(); _ls('userId', _userId);
+  resetChat();
+}
 
 async function saveAndNew() {
   var name = document.getElementById('modal-name').value.trim();
@@ -341,21 +357,19 @@ async function saveAndNew() {
       headers: {'Content-Type': 'application/json', ..._auth.headers},
       body: JSON.stringify({session_id: _currentSessionId, name: name})
     });
+    _hasName = true;
   }
-  closeModal(); _hasName = true;
-  _currentSessionId = ''; _userId = 'test_' + Date.now();
-  resetChat(); loadSaved();
+  closeModal();
+  startNewChat();
+  loadSaved();
 }
 
 async function discardAndNew() {
-  closeModal(); _hasName = false;
-  // 关闭旧会话
+  closeModal();
   if (_currentSessionId) {
     try { await fetch('/api/v1/admin/chat-test/session/' + _currentSessionId, { method: 'DELETE', ..._auth }); } catch(e) {}
-    _currentSessionId = '';
   }
-  _userId = 'test_' + Date.now();
-  resetChat();
+  startNewChat();
 }
 
 function resetChat() {
@@ -394,7 +408,7 @@ async function send(msg) {
       loadingEl.outerHTML = '';
       addMsg('assistant', data.reply || '(无回复)');
     }
-    if (data.session_id) _currentSessionId = data.session_id;
+    if (data.session_id) { _currentSessionId = data.session_id; _ls('sessionId', data.session_id); }
     document.getElementById('dbg-intent').textContent = {1:'商品',2:'运费',3:'配送',4:'售后',5:'闲聊'}[data.intent] || data.intent;
     document.getElementById('dbg-time').textContent = ((Date.now()-t0)/1000).toFixed(1) + 's';
     document.getElementById('dbg-tokens').textContent = data.tokens || '-';
@@ -412,7 +426,9 @@ async function send(msg) {
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ── 初始化 ──
-loadHistory();
+// 先显示欢迎语，再异步恢复
+_msgs.innerHTML = '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
+restoreSession();
 loadSaved();
 </script>
 {% endblock %}
