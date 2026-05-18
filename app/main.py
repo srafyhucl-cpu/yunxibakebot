@@ -77,15 +77,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 注册路由（通过工厂函数注入依赖）
     from app.api.admin import create_admin_router
     from app.api.webhook import create_webhook_router
+    from app.api.wecom import router as wecom_router, register_handler
+
+    # 注册企微消息回调处理器
+    async def wecom_handler(channel: str, user_id: str, content: str, channel_msg_id: str) -> None:
+        await chat_service.handle_message(
+            channel=channel,
+            user_id=user_id,
+            content=content,
+            channel_msg_id=channel_msg_id,
+        )
+    register_handler(wecom_handler)
 
     app.include_router(create_webhook_router(chat_service))
     app.include_router(create_admin_router(
         chat_service, session_repo, transfer_repo, knowledge_repo=knowledge_repo,
     ))
+    app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口 %d", settings.SERVER_PORT)
     yield
     # ── shutdown ──
+    from app.service.wecom.client import close_wecom_client
+    await close_wecom_client()
     await close_db(db)
     logger.info("服务已关闭")
 

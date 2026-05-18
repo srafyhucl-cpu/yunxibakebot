@@ -150,9 +150,13 @@ def create_admin_router(
         content = body.get("content", "").strip()
         if not content:
             return {"code": 422, "message": "内容不能为空"}
+        # 运费关键词直接返回固定话术，不走 LLM
+        SHIPPING_KEYWORDS = ["运费", "邮费", "配送费"]
+        if any(kw in content for kw in SHIPPING_KEYWORDS):
+            return {"code": 0, "reply": "运费的话统一回复您：运费由顾客按实际路程支付，下单时确认就好~😊", "intent": 2}
+
         from app.service.llm.intent import detect_intent
         intent = await detect_intent(content)
-        # 支持前端传入独立测试用户 ID，快速测试按钮每次用新用户避免拉偏
         test_user = body.get("user_id", "admin_tester")
         if test_user == "admin_tester":
             s = await session_repo.get_active("admin_tester", "admin_test")
@@ -160,8 +164,8 @@ def create_admin_router(
                 await session_repo.update_status(s.id, "active")
         if intent == 2:
             return {"code": 0, "reply": "运费的话统一回复您：运费由顾客按实际路程支付，下单时确认就好~😊", "intent": 2}
-        if intent == 3:
-            return {"code": 0, "reply": "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~", "intent": 3}
+        if intent == 4:
+            return {"code": 0, "reply": "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~", "intent": 4}
         reply = await chat_service.handle_message(
             channel="admin_test",
             user_id=test_user,

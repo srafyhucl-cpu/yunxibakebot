@@ -74,3 +74,50 @@ fastapi, uvicorn, openai, aiosqlite, httpx, pydantic, pydantic-settings
 - Systemd 管理进程
 - Nginx 反向代理 + Let's Encrypt HTTPS
 - 端口: 443 (外部) → 7001 (内部 FastAPI)
+
+## 常用开发命令
+
+```bash
+# 启动服务（热重载）
+uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
+
+# 运行场景测试
+python scripts/test_scenarios.py
+
+# 运行意图分类测试
+python scripts/test_intents.py
+
+# 知识库种子数据导入
+python scripts/seed_knowledge.py
+
+# 商品数据校验
+python scripts/validate_products.py
+```
+
+## AI 自动化行为守则（预提交阻断）
+
+每次执行 `/commit` 或 `git commit` 前，必须触发以下静态红线审查，任一未通过则阻断提交：
+
+### 红线审查项
+
+1. **单引号检查**：新增/修改的代码中禁止使用单引号 `'`（SQL 语句内部字符串和 f-string 内部闭环除外），普通字符串、字典键名、日志一律使用双引号 `"`。
+2. **Optional/Union 检查**：禁止隐式引入 `typing.Optional` 或 `typing.Union`，一律改写为 `X | None` 或 `X | Y`。
+3. **TODO 占位符检查**：代码中禁止存在 `# TODO` 或未实现的业务占位符（如返回 `"待实现"` 的 stub 函数）。
+4. **LOGBOOK.md 同步检查**：本轮修改必须在 `LOGBOOK.md` 中追加日志记录，未记录则阻断提交。
+5. **测试验证**：涉及核心逻辑的修改，需在提交前运行对应测试验证通过。
+
+### 审查流程
+
+```bash
+# 1. 检查单引号（排除 SQL 和 f-string）
+git diff --cached -- '*.py' | grep "'" | grep -v "sql|f'" || true
+
+# 2. 检查 Optional/Union
+git diff --cached -- '*.py' | grep -E "Optional\[|Union\[" && echo "ERROR: 禁止使用 Optional/Union" && exit 1
+
+# 3. 检查 TODO
+git diff --cached -- '*.py' | grep "# TODO" && echo "ERROR: 存在未完成的 TODO" && exit 1
+
+# 4. 检查 LOGBOOK.md 是否更新
+git diff --cached -- LOGBOOK.md | grep "+" || echo "WARNING: LOGBOOK.md 未更新"
+```

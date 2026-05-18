@@ -80,7 +80,6 @@
         <input type="text" id="user-input" placeholder="输入问题..." autofocus
                onkeydown="if(event.key=='Enter')send()">
         <button class="btn btn-primary" onclick="send()">发送</button>
-        <button class="btn" style="background:var(--text-muted);color:#fff" onclick="newChat()">新对话</button>
       </div>
     </div>
   </div>
@@ -110,8 +109,8 @@ async function send(msg) {
   var text = msg || input.value.trim();
   if (!text) return;
   if (!msg) input.value = '';
-  // 快速测试按钮走新会话，避免上下文拉偏
-  var userId = msg ? ('test_' + Date.now()) : 'admin_tester';
+  // 持续对话：按钮和输入框共用同一会话
+  var userId = 'admin_tester';
 
   var box = document.getElementById('chat-box');
   // 用户气泡
@@ -124,14 +123,14 @@ async function send(msg) {
   try {
     var resp = await fetch('/api/v1/admin/chat-test', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer yunxi-admin-dev-2026'},
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer 100200'},
       body: JSON.stringify({content: text, user_id: userId})
     });
     var data = await resp.json();
     document.getElementById('loading-row').outerHTML =
       '<div class="msg-row start"><div class="bubble ai">' + escapeHtml(data.reply || '(无回复)') + '</div></div>' +
       '<div style="align-self:flex-start" class="msg-time">' + now() + '</div>';
-    document.getElementById('dbg-intent').textContent = {1:'商品查价',2:'规则物流',3:'售后转人工',4:'闲聊'}[data.intent] || data.intent;
+    document.getElementById('dbg-intent').textContent = {1:'商品查价',2:'运费查询',3:'配送时间',4:'售后转人工',5:'闲聊'}[data.intent] || data.intent;
     document.getElementById('dbg-time').textContent = ((Date.now()-t0)/1000).toFixed(1) + 's';
     document.getElementById('dbg-tokens').textContent = data.tokens || '-';
   } catch(e) {
@@ -139,14 +138,6 @@ async function send(msg) {
       '<div class="msg-row start"><div class="bubble ai" style="color:var(--danger)">❌ 请求失败，请检查服务状态</div></div>';
   }
   box.scrollTop = box.scrollHeight;
-}
-
-async function newChat() {
-  document.getElementById('chat-box').innerHTML =
-    '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
-  document.getElementById('dbg-intent').textContent = '-';
-  document.getElementById('dbg-time').textContent = '-';
-  document.getElementById('dbg-tokens').textContent = '-';
 }
 
 function escapeHtml(str) {

@@ -40,5 +40,13 @@ class Settings(BaseSettings):
     # ── 管理后台 ──
     ADMIN_API_TOKEN: str = ""
 
+    # ── 企业微信（客户联系） ──
+    WECOM_CORP_ID: str = ""
+    WECOM_AGENT_ID: str = ""
+    WECOM_SECRET: str = ""
+    WECOM_TOKEN: str = ""
+    WECOM_ENCODING_AES_KEY: str = ""
+    WECOM_STAFF_ID: str = ""  # 客服小李的企微 USER_ID
+
 
 settings = Settings()

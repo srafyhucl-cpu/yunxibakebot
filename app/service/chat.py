@@ -89,7 +89,18 @@ class ChatService:
             logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
             return None
 
-        # 5. 意图识别（决定走售后、知识搜索还是闲聊）
+        # 5. 运费关键词直接返回固定话术，不走意图识别和 LLM
+        SHIPPING_KEYWORDS = ["运费", "邮费", "配送费"]
+        if any(kw in content for kw in SHIPPING_KEYWORDS):
+            reply = "运费的话统一回复您：运费由顾客按实际路程支付，下单时确认就好~😊"
+            assistant_msg = Message(
+                id="", session_id=session.id, role=MessageRole.ASSISTANT,
+                content=reply,
+            )
+            await self._message_repo.save(assistant_msg)
+            return reply
+
+        # 6. 意图识别（决定走售后、知识搜索还是闲聊）
         from app.service.llm.intent import detect_intent
         history = await self._session_mgr.build_context(session.id)
         history_text = "\n".join(
@@ -99,8 +110,8 @@ class ChatService:
         intent = await detect_intent(content, history=history_text)
         logger.info("会话 %s 意图: %d", session.id, intent)
 
-        # 意图 3 = 售后/转人工 → 自动创建转人工工单
-        if intent == 3:
+        # 意图 4 = 售后/转人工 → 自动创建转人工工单
+        if intent == 4:
             transfer = await self._transfer_mgr.request_transfer(
                 session.id, user_id, reason=content,
                 summary=history_text[-200:],
@@ -114,15 +125,19 @@ class ChatService:
             await self._message_repo.save(assistant_msg)
             return reply
 
-        # 6. 进入 AI 对话循环
+        # 7. 进入 AI 对话循环
         reply = await self._ai_conversation_loop(session, user_query=content, intent=intent)
+
+        # 清理 Markdown 符号（LLM 偶尔会输出 ** 加粗）
+        if reply:
+            reply = reply.replace("**", "").replace("*", "").replace("__", "")
 
         # 安抚策略：检测到敏感词时附加道歉前缀
         from app.service.llm.soothe import needs_soothe, apply_soothe
         if reply and needs_soothe(content):
             reply = apply_soothe(reply)
 
-        # 7. 保存 AI 回复
+        # 8. 保存 AI 回复
         if reply:
             assistant_msg = Message(
                 id="", session_id=session.id, role=MessageRole.ASSISTANT,
@@ -151,7 +166,7 @@ class ChatService:
             f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:80]}"
             for m in history[-4:] if m.get("role") in ("user", "assistant")
         )
-        if intent == 4:
+        if intent == 5:
             # 闲聊：不需要知识检索
             knowledge_entries = []
         else:
