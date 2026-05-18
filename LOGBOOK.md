@@ -32,3 +32,34 @@
   - 企微 API 客户端已就绪（access_token 缓存、消息发送）。
   - SCF 转发代理（scripts/scf_proxy.py）已编写，需部署后测试。
   - 转人工服务的消息推送仅支持管理后台轮询。
+
+---
+
+## [版本/日期] - 2026-05-18
+- **操作人**: AI (Claude Code)
+- **关联任务/功能**: 后台管理大改版 + 知识库扩容 + 企微回调预备
+- **核心变更文件说明**:
+  - `app/templates/admin/chat_test.html`: 完全重写为微信风格全屏聊天UI，消息气泡/输入栏/抽屉菜单/保存对话/弹窗等，手机端优先。
+  - `app/templates/admin/base.html`: 新增移动端顶栏（sticky topbar + hamburger），侧栏改为抽屉式滑动。
+  - `app/templates/admin/transfers.html`: 重构布局，新增对话查看面板（右侧抽屉）、修复接单/查看对话无Token问题。
+  - `app/static/admin/style.css`: 全面重写响应式CSS，移动/平板/PC三端适配。
+  - `app/api/admin.py`: 新增 chat-test 历史消息API、保存命名API、丢弃对话API、查看会话消息API；注入 message_repo 依赖。
+  - `app/repository/session_repo.py`: 新增 `update_extra()`、`get_named()` 方法，支持对话命名/列表/丢弃状态过滤。
+  - `app/main.py`: 注入 message_repo 参数。
+  - `app/service/llm/intent.py`: 意图分类调整为5类（商品/运费/配送/售后/闲聊），下单关键词归入商品类。
+  - `app/service/llm/prompt.py`: 新增尺寸人数强制从知识库的规则。
+  - `scripts/seed_knowledge.py`: 新增 `parse_scripts()` 解析话术库；新增全指南文件导入。
+  - `knowledge/芸熙烘焙产品服务全指南.md`: 新增，整合资料.md为结构化FAQ+话术库。
+  - `scripts/scf_proxy.py`: 修复VPS地址为公网IP。
+- **数据库状态变更 (Schema Update)**:
+  - 无
+- **测试覆盖与验证结果**:
+  - `python scripts/test_scenarios.py` ✅ 5类意图识别正确
+  - `python scripts/validate_products.py` ✅ 765条校验通过
+  - `python scripts/seed_knowledge.py` ✅ 806条知识导入完成
+  - 对话保存/命名/丢弃/加载历史 ✅ 全链路测试通过
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 企微回调域名主体校验未通过，需等公司域名备案后才能启用。
+  - 管理员前台专注对话测试和数据统计定位，转人工/接单功能已置灰待上线。
+  - 对话测试页 + 按钮可能存在移动端兼容问题（需在真机测试）。
+  - AI偶有编造尺寸食用人数的问题，已通过 prompt 规则缓解，需持续标注跟进。

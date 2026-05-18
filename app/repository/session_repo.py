@@ -94,3 +94,23 @@ class SessionRepo:
             (limit,),
         )
         return [Session(**dict(r)) for r in rows]
+
+    async def update_extra(self, session_id: str, extra_info: str) -> None:
+        """更新会话的 extra_info 字段。"""
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        await self._db.execute(
+            "UPDATE sessions SET extra_info = ?, updated_at = ? WHERE id = ?",
+            (extra_info, now, session_id),
+        )
+        await self._db.commit()
+
+    async def get_named(self, channel: str = "", limit: int = 50) -> list[Session]:
+        """获取有自定义名称的活跃会话（用于列表展示，已丢弃的不显示）。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, channel, user_id, staff_id, status, extra_info, created_at, updated_at "
+            "FROM sessions WHERE extra_info LIKE '%\"name\"%' AND status != 'closed' "
+            "AND (? = '' OR channel = ?) "
+            "ORDER BY updated_at DESC LIMIT ?",
+            (channel, channel, limit),
+        )
+        return [Session(**dict(r)) for r in rows]

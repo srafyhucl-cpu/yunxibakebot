@@ -7,6 +7,7 @@
 页面使用 Session Cookie 鉴权，API 使用 Bearer Token 鉴权。
 """
 
+import json
 import uuid
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader
 from app.config import settings
 from app.logger import setup_logger
 from app.repository.knowledge_repo import KnowledgeRepo
+from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.service.chat import ChatService
@@ -50,6 +52,7 @@ def check_login(request: Request) -> str | None:
 def create_admin_router(
     chat_service: ChatService,
     session_repo: SessionRepo,
+    message_repo: MessageRepo,
     transfer_repo: TransferRepo,
     knowledge_repo: KnowledgeRepo | None = None,
 ) -> APIRouter:
@@ -61,7 +64,7 @@ def create_admin_router(
 
     @router.get("/admin", response_class=HTMLResponse)
     async def admin_index(request: Request):
-        return RedirectResponse(url="/admin/dashboard")
+        return RedirectResponse(url="/admin/chat-test")
 
     @router.get("/admin/login", response_class=HTMLResponse)
     async def login_page(request: Request, error: str = ""):
@@ -137,7 +140,67 @@ def create_admin_router(
         )
         return HTMLResponse(html)
 
+    # ── 对话管理 API ──
+    @api_router.get("/chat-test/sessions", dependencies=[Depends(verify_token)])
+    async def list_saved_sessions() -> dict:
+        """获取已保存（有名称）的对话列表。"""
+        sessions = await session_repo.get_named(channel="admin_test")
+        return {"code": 0, "data": [
+            {
+                "id": s.id,
+                "name": json.loads(s.extra_info).get("name", "未命名"),
+                "user_id": s.user_id,
+                "msg_count": 0,
+                "created_at": s.created_at,
+            }
+            for s in sessions
+        ]}
+
+    @api_router.post("/chat-test/save", dependencies=[Depends(verify_token)])
+    async def save_session(request: Request) -> dict:
+        """保存/命名一个对话。"""
+        import json
+        raw = await request.body()
+        body = json.loads(raw.decode("utf-8"))
+        session_id = body.get("session_id", "")
+        name = body.get("name", "").strip()
+        if not session_id or not name:
+            return {"code": 422, "message": "参数不完整"}
+        session = await session_repo.get(session_id)
+        if not session:
+            return {"code": 404, "message": "会话不存在"}
+        extra = json.loads(session.extra_info or "{}")
+        extra["name"] = name
+        await session_repo.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
+        return {"code": 0, "message": "已保存"}
+
+    @api_router.delete("/chat-test/session/{session_id}", dependencies=[Depends(verify_token)])
+    async def discard_session(session_id: str) -> dict:
+        """丢弃一个对话。"""
+        session = await session_repo.get(session_id)
+        if not session:
+            return {"code": 404, "message": "会话不存在"}
+        await session_repo.update_status(session_id, "closed")
+        return {"code": 0, "message": "已丢弃"}
+
     # ── 对话测试 API ──
+    @api_router.get("/chat-test/messages", dependencies=[Depends(verify_token)])
+    async def chat_test_history(user_id: str = "admin_tester") -> dict:
+        """获取对话测试的历史消息。"""
+        session = await session_repo.get_active(user_id, "admin_test")
+        if not session:
+            return {"code": 0, "data": []}
+        from app.models.message import MessageRole
+        msgs = await message_repo.get_by_session(session.id)
+        return {"code": 0, "data": [
+            {
+                "role": m.role.value if hasattr(m.role, "value") else m.role,
+                "content": m.content,
+                "created_at": m.created_at,
+            }
+            for m in msgs
+        ]}
+
     @api_router.post("/chat-test", dependencies=[Depends(verify_token)])
     async def chat_test_api(request: Request) -> dict:
         import json
@@ -172,9 +235,12 @@ def create_admin_router(
             channel_msg_id=str(uuid.uuid4()),
             content=content,
         )
+        # 获取当前会话 ID
+        session = await session_repo.get_active(test_user, "admin_test")
+        session_id = session.id if session else ""
         # 清理 Markdown 星号
         clean = (reply or "(无回复)").replace("**", "").replace("*", "")
-        return {"code": 0, "reply": clean, "intent": intent}
+        return {"code": 0, "reply": clean, "intent": intent, "session_id": session_id}
 
     # ────────────────────────────── API 路由 ──────────────────────────────
 
@@ -209,6 +275,19 @@ def create_admin_router(
             raise HTTPException(status_code=422, detail="回复内容不能为空")
         await chat_service.handle_human_reply(session_id, content)
         return {"code": 0, "message": "已发送"}
+
+    @api_router.get("/sessions/{session_id}/messages", dependencies=[Depends(verify_token)])
+    async def get_session_messages(session_id: str) -> dict:
+        """获取某会话的消息列表。"""
+        msgs = await message_repo.get_by_session(session_id)
+        return {"code": 0, "data": [
+            {
+                "role": m.role.value if hasattr(m.role, "value") else m.role,
+                "content": m.content,
+                "created_at": m.created_at,
+            }
+            for m in msgs
+        ]}
 
     @api_router.get("/sessions", dependencies=[Depends(verify_token)])
     async def list_sessions() -> dict:

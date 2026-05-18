@@ -24,6 +24,7 @@ KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent / "knowledge"
 PRODUCTS_FILE = KNOWLEDGE_DIR / "芸熙烘焙商品库知识库.md"
 FAQ_FILE = KNOWLEDGE_DIR / "芸熙烘焙常见问题FAQ.md"
 SERVICE_FILE = KNOWLEDGE_DIR / "芸熙烘焙通用服务与售后指引.md"
+GUIDE_FILE = KNOWLEDGE_DIR / "芸熙烘焙产品服务全指南.md"
 
 DB_PATH = "data/bot.db"
 
@@ -122,6 +123,38 @@ def parse_faq(content: str) -> list[dict]:
     return entries
 
 
+def parse_scripts(content: str) -> list[dict]:
+    """解析话术库（！#### 话术N 标题）。"""
+    entries: list[dict] = []
+    lines = content.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith("！#### 话术"):
+            title = line.replace("！####", "").strip()
+            texts: list[str] = []
+            i += 1
+            while i < len(lines):
+                stripped = lines[i].strip()
+                if stripped.startswith("！####"):
+                    i -= 1
+                    break
+                if stripped and not stripped.startswith(("！", "#")):
+                    texts.append(stripped)
+                i += 1
+            if texts:
+                entries.append({
+                    "category": "faq",
+                    "title": title,
+                    "content": "\n".join(texts),
+                    "keywords": title,
+                    "priority": 4,
+                })
+        i += 1
+    logger.info("解析到 %d 条话术", len(entries))
+    return entries
+
+
 def parse_service() -> list[dict]:
     """预设服务与售后知识条目。"""
     return [
@@ -195,7 +228,12 @@ async def seed() -> None:
     # 3. 导入服务/政策知识
     services = parse_service()
 
-    all_entries = products + faqs + services
+    # 4. 导入产品服务全指南
+    guide_text = GUIDE_FILE.read_text(encoding="utf-8")
+    guide_faqs = parse_faq(guide_text)
+    guide_scripts = parse_scripts(guide_text)
+
+    all_entries = products + faqs + services + guide_faqs + guide_scripts
     for entry in all_entries:
         await conn.execute(
             "INSERT INTO knowledge_base (category, title, content, keywords, priority) "
@@ -206,8 +244,9 @@ async def seed() -> None:
 
     await conn.commit()
     await conn.close()
-    logger.info("导入完成！共 %d 条知识（产品 %d，FAQ %d，服务 %d）",
-                len(all_entries), len(products), len(faqs), len(services))
+    logger.info("导入完成！共 %d 条知识（产品 %d，FAQ %d，服务 %d，全指南 %d，话术 %d）",
+                len(all_entries), len(products), len(faqs), len(services),
+                len(guide_faqs), len(guide_scripts))
 
 
 if __name__ == "__main__":

@@ -1,96 +1,195 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <style>
-.chat-wrapper {
-  display: flex; gap: 20px; height: calc(100vh - 140px);
+* { box-sizing: border-box; }
+.chat-page {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  background: #ededed; z-index: 50;
 }
-.chat-main { flex: 3; display: flex; flex-direction: column; }
-.chat-panel {
-  background: #f0ece7; border-radius: 12px; flex: 1;
-  display: flex; flex-direction: column; overflow: hidden;
+/* 顶栏 */
+.chat-topbar {
+  background: var(--primary); color: #fff;
+  display: flex; align-items: center; padding: 0 12px;
+  height: 48px; flex-shrink: 0; position: relative;
 }
-.chat-header {
-  background: var(--primary); color: #fff; text-align: center;
-  padding: 14px; font-size: 15px; font-weight: 600;
+.chat-topbar .title {
+  flex: 1; text-align: center; font-size: 16px; font-weight: 600;
 }
-.chat-box {
-  flex: 1; overflow-y: auto; padding: 20px 16px;
-  display: flex; flex-direction: column; gap: 14px;
+.chat-topbar .btn-icon {
+  background: none; border: none; color: #fff; font-size: 20px;
+  padding: 8px; cursor: pointer; line-height: 1;
 }
-.chat-input {
-  display: flex; gap: 8px; padding: 12px 16px;
-  background: #fff; border-top: 1px solid var(--border);
+.chat-topbar .badge {
+  font-size: 10px; background: #fff; color: var(--primary);
+  border-radius: 10px; padding: 1px 6px; margin-left: 4px;
 }
-.chat-input input {
-  flex: 1; border: 1px solid var(--border); border-radius: 24px;
-  padding: 10px 16px; font-size: 14px; outline: none;
+
+/* 消息区 */
+.chat-msgs {
+  flex: 1; overflow-y: auto; padding: 16px 12px;
+  display: flex; flex-direction: column; gap: 12px;
 }
-.chat-input input:focus { border-color: var(--primary); }
-.msg-row { display: flex; max-width: 80%; }
+.msg-row { display: flex; max-width: 85%; }
 .msg-row.end { align-self: flex-end; }
 .msg-row.start { align-self: flex-start; }
 .bubble {
-  padding: 10px 14px; border-radius: 14px; font-size: 14px;
-  line-height: 1.6; word-break: break-word;
+  padding: 8px 12px; font-size: 14px; line-height: 1.6;
+  word-break: break-word; white-space: pre-wrap;
+  position: relative;
 }
 .bubble.user {
-  background: var(--primary); color: #fff;
-  border-bottom-right-radius: 4px;
+  background: #95ec69; color: #000;
+  border-radius: 6px 6px 2px 6px;
 }
 .bubble.ai {
-  background: #fff; color: var(--text);
-  border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  background: #fff; color: #000;
+  border-radius: 6px 6px 6px 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
-.bubble.ai.loading { opacity: 0.6; }
+.bubble.ai.loading { opacity: 0.5; }
 .msg-time {
-  font-size: 11px; color: var(--text-muted); margin: 2px 8px 0;
+  font-size: 11px; color: #b0b0b0; margin: 2px 12px 0;
 }
-.sidebar-test {
-  flex: 1; min-width: 200px;
-  display: flex; flex-direction: column; gap: 12px;
+
+/* 输入栏 */
+.chat-inputbar {
+  background: #f7f7f7; border-top: 1px solid #e0e0e0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; flex-shrink: 0;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
-.quick-btn {
+.chat-inputbar input {
+  flex: 1; border: 1px solid #ddd; border-radius: 4px;
+  padding: 8px 12px; font-size: 15px; outline: none; background: #fff;
+}
+.chat-inputbar input:focus { border-color: var(--primary); }
+.chat-inputbar .btn-send {
+  background: var(--primary); color: #fff; border: none;
+  border-radius: 4px; padding: 8px 16px; font-size: 14px;
+  cursor: pointer; white-space: nowrap;
+}
+
+/* 浮层提示 */
+.chat-notice {
+  font-size: 11px; color: #b0b0b0; text-align: center;
+  padding: 6px 12px; flex-shrink: 0;
+}
+
+/* 侧边抽屉（从右滑入） */
+.drawer-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 300;
+}
+.drawer-overlay.show { display: block; }
+.drawer {
+  position: fixed; top: 0; right: -300px; bottom: 0; width: 280px;
+  background: #fff; z-index: 310; transition: right 0.25s ease;
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.drawer.open { right: 0; }
+.drawer-header {
+  padding: 16px; font-size: 15px; font-weight: 600;
+  border-bottom: 1px solid #eee;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.drawer-header button {
+  background: none; border: none; font-size: 18px; cursor: pointer; color: #999;
+}
+
+/* 抽屉内：已保存 */
+.drawer-section { padding: 12px 0; border-bottom: 8px solid #f5f5f5; }
+.drawer-section h4 { padding: 0 16px; font-size: 13px; color: #999; margin-bottom: 8px; }
+.drawer-item {
+  padding: 10px 16px; cursor: pointer; font-size: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.1s;
+}
+.drawer-item:hover { background: #f5f5f5; }
+.drawer-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-item .del { color: #ccc; cursor: pointer; padding: 2px 6px; font-size: 12px; }
+.drawer-item .del:hover { color: var(--danger); }
+.drawer-item.active { background: #fff3e0; }
+
+.drawer-btn {
   display: block; width: 100%; text-align: left;
-  padding: 10px 14px; border: 1px solid var(--border);
-  border-radius: 8px; background: #fff; cursor: pointer;
-  font-size: 13px; transition: all 0.15s;
+  padding: 10px 16px; border: none; background: none;
+  cursor: pointer; font-size: 14px; transition: background 0.1s;
 }
-.quick-btn:hover { border-color: var(--primary); background: #fef8f8; }
-.debug-card {
-  background: #fff; border-radius: 8px; padding: 14px;
-  border: 1px solid var(--border);
+.drawer-btn:hover { background: #f5f5f5; }
+
+/* 抽屉内：调试 */
+.drawer-debug { padding: 12px 16px; }
+.drawer-debug table { width: 100%; font-size: 13px; }
+.drawer-debug td { padding: 4px 0; border: none; }
+.drawer-debug td:first-child { color: #999; width: 50px; }
+
+/* 弹窗 */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  z-index: 400; align-items: center; justify-content: center;
 }
-.debug-card table { width: 100%; font-size: 13px; }
-.debug-card td { padding: 6px 0; border: none; }
-.debug-card td:first-child { color: var(--text-muted); width: 60px; }
+.modal-overlay.show { display: flex; }
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 24px;
+  width: 320px; max-width: 90vw;
+}
+.modal-box h3 { font-size: 16px; margin-bottom: 8px; }
+.modal-box p { font-size: 14px; color: #666; margin-bottom: 16px; }
+.modal-input { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 10px; font-size: 14px; outline: none; }
+.modal-input:focus { border-color: var(--primary); }
+.modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+.modal-actions button { flex: 1; padding: 10px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.modal-btn-primary { background: var(--primary); color: #fff; }
+.modal-btn-default { background: #f0f0f0; color: #333; }
+.modal-btn-danger { background: none; color: var(--danger); }
 </style>
 
-<div class="chat-wrapper">
-  <div class="chat-main">
-    <div class="chat-panel">
-      <div class="chat-header">芸熙烘焙 · 智能客服</div>
-      <div class="chat-box" id="chat-box">
-        <div class="msg-row start">
-          <div class="bubble ai">
-            👋 你好，我是在线客服，有什么可以帮你的~
-          </div>
-        </div>
-      </div>
-      <div class="chat-input">
-        <input type="text" id="user-input" placeholder="输入问题..." autofocus
-               onkeydown="if(event.key=='Enter')send()">
-        <button class="btn btn-primary" onclick="send()">发送</button>
-      </div>
-    </div>
+<div class="chat-page">
+  <!-- 顶栏 -->
+  <div class="chat-topbar">
+    <button class="btn-icon" onclick="drawerToggle()">☰</button>
+    <div class="title">芸熙烘焙 <span class="badge" id="chat-status">测试</span></div>
+    <button class="btn-icon" onclick="onNewChat()">✚</button>
   </div>
 
-  <div class="sidebar-test">
-    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="提拉米苏多少钱">🍰 提拉米苏多少钱</button>
-    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="明天下午能送到吗">🚚 明天下午能送到吗</button>
-    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="蛋糕坏了我要退款">⚠️ 蛋糕坏了要退款</button>
-    <button class="quick-btn" onclick="send(this.dataset.msg)" data-msg="哈喽在吗">👋 哈喽在吗</button>
+  <!-- 提示 -->
+  <div class="chat-notice">⚠️ AI使用小程序导出数据，暂未对接有赞实时接口。</div>
 
-    <div class="debug-card">
+  <!-- 消息 -->
+  <div class="chat-msgs" id="chat-msgs"></div>
+
+  <!-- 输入栏 -->
+  <div class="chat-inputbar">
+    <input type="text" id="user-input" placeholder="输入问题..." autofocus
+           onkeydown="if(event.key=='Enter')send()">
+    <button class="btn-send" onclick="send()">发送</button>
+  </div>
+</div>
+
+<!-- 侧边抽屉 -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="drawerClose()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    菜单
+    <button onclick="drawerClose()">✕</button>
+  </div>
+
+  <div class="drawer-section">
+    <h4>已保存对话</h4>
+    <div id="saved-list"></div>
+  </div>
+
+  <div class="drawer-section">
+    <h4>快捷测试</h4>
+    <button class="drawer-btn" onclick="sendStatic('🍰 提拉米苏多少钱')">🍰 提拉米苏多少钱</button>
+    <button class="drawer-btn" onclick="sendStatic('🚚 明天下午能送到吗')">🚚 明天下午能送到吗</button>
+    <button class="drawer-btn" onclick="sendStatic('⚠️ 蛋糕坏了我要退款')">⚠️ 蛋糕坏了我要退款</button>
+    <button class="drawer-btn" onclick="sendStatic('👋 哈喂在吗')">👋 哈喽在吗</button>
+  </div>
+
+  <div class="drawer-section">
+    <h4>调试信息</h4>
+    <div class="drawer-debug">
       <table>
         <tr><td>意图</td><td id="dbg-intent">-</td></tr>
         <tr><td>耗时</td><td id="dbg-time">-</td></tr>
@@ -100,50 +199,192 @@
   </div>
 </div>
 
+<!-- 保存弹窗 -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <h3>当前对话未保存</h3>
+    <p>保存后可在菜单中随时查看。</p>
+    <input class="modal-input" id="modal-name" placeholder="输入对话名称">
+    <div class="modal-actions">
+      <button class="modal-btn-primary" onclick="saveAndNew()">保存并新建</button>
+      <button class="modal-btn-default" onclick="discardAndNew()">不保存</button>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn-danger" style="flex:1" onclick="closeModal()">取消</button>
+    </div>
+  </div>
+</div>
+
 <script>
+var _auth = {headers: {'Authorization': 'Bearer 100200'}};
+var _currentSessionId = '';
+var _userId = 'admin_tester';
+var _hasName = false;
+var _userScrolledUp = false;
+
+// ── 消息区 ──
+var _msgs = document.getElementById('chat-msgs');
+_msgs.addEventListener('scroll', function() {
+  _userScrolledUp = _msgs.scrollHeight - _msgs.scrollTop - _msgs.clientHeight > 80;
+});
+function scrollBottom() { _msgs.scrollTop = _msgs.scrollHeight; _userScrolledUp = false; }
+function nearBottom() { return _msgs.scrollHeight - _msgs.scrollTop - _msgs.clientHeight < 120; }
+
+// ── 侧边抽屉 ──
+function drawerToggle() {
+  var d = document.getElementById('drawer');
+  var o = document.getElementById('drawer-overlay');
+  d.classList.toggle('open'); o.classList.toggle('show');
+}
+function drawerClose() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('show');
+}
+
+// ── 已保存对话 ──
+async function loadSaved() {
+  try {
+    var r = await fetch('/api/v1/admin/chat-test/sessions', _auth);
+    var d = await r.json();
+    if (d.code !== 0 || !d.data || d.data.length === 0) {
+      document.getElementById('saved-list').innerHTML = '<div style="padding:10px 16px;font-size:13px;color:#ccc">暂无保存的对话</div>';
+      return;
+    }
+    var html = '';
+    for (var s of d.data) {
+      html += '<div class="drawer-item" onclick="loadSession(\'' + s.id + '\')"><span class="name">' + esc(s.name) + '</span><span class="del" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')">✕</span></div>';
+    }
+    document.getElementById('saved-list').innerHTML = html;
+  } catch(e) {}
+}
+
+async function loadSession(sessionId) {
+  _hasName = true;
+  try {
+    var r = await fetch('/api/v1/admin/sessions/' + sessionId + '/messages', _auth);
+    var d = await r.json();
+    if (d.code !== 0 || !d.data) return;
+    _currentSessionId = sessionId;
+    _msgs.innerHTML = '';
+    for (var m of d.data) {
+      addMsg(m.role, m.content);
+    }
+    scrollBottom();
+    drawerClose();
+    document.querySelectorAll('.drawer-item').forEach(function(el) { el.classList.remove('active'); });
+    var items = document.querySelectorAll('.drawer-item');
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].textContent.includes(sessionId.slice(0,8))) { items[i].classList.add('active'); break; }
+    }
+  } catch(e) {}
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm('确定丢弃？')) return;
+  try {
+    await fetch('/api/v1/admin/chat-test/session/' + sessionId, { method: 'DELETE', ..._auth });
+    loadSaved();
+  } catch(e) {}
+}
+
+// ── 消息渲染 ──
+function addMsg(role, content) {
+  var cls = role === 'user' ? 'msg-row end' : 'msg-row start';
+  var bubble = role === 'user' ? 'bubble user' : 'bubble ai';
+  var time = '<div style="align-self:' + (role === 'user' ? 'flex-end' : 'flex-start') + '" class="msg-time">' + now() + '</div>';
+  _msgs.innerHTML += '<div class="' + cls + '"><div class="' + bubble + '">' + esc(content) + '</div></div>' + time;
+}
+
+// ── 新对话 ──
+function onNewChat() {
+  drawerClose();
+  if (_hasName) {
+    _currentSessionId = ''; _userId = 'test_' + Date.now();
+    _hasName = false; resetChat(); return;
+  }
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal-name').value = '';
+  setTimeout(function(){ document.getElementById('modal-name').focus(); }, 100);
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+async function saveAndNew() {
+  var name = document.getElementById('modal-name').value.trim();
+  if (!name) { alert('请输入名称'); return; }
+  if (_currentSessionId) {
+    await fetch('/api/v1/admin/chat-test/save', {
+      method: 'POST', ..._auth,
+      headers: {'Content-Type': 'application/json', ..._auth.headers},
+      body: JSON.stringify({session_id: _currentSessionId, name: name})
+    });
+  }
+  closeModal(); _hasName = true;
+  _currentSessionId = ''; _userId = 'test_' + Date.now();
+  resetChat(); loadSaved();
+}
+
+function discardAndNew() {
+  closeModal(); _hasName = false;
+  _currentSessionId = ''; _userId = 'test_' + Date.now();
+  resetChat();
+}
+
+function resetChat() {
+  _msgs.innerHTML = '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
+  document.getElementById('dbg-intent').textContent = '-';
+  document.getElementById('dbg-time').textContent = '-';
+  document.getElementById('dbg-tokens').textContent = '-';
+}
+
+// ── 发送 ──
 function now() { return new Date().toLocaleTimeString(); }
 
-var _testId = Date.now();
+function sendStatic(text) { send(text); drawerClose(); }
+
 async function send(msg) {
   var input = document.getElementById('user-input');
   var text = msg || input.value.trim();
   if (!text) return;
   if (!msg) input.value = '';
-  // 持续对话：按钮和输入框共用同一会话
-  var userId = 'admin_tester';
+  _userScrolledUp = false;
 
-  var box = document.getElementById('chat-box');
-  // 用户气泡
-  box.innerHTML += '<div class="msg-row end"><div class="bubble user">' + escapeHtml(text) + '</div></div><div style="align-self:flex-end;text-align:right" class="msg-time">' + now() + '</div>';
-  // 加载动画
-  box.innerHTML += '<div class="msg-row start" id="loading-row"><div class="bubble ai loading">⏳ 正在思考...</div></div>';
-  box.scrollTop = box.scrollHeight;
+  addMsg('user', text);
+  _msgs.innerHTML += '<div class="msg-row start" id="loading-row"><div class="bubble ai loading">⏳ 正在思考...</div></div>';
+  scrollBottom();
 
   var t0 = Date.now();
   try {
     var resp = await fetch('/api/v1/admin/chat-test', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer 100200'},
-      body: JSON.stringify({content: text, user_id: userId})
+      body: JSON.stringify({content: text, user_id: _userId})
     });
     var data = await resp.json();
-    document.getElementById('loading-row').outerHTML =
-      '<div class="msg-row start"><div class="bubble ai">' + escapeHtml(data.reply || '(无回复)') + '</div></div>' +
-      '<div style="align-self:flex-start" class="msg-time">' + now() + '</div>';
-    document.getElementById('dbg-intent').textContent = {1:'商品查价',2:'运费查询',3:'配送时间',4:'售后转人工',5:'闲聊'}[data.intent] || data.intent;
+    var loadingEl = document.getElementById('loading-row');
+    if (loadingEl) {
+      loadingEl.outerHTML = '';
+      addMsg('assistant', data.reply || '(无回复)');
+    }
+    if (data.session_id) _currentSessionId = data.session_id;
+    document.getElementById('dbg-intent').textContent = {1:'商品',2:'运费',3:'配送',4:'售后',5:'闲聊'}[data.intent] || data.intent;
     document.getElementById('dbg-time').textContent = ((Date.now()-t0)/1000).toFixed(1) + 's';
     document.getElementById('dbg-tokens').textContent = data.tokens || '-';
   } catch(e) {
-    document.getElementById('loading-row').outerHTML =
-      '<div class="msg-row start"><div class="bubble ai" style="color:var(--danger)">❌ 请求失败，请检查服务状态</div></div>';
+    var loadingEl = document.getElementById('loading-row');
+    if (loadingEl) {
+      loadingEl.outerHTML = '';
+      addMsg('assistant', '❌ 请求失败，请检查服务状态');
+    }
   }
-  box.scrollTop = box.scrollHeight;
+  if (nearBottom()) scrollBottom();
+  document.getElementById('chat-status').textContent = '测试';
 }
 
-function escapeHtml(str) {
-  var div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── 初始化 ──
+_msgs.innerHTML = '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
+loadSaved();
 </script>
 {% endblock %}

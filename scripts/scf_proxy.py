@@ -8,7 +8,7 @@ import urllib.request
 import urllib.error
 
 
-VPS_URL = "http://127.0.0.1:7001"
+VPS_URL = "http://47.94.102.250:7001"
 
 
 def main_handler(event: dict, context: dict) -> dict:
