@@ -190,9 +190,8 @@ def create_admin_router(
         session = await session_repo.get_active(user_id, "admin_test")
         if not session:
             return {"code": 0, "data": []}
-        from app.models.message import MessageRole
         msgs = await message_repo.get_by_session(session.id)
-        return {"code": 0, "data": [
+        return {"code": 0, "session_id": session.id, "data": [
             {
                 "role": m.role.value if hasattr(m.role, "value") else m.role,
                 "content": m.content,

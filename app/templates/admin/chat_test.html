@@ -258,6 +258,24 @@ async function loadSaved() {
   } catch(e) {}
 }
 
+async function loadHistory() {
+  if (_userId) {
+    try {
+      var r = await fetch('/api/v1/admin/chat-test/messages?user_id=' + _userId, _auth);
+      var d = await r.json();
+      if (d.code !== 0 || !d.data || d.data.length === 0) return;
+      _currentSessionId = d.session_id || '';
+      _msgs.innerHTML = '';
+      for (var m of d.data) {
+        var cls = m.role === 'user' ? 'msg-row end' : 'msg-row start';
+        var bubble = m.role === 'user' ? 'bubble user' : 'bubble ai';
+        _msgs.innerHTML += '<div class="' + cls + '"><div class="' + bubble + '">' + esc(m.content) + '</div></div>';
+      }
+      scrollBottom();
+    } catch(e) {}
+  }
+}
+
 async function loadSession(sessionId) {
   _hasName = true;
   try {
@@ -283,6 +301,11 @@ async function deleteSession(sessionId) {
   if (!confirm('确定丢弃？')) return;
   try {
     await fetch('/api/v1/admin/chat-test/session/' + sessionId, { method: 'DELETE', ..._auth });
+    if (_currentSessionId === sessionId) {
+      _currentSessionId = '';
+      _hasName = false;
+      resetChat();
+    }
     loadSaved();
   } catch(e) {}
 }
@@ -324,9 +347,14 @@ async function saveAndNew() {
   resetChat(); loadSaved();
 }
 
-function discardAndNew() {
+async function discardAndNew() {
   closeModal(); _hasName = false;
-  _currentSessionId = ''; _userId = 'test_' + Date.now();
+  // 关闭旧会话
+  if (_currentSessionId) {
+    try { await fetch('/api/v1/admin/chat-test/session/' + _currentSessionId, { method: 'DELETE', ..._auth }); } catch(e) {}
+    _currentSessionId = '';
+  }
+  _userId = 'test_' + Date.now();
   resetChat();
 }
 
@@ -384,7 +412,7 @@ async function send(msg) {
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ── 初始化 ──
-_msgs.innerHTML = '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
+loadHistory();
 loadSaved();
 </script>
 {% endblock %}
