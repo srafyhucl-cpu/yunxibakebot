@@ -1,0 +1,4 @@
+本项目所有行为规范与开发红线请参见 `CLAUDE.md`，它是唯一的开发规范源。
+架构约束、代码风格、质量门禁、提交流程均定义在 `CLAUDE.md` 中。
+`DEVELOPMENT_RULES.md` 为历史文件，内容已合并至 `CLAUDE.md`。
+`LOGBOOK.md` 是项目演进编年史，每次提交必须更新。

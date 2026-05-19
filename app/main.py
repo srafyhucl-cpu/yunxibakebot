@@ -20,6 +20,7 @@ from app.config import settings
 from app.database import init_db, close_db
 from app.exceptions import AppError
 from app.logger import setup_logger
+from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     message_repo = MessageRepo(db)
     knowledge_repo = KnowledgeRepo(db)
     transfer_repo = TransferRepo(db)
+    config_repo = ConfigRepo(db)
 
     # 语义向量搜索服务（加载已有索引或构建新的）
     from app.service.embedding_search import EmbeddingSearcher
@@ -67,7 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("向量索引已构建: %d 条文档", vs.doc_count)
 
     # Service 层
-    knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs)
+    knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
     chat_service = ChatService(
         session_repo=session_repo,
         message_repo=message_repo,
@@ -77,6 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 注册路由（通过工厂函数注入依赖）
     from app.api.admin import create_admin_router
+    from app.api.admin_config import create_shop_config_router
     from app.api.webhook import create_webhook_router
     from app.api.wecom import router as wecom_router, register_handler
 
@@ -94,6 +97,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.include_router(create_admin_router(
         chat_service, session_repo, message_repo, transfer_repo, knowledge_repo=knowledge_repo,
     ))
+    app.include_router(create_shop_config_router(config_repo, knowledge_repo))
     app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)

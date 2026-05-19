@@ -33,8 +33,6 @@ logger = setup_logger()
 # ── 业务常量 ──────────────────────────────────────────────────────────────────
 FALLBACK_REPLY = "系统正忙，请稍后再试或联系人工客服。"
 TRANSFER_REPLY = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
-SHIPPING_REPLY = "运费的话统一回复您：运费由顾客按实际路程支付，下单时确认就好~😊"
-SHIPPING_KEYWORDS: tuple[str, ...] = ("运费", "邮费", "配送费")
 DEFAULT_SEARCH_QUERY = "芸熙烘焙 产品 价格"
 KNOWLEDGE_SEARCH_LIMIT = 8
 INTENT_HISTORY_MESSAGES = 4
@@ -101,16 +99,7 @@ class ChatService:
             logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
             return None
 
-        # 5. 运费关键词直接返回固定话术，不走意图识别和 LLM
-        if any(kw in content for kw in SHIPPING_KEYWORDS):
-            assistant_msg = Message(
-                id="", session_id=session.id, role=MessageRole.ASSISTANT,
-                content=SHIPPING_REPLY,
-            )
-            await self._message_repo.save(assistant_msg)
-            return SHIPPING_REPLY
-
-        # 6. 意图识别（决定走售后、知识搜索还是闲聊）
+        # 5. 意图识别（决定走售后、知识搜索还是闲聊）
         history = await self._session_mgr.build_context(session.id)
         history_text = "\n".join(
             f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"

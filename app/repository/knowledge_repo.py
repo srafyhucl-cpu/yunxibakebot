@@ -64,3 +64,46 @@ class KnowledgeRepo:
         """返回知识库总条目数。"""
         row = await self._db.execute_fetchall("SELECT COUNT(*) as c FROM knowledge_base")
         return row[0]["c"] if row else 0
+
+    async def get_all_products(
+        self, search: str = "", limit: int = 50, offset: int = 0,
+    ) -> list[KnowledgeEntry]:
+        """分页获取所有知识条目（含下架），用于后台管理。"""
+        keyword = f"%{search}%"
+        rows = await self._db.execute_fetchall(
+            "SELECT id, category, title, content, keywords, priority, "
+            "is_active, created_at, updated_at "
+            "FROM knowledge_base "
+            "WHERE title LIKE ? OR content LIKE ? OR keywords LIKE ? "
+            "ORDER BY category, priority DESC, title LIMIT ? OFFSET ?",
+            (keyword, keyword, keyword, limit, offset),
+        )
+        return [KnowledgeEntry(**dict(r)) for r in rows]
+
+    async def count_products(self, search: str = "") -> int:
+        """返回管理列表总条目数。"""
+        keyword = f"%{search}%"
+        rows = await self._db.execute_fetchall(
+            "SELECT COUNT(*) as c FROM knowledge_base "
+            "WHERE title LIKE ? OR content LIKE ? OR keywords LIKE ?",
+            (keyword, keyword, keyword),
+        )
+        return rows[0]["c"] if rows else 0
+
+    async def get_by_id(self, entry_id: int) -> KnowledgeEntry | None:
+        """按 ID 获取单条知识记录（忽略 is_active）。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, category, title, content, keywords, priority, "
+            "is_active, created_at, updated_at "
+            "FROM knowledge_base WHERE id = ?",
+            (entry_id,),
+        )
+        return KnowledgeEntry(**dict(rows[0])) if rows else None
+
+    async def update_active(self, entry_id: int, is_active: bool) -> None:
+        """上架或下架一条知识条目。"""
+        await self._db.execute(
+            "UPDATE knowledge_base SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
+            (1 if is_active else 0, entry_id),
+        )
+        await self._db.commit()

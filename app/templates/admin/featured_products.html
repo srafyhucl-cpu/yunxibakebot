@@ -1,0 +1,110 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1>⭐ 近期主推款</h1>
+  <p>配置 AI 优先推荐的当季主推商品，顾客询问推荐时将优先介绍</p>
+</div>
+
+<div class="card">
+  <div class="card-title">当前主推款列表</div>
+  <div id="product-list" class="product-list">
+    {% for p in products %}
+    <div class="product-tag" data-name="{{ p }}">
+      <span>{{ p }}</span>
+      <button class="tag-remove" onclick="removeProduct('{{ p }}')">✕</button>
+    </div>
+    {% else %}
+    <p class="empty-hint">暂无主推款，请在下方添加</p>
+    {% endfor %}
+  </div>
+
+  <div class="add-row">
+    <input type="text" id="new-product" class="input add-input" placeholder="输入商品名，如：杨枝甘露" onkeydown="if(event.key==='Enter')addProduct()">
+    <button class="btn btn-primary" onclick="addProduct()">添加</button>
+  </div>
+
+  <div class="save-row">
+    <button class="btn btn-primary" onclick="saveProducts()">💾 保存</button>
+    <span id="save-status" class="save-status"></span>
+  </div>
+</div>
+
+<style>
+.product-tag {
+  display:inline-flex;align-items:center;gap:6px;
+  background:#fff0f5;border:1px solid #ffc0cb;border-radius:20px;
+  padding:4px 12px;margin:4px;font-size:14px;
+}
+.tag-remove {
+  background:none;border:none;color:#999;cursor:pointer;font-size:12px;padding:0;
+}
+.tag-remove:hover{color:#e74c3c;}
+.product-list { margin-bottom:16px; }
+.empty-hint { color:#999;font-size:13px; }
+.add-row { display:flex;gap:8px;margin-bottom:16px; }
+.add-input { flex:1; }
+.save-row { display:flex;gap:8px; }
+.save-status { align-self:center;font-size:13px;color:#999; }
+</style>
+<script type="application/json" id="init-products">{{ products | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TOKEN = '{{ request.cookies.get("admin_token","") }}';
+let products = JSON.parse(document.getElementById('init-products').textContent);
+
+function renderList() {
+  const el = document.getElementById('product-list');
+  if (!products.length) {
+    el.innerHTML = '<p class="empty-hint">暂无主推款，请在下方添加</p>';
+    return;
+  }
+  el.innerHTML = products.map(p =>
+    `<div class="product-tag" data-name="${p}">
+      <span>${p}</span>
+      <button class="tag-remove" onclick="removeProduct('${p}')">✕</button>
+    </div>`
+  ).join('');
+}
+
+function addProduct() {
+  const input = document.getElementById('new-product');
+  const name = input.value.trim();
+  if (!name) return;
+  if (products.includes(name)) { showToast('已存在', 'error'); return; }
+  products.push(name);
+  input.value = '';
+  renderList();
+}
+
+function removeProduct(name) {
+  products = products.filter(p => p !== name);
+  renderList();
+}
+
+async function saveProducts() {
+  const status = document.getElementById('save-status');
+  status.textContent = '保存中...';
+  try {
+    const r = await fetch('/api/v1/admin/shop-config/featured-products', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},
+      body: JSON.stringify({products})
+    });
+    const d = await r.json();
+    if (d.code === 0) {
+      showToast('保存成功', 'success');
+      status.textContent = '已保存 ✓';
+      setTimeout(() => status.textContent = '', 3000);
+    } else {
+      showToast('保存失败', 'error');
+      status.textContent = '';
+    }
+  } catch(e) {
+    showToast('网络错误', 'error');
+    status.textContent = '';
+  }
+}
+</script>
+{% endblock %}

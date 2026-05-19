@@ -91,6 +91,12 @@ SCHEMA_STATEMENTS: list[str] = [
         updated_at TEXT DEFAULT (datetime('now'))
     )""",
     "CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(session_id)",
+    # shop_config
+    """CREATE TABLE IF NOT EXISTS shop_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
 ]
 
 PRAGMA_STATEMENTS: list[str] = [

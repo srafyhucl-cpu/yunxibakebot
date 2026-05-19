@@ -4,6 +4,33 @@
 
 ---
 
+## [版本/日期] - 2026-05-19
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 甲方测试反馈修复 + 主推款管理页 + 商品上下架管理页
+- **核心变更文件说明**:
+  - `knowledge/芸熙烘焙通用服务与售后指引.md`: 修复餐具价格 2元→5元；保质期更新为三天保质期，新鲜水果当天最佳。
+  - `knowledge/芸熙烘焙产品服务全指南.md`: 细化配送规则；补全门店地址；蛋糕写字4种方式+餐具5元/套；新增营业时间截单规则；新增近期主推款8款。
+  - `knowledge/芸熙AI客服指引_Prompt.md`: 更新配送方式说明；新增营业时间规则节。
+  - `app/service/chat.py`: 移除运费关键词硬编码拦截，所有配送问题交由 LLM 依据知识库作答。
+  - `app/api/admin.py`: 移除测试页运费关键词拦截和 intent==2 硬编码回复。
+  - `app/service/llm/prompt.py`: 删除刚性运费话术指令；新增配送/营业时间/主推款推荐规则。
+  - `app/models/config.py`: 新建店铺配置模型（ShopConfig/FEATURED_PRODUCTS_KEY）。
+  - `app/repository/config_repo.py`: 新建键值配置仓库（get/set/get_list/set_list）。
+  - `app/repository/knowledge_repo.py`: 新增 get_all_products、count_products、get_by_id、update_active。
+  - `app/service/knowledge_retriever.py`: 接收 ConfigRepo，每次检索结果首位注入主推款合成条目。
+  - `app/api/admin_config.py`: 新建路由——主推款管理 + 商品上下架管理 API 及页面。
+  - `app/templates/admin/featured_products.html`: 主推款管理页（标签卡片增删保存）。
+  - `app/templates/admin/products.html`: 商品上下架管理页（分页列表 + Toggle 开关）。
+  - `app/templates/admin/base.html`: 导航栏新增主推款和商品管理两项。
+  - `app/database.py`: 新增 shop_config 键值表。
+  - `app/main.py`: 注入 ConfigRepo，传给 KnowledgeRetriever，注册 admin_config 路由。
+- **数据库状态变更 (Schema Update)**:
+  - 新增 `shop_config(key TEXT PK, value TEXT, updated_at TEXT)` 表。
+- **测试覆盖与验证结果**:
+  - 代码红线自查（Optional/Union/TODO）: ✅ 零输出
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 有赞对接后需实现 Webhook 自动调用 update_active 同步商品状态（预留接口已就绪）。
+
 ## [版本/日期] - 2026-05-18
 - **操作人**: AI (Claude Code)
 - **关联任务/功能**: 多任务综合（意图拆分/测试页改造/校验脚本/备份/日志规范）
