@@ -37,7 +37,9 @@ class EmbeddingSearcher:
     def _get_model(self) -> SentenceTransformer:
         """懒加载：首次调用时初始化模型（避免冷启动阻塞）。"""
         if self._model is None:
-            self._model = SentenceTransformer(EMBEDDING_MODEL)
+            import os
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            self._model = SentenceTransformer(EMBEDDING_MODEL, local_files_only=True)
             logger.info("Embedding 模型已加载: %s", EMBEDDING_MODEL)
         return self._model
 
