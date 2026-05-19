@@ -6,6 +6,32 @@
 
 ## [版本/日期] - 2026-05-19
 - **操作人**: AI (Cascade)
+- **关联任务/功能**: 知识库统一管理与规则来源归口
+- **核心变更文件说明**:
+  - `scripts/seed_knowledge.py`: 从“绑定旧混合文档”切换为“按中粒度目录结构导入”，当前只读取 `knowledge/规则/`、`knowledge/FAQ/`、`knowledge/话术/` 下启用的主文档，避免继续依赖旧混合知识源。
+  - `knowledge/README.md`: 新增知识库目录首页，明确商品、规则、FAQ、话术、参考五类目录的维护入口。
+  - `knowledge/规则/README.md` / `knowledge/FAQ/README.md` / `knowledge/话术/README.md`: 为各子目录补充局部导航说明，帮助维护者进入子目录后快速判断每个文件的职责边界与入库方式。
+  - `knowledge/规则/订购与履约规则.md` / `商品通用规则.md` / `售后规则.md` / `企业服务规则.md`: 将通用业务规则收敛为 4 份中粒度主文档，每份只负责一类规则面。
+  - `knowledge/FAQ/基础服务FAQ.md` / `商品选购FAQ.md` / `场景与会员FAQ.md`: 将 FAQ 收敛为 3 份中粒度主文档，分别承接基础问答、选购问答与场景会员问答。
+  - `knowledge/话术/下单引导话术.md` / `售后安抚话术.md`: 将客服话术独立出 FAQ 与规则目录，减少混合维护。
+  - `knowledge/规则/`、`knowledge/FAQ/`: 删除上一轮过细拆分遗留的草稿文件，仅保留最终启用的中粒度主文档，避免维护入口再次分叉。
+  - `knowledge/芸熙烘焙通用服务与售后指引.md` / `芸熙烘焙常见问题FAQ.md` / `芸熙烘焙产品服务全指南.md`: 改为历史归档入口，不再参与运行时入库，防止维护者误改旧文件。
+  - `knowledge/芸熙烘焙商品库知识库.md`: 删除烟花蜡烛条目并清理蛋糕标题中的烟花蜡烛断货描述，避免商品资料与统一配件规则冲突。
+  - `knowledge/芸熙烘焙商品库知识库.md` / `knowledge/芸熙烘焙常见问题FAQ.md` / `knowledge/芸熙烘焙通用服务与售后指引.md` / `knowledge/芸熙烘焙产品服务全指南.md` / `knowledge/芸熙AI客服指引_Prompt.md`: 补充文档分类、是否直接入库、维护边界与生效说明，降低后续维护改错文件的风险。
+  - `knowledge/知识源说明.md`: 新增知识源说明文档，统一说明知识文档分类、单一来源原则、维护入口、入库关系与日常维护流程。
+  - `app/service/llm/prompt.py`: 去掉营业时间硬编码，改为要求严格依据店铺知识回答，避免 Prompt 与知识源双维护。
+- **数据库状态变更 (Schema Update)**:
+  - 无新增表结构；已执行 `python scripts/seed_knowledge.py` 全量重建知识库，当前共 796 条知识。
+  - 已重建 `data/embeddings.pkl`，向量索引同步为 796 条知识，避免沿用旧结构与旧标题文本。
+- **测试覆盖与验证结果**:
+  - `python scripts/seed_knowledge.py` ✅ 成功导入 796 条知识。
+  - `python scripts/check_project.py` ✅ 质量门禁通过，红线检查与 `tests/scripts/test_validate_products.py` 全部通过。
+  - `python scripts/validate_products.py` ✅ 0 Error / 53 Warning；均为商品库历史数据告警，本次知识结构重构未新增商品数据异常。
+  - 新结构抽查：`订购与履约规则`、`商品通用规则`、`企业服务规则`、`配送损坏处理`、`漏发配件处理`、`配送超时处理`、`话术1 主动询问需求`、`话术10 漏发配件话术`、`适合母亲节送礼的蛋糕有哪些推荐？`、`积分怎么用？` 已成功入库。
+  - `知识源说明.md` 入库校验：`knowledge_base` 中相关条目计数为 `0`，说明文档未被误导入。
+  - 深度回归验证：知识库总量 `796`、Embedding 文档数 `796`、重复执行 `python scripts/seed_knowledge.py` 后数据库快照哈希一致，确认导入幂等。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 深测发现混合检索对“可以开发票吗”这类自然问句仍可能夹带少量无关 FAQ 或商品结果；当前线上链路会先做 `rewrite_query`，不影响本次知识结构上线，但后续仍应在 `app/service/knowledge_retriever.py` 与 `app/repository/knowledge_repo.py` 继续优化排序与过滤。
 - **关联任务/功能**: 修复管理后台 chat-test 500 与 FAQ 精确命中
 - **核心变更文件说明**:
   - `app/service/admin.py`: 补齐管理后台 API 依赖的会话查询、消息查询、状态更新与扩展信息更新代理方法，避免 API 层直接穿透 Repository。

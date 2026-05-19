@@ -22,22 +22,31 @@ logger = setup_logger()
 # 源数据路径（项目内）
 KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent / "knowledge"
 PRODUCTS_FILE = KNOWLEDGE_DIR / "芸熙烘焙商品库知识库.md"
-FAQ_FILE = KNOWLEDGE_DIR / "芸熙烘焙常见问题FAQ.md"
-SERVICE_FILE = KNOWLEDGE_DIR / "芸熙烘焙通用服务与售后指引.md"
-GUIDE_FILE = KNOWLEDGE_DIR / "芸熙烘焙产品服务全指南.md"
+FAQ_DIR = KNOWLEDGE_DIR / "FAQ"
+RULES_DIR = KNOWLEDGE_DIR / "规则"
+SCRIPTS_DIR = KNOWLEDGE_DIR / "话术"
 
 DB_PATH = "data/bot.db"
-
-
-async def init_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(DB_PATH)
-    conn.row_factory = aiosqlite.Row
-    for pragma in PRAGMA_STATEMENTS:
-        await conn.execute(pragma)
-    for stmt in SCHEMA_STATEMENTS:
-        await conn.execute(stmt)
-    await conn.commit()
-    return conn
+ACTIVE_FAQ_FILES: tuple[str, ...] = (
+    "基础服务FAQ.md",
+    "商品选购FAQ.md",
+    "场景与会员FAQ.md",
+)
+ACTIVE_RULE_FILES: tuple[str, ...] = (
+    "订购与履约规则.md",
+    "商品通用规则.md",
+    "售后规则.md",
+    "企业服务规则.md",
+)
+ACTIVE_SCRIPT_FILES: tuple[str, ...] = (
+    "下单引导话术.md",
+    "售后安抚话术.md",
+)
+AFTER_SALES_TITLE_SPECS: dict[str, tuple[str, int]] = {
+    "配送损坏处理": ("损坏,配送损坏,售后,破损", 5),
+    "漏发配件处理": ("漏发,配件,补发,售后", 4),
+    "配送超时处理": ("超时,配送超时,售后", 4),
+}
 
 
 def parse_products(content: str) -> list[dict]:
@@ -155,59 +164,122 @@ def parse_scripts(content: str) -> list[dict]:
     return entries
 
 
-def parse_service() -> list[dict]:
-    """预设服务与售后知识条目。"""
-    return [
-        {
-            "category": "policy",
-            "title": "预订与配送规则",
-            "content": "常规蛋糕建议提前3-5小时预订，节日款建议提前1-2天。退改：24小时以上全额退款，4-24小时扣30%材料费，4小时内不支持退款改期。",
-            "keywords": "预订,配送,退改,取消,改期",
-            "priority": 5,
-        },
-        {
-            "category": "policy",
-            "title": "蛋糕配件与收费标准",
-            "content": "标配5人份餐具+生日帽+蜡烛。额外餐具2元/套，数字蜡烛2元/支，烟花/音乐蜡烛5-10元/支。",
-            "keywords": "配件,餐具,蜡烛",
-            "priority": 4,
-        },
-        {
-            "category": "store_info",
-            "title": "动物奶油说明",
-            "content": "使用100%进口动物奶油（安佳/蓝风车），无植物奶油。动物奶油蛋糕需冷藏0-4℃保存，最佳24小时内食用，常温不超过1小时。",
-            "keywords": "奶油,动物奶油,保存,冷藏",
-            "priority": 5,
-        },
-        {
+def _read_enabled_files(directory: Path, file_names: tuple[str, ...]) -> list[Path]:
+    files: list[Path] = []
+    for file_name in file_names:
+        file_path = directory / file_name
+        if not file_path.exists():
+            logger.warning("知识文件不存在: %s", file_path)
+            continue
+        files.append(file_path)
+    return files
+
+
+def _parse_text_files(files: list[Path], parser) -> list[dict]:
+    entries: list[dict] = []
+    for file_path in files:
+        text = file_path.read_text(encoding="utf-8")
+        entries.extend(parser(text))
+    return entries
+
+
+def _extract_doc_meta(lines: list[str], key: str) -> str:
+    marker = f"> {key}："
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(marker):
+            return stripped.removeprefix(marker).strip()
+    return ""
+
+
+def _extract_document_body_lines(lines: list[str]) -> list[str]:
+    body_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", ">")):
+            continue
+        body_lines.append(stripped)
+    return body_lines
+
+
+def _build_rule_entry(lines: list[str]) -> dict | None:
+    category = _extract_doc_meta(lines, "入库分类")
+    title = _extract_doc_meta(lines, "入库标题")
+    keywords = _extract_doc_meta(lines, "入库关键词")
+    priority_text = _extract_doc_meta(lines, "入库优先级")
+    body_lines = _extract_document_body_lines(lines)
+    if not (category and title and keywords and priority_text and body_lines):
+        return None
+    return {
+        "category": category,
+        "title": title,
+        "content": "\n".join(body_lines),
+        "keywords": keywords,
+        "priority": int(priority_text),
+    }
+
+
+def _parse_after_sales_rule_entries(lines: list[str]) -> list[dict]:
+    entries: list[dict] = []
+    current_title = ""
+    current_keywords = ""
+    current_priority = 0
+    current_lines: list[str] = []
+    for line in _extract_document_body_lines(lines):
+        if line.startswith("！## "):
+            continue
+        if line.startswith("！### "):
+            if current_title and current_lines:
+                entries.append({
+                    "category": "after_sales",
+                    "title": current_title,
+                    "content": "\n".join(current_lines),
+                    "keywords": current_keywords,
+                    "priority": current_priority,
+                })
+            current_title = line.removeprefix("！### ").strip()
+            current_keywords, current_priority = AFTER_SALES_TITLE_SPECS.get(
+                current_title,
+                (current_title, 4),
+            )
+            current_lines = []
+            continue
+        if current_title:
+            current_lines.append(line)
+    if current_title and current_lines:
+        entries.append({
             "category": "after_sales",
-            "title": "配送损坏处理",
-            "content": "配送磕碰损坏：请客户拍下受损照片，转接人工售后经理，根据受损程度退款或补发或补偿优惠券。",
-            "keywords": "损坏,配送损坏,售后",
-            "priority": 5,
-        },
-        {
-            "category": "after_sales",
-            "title": "漏发配件处理",
-            "content": "漏发蜡烛/餐具：可紧急闪送补发，或全额退还配件费用并补偿优惠券。",
-            "keywords": "漏发,配件,补发",
-            "priority": 4,
-        },
-        {
-            "category": "after_sales",
-            "title": "配送超时处理",
-            "content": "超时30分钟以上视情况申请运费补偿，售后专员对接。",
-            "keywords": "超时,配送超时",
-            "priority": 4,
-        },
-        {
-            "category": "policy",
-            "title": "团购与企业订单",
-            "content": "企业团购5件以上9折。支持增值税电子普通发票，1-3个工作日开出。",
-            "keywords": "团购,企业,发票,折扣",
-            "priority": 3,
-        },
-    ]
+            "title": current_title,
+            "content": "\n".join(current_lines),
+            "keywords": current_keywords,
+            "priority": current_priority,
+        })
+    return entries
+
+
+def parse_rule_documents(files: list[Path]) -> list[dict]:
+    entries: list[dict] = []
+    for file_path in files:
+        lines = file_path.read_text(encoding="utf-8").split("\n")
+        if _extract_doc_meta(lines, "入库分类") == "after_sales":
+            entries.extend(_parse_after_sales_rule_entries(lines))
+            continue
+        entry = _build_rule_entry(lines)
+        if entry:
+            entries.append(entry)
+    logger.info("解析到 %d 条服务规则", len(entries))
+    return entries
+
+
+async def init_db() -> aiosqlite.Connection:
+    conn = await aiosqlite.connect(DB_PATH)
+    conn.row_factory = aiosqlite.Row
+    for pragma in PRAGMA_STATEMENTS:
+        await conn.execute(pragma)
+    for stmt in SCHEMA_STATEMENTS:
+        await conn.execute(stmt)
+    await conn.commit()
+    return conn
 
 
 async def seed() -> None:
@@ -222,18 +294,18 @@ async def seed() -> None:
     products = parse_products(products_text)
 
     # 2. 导入 FAQ
-    faq_text = FAQ_FILE.read_text(encoding="utf-8")
-    faqs = parse_faq(faq_text)
+    faq_files = _read_enabled_files(FAQ_DIR, ACTIVE_FAQ_FILES)
+    faqs = _parse_text_files(faq_files, parse_faq)
 
     # 3. 导入服务/政策知识
-    services = parse_service()
+    rule_files = _read_enabled_files(RULES_DIR, ACTIVE_RULE_FILES)
+    rules = parse_rule_documents(rule_files)
 
-    # 4. 导入产品服务全指南
-    guide_text = GUIDE_FILE.read_text(encoding="utf-8")
-    guide_faqs = parse_faq(guide_text)
-    guide_scripts = parse_scripts(guide_text)
+    # 4. 导入客服话术
+    script_files = _read_enabled_files(SCRIPTS_DIR, ACTIVE_SCRIPT_FILES)
+    scripts = _parse_text_files(script_files, parse_scripts)
 
-    all_entries = products + faqs + services + guide_faqs + guide_scripts
+    all_entries = products + faqs + rules + scripts
     for entry in all_entries:
         await conn.execute(
             "INSERT INTO knowledge_base (category, title, content, keywords, priority) "
@@ -244,9 +316,9 @@ async def seed() -> None:
 
     await conn.commit()
     await conn.close()
-    logger.info("导入完成！共 %d 条知识（产品 %d，FAQ %d，服务 %d，全指南 %d，话术 %d）",
-                len(all_entries), len(products), len(faqs), len(services),
-                len(guide_faqs), len(guide_scripts))
+    logger.info("导入完成！共 %d 条知识（产品 %d，FAQ %d，服务 %d，话术 %d）",
+                len(all_entries), len(products), len(faqs), len(rules),
+                len(scripts))
 
 
 if __name__ == "__main__":
