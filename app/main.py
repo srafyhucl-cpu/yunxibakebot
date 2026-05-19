@@ -70,6 +70,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Service 层
     knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
+    from app.service.admin import AdminService
+    from app.service.transfer_manager import TransferManager
+
+    admin_service = AdminService(
+        session_repo=session_repo,
+        message_repo=message_repo,
+        transfer_repo=transfer_repo,
+        knowledge_repo=knowledge_repo,
+        config_repo=config_repo,
+    )
+    transfer_mgr = TransferManager(transfer_repo)
+
     chat_service = ChatService(
         session_repo=session_repo,
         message_repo=message_repo,
@@ -95,9 +107,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     app.include_router(create_webhook_router(chat_service))
     app.include_router(create_admin_router(
-        chat_service, session_repo, message_repo, transfer_repo, knowledge_repo=knowledge_repo,
+        chat_service=chat_service,
+        admin_service=admin_service,
+        transfer_mgr=transfer_mgr,
     ))
-    app.include_router(create_shop_config_router(config_repo, knowledge_repo))
+    app.include_router(create_shop_config_router(admin_service))
     app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)

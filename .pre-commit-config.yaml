@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-project
+        name: YunxiBakeBot Quality Gate
+        entry: python scripts/check_project.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 运行项目红线门禁与本地单元测试

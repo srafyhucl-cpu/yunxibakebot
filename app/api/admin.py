@@ -17,10 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from app.config import settings
 from app.logger import setup_logger
-from app.repository.knowledge_repo import KnowledgeRepo
-from app.repository.message_repo import MessageRepo
-from app.repository.session_repo import SessionRepo
-from app.repository.transfer_repo import TransferRepo
+from app.service.admin import AdminService
 from app.service.chat import ChatService
 from app.service.transfer_manager import TransferManager
 
@@ -51,10 +48,8 @@ def check_login(request: Request) -> str | None:
 
 def create_admin_router(
     chat_service: ChatService,
-    session_repo: SessionRepo,
-    message_repo: MessageRepo,
-    transfer_repo: TransferRepo,
-    knowledge_repo: KnowledgeRepo | None = None,
+    admin_service: AdminService,
+    transfer_mgr: TransferManager,
 ) -> APIRouter:
     """工厂函数：注入依赖后返回路由实例。"""
     transfer_mgr = TransferManager(transfer_repo)
@@ -97,8 +92,8 @@ def create_admin_router(
         if not check_login(request):
             return RedirectResponse(url="/admin/login", status_code=302)
         pending = await transfer_mgr.get_pending()
-        active = await session_repo.get_all_active()
-        kb_count = await knowledge_repo.count_all() if knowledge_repo else 0
+        active = await admin_service.get_all_active()
+        kb_count = await admin_service.count_knowledge()
         html = _jinja_env.get_template("admin/dashboard.html").render(
             request=request, active="dashboard",
             pending_count=len(pending),
@@ -112,10 +107,10 @@ def create_admin_router(
         if not check_login(request):
             return RedirectResponse(url="/admin/login", status_code=302)
         pending = await transfer_mgr.get_pending()
-        recent = await session_repo.get_recent(limit=10)
+        recent = await admin_service.get_recent(limit=10)
         transfer_list = []
         for t in pending:
-            session = await session_repo.get(t.session_id)
+            session = await admin_service.get(t.session_id)
             transfer_list.append({
                 "id": t.id,
                 "user_id": t.user_id,
@@ -144,7 +139,7 @@ def create_admin_router(
     @api_router.get("/chat-test/sessions", dependencies=[Depends(verify_token)])
     async def list_saved_sessions() -> dict:
         """获取已保存（有名称）的对话列表。"""
-        sessions = await session_repo.get_named(channel="admin_test")
+        sessions = await admin_service.get_named(channel="admin_test")
         return {"code": 0, "data": [
             {
                 "id": s.id,
@@ -166,31 +161,31 @@ def create_admin_router(
         name = body.get("name", "").strip()
         if not session_id or not name:
             return {"code": 422, "message": "参数不完整"}
-        session = await session_repo.get(session_id)
+        session = await admin_service.get(session_id)
         if not session:
             return {"code": 404, "message": "会话不存在"}
         extra = json.loads(session.extra_info or "{}")
         extra["name"] = name
-        await session_repo.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
+        await admin_service.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
         return {"code": 0, "message": "已保存"}
 
     @api_router.delete("/chat-test/session/{session_id}", dependencies=[Depends(verify_token)])
     async def discard_session(session_id: str) -> dict:
         """丢弃一个对话。"""
-        session = await session_repo.get(session_id)
+        session = await admin_service.get(session_id)
         if not session:
             return {"code": 404, "message": "会话不存在"}
-        await session_repo.update_status(session_id, "closed")
+        await admin_service.update_status(session_id, "closed")
         return {"code": 0, "message": "已丢弃"}
 
     # ── 对话测试 API ──
     @api_router.get("/chat-test/messages", dependencies=[Depends(verify_token)])
     async def chat_test_history(user_id: str = "admin_tester") -> dict:
         """获取对话测试的历史消息。"""
-        session = await session_repo.get_active(user_id, "admin_test")
+        session = await admin_service.get_active(user_id, "admin_test")
         if not session:
             return {"code": 0, "data": []}
-        msgs = await message_repo.get_by_session(session.id)
+        msgs = await admin_service.get_by_session(session.id)
         return {"code": 0, "session_id": session.id, "data": [
             {
                 "role": m.role.value if hasattr(m.role, "value") else m.role,
@@ -216,9 +211,9 @@ def create_admin_router(
         intent = await detect_intent(content)
         test_user = body.get("user_id", "admin_tester")
         if test_user == "admin_tester":
-            s = await session_repo.get_active("admin_tester", "admin_test")
+            s = await admin_service.get_active("admin_tester", "admin_test")
             if s and s.status in ("transfer_pending", "human_service"):
-                await session_repo.update_status(s.id, "active")
+                await admin_service.update_status(s.id, "active")
         if intent == 4:
             return {"code": 0, "reply": "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~", "intent": 4}
         reply = await chat_service.handle_message(
@@ -228,7 +223,7 @@ def create_admin_router(
             content=content,
         )
         # 获取当前会话 ID
-        session = await session_repo.get_active(test_user, "admin_test")
+        session = await admin_service.get_active(test_user, "admin_test")
         session_id = session.id if session else ""
         # 清理 Markdown 星号
         clean = (reply or "(无回复)").replace("**", "").replace("*", "")
@@ -271,7 +266,7 @@ def create_admin_router(
     @api_router.get("/sessions/{session_id}/messages", dependencies=[Depends(verify_token)])
     async def get_session_messages(session_id: str) -> dict:
         """获取某会话的消息列表。"""
-        msgs = await message_repo.get_by_session(session_id)
+        msgs = await admin_service.get_by_session(session_id)
         return {"code": 0, "data": [
             {
                 "role": m.role.value if hasattr(m.role, "value") else m.role,

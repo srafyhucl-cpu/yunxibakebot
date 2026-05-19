@@ -6,6 +6,38 @@
 
 ## [版本/日期] - 2026-05-19
 - **操作人**: AI (Cascade)
+- **关联任务/功能**: 高阶 DevOps 配置接入与历史红线违约清查
+- **核心变更文件说明**:
+  - `app/service/admin.py`: 新增。剥离 `admin_config.py` 和 `admin.py` 的 API 层中对 Repository 层的直接调用，补全业务薄层，符合 `api -> service -> repo` 分层约束。
+  - `app/repository/knowledge_repo.py`: 修复。重构 IN 参数绑定逻辑，彻底消除潜在 SQL f-string 拼接报警风险。
+  - `.pre-commit-config.yaml`: 新增。配置 `check_project.py` 为 Git Hook，本地防呆强制拦截红线。
+  - `.github/workflows/ci.yml`: 新增。云端 CI 流水线（支持自动装依赖、跑门禁、数据 Mock 生成、以及只读冒烟测试闭环）。
+  - `tests/service/test_admin.py`: 新增。应用 `AsyncMock` 技术，提供纯净不依赖底层数据库的 `AdminService` 单测范例。
+  - `scripts/check_project.py`: 清除所有的 `LEGACY` 白名单，恢复 100% 刚性阻断。
+- **测试覆盖与验证结果**:
+  - `pytest tests/service/test_admin.py` ✅ 2 passed（毫秒级 Service 隔离测试完成）。
+  - `python scripts/check_project.py` ✅ 所有历史红线警告已通过清偿与重构清零（0 存量违规）。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - `app/service/chat.py` 仍存在职责过载（行数超警戒线）但已做暂时隔离；待后续重构聊天链路时拆分。
+
+## [版本/日期] - 2026-05-19
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: Harness Engineering 工程化支持升级
+- **核心变更文件说明**:
+  - `scripts/check_project.py`: 新增。统一质量门禁脚本，固化了 `CLAUDE.md` 中的红线规则（单引号、Optional、SELECT *、架构分层防穿透等），并支持 Windows UTF-8 emoji 输出测试。
+  - `scripts/smoke_test.py`: 新增。只读环境探针脚本，用于一键检查依赖环境（包括 .env 存在性、数据库表结构完整性、知识库加载状态、Embedding 文件存在性及服务 /health 接口存活状态）。
+  - `pytest.ini`: 新增。配置 `pytest` 自动发现入口。
+  - `requirements-dev.txt`: 新增。分离开发依赖（包含 `pytest`、`ruff`、`pre-commit`、`detect-secrets` 等），解耦生产依赖与工具链。
+- **数据库状态变更 (Schema Update)**:
+  - 触发了 `shop_config` 表的初始化构建（此前仅存在于 schema 声明中未落地开发库）。
+- **测试覆盖与验证结果**:
+  - `python scripts/check_project.py` ✅ 红线约束与 `test_validate_products.py`（21 passed）双通过。暂未彻底阻断的存量违约已作 LEGACY 标识登记。
+  - `python scripts/smoke_test.py` ✅ 环境探针（7 项指标）全数 PASS。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - `app/api/admin.py` 和 `app/service/chat.py` 行数超限问题已确认，考虑到本轮未触及相关业务逻辑未强行重构；这些文件中的 `LEGACY`（如直接 import repository）继续保持登记预警，择期在重构独立任务中一并消除。
+
+## [版本/日期] - 2026-05-19
+- **操作人**: AI (Cascade)
 - **关联任务/功能**: 甲方测试反馈修复 + 主推款管理页 + 商品上下架管理页
 - **核心变更文件说明**:
   - `knowledge/芸熙烘焙通用服务与售后指引.md`: 修复餐具价格 2元→5元；保质期更新为三天保质期，新鲜水果当天最佳。

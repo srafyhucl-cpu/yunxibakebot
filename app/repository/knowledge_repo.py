@@ -44,13 +44,13 @@ class KnowledgeRepo:
         if not titles:
             return []
         placeholders = ",".join("?" * len(titles))
-        rows = await self._db.execute_fetchall(
-            f"SELECT id, category, title, content, keywords, priority, "
-            f"is_active, created_at, updated_at FROM knowledge_base "
+        sql = (
+            "SELECT id, category, title, content, keywords, priority, "
+            "is_active, created_at, updated_at FROM knowledge_base "
             f"WHERE title IN ({placeholders}) AND is_active = 1 "
-            f"ORDER BY priority DESC LIMIT ?",
-            (*titles, limit),
+            "ORDER BY priority DESC LIMIT ?"
         )
+        rows = await self._db.execute_fetchall(sql, (*titles, limit))
         return [KnowledgeEntry(**dict(r)) for r in rows]
 
     async def get_all_titles(self) -> list[tuple[str, str]]:
