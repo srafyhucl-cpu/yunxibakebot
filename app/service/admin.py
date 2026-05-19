@@ -38,8 +38,14 @@ class AdminService:
     async def get_all_active_sessions(self) -> list[Session]:
         return await self._session_repo.get_all_active()
 
+    async def get_all_active(self) -> list[Session]:
+        return await self.get_all_active_sessions()
+
     async def get_recent_sessions(self, limit: int = 10) -> list[Session]:
         return await self._session_repo.get_recent(limit=limit)
+
+    async def get_recent(self, limit: int = 10) -> list[Session]:
+        return await self.get_recent_sessions(limit=limit)
 
     async def get_session(self, session_id: str) -> Session | None:
         return await self._session_repo.get(session_id)

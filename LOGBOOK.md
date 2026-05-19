@@ -17,6 +17,7 @@
   - `app/templates/admin/chat_test.html`: 停止按 `user_id` 自动恢复临时测试会话，默认生成新的临时用户，仅恢复已保存会话，消除历史上下文污染导致“问什么都跑偏/显示无回复”的问题。
   - `app/templates/admin/chat_test.html`: 恢复未保存会话的 `sessionId` 回显能力，并修正“新增对话”按钮的弹窗判定，避免首次进入看不到刚才对话、二次点击才弹保存框从而丢失会话。
   - `app/templates/admin/chat_test.html`: 优化聊天页抽屉导航，新增“当前会话”状态卡、保存/新建快捷操作、卡片化页面导航、已保存对话高亮与时间信息展示，以及更清晰的快捷测试入口。
+  - `app/service/admin.py`: 补齐 `get_all_active` 与 `get_recent` 兼容方法，修复移动端从聊天页抽屉点击“概览”或后续进入转人工页时的 `50000 服务器内部错误`。
 - **测试覆盖与验证结果**:
   - `python scripts/check_project.py` ✅ 质量门禁通过。
   - `pytest tests/service/test_admin.py` ✅ 2 passed。
