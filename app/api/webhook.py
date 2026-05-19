@@ -8,10 +8,11 @@ Webhook API 路由。
 - 立即返回 200（不阻塞渠道重试）
 """
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 
 from app.config import settings
 from app.logger import setup_logger
+from app.models.session import Channel
 from app.service.chat import ChatService
 from app.service.youzan.webhook import verify_signature as verify_youzan_signature
 
@@ -23,7 +24,7 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
     """工厂函数：注入 ChatService 依赖后返回路由实例。"""
 
     @router.post("/youzan")
-    async def youzan_webhook(request: Request) -> dict:
+    async def youzan_webhook(request: Request, background_tasks: BackgroundTasks) -> dict:
         """
         有赞消息回调入口。
 
@@ -61,14 +62,12 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             return {"code": 0, "message": "empty content"}
 
         # 异步处理消息（不等待返回）
-        import asyncio
-        asyncio.ensure_future(
-            chat_service.handle_message(
-                channel="youzan",
-                user_id=buyer_id,
-                content=text_content,
-                channel_msg_id=msg_id,
-            ),
+        background_tasks.add_task(
+            chat_service.handle_message,
+            channel=Channel.YOUZAN,
+            user_id=buyer_id,
+            content=text_content,
+            channel_msg_id=msg_id,
         )
 
         return {"code": 0, "message": "ok"}

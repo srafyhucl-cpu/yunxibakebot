@@ -57,7 +57,10 @@
 }
 </style>
 
-<h1>🔔 转人工队列</h1>
+<div class="page-header">
+  <h1>🔔 转人工队列</h1>
+  <p>待处理的客户转人工请求</p>
+</div>
 
 <div class="transfer-layout">
   <div class="transfer-table-wrap">
@@ -98,7 +101,7 @@
   <div class="conv-drawer" id="conv-drawer">
     <div class="conv-drawer-header">
       <span id="conv-title">对话详情</span>
-      <button class="btn btn-sm" style="background:var(--border)" onclick="closeConv()">✕</button>
+      <button class="btn btn-sm btn-neutral" onclick="closeConv()">✕</button>
     </div>
     <div class="conv-drawer-msgs" id="conv-msgs">
       <div class="conv-empty">选择一个请求查看对话</div>

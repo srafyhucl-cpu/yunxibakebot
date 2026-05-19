@@ -1,29 +1,57 @@
 {% extends "admin/base.html" %}
 {% block content %}
-<h1>📊 概览</h1>
+<div class="page-header">
+  <h1>概览</h1>
+  <p>系统运行状态与关键指标</p>
+</div>
 
 <div class="stats">
-  <div class="card">
-    <h3>待处理转人工</h3>
-    <div class="number" id="pending-count">{{ pending_count }}</div>
+  <div class="stat-card">
+    <div class="stat-icon red">🔔</div>
+    <div>
+      <div class="stat-label">待处理转人工</div>
+      <div class="stat-number" id="pending-count">{{ pending_count }}</div>
+    </div>
   </div>
-  <div class="card">
-    <h3>活跃会话</h3>
-    <div class="number" id="active-sessions">{{ active_sessions }}</div>
+  <div class="stat-card">
+    <div class="stat-icon blue">💬</div>
+    <div>
+      <div class="stat-label">活跃会话</div>
+      <div class="stat-number" id="active-sessions">{{ active_sessions }}</div>
+    </div>
   </div>
-  <div class="card">
-    <h3>知识库条目</h3>
-    <div class="number">{{ kb_count }}</div>
+  <div class="stat-card">
+    <div class="stat-icon green">📚</div>
+    <div>
+      <div class="stat-label">知识库条目</div>
+      <div class="stat-number">{{ kb_count }}</div>
+    </div>
   </div>
 </div>
 
 <div class="card">
-  <h3>📋 系统状态</h3>
-  <table>
-    <tr><td style="width:140px;">DeepSeek API</td><td><span class="badge badge-accepted">已连接</span></td></tr>
-    <tr><td>知识库</td><td><span class="badge badge-accepted">{{ kb_count }} 条</span></td></tr>
-    <tr><td>有赞对接</td><td><span class="badge badge-pending">待认证</span></td></tr>
-    <tr><td>企业微信</td><td><span class="badge badge-pending">待接入</span></td></tr>
-  </table>
+  <div class="card-title">📋 系统状态</div>
+  <div class="status-list">
+    <div class="status-item">
+      <span class="status-dot dot-green"></span>
+      <span class="status-name">DeepSeek API</span>
+      <span class="status-badge green">已连接</span>
+    </div>
+    <div class="status-item">
+      <span class="status-dot dot-green"></span>
+      <span class="status-name">知识库</span>
+      <span class="status-badge green">{{ kb_count }} 条已就绪</span>
+    </div>
+    <div class="status-item">
+      <span class="status-dot dot-orange"></span>
+      <span class="status-name">有赞对接</span>
+      <span class="status-badge orange">待实名认证</span>
+    </div>
+    <div class="status-item">
+      <span class="status-dot dot-orange"></span>
+      <span class="status-name">企业微信</span>
+      <span class="status-badge orange">待域名备案</span>
+    </div>
+  </div>
 </div>
 {% endblock %}

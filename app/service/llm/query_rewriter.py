@@ -85,7 +85,7 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
         )
         rewritten = (response.choices[0].message.content or "").strip()
         # 清理可能的引用标记
-        for ch in ['"', "'", "“", "”", "‘", "’"]:
+        for ch in ["\"", "'", "“", "”", "‘", "’"]:
             rewritten = rewritten.strip(ch)
         if not rewritten or len(rewritten) < 2:
             return user_query
@@ -93,5 +93,5 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
             logger.debug("Query 改写: '%s' -> '%s'", user_query, rewritten)
         return rewritten
     except Exception as exc:
-        logger.debug("Query 改写跳过: %s", exc)
+        logger.warning("Query 改写跳过: %s", exc)
         return user_query

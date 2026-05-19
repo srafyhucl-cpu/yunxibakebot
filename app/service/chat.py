@@ -14,21 +14,33 @@ import json
 from app.exceptions import LLMError
 from app.logger import setup_logger
 from app.models.message import Message, MessageRole
-from app.models.session import Session, SessionCreate
+from app.models.session import Session, SessionCreate, SessionStatus
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.llm.functions import FUNCTION_DEFINITIONS, MAX_TOOL_ROUNDS, dispatch_tool
+from app.service.llm.intent import IntentType, detect_intent
 from app.service.llm.prompt import build_system_prompt
+from app.service.llm.query_rewriter import rewrite_query
+from app.service.llm.soothe import apply_soothe, needs_soothe
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 
 logger = setup_logger()
 
-# 兜底回复：LLM 调用失败时回复用户
+# ── 业务常量 ──────────────────────────────────────────────────────────────────
 FALLBACK_REPLY = "系统正忙，请稍后再试或联系人工客服。"
+TRANSFER_REPLY = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
+SHIPPING_REPLY = "运费的话统一回复您：运费由顾客按实际路程支付，下单时确认就好~😊"
+SHIPPING_KEYWORDS: tuple[str, ...] = ("运费", "邮费", "配送费")
+DEFAULT_SEARCH_QUERY = "芸熙烘焙 产品 价格"
+KNOWLEDGE_SEARCH_LIMIT = 8
+INTENT_HISTORY_MESSAGES = 4
+INTENT_CONTENT_PREVIEW = 80
+TRANSFER_SUMMARY_LENGTH = 200
+QUERY_TIMEOUT_REPLY = "正在为您查询，请稍候。如果长时间没有回复，请联系人工客服。"
 
 
 class ChatService:
@@ -85,45 +97,45 @@ class ChatService:
         await self._message_repo.save(user_msg)
 
         # 4. 状态判断：人工服务中则不调用 LLM
-        if session.status in ("transfer_pending", "human_service"):
+        if session.status in (SessionStatus.TRANSFER_PENDING, SessionStatus.HUMAN_SERVICE):
             logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
             return None
 
         # 5. 运费关键词直接返回固定话术，不走意图识别和 LLM
-        SHIPPING_KEYWORDS = ["运费", "邮费", "配送费"]
         if any(kw in content for kw in SHIPPING_KEYWORDS):
-            reply = "运费的话统一回复您：运费由顾客按实际路程支付，下单时确认就好~😊"
             assistant_msg = Message(
                 id="", session_id=session.id, role=MessageRole.ASSISTANT,
-                content=reply,
+                content=SHIPPING_REPLY,
             )
             await self._message_repo.save(assistant_msg)
-            return reply
+            return SHIPPING_REPLY
 
         # 6. 意图识别（决定走售后、知识搜索还是闲聊）
-        from app.service.llm.intent import detect_intent
         history = await self._session_mgr.build_context(session.id)
         history_text = "\n".join(
-            f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:80]}"
-            for m in history[-4:] if m.get("role") in ("user", "assistant")
+            f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
+            for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
         )
         intent = await detect_intent(content, history=history_text)
-        logger.info("会话 %s 意图: %d", session.id, intent)
+        logger.info("会话 %s 意图: %s", session.id, intent.name)
 
-        # 意图 4 = 售后/转人工 → 自动创建转人工工单
-        if intent == 4:
-            transfer = await self._transfer_mgr.request_transfer(
-                session.id, user_id, reason=content,
-                summary=history_text[-200:],
-            )
-            await self._session_repo.update_status(session.id, "transfer_pending")
-            reply = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
+        # 售后/转人工 → 自动创建转人工工单
+        if intent == IntentType.AFTER_SALES:
+            try:
+                await self._transfer_mgr.request_transfer(
+                    session.id, user_id, reason=content,
+                    summary=history_text[-TRANSFER_SUMMARY_LENGTH:],
+                )
+                await self._session_repo.update_status(session.id, SessionStatus.TRANSFER_PENDING)
+            except Exception as exc:
+                logger.error("创建售后转人工工单失败: session=%s err=%s", session.id, exc)
+                return FALLBACK_REPLY
             assistant_msg = Message(
                 id="", session_id=session.id, role=MessageRole.ASSISTANT,
-                content=reply,
+                content=TRANSFER_REPLY,
             )
             await self._message_repo.save(assistant_msg)
-            return reply
+            return TRANSFER_REPLY
 
         # 7. 进入 AI 对话循环
         reply = await self._ai_conversation_loop(session, user_query=content, intent=intent)
@@ -133,7 +145,6 @@ class ChatService:
             reply = reply.replace("**", "").replace("*", "").replace("__", "")
 
         # 安抚策略：检测到敏感词时附加道歉前缀
-        from app.service.llm.soothe import needs_soothe, apply_soothe
         if reply and needs_soothe(content):
             reply = apply_soothe(reply)
 
@@ -147,7 +158,9 @@ class ChatService:
 
         return reply
 
-    async def _ai_conversation_loop(self, session: Session, user_query: str = "", intent: int = 1) -> str | None:
+    async def _ai_conversation_loop(
+        self, session: Session, user_query: str = "", intent: IntentType = IntentType.PRODUCT_INQUIRY,
+    ) -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
 
@@ -160,20 +173,22 @@ class ChatService:
            - 超过最大轮数 → 兜底回复
         """
         # 根据意图调整检索策略
-        from app.service.llm.query_rewriter import rewrite_query
         history = await self._session_mgr.build_context(session.id)
         history_text = "\n".join(
-            f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:80]}"
-            for m in history[-4:] if m.get("role") in ("user", "assistant")
+            f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:INTENT_CONTENT_PREVIEW]}"
+            for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
         )
-        if intent == 5:
+        if intent == IntentType.CASUAL_CHAT:
             # 闲聊：不需要知识检索
             knowledge_entries = []
         else:
-            # 商品(1) / 规则(2)：改写后检索
-            search_query = user_query or "芸熙烘焙 产品 价格"
+            search_query = user_query or DEFAULT_SEARCH_QUERY
             rewritten = await rewrite_query(search_query, history=history_text)
-            knowledge_entries = await self._knowledge.search(rewritten, limit=8)
+            try:
+                knowledge_entries = await self._knowledge.search(rewritten, limit=KNOWLEDGE_SEARCH_LIMIT)
+            except Exception as exc:
+                logger.error("知识库检索失败，使用空上下文继续: %s", exc)
+                knowledge_entries = []
 
         messages: list[dict] = [
             {"role": "system", "content": build_system_prompt(knowledge_entries)},
@@ -187,13 +202,15 @@ class ChatService:
         while tool_round <= MAX_TOOL_ROUNDS:
             try:
                 raw = await llm_chat(messages, tools=FUNCTION_DEFINITIONS)
+                response = json.loads(raw)
+                choice = response["choices"][0]
+                msg = choice["message"]
             except LLMError:
                 logger.error("LLM 调用失败，返回兜底回复")
                 return FALLBACK_REPLY
-
-            response = json.loads(raw)
-            choice = response["choices"][0]
-            msg = choice["message"]
+            except (json.JSONDecodeError, KeyError, IndexError) as exc:
+                logger.error("LLM 响应解析失败，返回兜底回复: %s", exc)
+                return FALLBACK_REPLY
 
             finish_reason = choice.get("finish_reason", "stop")
 
@@ -206,12 +223,29 @@ class ChatService:
                 tool_calls = msg.get("tool_calls", [])
                 for tc in tool_calls:
                     fn_name = tc["function"]["name"]
-                    fn_args = json.loads(tc["function"]["arguments"])
+                    try:
+                        fn_args = json.loads(tc["function"]["arguments"])
+                    except json.JSONDecodeError as exc:
+                        logger.error("工具参数解析失败，跳过: tool=%s err=%s", fn_name, exc)
+                        fn_args = {}
 
                     logger.info("工具调用: %s args=%s", fn_name, fn_args)
 
-                    # 执行工具
-                    result = await dispatch_tool(fn_name, fn_args, session)
+                    # transfer_to_human 需要 TransferManager 依赖，在此拦截
+                    if fn_name == "transfer_to_human":
+                        reason = fn_args.get("reason", "用户通过工具请求转人工")
+                        try:
+                            await self._transfer_mgr.request_transfer(
+                                session.id, session.user_id, reason=reason,
+                                summary=history_text[-TRANSFER_SUMMARY_LENGTH:],
+                            )
+                            await self._session_repo.update_status(session.id, SessionStatus.TRANSFER_PENDING)
+                            result = json.dumps({"status": "success", "message": "已为您转接人工客服，请稍候"}, ensure_ascii=False)
+                        except Exception as exc:
+                            logger.error("创建转人工工单失败: session=%s err=%s", session.id, exc)
+                            result = json.dumps({"status": "error", "message": "转接失败，请稍后重试"}, ensure_ascii=False)
+                    else:
+                        result = await dispatch_tool(fn_name, fn_args, session, self._knowledge)
 
                     # 将 tool call 和结果追加到消息列表
                     messages.append({
@@ -220,7 +254,7 @@ class ChatService:
                         "tool_calls": [{
                             "id": tc["id"],
                             "type": "function",
-                            "function": {"name": fn_name, "arguments": tc["function"]["arguments"]},
+                            "function": {"name": fn_name, "arguments": json.dumps(fn_args, ensure_ascii=False)},
                         }],
                     })
                     messages.append({
@@ -235,7 +269,7 @@ class ChatService:
             # 超限或未知 finish_reason
             break
 
-        return "正在为您查询，请稍候。如果长时间没有回复，请联系人工客服。"
+        return QUERY_TIMEOUT_REPLY
 
     async def handle_human_reply(self, session_id: str, content: str) -> None:
         """

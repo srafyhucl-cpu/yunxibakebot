@@ -11,6 +11,8 @@ import aiosqlite
 
 from app.models.message import Message, MessageRole
 
+MAX_MESSAGES_PER_SESSION = 200
+
 
 class MessageRepo:
     """消息仓库：保存、去重检查、按会话查询。"""
@@ -44,7 +46,7 @@ class MessageRepo:
         )
         await self._db.commit()
 
-    async def get_by_session(self, session_id: str, limit: int = 200) -> list[Message]:
+    async def get_by_session(self, session_id: str, limit: int = MAX_MESSAGES_PER_SESSION) -> list[Message]:
         """查询某会话的所有消息，按时间正序返回。"""
         rows = await self._db.execute_fetchall(
             "SELECT id, session_id, role, content, channel_msg_id, "

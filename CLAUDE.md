@@ -1,81 +1,278 @@
-# CLAUDE.md — 芸熙烘焙 AI 客服
+# 芸熙烘焙 AI 客服 — 极客开发手册
 
-## 项目概述
+本项目是一套多渠道（有赞小程序、企微 1 对 1、企微群）AI 智能客服系统，使用 DeepSeek API 作为 LLM 大脑，SQLite 存储，单服务器部署。核心目标：**让烘焙门店的咨询、报价、售后 80% 自动化，同时保证人工可随时无缝介入**。
 
-芸熙烘焙 AI 客服系统，覆盖 3 个渠道（有赞小程序、企微 1 对 1、企微群），使用 DeepSeek API 作为 LLM 大脑，SQLite 存储，单服务器部署。
+## 👤 角色定义
 
-## 技术栈
+极其资深的 Python / FastAPI 后端架构师和 AI 应用开发者，追求简洁、高内聚、零冗余的异步服务端代码。
 
-- Python 3.11+ / FastAPI / Uvicorn
-- SQLite (aiosqlite, WAL mode)
-- DeepSeek (OpenAI 协议, openai SDK)
-- Nginx (HTTPS 反向代理)
-- 域名: hclstudio.cn (已备案)
-- 管理后台: yunxi.hclstudio.cn/admin (子域名, 免费)
+## 🌐 语言与沟通准则
 
-## 核心设计决策
+1. **全中文环境**：所有交流、方案输出及思考推演必须使用自然、专业的母语级别中文。
+2. **源码注释**：所有模块说明、类说明、方法说明及复杂逻辑注释必须 100% 使用清晰的中文，严禁混杂英文。
+3. **沉默是金**：少说废话，多写代码，仅输出必要的代码修改块。
 
-### 1. 渠道接入顺序
-小程序(有赞) → 企微 1 对 1 → 企微群，逐步接入。AI 对话核心复用同一套。
+## 🛠 技术栈
 
-### 2. 人工介入形式
-- **小程序**: 客服在管理后台网页回复
-- **企微 1 对 1**: 员工在企微客户端直接回复（AI 自动让路，最自然）
-- **企微群**: 店长群内直接回复
+| 组件 | 选型 | 说明 |
+|------|------|------|
+| 语言 | Python 3.11+ | 强制类型注解 |
+| Web 框架 | FastAPI + Uvicorn | 异步、Pydantic 校验、自动文档 |
+| 数据库 | SQLite (aiosqlite) | WAL 模式，零运维 |
+| LLM | DeepSeek（OpenAI 兼容协议） | openai SDK 调用 |
+| HTTP 客户端 | httpx | 有赞 / 企微 API |
+| 配置 | pydantic-settings | `.env` + 环境变量 |
+| 模板 | Jinja2 | 管理后台页面 |
+| 向量搜索 | 自研 TF-IDF n-gram | 零 API 成本 |
+| 反向代理 | Nginx + Let's Encrypt | HTTPS 终结 |
 
-### 3. 企微冲突处理
-AI 回复后延迟 3-5 秒发送，检测员工是否已回复。已回复 → AI 取消，未回复 → AI 发送。
+## 🏗 架构规范（分层 Clean Architecture）
 
-### 4. 下单流程
-AI 提取订单信息 → 发给客户确认 → 客户确认 → 订单入库 → 店员审核生产。AI 不自动落单。
+```
+api/（HTTP 路由层）
+  ↓ 只做请求解析 + 响应序列化，不含业务逻辑
+service/（业务逻辑层）
+  ↓ 纯业务逻辑，不能直接调用 aiosqlite
+repository/（数据访问层）
+  ↓ 纯 SQL 操作，不含业务判断
+models/（数据模型层）
+  → 纯 Pydantic 结构，不引用其他模块
+```
 
-### 5. 滑动窗口
-对话历史取最近的消息，累计 ≤ 16K tokens，超出部分截断并插入截断提示。
-
-### 6. Tool Calling 限制
-最多 3 轮连续 function call，超限输出兜底回复。
-
-## 模块结构
+### 模块结构
 
 ```
 app/
-├── main.py              # FastAPI app
-├── config.py            # 配置 (pydantic-settings)
-├── database.py          # SQLite + 建表
-├── models/              # Pydantic 模型
-├── repository/          # 数据访问层
+├── main.py                  # FastAPI lifespan 初始化、依赖组装、路由注册
+├── config.py                # pydantic-settings 配置（.env 加载）
+├── database.py              # SQLite 建表 + WAL + PRAGMA
+├── exceptions.py            # 异常层级（AppError 基类）
+├── logger.py                # 结构化日志
+├── models/                  # Pydantic 数据模型（Session/Message/Knowledge/Transfer/Order）
+├── repository/              # 数据访问层（raw SQL，参数化绑定）
+│   ├── session_repo.py
+│   ├── message_repo.py
+│   ├── knowledge_repo.py
+│   ├── transfer_repo.py
+│   └── order_repo.py（预留）
 ├── service/
-│   ├── llm/             # DeepSeek 调用 + Function Calling
-│   ├── youzan/          # 有赞 Webhook + API
-│   ├── wecom/           # 企微回调 + API
-│   ├── chat.py          # 核心对话循环
-│   ├── session_manager.py
-│   ├── transfer_manager.py
-│   └── knowledge_retriever.py
-└── api/                 # 路由
-    ├── webhook.py
-    └── admin.py
+│   ├── chat.py              # 核心对话循环（意图识别 → 知识检索 → LLM → 工具调用）
+│   ├── session_manager.py   # 滑动窗口 16K tokens 上下文管理
+│   ├── transfer_manager.py  # 转人工生命周期
+│   ├── knowledge_retriever.py  # 向量 + 关键词混合检索
+│   ├── vector_search.py     # TF-IDF n-gram 向量引擎
+│   ├── llm/
+│   │   ├── client.py        # DeepSeek API 封装（AsyncOpenAI 单例）
+│   │   ├── functions.py     # Function Calling 定义 + dispatch
+│   │   ├── intent.py        # 5 类意图识别
+│   │   ├── prompt.py        # System Prompt 动态构建
+│   │   ├── query_rewriter.py  # 用户 Query 上下文改写
+│   │   └── soothe.py        # 安抚策略
+│   ├── wecom/               # 企微 API 客户端 + 加解密
+│   └── youzan/              # 有赞 Webhook 签名 + API
+├── api/
+│   ├── webhook.py           # 有赞消息回调
+│   ├── wecom.py             # 企微消息回调
+│   └── admin.py             # 管理后台（页面 + API）
+├── templates/admin/         # Jinja2 管理后台模板
+└── static/admin/            # 静态资源
 ```
 
-## 关键约定
+## 🚫 开发红线（Strict Anti-Patterns）
 
-- 所有 DeepSeek 调用走 OpenAI 协议 (openai SDK)
-- 数据库使用 raw SQL + aiosqlite，不用 ORM
-- 异步优先 (async/await)
-- 配置走环境变量 + .env，不硬编码
-- 日志走标准 logging 或 loguru
+1. **禁止 ORM**：不使用 SQLAlchemy / tortoise-orm，全部 raw SQL + aiosqlite。
+2. **禁止同步阻塞**：所有 I/O 必须 `async/await`，包括文件操作。
+3. **禁止 Optional/Union**：一律使用 `X | None` 和 `X | Y`。
+4. **禁止单引号字符串**：统一双引号 `"`（SQL 内部字符串和 f-string 内部闭环除外）。
+5. **禁止层级穿透**：`api/` 不得直接调用 `repository/`，必须经过 `service/`。
+6. **禁止 SQL 拼接**：全部使用 `?` 参数化绑定，禁止 f-string / `+` 拼 SQL 参数。
+7. **禁止硬编码秘密**：API Key、Secret、Token 必须走 `.env`，不进代码仓库。
+8. **禁止静默吞异常**：禁止 `except: pass`，所有异常必须记录日志或上抛。
+9. **禁止 `SELECT *`**：查询必须明确列出字段。
+10. **禁止 TODO 占位符**：代码中不允许残留 `# TODO` 或返回 `"待实现"` 的 stub 函数。
+11. **禁止魔法数字/字符串**：有业务含义的数字必须定义为命名常量；渠道名、状态值使用枚举。
+12. **禁止注释掉的代码**：不用的代码直接删除，版本历史由 Git 管理。
+13. **禁止上帝函数**：单个函数体 ≤ 50 行；单文件公开类 ≤ 3 个；参数超 5 个必须封装数据类。
 
-## 依赖
+## 📏 职责过载信号阈值表
 
-fastapi, uvicorn, openai, aiosqlite, httpx, pydantic, pydantic-settings
+> 阈值是「职责可能过载」的早期信号，不是拆分目标。超线必须先评估职责是否真实混杂，再决定是否拆分。
 
-## 部署
+| 层级 | 警戒线（warning） | 硬上限（blocking） |
+|------|------------------|-------------------|
+| `app/api/*.py` 路由层 | 250 行 | 350 行 |
+| `app/service/*.py` 业务层 | 220 行 | 320 行 |
+| `app/service/llm/*.py` LLM 子模块 | 120 行 | 180 行 |
+| `app/service/wecom/*/youzan/*.py` | 150 行 | 250 行 |
+| `app/repository/*.py` 数据层 | 150 行 | 250 行 |
+| `app/models/*.py` 模型层 | 80 行 | 120 行 |
 
-- Systemd 管理进程
-- Nginx 反向代理 + Let's Encrypt HTTPS
-- 端口: 443 (外部) → 7001 (内部 FastAPI)
+**附加硬约束：** 单文件公开类 ≤ 3，单类公开方法 ≤ 20，单函数体 ≤ 50 行。
 
-## 常用开发命令
+超警戒线时必须先走 `large-file-refactor-review` 工作流评估职责，不得盲目拆分也不得继续追加新职责。
+
+**当前存量警戒文件：**
+- `app/api/admin.py`（293行）— ⚠️ 超警戒线，不得继续追加职责
+- `app/service/chat.py`（232行）— ⚠️ 超警戒线，不得继续追加职责
+- `app/service/llm/functions.py`（128行）— ⚠️ 超警戒线，不得继续追加职责
+
+## 📏 代码风格
+
+### 命名规范
+
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| 文件/模块 | 小写+下划线 | `session_manager.py` |
+| 类 | 大驼峰 | `SessionManager` |
+| 函数/方法 | 小写+下划线 | `get_or_create()` |
+| 变量 | 小写+下划线 | `session_id` |
+| 常量 | 全大写+下划线 | `MAX_TOOL_ROUNDS` |
+| 私有方法 | 前导下划线 | `_verify_signature()` |
+
+### 类型注解
+
+强制使用，所有函数签名必须有参数类型和返回类型：
+
+```python
+async def handle_message(self, channel: str, user_id: str, content: str) -> str | None:
+```
+
+### 导入顺序
+
+```python
+# 1. 标准库
+import json
+from datetime import datetime, timezone
+
+# 2. 第三方
+from openai import AsyncOpenAI
+from pydantic import BaseModel
+
+# 3. 项目本地
+from app.models.session import Session
+from app.repository.session_repo import SessionRepo
+```
+
+### 格式
+
+- 单行 ≤ 100 字符
+- 类之间空 2 行，方法之间空 1 行
+- 永远不留注释掉的代码
+- docstring 只写**接口契约**（参数/返回值/异常），不写实现细节
+- 行内注释只解释 WHY，不解释 WHAT
+
+## 📡 核心设计决策
+
+### 1. 多渠道统一对话核心
+
+小程序(有赞) / 企微 1 对 1 / 企微群 → 统一汇入 `ChatService.handle_message()`，AI 对话逻辑只写一套。
+
+### 2. 对话处理流水线
+
+```
+用户消息 → 幂等去重 → 获取会话 → 保存消息 → 状态判断
+  → 运费关键词前置 → 意图识别(5类) → 售后自动转人工
+  → AI 循环(Query改写 → 知识检索 → DeepSeek → tool_calls ≤ 3轮)
+  → Markdown清理 + 安抚策略 → 保存回复 → 返回
+```
+
+### 3. 滑动窗口
+
+对话历史取最近消息，累计 ≤ 16K tokens，超出截断并插入截断提示。
+
+### 4. 意图识别
+
+5 类：1=商品查价 2=运费 3=配送时间 4=售后/转人工 5=闲聊。轻量 DeepSeek 调用（max_tokens=4）。
+
+### 5. 知识检索
+
+向量搜索（TF-IDF n-gram cosine）优先 → 不足时补关键词搜索。Query 改写补全指代。
+
+### 6. 人工介入
+
+- **小程序**：客服在管理后台网页回复
+- **企微 1 对 1**：员工在企微客户端直接回复（AI 自动让路）
+- **企微群**：店长群内直接回复
+
+### 7. 企微冲突处理
+
+AI 回复延迟 3-5 秒发送，检测员工是否已回复。已回复 → AI 取消，未回复 → AI 发送。
+
+## 🗄 数据库约束
+
+### 连接配置
+
+```sql
+PRAGMA journal_mode = WAL;
+PRAGMA busy_timeout = 5000;
+PRAGMA foreign_keys = ON;
+```
+
+- 全局维护 1 个连接实例
+- 所有查询使用 `?` 参数化绑定
+
+### 5 张核心表
+
+`sessions` / `messages` / `knowledge_base` / `human_transfers` / `orders`
+
+### 事务规则
+
+- 单行写入不需要显式事务
+- 多表写入必须用事务
+- repository 不管理事务边界，由 service 层决定
+
+## 🌐 API 约束
+
+### 响应格式
+
+```python
+# 成功
+{"code": 0, "data": {...}}
+# 失败
+{"code": 40001, "message": "参数错误"}
+```
+
+### Webhook 约束
+
+- 收到请求后**立即返回 200**，处理放在后台协程
+- 必须有签名验证（有赞 HMAC-SHA256 / 企微 SHA1），失败返回 403
+- 必须有消息去重（通过 `channel_msg_id`）
+
+## ⚠️ 异常层级
+
+```
+AppError（基类）
+├── AuthError        # 认证/签名错误
+├── NotFoundError    # 资源不存在
+├── LLMError         # DeepSeek API 错误 → 兜底回复，不向上抛
+├── APIError         # 有赞/企微外部 API 错误
+└── ConfigError      # 配置错误
+```
+
+- 所有外部 API 调用必须 try/except 包裹，记录完整上下文
+- Webhook 处理中的异常只记录日志，不返回 500
+
+## 📝 日志规范
+
+| 级别 | 场景 |
+|------|------|
+| `DEBUG` | SQL 执行、API 请求/响应体 |
+| `INFO` | 服务启动、会话创建、消息收发 |
+| `WARNING` | API 重试、配置缺失但可降级 |
+| `ERROR` | 外部 API 失败、数据库错误 |
+| `CRITICAL` | 启动失败、致命错误 |
+
+- service 层日志必须带 `session_id`
+- API 调用日志必须带 `channel` 和 `user_id`
+
+## 🔒 安全约束
+
+- `.env` 和 `data/` 不进版本控制
+- HTTPS 在 Nginx 层终结，服务内部不处理 TLS
+- 管理后台 API 需要 Bearer Token 鉴权
+- JWT token 有效期 ≤ 24 小时
+
+## 🔧 常用开发命令
 
 ```bash
 # 启动服务（热重载）
@@ -94,30 +291,78 @@ python scripts/seed_knowledge.py
 python scripts/validate_products.py
 ```
 
-## AI 自动化行为守则（预提交阻断）
+## 🚀 部署
 
-每次执行 `/commit` 或 `git commit` 前，必须触发以下静态红线审查，任一未通过则阻断提交：
-
-### 红线审查项
-
-1. **单引号检查**：新增/修改的代码中禁止使用单引号 `'`（SQL 语句内部字符串和 f-string 内部闭环除外），普通字符串、字典键名、日志一律使用双引号 `"`。
-2. **Optional/Union 检查**：禁止隐式引入 `typing.Optional` 或 `typing.Union`，一律改写为 `X | None` 或 `X | Y`。
-3. **TODO 占位符检查**：代码中禁止存在 `# TODO` 或未实现的业务占位符（如返回 `"待实现"` 的 stub 函数）。
-4. **LOGBOOK.md 同步检查**：本轮修改必须在 `LOGBOOK.md` 中追加日志记录，未记录则阻断提交。
-5. **测试验证**：涉及核心逻辑的修改，需在提交前运行对应测试验证通过。
-
-### 审查流程
+- **域名**：hclstudio.cn（已备案），管理后台 yunxi.hclstudio.cn/admin
+- **进程管理**：systemd（yunxi-bakebot.service）
+- **反向代理**：Nginx，443 (外部) → 7001 (内部 FastAPI)
+- **HTTPS**：Let's Encrypt 通配符证书
 
 ```bash
-# 1. 检查单引号（排除 SQL 和 f-string）
-git diff --cached -- '*.py' | grep "'" | grep -v "sql|f'" || true
+# 服务端重启
+systemctl restart yunxi-bakebot
+```
 
-# 2. 检查 Optional/Union
-git diff --cached -- '*.py' | grep -E "Optional\[|Union\[" && echo "ERROR: 禁止使用 Optional/Union" && exit 1
+## 📋 行为提示
 
-# 3. 检查 TODO
-git diff --cached -- '*.py' | grep "# TODO" && echo "ERROR: 存在未完成的 TODO" && exit 1
+- **更新日志**：每次任务完成后更新 `LOGBOOK.md`，追加本轮变更摘要。未更新则阻断提交。
+- **提交代码**：提交信息使用中文，格式：`type(scope): 中文描述`（如 `feat(chat): 新增运费关键词前置匹配`）。
+- **收口顺序**：代码改动 → LOGBOOK 更新 → 提交 → 推送，严格按此顺序执行。
+- **不破坏现有测试**：涉及核心逻辑的修改，提交前运行对应测试验证通过。
 
-# 4. 检查 LOGBOOK.md 是否更新
+### 提交类型
+
+| type | 说明 |
+|------|------|
+| `feat` | 新增功能 |
+| `fix` | 修复 bug |
+| `docs` | 文档更新 |
+| `refactor` | 重构（不改行为） |
+| `perf` | 性能优化 |
+| `test` | 测试 |
+| `chore` | 构建/工具变动 |
+
+## 🔍 质量门禁（每次变更必须通过）
+
+### 预提交红线审查
+
+1. **单引号检查**：新增代码中禁止单引号（SQL 和 f-string 内部除外）
+2. **Optional/Union 检查**：禁止 `typing.Optional` 或 `typing.Union`
+3. **TODO 检查**：禁止残留 `# TODO` 或 stub 函数
+4. **LOGBOOK 同步**：本轮修改必须在 `LOGBOOK.md` 中记录
+5. **测试验证**：核心逻辑修改需运行对应测试
+
+### 审查命令
+
+```bash
+# 检查 Optional/Union
+git diff --cached -- "*.py" | grep -E "Optional\[|Union\[" && echo "BLOCKED" && exit 1
+
+# 检查 TODO
+git diff --cached -- "*.py" | grep "# TODO" && echo "BLOCKED" && exit 1
+
+# 检查 LOGBOOK 更新
 git diff --cached -- LOGBOOK.md | grep "+" || echo "WARNING: LOGBOOK.md 未更新"
 ```
+
+## 📚 文档索引
+
+| 文档 | 用途 |
+|------|------|
+| `CLAUDE.md`（本文件） | 唯一开发手册，所有规则汇总 |
+| `LOGBOOK.md` | 项目演进编年史，每次提交必更新 |
+| `1-业务方案.md` | 业务需求与自动化分析 |
+| `2-工作流设计.md` | 用户视角的工作流程 |
+| `3-技术架构.md` | 系统架构与数据库设计 |
+| `4-上线检查清单.md` | 上线前检查项 |
+| `项目进度与配置清单.md` | 阶段进度与配置状态 |
+
+### Windsurf 工作流（`.windsurf/workflows/`）
+
+| 工作流 | 触发指令 | 用途 |
+|--------|----------|------|
+| `commit.md` | `/commit` | 任务收口：红线自查 → 测试 → LOGBOOK → 提交 |
+| `check.md` | `/check` | 规范化检查：语法红线 / 分层约束 / 安全审查 |
+| `review.md` | `/review` | 深度 Code Review：bug / 安全 / 红线全面审查 |
+
+**查找规则时**：先看本文件（`CLAUDE.md`），它是唯一的开发规范源。业务细节不足时查阅对应文档。

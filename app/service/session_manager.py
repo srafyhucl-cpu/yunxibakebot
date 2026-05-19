@@ -24,7 +24,7 @@ def estimate_tokens(text: str) -> int:
     中文字符约 2 token，ASCII 字符约 0.25 token。
     不需要精确值，只需相对大小用于滑动窗口裁切。
     """
-    chinese = sum(1 for c in text if '一' <= c <= '鿿')
+    chinese = sum(1 for c in text if "一" <= c <= "鿿")
     ascii_chars = len(text) - chinese
     return chinese * 2 + ascii_chars // 4 + 8
 

@@ -2,16 +2,19 @@
 知识库检索服务。
 
 支持两种模式：
-- 向量搜索（TF-IDF n-gram cosine）：语义理解，模糊匹配
+- 语义向量搜索（EmbeddingSearcher）：语义理解，模糊匹配
 - 关键词搜索（SQL LIKE）：精确匹配
 
 调用顺序：向量搜索 → 不够时补充关键词结果。
+向量搜索通过 asyncio.to_thread 包裹，不阻塞事件循环。
 """
+
+import asyncio
 
 from app.logger import setup_logger
 from app.models.knowledge import KnowledgeEntry
 from app.repository.knowledge_repo import KnowledgeRepo
-from app.service.vector_search import VectorSearcher
+from app.service.embedding_search import EmbeddingSearcher
 
 logger = setup_logger()
 
@@ -19,7 +22,7 @@ logger = setup_logger()
 class KnowledgeRetriever:
     """知识检索器：向量搜索 + 关键词搜索组合。"""
 
-    def __init__(self, repo: KnowledgeRepo, vs: VectorSearcher | None = None) -> None:
+    def __init__(self, repo: KnowledgeRepo, vs: EmbeddingSearcher | None = None) -> None:
         self._repo = repo
         self._vs = vs
 
@@ -36,9 +39,9 @@ class KnowledgeRetriever:
         if not query.strip():
             return []
 
-        # 1. 尝试向量搜索
+        # 1. 尝试向量搜索（asyncio.to_thread 避免同步推理阻塞事件循环）
         if self._vs and self._vs.doc_count > 0:
-            vs_results = self._vs.search(query, limit=limit)
+            vs_results = await asyncio.to_thread(self._vs.search, query, limit)
             if vs_results:
                 keys = [k for k, _ in vs_results]
                 entries = await self._repo.get_by_titles(keys, limit=len(keys))

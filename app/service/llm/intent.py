@@ -2,13 +2,24 @@
 意图识别服务。
 
 根据用户输入 + 对话历史，识别顾客意图并返回数字标记：
-1=商品查价与咨询, 2=规则与物流咨询, 3=售后与转人工, 4=日常闲聊
+1=商品查价与咨询, 2=运费查询, 3=配送时间咨询, 4=售后与转人工, 5=日常闲聊与其他
 """
+
+from enum import IntEnum
 
 from openai import AsyncOpenAI
 
 from app.config import settings
 from app.logger import setup_logger
+
+
+class IntentType(IntEnum):
+    """意图分类 ID：所有合法意图值的唯一来源"""
+    PRODUCT_INQUIRY = 1    # 商品查价与咨询
+    SHIPPING_COST = 2      # 运费查询
+    DELIVERY_TIME = 3      # 配送时间咨询
+    AFTER_SALES = 4        # 售后与转人工
+    CASUAL_CHAT = 5        # 日常闲聊与其他
 
 logger = setup_logger()
 
@@ -37,14 +48,14 @@ INTENT_PROMPT = """### 角色
 """
 
 
-async def detect_intent(user_query: str, history: str = "") -> int:
+async def detect_intent(user_query: str, history: str = "") -> IntentType:
     """
     识别用户意图。
 
-    返回：1-4 的数字标记，失败时默认返回 1
+    返回：IntentType 枚举值，失败时默认返回 PRODUCT_INQUIRY
     """
     if not user_query.strip():
-        return 4
+        return IntentType.CASUAL_CHAT
 
     client = AsyncOpenAI(
         api_key=settings.DEEPSEEK_API_KEY,
@@ -67,10 +78,10 @@ async def detect_intent(user_query: str, history: str = "") -> int:
         # 提取第一个数字
         for ch in raw:
             if ch in "12345":
-                intent = int(ch)
-                logger.debug("意图识别: '%s' -> %d", user_query[:30], intent)
+                intent = IntentType(int(ch))
+                logger.debug("意图识别: '%s' -> %s", user_query[:30], intent.name)
                 return intent
-        return 1
+        return IntentType.PRODUCT_INQUIRY
     except Exception as exc:
-        logger.debug("意图识别失败，默认返回 1: %s", exc)
-        return 1
+        logger.warning("意图识别失败，默认返回 PRODUCT_INQUIRY: %s", exc)
+        return IntentType.PRODUCT_INQUIRY

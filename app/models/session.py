@@ -9,6 +9,13 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+class Channel(str, Enum):
+    """渠道标识：所有合法渠道值的唯一来源"""
+    YOUZAN = "youzan"
+    WECOM_1ON1 = "wecom_1on1"
+    WECOM_GROUP = "wecom_group"
+
+
 class SessionStatus(str, Enum):
     """会话状态：AI 接待 / 转人工排队 / 人工服务中 / 已结束"""
     ACTIVE = "active"
@@ -21,7 +28,7 @@ class SessionStatus(str, Enum):
 class Session:
     """一条完整的会话记录。"""
     id: str
-    channel: str                     # youzan / wecom_1on1 / wecom_group
+    channel: str                     # 取值见 Channel 枚举
     user_id: str                     # 渠道用户ID（buyer_id / external_userid）
     staff_id: str = ""               # 当前负责的客服/员工ID
     status: SessionStatus = SessionStatus.ACTIVE

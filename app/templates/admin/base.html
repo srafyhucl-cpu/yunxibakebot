@@ -19,13 +19,21 @@
 
   <div class="layout">
     <aside class="sidebar" id="sidebar">
-      <h2>🍰 芸熙烘焙</h2>
+      <div class="sidebar-logo">
+        <div class="logo-icon">🍰</div>
+        <div class="logo-text">
+          <span class="logo-name">芸熙烘焙</span>
+          <span class="logo-sub">AI 客服后台</span>
+        </div>
+      </div>
       <nav>
         <a href="/admin/dashboard" class="{{ 'active' if active == 'dashboard' }}">📊 概览</a>
         <a href="/admin/chat-test" class="{{ 'active' if active == 'chat_test' }}">💬 AI 测试</a>
-        <a href="/admin/transfers" class="{{ 'active' if active == 'transfers' }}" style="opacity:0.4;pointer-events:none;cursor:not-allowed">🔔 转人工 <span style="font-size:10px;background:var(--text-muted);color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px">待上线</span></a>
-        <a href="/admin/logout">🚪 退出</a>
+        <a href="/admin/transfers" class="nav-disabled">🔔 转人工 <span class="nav-tag">待上线</span></a>
       </nav>
+      <div class="sidebar-bottom">
+        <a href="/admin/logout">🚪 退出登录</a>
+      </div>
     </aside>
     <main class="main">
       {% block content %}{% endblock %}
