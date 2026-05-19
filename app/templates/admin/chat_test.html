@@ -74,51 +74,112 @@
 /* Drawer - fixed to viewport */
 .drawer-overlay {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.4); z-index: 500;
+  background: rgba(0,0,0,0.36); z-index: 500;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
 }
 .drawer-overlay.show { display: block; }
 .drawer {
-  position: fixed; top: 0; right: -300px; bottom: 0; width: 280px;
-  background: #fff; z-index: 510; transition: right 0.25s ease;
-  display: flex; flex-direction: column; overflow-y: auto;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 88vw);
+  background: #fff; z-index: 510; display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.25s ease;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.12); border-radius: 24px 0 0 24px;
+  overflow: hidden;
 }
-.drawer.open { right: 0; }
+.drawer.open { transform: translateX(0); }
 .drawer-head {
-  padding: 16px 12px; font-size: 16px; font-weight: 600;
-  border-bottom: 1px solid #eee;
-  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 16px 14px; border-bottom: 1px solid #f1ece7;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  background: linear-gradient(180deg, #fff8f6 0%, #fff 100%);
 }
 .drawer-head button {
   width: 48px; height: 48px; font-size: 22px;
   background: none; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
-.drawer-section { padding: 12px 0; border-bottom: 8px solid #f5f5f5; }
-.drawer-section h4 { padding: 0 16px; font-size: 13px; color: #999; margin-bottom: 8px; }
+.drawer-head-main { display: flex; flex-direction: column; gap: 4px; }
+.drawer-head-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.drawer-head-subtitle { font-size: 12px; color: var(--text-muted); }
+.drawer-body { flex: 1; overflow-y: auto; padding-bottom: 20px; }
+.drawer-section { padding: 14px 14px 0; }
+.drawer-section h4 { padding: 0 2px; font-size: 12px; color: #9b8a7d; margin-bottom: 10px; }
+
+.drawer-current {
+  background: linear-gradient(135deg, #fff7f5 0%, #fff 100%);
+  border: 1px solid #f2dfda; border-radius: 16px; padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.drawer-current-row { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.drawer-current-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.drawer-current-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+.drawer-status {
+  flex-shrink: 0; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+}
+.drawer-status.idle { background: #f2f0ed; color: #8c7d72; }
+.drawer-status.draft { background: #fff1d9; color: #c78312; }
+.drawer-status.saved { background: #edf7ee; color: #4d9c5a; }
+.drawer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.drawer-action {
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; cursor: pointer;
+}
+.drawer-action.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.drawer-nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.drawer-nav-card {
+  border: 1px solid var(--border); border-radius: 14px; background: #fff;
+  text-decoration: none; color: var(--text); padding: 12px; min-height: 74px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 10px;
+}
+.drawer-nav-card.disabled { opacity: 0.45; pointer-events: none; }
+.drawer-nav-icon { font-size: 18px; line-height: 1; }
+.drawer-nav-label { font-size: 13px; font-weight: 600; }
+.drawer-nav-tip { font-size: 11px; color: var(--text-muted); }
+
+.drawer-list { display: flex; flex-direction: column; gap: 8px; }
+.drawer-empty {
+  padding: 14px; border: 1px dashed #eaded5; border-radius: 14px;
+  font-size: 13px; color: var(--text-muted); background: #fff;
+}
 
 .drawer-item {
-  padding: 12px 16px; cursor: pointer; font-size: 15px;
+  padding: 12px 14px; cursor: pointer; font-size: 14px;
   display: flex; justify-content: space-between; align-items: center;
+  border: 1px solid var(--border); border-radius: 14px; background: #fff;
+  gap: 10px;
 }
-.drawer-item:active { background: #f0f0f0; }
-.drawer-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-item:active { background: #f8f4f1; }
+.drawer-item-main { flex: 1; min-width: 0; }
+.drawer-item .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.drawer-item .meta { display: block; margin-top: 4px; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-item .del {
   color: #bbb; padding: 8px 12px; font-size: 18px; cursor: pointer;
 }
 .drawer-item .del:active { color: var(--danger); }
-.drawer-item.active { background: #fff3e0; }
+.drawer-item.active { background: #fff5ef; border-color: #efc8bd; }
 
 .drawer-btn {
   display: block; width: 100%; text-align: left;
-  padding: 12px 16px; border: none; background: none;
-  cursor: pointer; font-size: 15px; text-decoration: none; color: var(--text);
+  padding: 12px 16px; border: 1px solid var(--border); background: #fff;
+  cursor: pointer; font-size: 14px; text-decoration: none; color: var(--text); border-radius: 12px;
 }
-.drawer-btn:active { background: #f0f0f0; }
+.drawer-btn:active { background: #f8f4f1; }
 
-.drawer-debug { padding: 12px 16px; }
+.drawer-quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.drawer-quick-btn {
+  border: 1px solid var(--border); border-radius: 14px; background: #fff;
+  padding: 12px; text-align: left; cursor: pointer; color: var(--text); min-height: 74px;
+}
+.drawer-quick-title { display: block; font-size: 13px; font-weight: 600; }
+.drawer-quick-desc { display: block; margin-top: 6px; font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+
+.drawer-debug { padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
 .drawer-debug table { width: 100%; font-size: 13px; }
 .drawer-debug td { padding: 4px 0; }
 .drawer-debug td:first-child { color: #999; width: 50px; }
+
+.drawer-footer { padding: 14px; }
+.drawer-footer a { text-decoration: none; }
 
 /* Modal - fixed to viewport */
 .modal-overlay {
@@ -169,34 +230,80 @@
 <div class="drawer-overlay" id="drawer-overlay" onclick="drawerClose()"></div>
 <div class="drawer" id="drawer">
   <div class="drawer-head">
-    菜单
+    <div class="drawer-head-main">
+      <div class="drawer-head-title">聊天菜单</div>
+      <div class="drawer-head-subtitle">快速切换页面、管理当前会话</div>
+    </div>
     <button onclick="drawerClose()">✕</button>
   </div>
-  <div class="drawer-section">
-    <h4>页面导航</h4>
-    <a href="/admin/dashboard" class="drawer-btn">📊 概览</a>
-    <a href="/admin/transfers" class="drawer-btn" style="opacity:0.4;pointer-events:none">🔔 转人工 <span style="font-size:10px;background:var(--text-muted);color:#fff;border-radius:4px;padding:1px 6px">待上线</span></a>
-    <a href="/admin/logout" class="drawer-btn">🚪 退出</a>
-  </div>
-  <div class="drawer-section">
-    <h4>已保存对话</h4>
-    <div id="saved-list"></div>
-  </div>
-  <div class="drawer-section">
-    <h4>快捷测试</h4>
-    <button class="drawer-btn" onclick="sendStatic('提拉米苏多少钱')">🍰 提拉米苏多少钱</button>
-    <button class="drawer-btn" onclick="sendStatic('明天下午能送到吗')">🚚 明天下午能送到吗</button>
-    <button class="drawer-btn" onclick="sendStatic('蛋糕坏了我要退款')">⚠️ 蛋糕坏了要退款</button>
-    <button class="drawer-btn" onclick="sendStatic('哈喽在吗')">👋 哈喽在吗</button>
-  </div>
-  <div class="drawer-section">
-    <h4>调试信息</h4>
-    <div class="drawer-debug">
-      <table>
-        <tr><td>意图</td><td id="dbg-intent">-</td></tr>
-        <tr><td>耗时</td><td id="dbg-time">-</td></tr>
-        <tr><td>Token</td><td id="dbg-tokens">-</td></tr>
-      </table>
+  <div class="drawer-body">
+    <div class="drawer-section">
+      <h4>当前会话</h4>
+      <div class="drawer-current">
+        <div class="drawer-current-row">
+          <div>
+            <div class="drawer-current-title" id="drawer-current-title">未开始对话</div>
+            <div class="drawer-current-meta" id="drawer-current-meta">发送首条消息后自动创建会话</div>
+          </div>
+          <span class="drawer-status idle" id="drawer-current-status">未开始</span>
+        </div>
+        <div class="drawer-actions">
+          <button class="drawer-action primary" onclick="promptSaveCurrent()">保存当前</button>
+          <button class="drawer-action" onclick="onNewChat()">新增对话</button>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-section">
+      <h4>页面导航</h4>
+      <div class="drawer-nav-grid">
+        <a href="/admin/dashboard" class="drawer-nav-card">
+          <span class="drawer-nav-icon">📊</span>
+          <span class="drawer-nav-label">概览</span>
+        </a>
+        <a href="/admin/transfers" class="drawer-nav-card disabled">
+          <span class="drawer-nav-icon">🔔</span>
+          <span class="drawer-nav-label">转人工</span>
+          <span class="drawer-nav-tip">待上线</span>
+        </a>
+      </div>
+    </div>
+    <div class="drawer-section">
+      <h4>已保存对话</h4>
+      <div class="drawer-list" id="saved-list"></div>
+    </div>
+    <div class="drawer-section">
+      <h4>快捷测试</h4>
+      <div class="drawer-quick-grid">
+        <button class="drawer-quick-btn" onclick="sendStatic('提拉米苏多少钱')">
+          <span class="drawer-quick-title">🍰 商品价格</span>
+          <span class="drawer-quick-desc">提拉米苏多少钱</span>
+        </button>
+        <button class="drawer-quick-btn" onclick="sendStatic('明天下午能送到吗')">
+          <span class="drawer-quick-title">🚚 配送时效</span>
+          <span class="drawer-quick-desc">明天下午能送到吗</span>
+        </button>
+        <button class="drawer-quick-btn" onclick="sendStatic('蛋糕坏了我要退款')">
+          <span class="drawer-quick-title">⚠️ 售后场景</span>
+          <span class="drawer-quick-desc">蛋糕坏了我要退款</span>
+        </button>
+        <button class="drawer-quick-btn" onclick="sendStatic('积分怎么用？')">
+          <span class="drawer-quick-title">🎁 店铺规则</span>
+          <span class="drawer-quick-desc">积分怎么用</span>
+        </button>
+      </div>
+    </div>
+    <div class="drawer-section">
+      <h4>调试信息</h4>
+      <div class="drawer-debug">
+        <table>
+          <tr><td>意图</td><td id="dbg-intent">-</td></tr>
+          <tr><td>耗时</td><td id="dbg-time">-</td></tr>
+          <tr><td>Token</td><td id="dbg-tokens">-</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <a href="/admin/logout" class="drawer-btn">🚪 退出登录</a>
     </div>
   </div>
 </div>
@@ -254,6 +361,49 @@ function drawerClose() {
   document.getElementById('drawer-overlay').classList.remove('show');
 }
 
+function formatTime(text) {
+  if (!text) return '';
+  return text.replace('T', ' ').slice(0, 16);
+}
+
+function syncDrawerState() {
+  var titleEl = document.getElementById('drawer-current-title');
+  var metaEl = document.getElementById('drawer-current-meta');
+  var statusEl = document.getElementById('drawer-current-status');
+  if (!_currentSessionId) {
+    titleEl.textContent = '未开始对话';
+    metaEl.textContent = '发送首条消息后自动创建会话';
+    statusEl.textContent = '未开始';
+    statusEl.className = 'drawer-status idle';
+    return;
+  }
+  if (_hasName) {
+    titleEl.textContent = '已保存对话';
+    metaEl.textContent = '当前会话已保存，可在下方列表随时打开';
+    statusEl.textContent = '已保存';
+    statusEl.className = 'drawer-status saved';
+    return;
+  }
+  titleEl.textContent = '临时会话';
+  metaEl.textContent = '会话ID：' + _currentSessionId.slice(0, 8) + ' · 用户：' + _userId;
+  statusEl.textContent = '未保存';
+  statusEl.className = 'drawer-status draft';
+}
+
+function markActiveSavedSession() {
+  document.querySelectorAll('.drawer-item').forEach(function(el) {
+    el.classList.toggle('active', !!_currentSessionId && el.dataset.sessionId === _currentSessionId);
+  });
+}
+
+function promptSaveCurrent() {
+  if (!_currentSessionId) { showToast('当前还没有可保存的对话', 'error'); return; }
+  if (_hasName) { showToast('当前对话已保存', 'success'); return; }
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal-name').value = '';
+  setTimeout(function(){ document.getElementById('modal-name').focus(); }, 100);
+}
+
 // Saved list
 async function loadSaved() {
   try {
@@ -261,14 +411,15 @@ async function loadSaved() {
     var d = await r.json();
     var el = document.getElementById('saved-list');
     if (d.code !== 0 || !d.data || d.data.length === 0) {
-      el.innerHTML = '<div style="padding:10px 16px;font-size:14px;color:#ccc">暂无保存的对话</div>';
+      el.innerHTML = '<div class="drawer-empty">暂无保存的对话，先聊几句再点“保存当前”即可。</div>';
       return;
     }
     var h = '';
     for (var s of d.data) {
-      h += '<div class="drawer-item" onclick="openSession(\'' + s.id + '\',\'' + s.user_id + '\')"><span class="name">' + esc(s.name) + '</span><span class="del" onclick="event.stopPropagation();delSession(\'' + s.id + '\')">✕</span></div>';
+      h += '<div class="drawer-item" data-session-id="' + s.id + '" onclick="openSession(\'' + s.id + '\',\'' + s.user_id + '\')"><div class="drawer-item-main"><span class="name">' + esc(s.name) + '</span><span class="meta">' + esc(formatTime(s.created_at) || s.user_id) + '</span></div><span class="del" onclick="event.stopPropagation();delSession(\'' + s.id + '\')">✕</span></div>';
     }
     el.innerHTML = h;
+    markActiveSavedSession();
   } catch(e) { console.error('loadSaved error:', e); }
 }
 
@@ -284,11 +435,8 @@ async function openSession(sid, uid) {
     _msgs.innerHTML = '';
     for (var m of d.data) addMsg(m.role, m.content);
     scrollBtm(); drawerClose();
-    document.querySelectorAll('.drawer-item').forEach(function(el){el.classList.remove('active')});
-    var items = document.querySelectorAll('.drawer-item');
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].textContent.indexOf(sid.slice(0,8)) >= 0) { items[i].classList.add('active'); break; }
-    }
+    syncDrawerState();
+    markActiveSavedSession();
   } catch(e) {}
 }
 
@@ -296,6 +444,7 @@ async function delSession(sid) {
   if (!confirm('确定丢弃？')) return;
   try { await fetch('/api/v1/admin/chat-test/session/' + sid, { method: 'DELETE', ..._auth }); } catch(e) {}
   if (_currentSessionId === sid) { _currentSessionId = ''; _ls('sessionId', null); _hasName = false; _ls('hasName', null); resetChat(); }
+  syncDrawerState();
   loadSaved();
 }
 
@@ -309,11 +458,13 @@ async function restore() {
         _msgs.innerHTML = '';
         for (var m of d.data) addMsg(m.role, m.content);
         scrollBtm();
+        syncDrawerState();
         return;
       }
     } catch(e) {}
     _currentSessionId = '';
     _ls('sessionId', null);
+    syncDrawerState();
   }
 }
 
@@ -328,9 +479,7 @@ function onNewChat() {
   drawerClose();
   if (!_currentSessionId) { startNewChat(); return; }
   if (_hasName) { startNewChat(); return; }
-  document.getElementById('modal').classList.add('show');
-  document.getElementById('modal-name').value = '';
-  setTimeout(function(){ document.getElementById('modal-name').focus(); }, 100);
+  promptSaveCurrent();
 }
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
 
@@ -339,6 +488,8 @@ function startNewChat() {
   _hasName = false; _ls('hasName', null);
   _userId = 't_' + Date.now(); _ls('userId', _userId);
   resetChat();
+  syncDrawerState();
+  markActiveSavedSession();
 }
 
 async function saveAndNew() {
@@ -362,6 +513,7 @@ async function saveAndNew() {
     } catch(e) { showToast('保存失败', 'error'); }
   }
   closeModal();
+  syncDrawerState();
   startNewChat();
   loadSaved();
 }
@@ -406,6 +558,8 @@ async function send(msg) {
     if (loadingEl) { loadingEl.outerHTML = ''; }
     addMsg('assistant', data.reply || '(无回复)');
     if (data.session_id) { _currentSessionId = data.session_id; _ls('sessionId', data.session_id); }
+    syncDrawerState();
+    markActiveSavedSession();
     document.getElementById('dbg-intent').textContent = {1:'商品',2:'运费',3:'配送',4:'售后',5:'闲聊'}[data.intent] || data.intent;
     document.getElementById('dbg-time').textContent = ((Date.now()-t0)/1000).toFixed(1) + 's';
     document.getElementById('dbg-tokens').textContent = data.tokens || '-';
@@ -421,6 +575,7 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s; retu
 
 // Init
 _msgs.innerHTML = '<div class="msg-row start"><div class="bubble ai">👋 你好，我是在线客服，有什么可以帮你的~</div></div>';
+syncDrawerState();
 restore();
 loadSaved();
 </script>
