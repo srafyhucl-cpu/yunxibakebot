@@ -396,6 +396,11 @@ function markActiveSavedSession() {
   });
 }
 
+function focusComposer() {
+  var input = document.getElementById('user-input');
+  if (input) input.focus();
+}
+
 function promptSaveCurrent() {
   if (!_currentSessionId) { showToast('当前还没有可保存的对话', 'error'); return; }
   if (_hasName) { showToast('当前对话已保存', 'success'); return; }
@@ -477,7 +482,12 @@ function addMsg(role, content) {
 // New chat
 function onNewChat() {
   drawerClose();
-  if (!_currentSessionId) { startNewChat(); return; }
+  if (!_currentSessionId) {
+    startNewChat();
+    focusComposer();
+    showToast('已进入新对话', 'success');
+    return;
+  }
   if (_hasName) { startNewChat(); return; }
   promptSaveCurrent();
 }
@@ -490,6 +500,7 @@ function startNewChat() {
   resetChat();
   syncDrawerState();
   markActiveSavedSession();
+  focusComposer();
 }
 
 async function saveAndNew() {
