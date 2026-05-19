@@ -52,7 +52,6 @@ def create_admin_router(
     transfer_mgr: TransferManager,
 ) -> APIRouter:
     """工厂函数：注入依赖后返回路由实例。"""
-    transfer_mgr = TransferManager(transfer_repo)
     router = APIRouter(tags=["admin"])
 
     # ────────────────────────────── 页面路由 ──────────────────────────────
