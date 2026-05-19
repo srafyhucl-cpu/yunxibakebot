@@ -6,6 +6,17 @@
 
 ## [版本/日期] - 2026-05-19
 - **操作人**: AI (Cascade)
+- **关联任务/功能**: 修复管理后台 chat-test 500
+- **核心变更文件说明**:
+  - `app/service/admin.py`: 补齐管理后台 API 依赖的会话查询、消息查询、状态更新与扩展信息更新代理方法，避免 API 层直接穿透 Repository。
+- **测试覆盖与验证结果**:
+  - `python scripts/check_project.py` ✅ 质量门禁通过。
+  - `pytest tests/service/test_admin.py` ✅ 2 passed。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - `app/api/admin.py` 仍为存量警戒文件，本次仅修复错误调用，不新增路由职责。
+
+## [版本/日期] - 2026-05-19
+- **操作人**: AI (Cascade)
 - **关联任务/功能**: 高阶 DevOps 配置接入与历史红线违约清查
 - **核心变更文件说明**:
   - `app/service/admin.py`: 新增。剥离 `admin_config.py` 和 `admin.py` 的 API 层中对 Repository 层的直接调用，补全业务薄层，符合 `api -> service -> repo` 分层约束。

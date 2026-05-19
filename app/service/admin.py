@@ -5,7 +5,7 @@ import json
 from app.models.config import FEATURED_PRODUCTS_KEY
 from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message
-from app.models.session import Session
+from app.models.session import Session, SessionStatus
 from app.models.transfer import HumanTransfer
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
@@ -44,14 +44,29 @@ class AdminService:
     async def get_session(self, session_id: str) -> Session | None:
         return await self._session_repo.get(session_id)
 
+    async def get(self, session_id: str) -> Session | None:
+        return await self.get_session(session_id)
+
     async def get_active_session(self, user_id: str, channel: str) -> Session | None:
         return await self._session_repo.get_active(user_id, channel)
+
+    async def get_active(self, user_id: str, channel: str) -> Session | None:
+        return await self.get_active_session(user_id, channel)
 
     async def get_named_sessions(self, channel: str) -> list[Session]:
         return await self._session_repo.get_named(channel=channel)
 
     async def get_session_messages(self, session_id: str) -> list[Message]:
         return await self._message_repo.get_by_session(session_id)
+
+    async def get_by_session(self, session_id: str) -> list[Message]:
+        return await self.get_session_messages(session_id)
+
+    async def update_status(self, session_id: str, status: str) -> None:
+        await self._session_repo.update_status(session_id, SessionStatus(status))
+
+    async def update_extra(self, session_id: str, extra_info: str) -> None:
+        await self._session_repo.update_extra(session_id, extra_info)
 
     async def name_session(self, session_id: str, name: str) -> bool:
         session = await self._session_repo.get(session_id)
