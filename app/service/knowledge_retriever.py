@@ -47,19 +47,35 @@ class KnowledgeRetriever:
         if not query.strip():
             return []
 
-        # 1. 尝试向量搜索（asyncio.to_thread 避免同步推理阻塞事件循环）
+        entries: list[KnowledgeEntry] = []
         if self._vs and self._vs.doc_count > 0:
             vs_results = await asyncio.to_thread(self._vs.search, query, limit)
             if vs_results:
                 keys = [k for k, _ in vs_results]
                 entries = await self._repo.get_by_titles(keys, limit=len(keys))
                 logger.debug("向量检索 '%s' → %d 条", query[:30], len(entries))
-                return await self._inject_featured(entries, limit)
 
-        # 2. 回退关键词搜索
-        results = await self._repo.search(query, limit=limit)
-        logger.debug("关键词检索 '%s' → %d 条", query[:30], len(results))
-        return await self._inject_featured(results, limit)
+        keyword_results = await self._repo.search(query, limit=limit)
+        logger.debug("关键词检索 '%s' → %d 条", query[:30], len(keyword_results))
+        merged = self._merge_entries(keyword_results, entries, limit)
+        return await self._inject_featured(merged, limit)
+
+    def _merge_entries(
+        self,
+        preferred_entries: list[KnowledgeEntry],
+        fallback_entries: list[KnowledgeEntry],
+        limit: int,
+    ) -> list[KnowledgeEntry]:
+        results: list[KnowledgeEntry] = []
+        seen_titles: set[str] = set()
+        for entry in [*preferred_entries, *fallback_entries]:
+            if entry.title in seen_titles:
+                continue
+            results.append(entry)
+            seen_titles.add(entry.title)
+            if len(results) >= limit:
+                break
+        return results
 
     async def _inject_featured(self, results: list[KnowledgeEntry], limit: int) -> list[KnowledgeEntry]:
         """始终在检索结果首位插入主推款合成条目。"""

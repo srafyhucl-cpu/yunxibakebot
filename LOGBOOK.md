@@ -6,9 +6,10 @@
 
 ## [版本/日期] - 2026-05-19
 - **操作人**: AI (Cascade)
-- **关联任务/功能**: 修复管理后台 chat-test 500
+- **关联任务/功能**: 修复管理后台 chat-test 500 与 FAQ 精确命中
 - **核心变更文件说明**:
   - `app/service/admin.py`: 补齐管理后台 API 依赖的会话查询、消息查询、状态更新与扩展信息更新代理方法，避免 API 层直接穿透 Repository。
+  - `app/service/knowledge_retriever.py`: 调整混合检索逻辑，始终合并关键词结果与向量结果，确保新增精确 FAQ 不被向量结果挤掉。
 - **测试覆盖与验证结果**:
   - `python scripts/check_project.py` ✅ 质量门禁通过。
   - `pytest tests/service/test_admin.py` ✅ 2 passed。
