@@ -13,6 +13,7 @@ import json
 
 from app.exceptions import LLMError
 from app.logger import setup_logger
+from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionCreate, SessionStatus
 from app.repository.message_repo import MessageRepo
@@ -147,6 +148,23 @@ class ChatService:
 
         return reply
 
+    async def _load_knowledge_entries(
+        self,
+        user_query: str,
+        history_text: str,
+        intent: IntentType,
+    ) -> list[KnowledgeEntry]:
+        if intent == IntentType.CASUAL_CHAT:
+            return await self._knowledge.search_keyword_only(user_query, limit=KNOWLEDGE_SEARCH_LIMIT)
+
+        search_query = user_query or DEFAULT_SEARCH_QUERY
+        rewritten = await rewrite_query(search_query, history=history_text)
+        try:
+            return await self._knowledge.search(rewritten, limit=KNOWLEDGE_SEARCH_LIMIT)
+        except Exception as exc:
+            logger.error("知识库检索失败，使用空上下文继续: %s", exc)
+            return []
+
     async def _ai_conversation_loop(
         self, session: Session, user_query: str = "", intent: IntentType = IntentType.PRODUCT_INQUIRY,
     ) -> str | None:
@@ -167,17 +185,7 @@ class ChatService:
             f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:INTENT_CONTENT_PREVIEW]}"
             for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
         )
-        if intent == IntentType.CASUAL_CHAT:
-            # 闲聊：不需要知识检索
-            knowledge_entries = []
-        else:
-            search_query = user_query or DEFAULT_SEARCH_QUERY
-            rewritten = await rewrite_query(search_query, history=history_text)
-            try:
-                knowledge_entries = await self._knowledge.search(rewritten, limit=KNOWLEDGE_SEARCH_LIMIT)
-            except Exception as exc:
-                logger.error("知识库检索失败，使用空上下文继续: %s", exc)
-                knowledge_entries = []
+        knowledge_entries = await self._load_knowledge_entries(user_query, history_text, intent)
 
         messages: list[dict] = [
             {"role": "system", "content": build_system_prompt(knowledge_entries)},

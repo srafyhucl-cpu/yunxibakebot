@@ -60,6 +60,13 @@ class KnowledgeRetriever:
         merged = self._merge_entries(keyword_results, entries, limit)
         return await self._inject_featured(merged, limit)
 
+    async def search_keyword_only(self, query: str, limit: int = 8) -> list[KnowledgeEntry]:
+        if not query.strip():
+            return []
+        results = await self._repo.search(query, limit=limit)
+        logger.debug("精确关键词检索 '%s' → %d 条", query[:30], len(results))
+        return await self._inject_featured(results, limit)
+
     def _merge_entries(
         self,
         preferred_entries: list[KnowledgeEntry],
