@@ -56,6 +56,9 @@ class AdminService:
     async def get_named_sessions(self, channel: str) -> list[Session]:
         return await self._session_repo.get_named(channel=channel)
 
+    async def get_named(self, channel: str) -> list[Session]:
+        return await self.get_named_sessions(channel)
+
     async def get_session_messages(self, session_id: str) -> list[Message]:
         return await self._message_repo.get_by_session(session_id)
 
