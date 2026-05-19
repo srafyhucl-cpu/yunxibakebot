@@ -293,14 +293,66 @@ python scripts/validate_products.py
 
 ## 🚀 部署
 
-- **域名**：hclstudio.cn（已备案），管理后台 yunxi.hclstudio.cn/admin
-- **进程管理**：systemd（yunxi-bakebot.service）
-- **反向代理**：Nginx，443 (外部) → 7001 (内部 FastAPI)
-- **HTTPS**：Let's Encrypt 通配符证书
+### 服务器信息
+
+| 项目 | 值 |
+|------|-----|
+| IP | `47.94.102.250` |
+| 用户 | `root` |
+| 端口 | `22`（SSH 免密登录） |
+| 项目路径 | `/opt/yunxibakebot` |
+| 域名 | `hclstudio.cn`（已备案），管理后台 `yunxi.hclstudio.cn/admin` |
+| 进程管理 | systemd（`yunxibakebot.service`） |
+| 反向代理 | Nginx，443 (外部) → 7001 (内部 FastAPI) |
+| HTTPS | Let's Encrypt 通配符证书 |
+
+### 服务器同步流程（强制遵循）
+
+> ⚠️ 服务器无法直连 GitHub（防火墙拦截），禁止使用 `git pull`、`git fetch origin` 等需要外网的操作。
+
+**每次本地提交推送后，必须按以下步骤同步到服务器：**
 
 ```bash
-# 服务端重启
-systemctl restart yunxi-bakebot
+# 1. 创建增量 bundle（仅包含服务器缺失的 commit）
+git bundle create server.bundle <服务器当前commit>..master
+
+# 2. scp 传输 bundle 到服务器
+scp server.bundle root@47.94.102.250:/opt/yunxibakebot/server.bundle
+
+# 3. 服务器端：fetch bundle + 重置工作区 + 重启服务
+ssh root@47.94.102.250 "cd /opt/yunxibakebot && \
+  git fetch server.bundle master:refs/remotes/bundle/master && \
+  git reset --hard bundle/master && \
+  rm server.bundle && \
+  systemctl restart yunxibakebot"
+
+# 4. 等待启动完成，验证日志
+ssh root@47.94.102.250 "sleep 20 && journalctl -u yunxibakebot --no-pager -n 5"
+
+# 5. 清理本地 bundle
+del server.bundle
+```
+
+**关键约束：**
+- `server.bundle` 已加入 `.gitignore`，禁止提交到仓库
+- 服务器当前 commit 可通过 `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git log --oneline -1"` 查询
+- 首次启动需等待约 60 秒（模型加载 + 向量索引构建），后续重启约 20 秒（索引从缓存加载）
+- 如果向量索引需要重建（如知识库变更），先 `rm -f data/embeddings.pkl` 再重启
+
+### 服务管理命令
+
+```bash
+# 重启服务
+ssh root@47.94.102.250 "systemctl restart yunxibakebot"
+
+# 查看状态
+ssh root@47.94.102.250 "systemctl status yunxibakebot --no-pager"
+
+# 查看日志
+ssh root@47.94.102.250 "journalctl -u yunxibakebot --no-pager -n 30"
+
+# 健康检查
+ssh root@47.94.102.250 "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:7001/health"
 ```
 
 ## 📋 行为提示
