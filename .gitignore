@@ -21,6 +21,7 @@ Thumbs.db
 .claude/settings.local.json
 
 # Project
+server.bundle
 ngrok.exe
 middle_region.png
 task.md
