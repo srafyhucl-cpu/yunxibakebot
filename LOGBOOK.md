@@ -15,6 +15,7 @@
   - `app/service/llm/intent.py`: 强化意图识别规则，明确“积分/优惠券/会员/店铺规则”属于业务咨询，并要求当前输入优先，避免被历史售后上下文带偏为转人工。
   - `app/api/admin.py`: 移除 chat-test 路由层的售后提前短路，统一由 `ChatService` 决定最终分支，避免页面显示意图与实际执行结果不一致。
   - `app/templates/admin/chat_test.html`: 停止按 `user_id` 自动恢复临时测试会话，默认生成新的临时用户，仅恢复已保存会话，消除历史上下文污染导致“问什么都跑偏/显示无回复”的问题。
+  - `app/templates/admin/chat_test.html`: 恢复未保存会话的 `sessionId` 回显能力，并修正“新增对话”按钮的弹窗判定，避免首次进入看不到刚才对话、二次点击才弹保存框从而丢失会话。
 - **测试覆盖与验证结果**:
   - `python scripts/check_project.py` ✅ 质量门禁通过。
   - `pytest tests/service/test_admin.py` ✅ 2 passed。

@@ -236,10 +236,6 @@ if (!_userId || _userId === 'admin_tester') {
   _ls('userId', _userId);
   _ls('sessionId', null);
 }
-if (!_hasName) {
-  _currentSessionId = '';
-  _ls('sessionId', null);
-}
 
 var _msgs = document.getElementById('chat-msgs');
 _msgs.addEventListener('scroll', function() {
@@ -299,7 +295,7 @@ async function openSession(sid, uid) {
 async function delSession(sid) {
   if (!confirm('确定丢弃？')) return;
   try { await fetch('/api/v1/admin/chat-test/session/' + sid, { method: 'DELETE', ..._auth }); } catch(e) {}
-  if (_currentSessionId === sid) { _currentSessionId = ''; _ls('sessionId', null); _hasName = false; resetChat(); }
+  if (_currentSessionId === sid) { _currentSessionId = ''; _ls('sessionId', null); _hasName = false; _ls('hasName', null); resetChat(); }
   loadSaved();
 }
 
@@ -316,6 +312,8 @@ async function restore() {
         return;
       }
     } catch(e) {}
+    _currentSessionId = '';
+    _ls('sessionId', null);
   }
 }
 
@@ -328,6 +326,7 @@ function addMsg(role, content) {
 // New chat
 function onNewChat() {
   drawerClose();
+  if (!_currentSessionId) { startNewChat(); return; }
   if (_hasName) { startNewChat(); return; }
   document.getElementById('modal').classList.add('show');
   document.getElementById('modal-name').value = '';
