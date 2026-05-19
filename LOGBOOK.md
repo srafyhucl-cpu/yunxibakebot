@@ -11,6 +11,7 @@
   - `app/service/admin.py`: 补齐管理后台 API 依赖的会话查询、消息查询、状态更新与扩展信息更新代理方法，避免 API 层直接穿透 Repository。
   - `app/api/admin.py`: 修复 chat-test 复用非默认测试用户时仍处于人工服务状态导致 AI 跳过并返回空回复的问题。
   - `app/service/knowledge_retriever.py`: 调整混合检索逻辑，始终合并关键词结果与向量结果，确保新增精确 FAQ 不被向量结果挤掉。
+  - `app/templates/admin/chat_test.html`: 停止按 `user_id` 自动恢复临时测试会话，默认生成新的临时用户，仅恢复已保存会话，消除历史上下文污染导致“问什么都跑偏/显示无回复”的问题。
 - **测试覆盖与验证结果**:
   - `python scripts/check_project.py` ✅ 质量门禁通过。
   - `pytest tests/service/test_admin.py` ✅ 2 passed。

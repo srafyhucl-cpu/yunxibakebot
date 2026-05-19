@@ -222,14 +222,24 @@ var _auth = {headers: {'Authorization': 'Bearer 100200'}};
 var _userScrolledUp = false;
 
 function _ls(k, v) {
-  if (v === undefined) return localStorage.getItem('chat_' + k) || '';
+  if (v === undefined) return localStorage.getItem('chat_' + k);
   if (v === null) localStorage.removeItem('chat_' + k);
   else localStorage.setItem('chat_' + k, v);
 }
 
-var _userId = _ls('userId') || 'admin_tester';
+var _userId = _ls('userId') || '';
 var _currentSessionId = _ls('sessionId');
-var _hasName = false;
+var _hasName = _ls('hasName') === '1';
+if (!_userId || _userId === 'admin_tester') {
+  _userId = 't_' + Date.now();
+  _currentSessionId = '';
+  _ls('userId', _userId);
+  _ls('sessionId', null);
+}
+if (!_hasName) {
+  _currentSessionId = '';
+  _ls('sessionId', null);
+}
 
 var _msgs = document.getElementById('chat-msgs');
 _msgs.addEventListener('scroll', function() {
@@ -268,6 +278,7 @@ async function loadSaved() {
 
 async function openSession(sid, uid) {
   _hasName = true;
+  _ls('hasName', '1');
   if (uid) { _userId = uid; _ls('userId', uid); }
   _currentSessionId = sid; _ls('sessionId', sid);
   try {
@@ -306,13 +317,6 @@ async function restore() {
       }
     } catch(e) {}
   }
-  try {
-    var r = await fetch('/api/v1/admin/chat-test/messages?user_id=' + _userId, _auth);
-    var d = await r.json();
-    if (d.code === 0 && d.data && d.data.length > 0 && d.session_id) {
-      await openSession(d.session_id, _userId);
-    }
-  } catch(e) {}
 }
 
 function addMsg(role, content) {
@@ -333,7 +337,8 @@ function closeModal() { document.getElementById('modal').classList.remove('show'
 
 function startNewChat() {
   _currentSessionId = ''; _ls('sessionId', null);
-  _hasName = false; _userId = 't_' + Date.now(); _ls('userId', _userId);
+  _hasName = false; _ls('hasName', null);
+  _userId = 't_' + Date.now(); _ls('userId', _userId);
   resetChat();
 }
 
@@ -350,6 +355,7 @@ async function saveAndNew() {
       var d = await r.json();
       if (d.code === 0) {
         _hasName = true;
+        _ls('hasName', '1');
         showToast('已保存', 'success');
       } else {
         showToast('保存失败: ' + (d.message || ''), 'error');
