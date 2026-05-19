@@ -212,8 +212,6 @@ def create_admin_router(
         s = await admin_service.get_active(test_user, "admin_test")
         if s and s.status in ("transfer_pending", "human_service"):
             await admin_service.update_status(s.id, "active")
-        if intent == 4:
-            return {"code": 0, "reply": "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~", "intent": 4}
         reply = await chat_service.handle_message(
             channel="admin_test",
             user_id=test_user,

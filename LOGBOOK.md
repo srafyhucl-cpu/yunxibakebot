@@ -12,6 +12,8 @@
   - `app/api/admin.py`: 修复 chat-test 复用非默认测试用户时仍处于人工服务状态导致 AI 跳过并返回空回复的问题。
   - `app/service/knowledge_retriever.py`: 调整混合检索逻辑，始终合并关键词结果与向量结果，确保新增精确 FAQ 不被向量结果挤掉。
   - `app/service/chat.py`: 抽取知识装载 helper；当意图误判为 `CASUAL_CHAT` 时，先做关键词精确 FAQ 检索，避免“积分怎么用”这类店铺规则问题丢失知识上下文。
+  - `app/service/llm/intent.py`: 强化意图识别规则，明确“积分/优惠券/会员/店铺规则”属于业务咨询，并要求当前输入优先，避免被历史售后上下文带偏为转人工。
+  - `app/api/admin.py`: 移除 chat-test 路由层的售后提前短路，统一由 `ChatService` 决定最终分支，避免页面显示意图与实际执行结果不一致。
   - `app/templates/admin/chat_test.html`: 停止按 `user_id` 自动恢复临时测试会话，默认生成新的临时用户，仅恢复已保存会话，消除历史上下文污染导致“问什么都跑偏/显示无回复”的问题。
 - **测试覆盖与验证结果**:
   - `python scripts/check_project.py` ✅ 质量门禁通过。
