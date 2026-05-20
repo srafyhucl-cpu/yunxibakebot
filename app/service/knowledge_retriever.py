@@ -58,14 +58,46 @@ class KnowledgeRetriever:
         keyword_results = await self._repo.search(query, limit=limit)
         logger.debug("关键词检索 '%s' → %d 条", query[:30], len(keyword_results))
         merged = self._merge_entries(keyword_results, entries, limit)
-        return await self._inject_featured(merged, limit)
+        results = await self._inject_featured(merged, limit)
+        return await self._prepend_live_data(results)
 
     async def search_keyword_only(self, query: str, limit: int = 8) -> list[KnowledgeEntry]:
         if not query.strip():
             return []
         results = await self._repo.search(query, limit=limit)
         logger.debug("精确关键词检索 '%s' → %d 条", query[:30], len(results))
-        return await self._inject_featured(results, limit)
+        featured_results = await self._inject_featured(results, limit)
+        return await self._prepend_live_data(featured_results)
+
+    async def _prepend_live_data(self, entries: list[KnowledgeEntry]) -> list[KnowledgeEntry]:
+        """对于含有 youzan_item_id 的知识条目，现场秒级反查 products 物理表并动态拼接最新库存与售价。"""
+        if not entries:
+            return entries
+
+        from app.repository.youzan_repo import YouzanProductRepo
+        product_repo = YouzanProductRepo(self._repo._db)
+
+        for entry in entries:
+            if entry.youzan_item_id:
+                try:
+                    product = await product_repo.get_by_id(int(entry.youzan_item_id))
+                    if product:
+                        price_yuan = product["price_fen"] / 100.0
+                        stock = product["stock"]
+                        is_active = product["is_active"]
+
+                        # 构造富提示前置前缀，死锁 AI 回复幻觉风险
+                        live_prefix = f"【有赞微商城现场秒级数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：{stock}件】\n\n"
+                        if is_active == 0:
+                            live_prefix = "【有赞微商城现场秒级数据 — ⚠️商品当前已在有赞后台下架或暂停预定】\n\n"
+                        elif stock <= 0:
+                            live_prefix = f"【有赞微商城现场秒级数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
+
+                        entry.content = live_prefix + entry.content
+                except Exception as exc:
+                    logger.warning("现场反查商品库存（ID: %s）发生非致命异常: %s", entry.youzan_item_id, exc)
+
+        return entries
 
     def _merge_entries(
         self,

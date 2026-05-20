@@ -20,7 +20,7 @@ class KnowledgeRepo:
         keyword = f"%{query}%"
         rows = await self._db.execute_fetchall(
             "SELECT id, category, title, content, keywords, priority, "
-            "is_active, created_at, updated_at "
+            "is_active, youzan_item_id, created_at, updated_at "
             "FROM knowledge_base "
             "WHERE is_active = 1 AND (title LIKE ? OR content LIKE ? OR keywords LIKE ?) "
             "ORDER BY priority DESC LIMIT ?",
@@ -32,7 +32,7 @@ class KnowledgeRepo:
         """按分类获取所有启用的知识条目。"""
         rows = await self._db.execute_fetchall(
             "SELECT id, category, title, content, keywords, priority, "
-            "is_active, created_at, updated_at "
+            "is_active, youzan_item_id, created_at, updated_at "
             "FROM knowledge_base WHERE category = ? AND is_active = 1 "
             "ORDER BY priority DESC",
             (category,),
@@ -46,7 +46,7 @@ class KnowledgeRepo:
         placeholders = ",".join("?" * len(titles))
         sql = (
             "SELECT id, category, title, content, keywords, priority, "
-            "is_active, created_at, updated_at FROM knowledge_base "
+            "is_active, youzan_item_id, created_at, updated_at FROM knowledge_base "
             f"WHERE title IN ({placeholders}) AND is_active = 1 "
             "ORDER BY priority DESC LIMIT ?"
         )
@@ -72,7 +72,7 @@ class KnowledgeRepo:
         keyword = f"%{search}%"
         rows = await self._db.execute_fetchall(
             "SELECT id, category, title, content, keywords, priority, "
-            "is_active, created_at, updated_at "
+            "is_active, youzan_item_id, created_at, updated_at "
             "FROM knowledge_base "
             "WHERE title LIKE ? OR content LIKE ? OR keywords LIKE ? "
             "ORDER BY category, priority DESC, title LIMIT ? OFFSET ?",
@@ -94,7 +94,7 @@ class KnowledgeRepo:
         """按 ID 获取单条知识记录（忽略 is_active）。"""
         rows = await self._db.execute_fetchall(
             "SELECT id, category, title, content, keywords, priority, "
-            "is_active, created_at, updated_at "
+            "is_active, youzan_item_id, created_at, updated_at "
             "FROM knowledge_base WHERE id = ?",
             (entry_id,),
         )
@@ -105,5 +105,41 @@ class KnowledgeRepo:
         await self._db.execute(
             "UPDATE knowledge_base SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
             (1 if is_active else 0, entry_id),
+        )
+        await self._db.commit()
+
+    async def upsert_product_knowledge(
+        self,
+        youzan_item_id: str,
+        title: str,
+        content: str,
+        keywords: str,
+        priority: int,
+        updated_at: str,
+    ) -> None:
+        """
+        原子化 Upsert 商品知识条目（内置 Webhook 时序乐观锁）。
+        当且仅当推送的新报文时间戳大于本地已有记录时，才执行覆写。
+        """
+        await self._db.execute(
+            "INSERT INTO knowledge_base (category, title, content, keywords, priority, youzan_item_id, is_active, updated_at) "
+            "VALUES (\"product\", ?, ?, ?, ?, ?, 1, ?) "
+            "ON CONFLICT(youzan_item_id) DO UPDATE SET "
+            "    title = excluded.title, "
+            "    content = excluded.content, "
+            "    keywords = excluded.keywords, "
+            "    priority = excluded.priority, "
+            "    is_active = 1, "
+            "    updated_at = excluded.updated_at "
+            "WHERE excluded.updated_at > knowledge_base.updated_at",
+            (title, content, keywords, priority, youzan_item_id, updated_at),
+        )
+        await self._db.commit()
+
+    async def delete_product_knowledge(self, youzan_item_id: str) -> None:
+        """根据有赞商品 ID 软下架该商品对应的知识。"""
+        await self._db.execute(
+            "UPDATE knowledge_base SET is_active = 0, updated_at = datetime('now') WHERE youzan_item_id = ?",
+            (youzan_item_id,),
         )
         await self._db.commit()

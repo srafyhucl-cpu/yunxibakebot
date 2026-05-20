@@ -59,6 +59,21 @@ class ChatService:
         self._transfer_mgr = TransferManager(transfer_repo)
         self._knowledge = knowledge_retriever
 
+    async def handle_message_and_reply_youzan(self, buyer_id: str, content: str, msg_id: str) -> None:
+        """处理消息，并将 AI 回复通过有赞客户端投递给买家（业务层闭环封装）。"""
+        reply = await self.handle_message(
+            channel="youzan",
+            user_id=buyer_id,
+            content=content,
+            channel_msg_id=msg_id,
+        )
+        if reply:
+            from app.repository.config_repo import ConfigRepo
+            from app.service.youzan.client import YouzanClient
+            yz_client = YouzanClient(config_repo=ConfigRepo(self._session_repo._db))
+            await yz_client.send_reply(buyer_open_id=buyer_id, content=reply)
+            await yz_client.close()
+
     async def handle_message(
         self,
         channel: str,
@@ -283,3 +298,236 @@ class ChatService:
         )
         await self._message_repo.save(msg)
         logger.info("人工客服回复: session=%s", session_id)
+
+    async def handle_youzan_system_event(self, payload: dict, updated_at_str: str, msg_id: str) -> None:
+        """
+        处理有赞推送的系统事件（商品变动、交易订单变动等，属于 service 业务层）。
+        向右合流物理宽表，向左合流 RAG 增量知识库，并部署四大分析埋点触点。
+        """
+        from app.repository.youzan_repo import YouzanProductRepo, YouzanOrderRepo
+        from app.repository.analytics_repo import AnalyticsRepo
+        from app.repository.knowledge_repo import KnowledgeRepo
+        from app.service.youzan.client import YouzanClient
+        from app.repository.config_repo import ConfigRepo
+        from app.config import settings
+        import datetime
+        import urllib.parse
+        import json
+        import asyncio
+
+        db = self._session_repo._db
+        event_type = payload.get("type", "")
+
+        msg_str = urllib.parse.unquote(payload.get("msg", "{}"))
+        try:
+            msg_obj = json.loads(msg_str)
+        except Exception as exc:
+            logger.error("解析有赞系统事件 msg 详情失败: %s", exc)
+            return
+
+        product_repo = YouzanProductRepo(db)
+        order_repo = YouzanOrderRepo(db)
+        analytics_repo = AnalyticsRepo(db)
+        knowledge_repo = KnowledgeRepo(db)
+
+        # --- 触点二/四：交易生命周期流转与 24小时 ROI AI导购支付归因 ---
+        if event_type.startswith("trade_"):
+            tid = msg_obj.get("tid", "")
+            if not tid:
+                logger.warning("有赞交易事件缺少 tid")
+                return
+
+            logger.info("开始处理有赞交易 Webhook 事件 [%s]: tid=%s", event_type, tid)
+            try:
+                # (1) 读取本地已有状态
+                old_status = "NONE"
+                local_order = await order_repo.get_by_order_no(tid)
+                if local_order:
+                    old_status = local_order["status"]
+
+                # (2) 现场秒级拉取有赞最新数据，保障最终一致性（死锁脑裂）
+                yz_client = YouzanClient(config_repo=ConfigRepo(db))
+                raw_order = await yz_client.get_order(tid)
+                await yz_client.close()
+
+                if "response" in raw_order and "trade" in raw_order["response"]:
+                    trade = raw_order["response"]["trade"]
+                    status = trade.get("status", "WAIT_BUYER_PAY")
+                    payment_fen = int(float(trade.get("payment", 0)) * 100)
+                    buyer_id = trade.get("buyer_id", "") or trade.get("open_id", "")
+
+                    # 结构化抽取并拼接商品描述
+                    order_items = trade.get("orders", [])
+                    titles_list = []
+                    total_qty = 0
+                    for item in order_items:
+                        title = item.get("title", "商品")
+                        num = item.get("num", 1)
+                        titles_list.append(f"{title} x {num}")
+                        total_qty += num
+                    product_titles = ", ".join(titles_list)
+                    created = trade.get("created", "")
+
+                    # (3) 向右分流：原子 Upsert 保存至 orders 物理大宽表（带乐观时序锁）
+                    await order_repo.upsert_order(
+                        order_no=tid,
+                        buyer_id=buyer_id,
+                        status=status,
+                        amount_fen=payment_fen,
+                        logistics_no=local_order["logistics_no"] if local_order else "",
+                        logistics_status=local_order["logistics_status"] if local_order else "",
+                        product_titles=product_titles,
+                        total_quantity=total_qty,
+                        created_at=created,
+                        updated_at=updated_at_str
+                    )
+
+                    # (4) 触点二：记录履约订单生命周期状态变更埋点 (order_state_change)
+                    if old_status != status:
+                        await analytics_repo.add_event(
+                            session_id=None,
+                            buyer_id=buyer_id,
+                            event_type="order_state_change",
+                            event_source="webhook_youzan",
+                            ref_id=tid,
+                            meta_data=json.dumps({"old_status": old_status, "new_status": status}, ensure_ascii=False),
+                            created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        )
+                        logger.info("已成功记录订单履约时效埋点: tid=%s, old=%s, new=%s", tid, old_status, status)
+
+                    # (5) 触点四：AI 导购付款成功归因埋点 (order_conversion)
+                    # 在付款成功的事件状态（由 WAIT_BUYER_PAY 流转到 WAIT_SELLER_SEND_GOODS 或直接付款成功）进行 lookback
+                    if event_type == "trade_TradeBuyerPay" or (old_status in ("NONE", "WAIT_BUYER_PAY") and status in ("WAIT_SELLER_SEND_GOODS", "TRADE_PAID", "TRADE_SUCCESS")):
+                        logger.info("触发 24 小时 AI 导购业绩付款归因校验: buyer=%s", buyer_id)
+                        for item in order_items:
+                            item_id = item.get("item_id", 0)
+                            if item_id:
+                                product = await product_repo.get_by_id(item_id)
+                                if product:
+                                    alias = product["alias"]
+                                    # 回溯 24 小时推荐行为
+                                    ai_session_id = await analytics_repo.check_ai_recommend_for_conversion(buyer_id, alias, lookback_hours=24)
+                                    if ai_session_id:
+                                        # ROI 归因命中，记录业绩埋点日志供 Dashboard 画布展现
+                                        await analytics_repo.add_event(
+                                            session_id=ai_session_id,
+                                            buyer_id=buyer_id,
+                                            event_type="order_conversion",
+                                            event_source="webhook_youzan",
+                                            ref_id=tid,
+                                            meta_data=json.dumps({
+                                                "product_title": item.get("title", ""),
+                                                "product_alias": alias,
+                                                "amount_fen": int(float(item.get("payment", 0)) * 100),
+                                                "lookback": "24_hours"
+                                            }, ensure_ascii=False),
+                                            created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                        )
+                                        logger.info("🎉 完美！AI 导购业绩归因匹配成功！已为 Dashboard 记账绩效: session_id=%s, buyer_id=%s, gmv_fen=%s", ai_session_id, buyer_id, item.get("payment"))
+            except Exception as exc:
+                logger.error("处理有赞交易系统事件失败: tid=%s err=%s", tid, exc)
+
+        # --- 触点一：商品属性上下架/更新（双轨分流 + price_sync / stock_alert 审计埋点） ---
+        elif event_type.startswith("item_") or event_type == "ITEM_STATE":
+            item_id = msg_obj.get("item_id", 0)
+            if not item_id:
+                logger.warning("有赞商品事件缺少 item_id")
+                return
+
+            logger.info("开始处理有赞商品 Webhook 事件 [%s]: item_id=%s", event_type, item_id)
+            try:
+                # (1) 读取本地已有属性用以对比
+                old_price = -1
+                old_stock = -1
+                local_product = await product_repo.get_by_id(item_id)
+                if local_product:
+                    old_price = local_product["price_fen"]
+                    old_stock = local_product["stock"]
+
+                # (2) 现场拉取有赞商品实况
+                yz_client = YouzanClient(config_repo=ConfigRepo(db))
+                raw_product = await yz_client.get_product(item_id)
+                await yz_client.close()
+
+                if "response" in raw_product and "item" in raw_product["response"]:
+                    item_data = raw_product["response"]["item"]
+                    title = item_data.get("title", "")
+                    alias = item_data.get("alias", "")
+                    price_fen = item_data.get("price", 0)
+                    stock = item_data.get("quantity", 0)
+                    image = item_data.get("image", "")
+
+                    # 商品上架在售状态判定
+                    is_active = 1
+                    if "instock" in event_type or event_type.endswith("Instock"):
+                        is_active = 0  # 软下架入库
+
+                    # (3) 向右分流：原子 Upsert 保存至 youzan_products 物理商品大宽表
+                    await product_repo.upsert_product(
+                        item_id=item_id,
+                        title=title,
+                        alias=alias,
+                        price_fen=price_fen,
+                        stock=stock,
+                        image=image,
+                        is_active=is_active,
+                        updated_at=updated_at_str
+                    )
+
+                    # (4) 向左分流：原子增量更新 RAG（数据库 ON CONFLICT 与内存 NumPy 增减）
+                    detail_url = f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
+                    content_md = f"商品名称：{title}\n有赞别名（Alias）：{alias}\n直购详情链接：{detail_url}\n介绍：小店精制热销烘焙糕点，新西兰进口安佳动物奶油制作，冷藏保质期三天。实时售价及当前秒级库存见现场提示。"
+
+                    if is_active == 1:
+                        # SQLite RAG 商品知识落库
+                        await knowledge_repo.upsert_product_knowledge(
+                            youzan_item_id=str(item_id),
+                            title=title,
+                            content=content_md,
+                            keywords=f"商品, 价格, 推荐, 蛋糕, {title}",
+                            priority=50,
+                            updated_at=updated_at_str
+                        )
+                        # 增量计算 1 个 Embedding 并原地追加/替换向量
+                        vs = self._knowledge._vs
+                        if vs:
+                            vector = vs._get_model().encode([f"{title} {content_md}"], normalize_embeddings=True)[0].tolist()
+                            vs.upsert_one(title, vector)
+                            # 内存脏页写缓冲原子落盘落库，阻断写放大
+                            await asyncio.to_thread(vs.save, settings.EMBEDDING_PATH)
+                    else:
+                        # RAG 下架物理擦除
+                        await knowledge_repo.delete_product_knowledge(str(item_id))
+                        vs = self._knowledge._vs
+                        if vs:
+                            vs.delete_one(title)
+                            await asyncio.to_thread(vs.save, settings.EMBEDDING_PATH)
+
+                    # (5) 触点一：价格/库存异动审计变更埋点 (price_sync / stock_alert)
+                    if old_price != -1 and old_price != price_fen:
+                        await analytics_repo.add_event(
+                            session_id=None,
+                            buyer_id=None,
+                            event_type="price_sync",
+                            event_source="webhook_youzan",
+                            ref_id=str(item_id),
+                            meta_data=json.dumps({"product_title": title, "old_price_fen": old_price, "new_price_fen": price_fen}, ensure_ascii=False),
+                            created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        )
+                        logger.info("已成功记录商品价格调价审计埋点: title=%s, old=%d, new=%d", title, old_price, price_fen)
+
+                    if old_stock != -1 and old_stock != stock:
+                        await analytics_repo.add_event(
+                            session_id=None,
+                            buyer_id=None,
+                            event_type="stock_alert",
+                            event_source="webhook_youzan",
+                            ref_id=str(item_id),
+                            meta_data=json.dumps({"product_title": title, "old_stock": old_stock, "new_stock": stock}, ensure_ascii=False),
+                            created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        )
+                        logger.info("已成功记录商品库存预警审计埋点: title=%s, old_stock=%d, new_stock=%d", title, old_stock, stock)
+
+            except Exception as exc:
+                logger.error("处理有赞商品系统事件失败: item_id=%s err=%s", item_id, exc)
+

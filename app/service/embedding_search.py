@@ -33,6 +33,7 @@ class EmbeddingSearcher:
         self._embeddings: np.ndarray | None = None
         self._doc_keys: list[str] = []
         self._ready: bool = False
+        self._dirty: bool = False
 
     def _get_model(self) -> SentenceTransformer:
         """懒加载：首次调用时初始化模型（避免冷启动阻塞）。"""
@@ -60,6 +61,7 @@ class EmbeddingSearcher:
         raw = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
         self._embeddings = np.array(raw, dtype=np.float32)
         self._ready = True
+        self._dirty = True
         logger.info("Embedding 索引构建完成: %d 条", len(self._doc_keys))
 
     def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
@@ -85,20 +87,65 @@ class EmbeddingSearcher:
             if s > MIN_SIMILARITY_SCORE
         ]
 
+    def upsert_one(self, key: str, vector: list[float]) -> None:
+        """
+        单条追加或原地按索引替换向量。
+        """
+        new_vec = np.array(vector, dtype=np.float32)
+        if key in self._doc_keys:
+            idx = self._doc_keys.index(key)
+            if self._embeddings is not None:
+                self._embeddings[idx] = new_vec
+            logger.info("已通过内存原子替换增量更新单条向量: %s", key)
+        else:
+            self._doc_keys.append(key)
+            if self._embeddings is None:
+                self._embeddings = np.array([new_vec], dtype=np.float32)
+            else:
+                self._embeddings = np.vstack([self._embeddings, new_vec])
+            logger.info("已通过内存增量追加单条向量: %s", key)
+        self._ready = True
+        self._dirty = True
+
+    def delete_one(self, key: str) -> None:
+        """
+        单条物理删除向量（NumPy 矩阵裁剪）。
+        """
+        if key in self._doc_keys:
+            idx = self._doc_keys.index(key)
+            self._doc_keys.pop(idx)
+            if self._embeddings is not None:
+                self._embeddings = np.delete(self._embeddings, idx, axis=0)
+            logger.info("已增量从内存原子删除单条向量: %s", key)
+            self._dirty = True
+            if len(self._doc_keys) == 0:
+                self._ready = False
+                self._embeddings = None
+
     def save(self, path: str | Path) -> None:
-        """持久化向量索引到磁盘。"""
+        """持久化向量索引到磁盘（增量原子替换，带有 _dirty 写缓冲防线）。"""
+        if not self._dirty:
+            logger.debug("向量索引未发生变更，跳过磁盘写入")
+            return
         try:
+            path = Path(path)
+            tmp_path = path.with_suffix(".tmp")
             data = (self._doc_keys, self._embeddings, self._ready)
-            with open(path, "wb") as f:
+            with open(tmp_path, "wb") as f:
                 pickle.dump(data, f)
+            import os
+            os.replace(str(tmp_path), str(path))
+            self._dirty = False
+            logger.info("已通过原子写入安全持久化向量索引: %d 条", len(self._doc_keys))
         except (OSError, pickle.PicklingError) as exc:
-            logger.error("向量索引保存失败: %s", exc)
+            logger.error("向量索引原子保存失败: %s", exc)
 
     def load(self, path: str | Path) -> None:
         """从磁盘加载已缓存的向量索引（跳过模型推理）。"""
         try:
             with open(path, "rb") as f:
                 self._doc_keys, self._embeddings, self._ready = pickle.load(f)
+            self._dirty = False
             logger.info("Embedding 索引已从缓存加载: %d 条", len(self._doc_keys))
         except (OSError, pickle.UnpicklingError) as exc:
             logger.warning("向量索引加载失败，将重新构建: %s", exc)

@@ -97,12 +97,56 @@ SCHEMA_STATEMENTS: list[str] = [
         value TEXT NOT NULL,
         updated_at TEXT DEFAULT (datetime('now'))
     )""",
+    # youzan_products (有赞商品与实时库存大宽表)
+    """CREATE TABLE IF NOT EXISTS youzan_products (
+        item_id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        alias TEXT NOT NULL UNIQUE,
+        price_fen INTEGER NOT NULL,
+        stock INTEGER NOT NULL,
+        image TEXT DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_yp_title ON youzan_products(title)",
+    "CREATE INDEX IF NOT EXISTS idx_yp_alias ON youzan_products(alias)",
+    # youzan_orders (有赞交易订单大宽表)
+    """CREATE TABLE IF NOT EXISTS youzan_orders (
+        order_no TEXT PRIMARY KEY,
+        buyer_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        amount_fen INTEGER NOT NULL,
+        logistics_no TEXT DEFAULT '',
+        logistics_status TEXT DEFAULT '',
+        product_titles TEXT NOT NULL,
+        total_quantity INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_yo_status ON youzan_orders(status)",
+    "CREATE INDEX IF NOT EXISTS idx_yo_buyer ON youzan_orders(buyer_id)",
+    # analytics_events (分析埋点日志物理大宽表)
+    """CREATE TABLE IF NOT EXISTS analytics_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        buyer_id TEXT,
+        event_type TEXT NOT NULL,
+        event_source TEXT NOT NULL,
+        ref_id TEXT,
+        meta_data TEXT DEFAULT '{}',
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ae_type ON analytics_events(event_type)",
+    "CREATE INDEX IF NOT EXISTS idx_ae_session ON analytics_events(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ae_buyer ON analytics_events(buyer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ae_created ON analytics_events(created_at)",
 ]
 
 PRAGMA_STATEMENTS: list[str] = [
     "PRAGMA journal_mode = WAL",
     "PRAGMA busy_timeout = 5000",
     "PRAGMA foreign_keys = ON",
+    "PRAGMA auto_vacuum = INCREMENTAL",
 ]
 
 
@@ -114,6 +158,19 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
     for stmt in SCHEMA_STATEMENTS:
         await conn.execute(stmt)
     await conn.commit()
+
+    # 动态微创迁移：为现存 knowledge_base 表注入 youzan_item_id 唯一索引用以支撑原子级 ON CONFLICT 写入
+    try:
+        async with conn.execute("PRAGMA table_info(knowledge_base)") as cursor:
+            columns = [row["name"] for row in await cursor.fetchall()]
+        if "youzan_item_id" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN youzan_item_id TEXT DEFAULT NULL")
+            await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_youzan_item_id ON knowledge_base(youzan_item_id)")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 youzan_item_id 唯一约束列")
+    except Exception as exc:
+        logger.warning("动态校准 RAG 知识库表字段发生异常（可能已被成功迁移或表尚为空）：%s", exc)
+
     logger.info("Database initialized at %s", db_path)
     return conn
 

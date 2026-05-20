@@ -52,21 +52,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     transfer_repo = TransferRepo(db)
     config_repo = ConfigRepo(db)
 
-    # 语义向量搜索服务（加载已有索引或构建新的）
+    # 语义向量搜索服务（启动强制全量校准自愈，保障主库与向量库 100% 一致性）
     from app.service.embedding_search import EmbeddingSearcher
     vs = EmbeddingSearcher()
     vs_path = settings.EMBEDDING_PATH
-    if Path(vs_path).exists():
-        await asyncio.to_thread(vs.load, vs_path)
 
-    if vs.doc_count > 0:
-        logger.info("向量索引已就绪: %d 条文档", vs.doc_count)
+    logger.info("正在执行启动自愈校准：从数据库全量读取并原子对齐内存向量...")
+    docs = await knowledge_repo.get_all_titles()
+    if docs:
+        await asyncio.to_thread(vs.build, docs)
+        await asyncio.to_thread(vs.save, vs_path)
+        logger.info("启动自愈校准完成：已重新加载并原子持久化 %d 条活跃向量", vs.doc_count)
     else:
-        docs = await knowledge_repo.get_all_titles()
-        if docs:
-            await asyncio.to_thread(vs.build, docs)
-            await asyncio.to_thread(vs.save, vs_path)
-            logger.info("向量索引已构建: %d 条文档", vs.doc_count)
+        logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
 
     # Service 层
     knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)

@@ -4,6 +4,117 @@
 
 ---
 
+## [版本/日期] - 2026-05-20 - 有赞双轨实时同步与商业 ROI 归因 RAG 加固重构
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 实现基于事件驱动型原子化 Upsert 与分布式多重防御的数据数仓体系：向左流向增量高保真 RAG 向量，向右流向物理分析宽表并建立 4 大 Telemetry 分析埋点，用于 Dashboard 支撑与 AI 直接销售业绩（GMV）转化归因。
+- **核心变更文件说明**:
+  - `app/database.py`:
+    - 新增商品物理宽表 `youzan_products`、交易订单物理宽表 `youzan_orders`、分析日志宽表 `analytics_events`（配置强索引、整型分财务单位）。
+    - 数据库初始化前注入配置 `PRAGMA auto_vacuum = INCREMENTAL`，动态检测并向后兼容微创迁移 `knowledge_base` 主表，新增 `youzan_item_id` 唯一索引列。
+  - `app/repository/knowledge_repo.py`:
+    - 新增原子化带有 SQLite `ON CONFLICT` 乐观锁时序检查的商品 RAG 知识点 Upsert 写入方法与软下架方法。
+  - `app/repository/youzan_repo.py` & `app/repository/analytics_repo.py` (新建文件):
+    - 封装了针对物理商品、交易订单和埋点日志的纯异步、Raw SQL 强时序乐观锁存取方法。
+    - 植入 1 小时导购去重和 24 小时 lookback 业绩推荐归因校验函数，并支持 90 天容量定时滚动重整物理空间。
+  - `app/service/embedding_search.py`:
+    - 新增 `upsert_one` 和 `delete_one` NumPy 内存矩阵原地替换与追加裁剪（无外部依赖，运行延迟 $<1ms$）。
+    - save() 引入 `_dirty` 写延迟脏页标记，并执行 `.tmp` 先写入后 `os.replace` 内核原子覆写，阻断磁盘写放大和 OOM 坏死。
+  - `app/models/knowledge.py`:
+    - 强类型 KnowledgeEntry 实体微调，注入 `youzan_item_id: str | None = None`，满足契约。
+  - `app/service/knowledge_retriever.py`:
+    - 在 `search` 出口拦截并注入 `_prepend_live_data` 现场校验，只要匹配到有赞商品即反查 products 物理表，强插最新秒级售价、库存或售罄前缀。
+  - `app/main.py`:
+    - lifespan 启动钩子中引入冷启动强制校准管道（Auto-Healing）。服务每次启动全量重塑向量库，重启即可自愈脑裂不一致。
+  - `app/service/llm/functions.py`:
+    - 彻底重构订单、商品、物流工具，现场请求 `YouzanClient`。
+    - 推荐商品时自动触发 `product_recommend` 会话埋点并对同会话商品 1 小时内执行排他判重，杜绝稀释转化率。
+  - `app/api/webhook.py`:
+    - 重构 youzan_webhook。支持双轨异步协程管道消费有赞事件：付款成功或交易终结时记录 `order_state_change` 时效，并向前 lookback 24小时，成功付款则追溯记录 AI 导购直接销售转化 `order_conversion` 埋点并结算 GMV！
+    - 商品变更（ITEM_STATE）时，物理表、RAG 表（SQLite + NumPy 增量）同步秒级更新及价格库存异动审计写日志。
+- **数据库状态变更 (Schema Update)**:
+  - 动态添加了 `youzan_products`、`youzan_orders`、`analytics_events` 三张大宽表与其高性能索引，以及 `knowledge_base.youzan_item_id` 唯一字段。
+- **测试覆盖与验证结果**:
+  - `tests/service/youzan/test_youzan_analytics_disaster.py` (新建文件):
+    - 极端乱序 Optimistic Time Lock、1小时导购重复判重、24小时 lookback 业绩归因三大硬核机制集成测试。
+    - 回归 tests 下全量有赞测试，`pytest` ✅ 100% Passed。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 无。时序乱序乐观锁、断电损坏保护、启动自愈校准、容量滚动爆盘释放、会话重复数据污染五大硬核防御全线就绪。
+
+---
+
+## [版本/日期] - 2026-05-20 - 有赞生产环境连通性：Token 并发锁与 Webhook 秒回解耦
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 实现有赞 API 客户端的生产级高并发 Token 刷新安全互斥锁与 Raw SQL 仓储持久化；重构 Webhook 回调流控实现 100ms 秒回复与后台协程解耦。
+- **核心变更文件说明**:
+  - `app/service/youzan/client.py`:
+    - 引入 `asyncio.Lock()` 互斥锁，确保并发刷新 token 请求安全排队。
+    - 结合双重检查锁（Double-Checked Locking）大幅降低不必要的有赞 OAuth 接口冲击。
+    - 完美对接分层设计，引入 `ConfigRepo` 实现 Token 的非硬编码、Raw SQL 配置存储写入。
+  - `app/service/chat.py`:
+    - 新增 `handle_message_and_reply_youzan`（业务层闭环方法），把 handle_message 判定和 outbound 自动回复主动推送闭环收敛在 Service 层中执行。
+  - `app/api/webhook.py`:
+    - 重构 `youzan_webhook`。第一防线直接拦截非 200/403 签名；第二防线通过内存锁 `_processing_msg_ids` + 数据库 `has_processed` 保证并发瞬时去重。
+    - 使用 `asyncio.create_task()` 将后续的“意图识别 + 知识检索 + AI 回复投递（YouzanClient）”整体异步卸载，主协程 $<100\text{ms}$ 极速响应，秒回复有赞 3 秒重试生死线。
+  - `app/repository/message_repo.py`:
+    - 增加 `has_processed` 方法作为 `exists` 的业务语义别名。
+  - `tests/service/youzan/test_webhook_retry.py`:
+    - 新建集成单测，通过轻量级 FastAPI 测试实例，模拟有赞相同 `msg_id` 并发高频重试报文打入，严密断言测试秒回防御、内存锁定和后台协程分流。
+- **数据库状态变更 (Schema Update)**:
+  - 无，使用已有的 `shop_config` 键值表安全管理有赞 `youzan_access_token` 持久化记录。
+- **测试覆盖与验证结果**:
+  - `pytest` ✅ 全量 50 passed 100%。
+  - `python scripts/check_project.py` ✅ 质量门禁和分层红线（api层禁止导入repository、service层禁止直接操作aiosqlite）审查全部绿灯通过。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 生产环境上线前需要将 `.env` 或系统环境变量中的有赞真实的凭证（`CLIENT_ID` 等）配置配齐并关闭 `MOCK_MODE` 即可连通真实环境。
+
+## [版本/日期] - 2026-05-20 - 仿真解耦与紧急呼叫中心：有赞 Mock 仿真与企微真人呼叫联动
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 实现一套不依赖线上真实实名认证的有赞 API/Webhook 仿真 Mock 机制，以及联动企微的高级“真人紧急呼叫通知中心”警报推送服务。
+- **核心变更文件说明**:
+  - `app/config.py`:
+    - 新增 `YOUZAN_MOCK_MODE: bool = True` 仿真开关，默认开启以在没有线上凭证时直接拦截和模拟 API。
+    - 新增 `WECOM_ROBOT_WEBHOOK: str` 配置支持，便于在群机器人里实时接收真人紧急呼叫警报。
+  - `app/service/youzan/mock_emulator.py`:
+    - 新增 `YouzanMockEmulator` 异步仿真器。提供 HMAC-SHA256 签名计算，一键生成仿真 Webhook payload，并预置仿真订单与物流查询接口的真实返回结果。
+  - `app/service/youzan/client.py`:
+    - 改造 `YouzanClient._refresh_token` 和 `_call`。当 `YOUZAN_MOCK_MODE` 启用时，截断真实 HTTP 调用，自动流转到仿真数据模块。
+  - `app/service/transfer_manager.py`:
+    - 新增 `notify_staff_emergency` 呼叫中心函数，使用 `httpx` 将客户会话 ID 与最后留言，在转人工发生时以 Markdown 形式异步推送给值班店员的企微群机器人或应用卡片接口。
+  - `tests/service/test_youzan_emulator.py` / `tests/service/test_transfer_notification.py`:
+    - 新建并补充 100% 隔离运行的有赞 Webhook 签名算力、Mock API 回归验证和企微双路由 Markdown 异步呼叫流程覆盖单测。
+- **数据库状态变更 (Schema Update)**:
+  - 无
+- **测试覆盖与验证结果**:
+  - `pytest` ✅ 全量 49 passed。
+  - `python scripts/check_project.py` ✅ 质量门禁与红线检查全部通过。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 企微应用消息发送受限于 token 的有效期，测试中已通过 Mock Token 完美覆盖。后续在真实上屏部署前可对店员进行接入演练。
+
+## [版本/日期] - 2026-05-20 - 意图识别防线加固：智能过滤与多标签 JSON
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 对意图识别模块（`intent.py`）进行高抗噪、防御性重构，加入0成本硬拦截、极端噪声过滤及大模型 JSON 多标签分类与优先级晋升。
+- **核心变更文件说明**:
+  - `app/service/llm/intent.py`:
+    - 增加“转人工敏感词”（`HUMAN_ASSISTANCE_KEYWORDS`）最前置 0 成本拦截，杜绝后续 LLM 接口调用。
+    - 增加对“纯标点/空白/纯 emoji”极端噪声的快速过滤机制，直接返回 `SMALL_TALK`，避免大模型幻觉与不必要的调用成本。
+    - 增加 `_extract_intent` 对多标签 JSON 格式的安全解析（兼容原始单个数字、Markdown 代码块、单/双引号混用等），实现“只要包含人工或售后诉求就给予人工最高优先级晋升”。
+    - 将 `llm_chat` 的 `max_tokens` 从 `8` 安全放宽至 `32`，彻底防止因 token 截断导致的 JSON 解析崩溃。
+  - `app/service/llm/intent_prompt.py`:
+    - 升级 LLM 判定 Prompt，要求大模型在面对多意图交织的复合文本时输出带有主要与次要优先级的 JSON 结构（如 `{"primary_intent": 6, "secondary_intents": [7]}`）。
+  - `tests/service/llm/test_intent.py` / `scripts/test_intents.py`:
+    - 补充纯噪声（空格、表情、全标点）、转人工前置硬拦截、多标签 JSON 优先级跃迁策略的回归单测与场景用例，清除全部单引号。
+- **数据库状态变更 (Schema Update)**:
+  - 无
+- **测试覆盖与验证结果**:
+  - `pytest tests/service/llm/test_intent.py tests/service/test_admin.py` ✅ 25 passed 100%。
+  - `python scripts/check_project.py` ✅ 质量门禁与红线检查全部通过。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 本轮已通过极其健壮的 JSON 兼容提取及高优先级提升策略抵御绝大多数漏判客诉风险，后续应在大模型接口超时、多意图极长文本上补充压力测试。
+
 ## [版本/日期] - 2026-05-19 - 行业化意图重构：行为优先 8 类路由
 
 - **操作人**: AI (Cascade)

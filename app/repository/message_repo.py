@@ -30,6 +30,10 @@ class MessageRepo:
         )
         return bool(row)
 
+    async def has_processed(self, channel_msg_id: str) -> bool:
+        """检查渠道原始消息 ID 是否已经处理（别名，用于 Webhook 秒回防御）。"""
+        return await self.exists(channel_msg_id)
+
     async def save(self, message: Message) -> None:
         """保存一条消息到数据库。"""
         msg_id = message.id or str(uuid4())

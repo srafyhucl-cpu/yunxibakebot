@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     YOUZAN_CLIENT_SECRET: str = ""
     YOUZAN_KDT_ID: str = ""
     YOUZAN_WEBHOOK_TOKEN: str = ""
+    YOUZAN_MOCK_MODE: bool = True
 
     # ── 管理后台 ──
     ADMIN_API_TOKEN: str = ""
@@ -47,6 +48,7 @@ class Settings(BaseSettings):
     WECOM_TOKEN: str = ""
     WECOM_ENCODING_AES_KEY: str = ""
     WECOM_STAFF_ID: str = ""  # 客服小李的企微 USER_ID
+    WECOM_ROBOT_WEBHOOK: str = ""  # 企微值班群机器人 WEBHOOK 地址 (选填，支持群机器人)
 
 
 settings = Settings()

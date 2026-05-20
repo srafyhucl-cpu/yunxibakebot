@@ -28,5 +28,6 @@ class KnowledgeEntry:
     keywords: str = ""      # 逗号分隔，用于模糊匹配
     priority: int = 0
     is_active: bool = True
+    youzan_item_id: str | None = None  # 关联的有赞商品唯一 ID，默认为 None
     created_at: str = ""
     updated_at: str = ""
