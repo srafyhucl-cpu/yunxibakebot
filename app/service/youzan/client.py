@@ -57,19 +57,30 @@ class YouzanClient:
                 json={
                     "client_id": settings.YOUZAN_CLIENT_ID,
                     "client_secret": settings.YOUZAN_CLIENT_SECRET,
-                    "grant_type": "silent",
-                    "kdtId": settings.YOUZAN_KDT_ID,
+                    "authorize_type": "silent",
+                    "grant_id": settings.YOUZAN_KDT_ID,
                 },
             )
             data: dict = resp.json()
         except httpx.HTTPError as exc:
             raise APIError(f"有赞 token 请求失败: {exc}") from exc
 
-        token: str = data.get("access_token", "")
+        auth_data = data.get("data") if isinstance(data, dict) else None
+        token = ""
+        expires_in = 172800
+
+        if isinstance(auth_data, dict):
+            token = auth_data.get("access_token", "")
+            expires_ms = auth_data.get("expires", 0)
+            if expires_ms:
+                expires_in = max(60, int((expires_ms / 1000.0) - time.time()))
+        else:
+            token = data.get("access_token", "")
+            expires_in = data.get("expires_in", 172800)
+
         if not token:
             raise APIError(f"有赞 token 响应异常: {data}")
 
-        expires_in: int = data.get("expires_in", 172800)
         self._access_token = token
         self._token_expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
         logger.info("有赞 access_token 已刷新，有效期 %ds", expires_in)
@@ -118,8 +129,7 @@ class YouzanClient:
         token = await self.get_token()
         try:
             resp = await self._client.post(
-                f"{YOUZAN_API_BASE}/{api_name}/{version}",
-                headers={"Authorization": f"Bearer {token}"},
+                f"{YOUZAN_API_BASE}/{api_name}/{version}?access_token={token}",
                 json=params,
             )
             result: dict = resp.json()

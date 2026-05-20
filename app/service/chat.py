@@ -350,8 +350,9 @@ class ChatService:
                 raw_order = await yz_client.get_order(tid)
                 await yz_client.close()
 
-                if "response" in raw_order and "trade" in raw_order["response"]:
-                    trade = raw_order["response"]["trade"]
+                outer_data = raw_order.get("data") or raw_order.get("response") if isinstance(raw_order, dict) else None
+                if isinstance(outer_data, dict) and "trade" in outer_data:
+                    trade = outer_data["trade"]
                     status = trade.get("status", "WAIT_BUYER_PAY")
                     payment_fen = int(float(trade.get("payment", 0)) * 100)
                     buyer_id = trade.get("buyer_id", "") or trade.get("open_id", "")
@@ -449,8 +450,9 @@ class ChatService:
                 raw_product = await yz_client.get_product(item_id)
                 await yz_client.close()
 
-                if "response" in raw_product and "item" in raw_product["response"]:
-                    item_data = raw_product["response"]["item"]
+                outer_data = raw_product.get("data") or raw_product.get("response") if isinstance(raw_product, dict) else None
+                if isinstance(outer_data, dict) and "item" in outer_data:
+                    item_data = outer_data["item"]
                     title = item_data.get("title", "")
                     alias = item_data.get("alias", "")
                     price_fen = item_data.get("price", 0)

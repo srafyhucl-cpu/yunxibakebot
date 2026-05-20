@@ -133,10 +133,11 @@ async def get_order_info(knowledge_retriever: KnowledgeRetriever, order_no: str)
         raw_order = await yz_client.get_order(order_no)
         await yz_client.close()
 
-        if "response" not in raw_order or "trade" not in raw_order["response"]:
+        outer_data = raw_order.get("data") or raw_order.get("response") if isinstance(raw_order, dict) else None
+        if not isinstance(outer_data, dict) or "trade" not in outer_data:
             return json.dumps({"order_no": order_no, "available": False, "message": "未找到此订单，请检查您的订单号或小程序绑定手机号是否输入正确"}, ensure_ascii=False)
 
-        trade = raw_order["response"]["trade"]
+        trade = outer_data["trade"]
         status = trade.get("status", "WAIT_BUYER_PAY")
         payment_fen = int(float(trade.get("payment", 0)) * 100)
         buyer_id = trade.get("buyer_id", "") or trade.get("open_id", "")
@@ -254,13 +255,13 @@ async def get_logistics_info(knowledge_retriever: KnowledgeRetriever, order_no: 
         raw_logistics = await yz_client.get_logistics(order_no)
         await yz_client.close()
 
-        if "response" not in raw_logistics:
+        express_data = raw_logistics.get("data") or raw_logistics.get("response") if isinstance(raw_logistics, dict) else None
+        if not isinstance(express_data, dict):
             return json.dumps({"order_no": order_no, "available": False, "message": "未查询到物流派送信息，可能商家尚未发货"}, ensure_ascii=False)
 
-        response = raw_logistics["response"]
-        express_id = response.get("express_id", "")
-        express_name = response.get("express_name", "")
-        steps = response.get("transit_step_infos", [])
+        express_id = express_data.get("express_id", "")
+        express_name = express_data.get("express_name", "")
+        steps = express_data.get("transit_step_infos", [])
 
         step_descs = []
         for step in steps:
