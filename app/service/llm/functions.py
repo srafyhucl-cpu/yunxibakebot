@@ -134,7 +134,7 @@ async def get_order_info(knowledge_retriever: KnowledgeRetriever, order_no: str)
         await yz_client.close()
 
         if "response" not in raw_order or "trade" not in raw_order["response"]:
-            return json.dumps({"order_no": order_no, "available": False, "message": "未找到此订单，请检查有赞订单号是否输入正确"}, ensure_ascii=False)
+            return json.dumps({"order_no": order_no, "available": False, "message": "未找到此订单，请检查您的订单号或小程序绑定手机号是否输入正确"}, ensure_ascii=False)
 
         trade = raw_order["response"]["trade"]
         status = trade.get("status", "WAIT_BUYER_PAY")

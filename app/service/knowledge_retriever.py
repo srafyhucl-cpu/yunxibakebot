@@ -87,11 +87,11 @@ class KnowledgeRetriever:
                         is_active = product["is_active"]
 
                         # 构造富提示前置前缀，死锁 AI 回复幻觉风险
-                        live_prefix = f"【有赞微商城现场秒级数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：{stock}件】\n\n"
+                        live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：{stock}件】\n\n"
                         if is_active == 0:
-                            live_prefix = "【有赞微商城现场秒级数据 — ⚠️商品当前已在有赞后台下架或暂停预定】\n\n"
+                            live_prefix = "【芸熙烘焙小程序实时官方数据 — ⚠️商品当前已下架或暂停预定】\n\n"
                         elif stock <= 0:
-                            live_prefix = f"【有赞微商城现场秒级数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
+                            live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
 
                         entry.content = live_prefix + entry.content
                 except Exception as exc:

@@ -533,7 +533,7 @@ class ChatService:
                     detail_url = f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
                     content_md = (
                         f"商品名称：{title}\n"
-                        f"有赞在售状态：{status_lbl}\n"
+                        f"在售状态：{status_lbl}\n"
                         f"商品规格及秒级实时库存明细：\n{skus_text}\n"
                         f"商品特征与配方属性标签：{tags_str}\n"
                         f"直购下单链接：{detail_url}\n"
