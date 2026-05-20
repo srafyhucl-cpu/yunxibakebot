@@ -4,6 +4,39 @@
 
 ---
 
+## [版本/日期] - 2026-05-20 - 向量检索主键向不可变唯一 ID 驱动重构 & SPU 加料属性 100% RAG 展开落库
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 将 RAG 向量引擎 `EmbeddingSearcher` 与检索器 `KnowledgeRetriever` 召回桥接模型的主键，由变动的 `title` 强制重构为不可变的唯一 `youzan_item_id` (非商品为 `kb_<id>`)。同时提取并全量在 RAG 知识库中展开有赞 SPU 蛋糕选配加料属性（蛋糕胚、夹心、甜度、加价），在 RAG keywords 和 tags 中建立模糊检索高密度词索引，物理存储 `item_props_json`。
+- **核心变更文件说明**:
+  - `app/database.py`:
+    - 商品物理宽表 `youzan_products` 动态无损新增并迁移注入 `item_props_json` 列。
+  - `app/repository/youzan_repo.py`:
+    - `YouzanProductRepo` 升级 `get_by_id` / `get_by_alias` / `upsert_product` 方法，全面支持 `item_props_json` 的物理原子落地。
+  - `app/repository/knowledge_repo.py`:
+    - 新增 `get_all_titles_with_keys` 用于提取带唯一标识的知识训练元组 `(doc_key, title, content)`。
+    - 新增 `get_by_youzan_item_ids` 检索桥接器，在不破坏已有结构的前提下，完美承接带 `kb_` 前缀的本地非商品 ID 及有赞唯一商品 ID，进行超高确定性的数据库检索。
+  - `app/service/embedding_search.py`:
+    - 重塑 `build` 接口支持三元组结构，主键缓存及持久化序列化完全平移为 `youzan_item_id` 字符串（或自愈 `kb_<id>` 字符串）。
+    - 提升 `upsert_one` 的 NumPy 矩阵在空载/一维初始化堆叠下的边界自愈和矩阵维度校验能力，打通容灾。
+  - `app/service/knowledge_retriever.py`:
+    - 召回后反查桥接逻辑，由原先变动的 `get_by_titles` 升级为 100% 绝对安全的 `get_by_youzan_item_ids` ID 碰撞锁定。
+  - `app/service/chat.py`:
+    - 提取 SPU 自定义属性 `item_props` 蛋糕胚/夹心/甜度加价明细，存入 `item_props_json`，并自动物尽其用展开成高精度的 RAG Markdown 文本。
+    - 将加料选项（如奥利奥、木糖醇、巧克力戚风等）作为检索词自动灌入 tags 和 keywords；商品 RAG 更新/下架的主键均升级为 `str(item_id)`，彻底解决幽灵残留向量污染。
+  - `app/main.py`:
+    - lifespan 启动校准流程对齐更换为全新的 `get_all_titles_with_keys` 构建。
+  - `scripts/sync_youzan_product_to_rag.py` / `sync_real_products_from_youzan.py` / `sync_10_products_from_youzan.py`:
+    - 商品同步自愈校准入口对齐更换为全新的 `get_all_titles_with_keys` 元组参数。
+- **数据库状态变更 (Schema Update)**:
+  - `youzan_products` 物理表中新增 `item_props_json TEXT DEFAULT '[]'` 字段，并完成 SQLite 微创无损升级。
+- **测试覆盖与验证结果**:
+  - `tests/service/youzan/test_product_name_change.py` (新建文件):
+    - 成功建立“商品异动更名”高压集成单元测试。同一款商品 `item_id=888` 经历 `"老款慕斯"` 更名为 `"尊享重制版慕斯蛋糕"` 重复推送。
+    - **验证断言**：矩阵内文档始终为 `1`（证明原地覆盖），且数据库更新成功，`pytest` ✅ 100% Passed。
+
+---
+
 ## [版本/日期] - 2026-05-20 - 有赞双轨实时同步与商业 ROI 归因 RAG 加固重构
 
 - **操作人**: AI (Cascade)

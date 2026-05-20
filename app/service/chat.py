@@ -588,7 +588,7 @@ class ChatService:
                         vs = self._knowledge._vs
                         if vs:
                             vector = vs._get_model().encode([f"{title} {content_md}"], normalize_embeddings=True)[0].tolist()
-                            vs.upsert_one(title, vector)
+                            vs.upsert_one(str(item_id), vector)
                             # 内存脏页写缓冲原子落盘落库，阻断写放大
                             await asyncio.to_thread(vs.save, settings.EMBEDDING_PATH)
                     else:
@@ -596,7 +596,7 @@ class ChatService:
                         await knowledge_repo.delete_product_knowledge(str(item_id))
                         vs = self._knowledge._vs
                         if vs:
-                            vs.delete_one(title)
+                            vs.delete_one(str(item_id))
                             await asyncio.to_thread(vs.save, settings.EMBEDDING_PATH)
 
                     # (5) 触点一：价格/库存异动审计变更埋点 (price_sync / stock_alert)

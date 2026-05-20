@@ -44,19 +44,19 @@ class EmbeddingSearcher:
             logger.info("Embedding 模型已加载: %s", EMBEDDING_MODEL)
         return self._model
 
-    def build(self, documents: list[tuple[str, str]]) -> None:
+    def build(self, documents: list[tuple[str, str, str]]) -> None:
         """
         全量构建语义向量索引。
 
         参数：
-            documents: [(标题, 内容), ...] — 与 KnowledgeRepo.get_all_titles() 返回格式一致
+            documents: [(doc_key, 标题, 内容), ...] — 与 KnowledgeRepo.get_all_titles_with_keys() 返回格式一致
         """
         model = self._get_model()
         self._doc_keys = []
         texts: list[str] = []
-        for key, content in documents:
-            self._doc_keys.append(key)
-            texts.append(f"{key} {content}")
+        for doc_key, title, content in documents:
+            self._doc_keys.append(str(doc_key))
+            texts.append(f"{title} {content}")
 
         raw = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
         self._embeddings = np.array(raw, dtype=np.float32)
@@ -99,7 +99,7 @@ class EmbeddingSearcher:
             logger.info("已通过内存原子替换增量更新单条向量: %s", key)
         else:
             self._doc_keys.append(key)
-            if self._embeddings is None:
+            if self._embeddings is None or self._embeddings.size == 0 or len(self._embeddings.shape) < 2:
                 self._embeddings = np.array([new_vec], dtype=np.float32)
             else:
                 self._embeddings = np.vstack([self._embeddings, new_vec])

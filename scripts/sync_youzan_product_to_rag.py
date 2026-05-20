@@ -43,7 +43,7 @@ async def main() -> None:
         vs = EmbeddingSearcher()
         from app.config import settings
         vs_path = settings.EMBEDDING_PATH
-        all_kb_titles = await knowledge_repo.get_all_titles()
+        all_kb_titles = await knowledge_repo.get_all_titles_with_keys()
         if all_kb_titles:
             await asyncio.to_thread(vs.build, all_kb_titles)
             await asyncio.to_thread(vs.save, vs_path)

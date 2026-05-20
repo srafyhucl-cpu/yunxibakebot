@@ -52,7 +52,7 @@ class KnowledgeRetriever:
             vs_results = await asyncio.to_thread(self._vs.search, query, limit)
             if vs_results:
                 keys = [k for k, _ in vs_results]
-                entries = await self._repo.get_by_titles(keys, limit=len(keys))
+                entries = await self._repo.get_by_youzan_item_ids(keys, limit=len(keys))
                 logger.debug("向量检索 '%s' → %d 条", query[:30], len(entries))
 
         keyword_results = await self._repo.search(query, limit=limit)

@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     vs_path = settings.EMBEDDING_PATH
 
     logger.info("正在执行启动自愈校准：从数据库全量读取并原子对齐内存向量...")
-    docs = await knowledge_repo.get_all_titles()
+    docs = await knowledge_repo.get_all_titles_with_keys()
     if docs:
         await asyncio.to_thread(vs.build, docs)
         await asyncio.to_thread(vs.save, vs_path)

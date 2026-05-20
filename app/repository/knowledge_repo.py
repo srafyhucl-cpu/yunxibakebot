@@ -53,12 +53,65 @@ class KnowledgeRepo:
         rows = await self._db.execute_fetchall(sql, (*titles, limit))
         return [KnowledgeEntry(**dict(r)) for r in rows]
 
+    async def get_by_youzan_item_ids(self, keys: list[str], limit: int = 8) -> list[KnowledgeEntry]:
+        """根据唯一 doc_key（有赞ID或本地自增ID）列表批量获取活跃知识条目。"""
+        if not keys:
+            return []
+
+        yz_ids = []
+        kb_ids = []
+        for k in keys:
+            if k.startswith("kb_"):
+                try:
+                    kb_ids.append(int(k[3:]))
+                except ValueError:
+                    pass
+            else:
+                yz_ids.append(k)
+
+        clauses = []
+        params = []
+        if yz_ids:
+            yz_placeholders = ",".join("?" * len(yz_ids))
+            clauses.append(f"youzan_item_id IN ({yz_placeholders})")
+            params.extend(yz_ids)
+        if kb_ids:
+            kb_placeholders = ",".join("?" * len(kb_ids))
+            clauses.append(f"id IN ({kb_placeholders})")
+            params.extend(kb_ids)
+
+        if not clauses:
+            return []
+
+        sql = (
+            "SELECT id, category, title, content, keywords, priority, "
+            "is_active, youzan_item_id, created_at, updated_at FROM knowledge_base "
+            f"WHERE ({' OR '.join(clauses)}) AND is_active = 1 "
+            "ORDER BY priority DESC LIMIT ?"
+        )
+        rows = await self._db.execute_fetchall(sql, (*params, limit))
+        return [KnowledgeEntry(**dict(r)) for r in rows]
+
     async def get_all_titles(self) -> list[tuple[str, str]]:
         """获取所有知识条目（title, content）用于构建向量索引。"""
         rows = await self._db.execute_fetchall(
             "SELECT title, content FROM knowledge_base WHERE is_active = 1"
         )
         return [(r["title"], r["content"]) for r in rows]
+
+    async def get_all_titles_with_keys(self) -> list[tuple[str, str, str]]:
+        """获取所有知识条目用于构建向量索引。返回元组：(doc_key, title, content)"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, youzan_item_id, title, content FROM knowledge_base WHERE is_active = 1"
+        )
+        return [
+            (
+                r["youzan_item_id"] if r["youzan_item_id"] else f"kb_{r['id']}",
+                r["title"],
+                r["content"],
+            )
+            for r in rows
+        ]
 
     async def count_all(self) -> int:
         """返回知识库总条目数。"""
