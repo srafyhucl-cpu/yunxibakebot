@@ -54,7 +54,7 @@ class YouzanClient:
         try:
             resp = await self._client.post(
                 YOUZAN_AUTH_URL,
-                data={
+                json={
                     "client_id": settings.YOUZAN_CLIENT_ID,
                     "client_secret": settings.YOUZAN_CLIENT_SECRET,
                     "grant_type": "silent",
