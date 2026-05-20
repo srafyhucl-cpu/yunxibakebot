@@ -63,24 +63,45 @@ async def main() -> None:
             knowledge_retriever=knowledge_retriever,
         )
 
-        # 3. 现场创建真实的 YouzanClient 并连通 API 抓取在售商品列表（最多 10 条）
+        # 3. 现场创建真实的 YouzanClient 并连通 API 循环分页抓取所有在售商品列表（最极客的分页自适应机制，无限流拉取！）
         yz_client = YouzanClient(config_repo=config_repo)
-        print("🔗 正在建立与有赞开放平台的 HTTPS 连接，拉取线上真实在售商品列表...")
+        print("🔗 正在建立与有赞开放平台的 HTTPS 连接，开始循环自适应拉取线上全量在售商品列表...")
         
-        onsale_resp = await yz_client._call(
-            "youzan.items.onsale.get", "3.0.0",
-            {"kdt_id": settings.YOUZAN_KDT_ID, "page_no": 1, "page_size": 10}
-        )
+        items = []
+        page_no = 1
+        page_size = 100  # 每次请求有赞支持的最大单页上限
+        
+        while True:
+            print(f"  - 正在请求第 {page_no} 页商品数据...")
+            resp = await yz_client._call(
+                "youzan.items.onsale.get", "3.0.0",
+                {"kdt_id": settings.YOUZAN_KDT_ID, "page_no": page_no, "page_size": page_size}
+            )
+            
+            outer_data = resp.get("data") or resp.get("response") if isinstance(resp, dict) else None
+            if not isinstance(outer_data, dict) or "items" not in outer_data:
+                print(f"\n❌ 第 {page_no} 页数据获取失败，已中止。响应: {resp}")
+                break
+                
+            page_items = outer_data.get("items")
+            if not page_items:
+                # 已无更多数据
+                break
+                
+            items.extend(page_items)
+            print(f"    ✓ 成功拉取到 {len(page_items)} 条商品")
+            
+            if len(page_items) < page_size:
+                # 最后一页已抓取完成，优雅跳出
+                break
+                
+            page_no += 1
+            await asyncio.sleep(0.1)  # 礼貌延迟，防止有赞 QPS 限制
+            
         await yz_client.close()
 
-        outer_data = onsale_resp.get("data") or onsale_resp.get("response") if isinstance(onsale_resp, dict) else None
-        if not isinstance(outer_data, dict) or "items" not in outer_data:
-            print(f"\n❌ 获取在售商品失败。响应: {onsale_resp}")
-            return
-
-        items = outer_data["items"]
         total_count = len(items)
-        print(f"✅ 成功连接有赞商铺！当前在线检测到真实在售商品总数: {total_count} 条")
+        print(f"✅ 成功连接有赞商铺！当前在线累计检测到真实在售商品总数: {total_count} 条")
 
         if total_count == 0:
             print("⚠️ 您真实的线上店铺中当前没有正在上架销售的商品，请先去有赞后台上架蛋糕。")
