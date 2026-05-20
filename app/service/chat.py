@@ -462,6 +462,43 @@ class ChatService:
                     if "instock" in event_type or event_type.endswith("Instock"):
                         is_active = 0  # 软下架入库
 
+                    # 提取多规格 SKU 数据及详情页描述
+                    skus = item_data.get("skus", [])
+                    skus_json = json.dumps(skus, ensure_ascii=False)
+
+                    raw_desc = item_data.get("desc", "") or item_data.get("summary", "") or ""
+                    import re
+                    # 剥除有赞 HTML 标签，保留高密度的原料、奶油与夹心纯文本介绍
+                    desc_clean = re.sub(r"<.*?>", "", raw_desc)
+                    desc_clean = re.sub(r"\s+", " ", desc_clean)
+                    desc_clean = re.sub(r"\n+", "\n", desc_clean).strip()
+
+                    # 智能解析 SKU properties 抽取奶油/尺寸/规格/夹心等高级标签属性
+                    spec_names = []
+                    for sku in skus:
+                        prop_json = sku.get("properties_name_json", "")
+                        if prop_json:
+                            try:
+                                props = json.loads(prop_json)
+                                for p in props:
+                                    v_val = p.get("v", "")
+                                    if v_val:
+                                        spec_names.append(v_val)
+                            except:
+                                pass
+
+                    # 补充详情页里的关键成分与特征标签（如蜜红豆、抹茶、草莓、夹心等）
+                    special_ingredients = ["蜜红豆", "抹茶", "草莓", "芒果", "提拉米苏", "巧克力", "动物奶油", "夹心", "千层", "乳酪", "芝士", "冷藏", "保质期"]
+                    found_ingredients = [ing for ing in special_ingredients if ing in desc_clean or ing in title]
+
+                    status_lbl = "在售" if is_active == 1 else "下架"
+                    tags_list = [status_lbl]
+                    if spec_names:
+                        tags_list.extend(list(set(spec_names)))
+                    if found_ingredients:
+                        tags_list.extend(list(set(found_ingredients)))
+                    tags_str = ", ".join(tags_list)
+
                     # (3) 向右分流：原子 Upsert 保存至 youzan_products 物理商品大宽表
                     await product_repo.upsert_product(
                         item_id=item_id,
@@ -471,12 +508,37 @@ class ChatService:
                         stock=stock,
                         image=image,
                         is_active=is_active,
-                        updated_at=updated_at_str
+                        updated_at=updated_at_str,
+                        skus_json=skus_json,
+                        desc=desc_clean,
+                        tags=tags_str,
                     )
 
-                    # (4) 向左分流：原子增量更新 RAG（数据库 ON CONFLICT 与内存 NumPy 增减）
+                    # (4) 向左分流：原子增量更新 RAG（完全取代本地老旧静态商品文件）
+                    sku_list_str = []
+                    for sku in skus:
+                        price_yuan = sku.get("price", price_fen) / 100.0
+                        qty = sku.get("quantity", 0)
+                        prop_json = sku.get("properties_name_json", "")
+                        prop_desc = "标准规格"
+                        if prop_json:
+                            try:
+                                props = json.loads(prop_json)
+                                prop_desc = " | ".join([f"{p.get('k')}:{p.get('v')}" for p in props])
+                            except:
+                                pass
+                        sku_list_str.append(f"- 规格型号【{prop_desc}】：售价 ￥{price_yuan:.2f} 元，当前可用库存 {qty} 件")
+                    skus_text = "\n".join(sku_list_str) if sku_list_str else f"- 规格：单售价 ￥{price_fen/100.0:.2f} 元，当前可用总库存 {stock} 件"
+
                     detail_url = f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
-                    content_md = f"商品名称：{title}\n有赞别名（Alias）：{alias}\n直购详情链接：{detail_url}\n介绍：小店精制热销烘焙糕点，新西兰进口安佳动物奶油制作，冷藏保质期三天。实时售价及当前秒级库存见现场提示。"
+                    content_md = (
+                        f"商品名称：{title}\n"
+                        f"有赞在售状态：{status_lbl}\n"
+                        f"商品规格及秒级实时库存明细：\n{skus_text}\n"
+                        f"商品特征与配方属性标签：{tags_str}\n"
+                        f"直购下单链接：{detail_url}\n"
+                        f"原料配方、保质期及夹心介绍：\n{desc_clean or '精品烘焙推荐，新西兰进口动物奶油调配，不含防腐剂。建议0-4℃冷藏并于3天内食用完毕。'}"
+                    )
 
                     if is_active == 1:
                         # SQLite RAG 商品知识落库
@@ -484,7 +546,7 @@ class ChatService:
                             youzan_item_id=str(item_id),
                             title=title,
                             content=content_md,
-                            keywords=f"商品, 价格, 推荐, 蛋糕, {title}",
+                            keywords=f"商品, 价格, 推荐, 蛋糕, {title}, {tags_str}",
                             priority=50,
                             updated_at=updated_at_str
                         )

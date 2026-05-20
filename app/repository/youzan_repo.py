@@ -14,7 +14,7 @@ class YouzanProductRepo:
     async def get_by_id(self, item_id: int) -> dict | None:
         """根据商品唯一 ID 获取商品数据，不存在返回 None。"""
         rows = await self._db.execute_fetchall(
-            "SELECT item_id, title, alias, price_fen, stock, image, is_active, updated_at "
+            "SELECT item_id, title, alias, price_fen, stock, image, is_active, skus_json, desc, tags, updated_at "
             "FROM youzan_products WHERE item_id = ?",
             (item_id,),
         )
@@ -23,7 +23,7 @@ class YouzanProductRepo:
     async def get_by_alias(self, alias: str) -> dict | None:
         """根据有赞商品别名获取商品数据，不存在返回 None。"""
         rows = await self._db.execute_fetchall(
-            "SELECT item_id, title, alias, price_fen, stock, image, is_active, updated_at "
+            "SELECT item_id, title, alias, price_fen, stock, image, is_active, skus_json, desc, tags, updated_at "
             "FROM youzan_products WHERE alias = ?",
             (alias,),
         )
@@ -39,14 +39,17 @@ class YouzanProductRepo:
         image: str,
         is_active: int,
         updated_at: str,
+        skus_json: str = "[]",
+        desc: str = "",
+        tags: str = "",
     ) -> None:
         """
-        原子化 Upsert 商品及库存数据。
+        原子化 Upsert 商品及规格、描述、标签等数据。
         时序防线：仅当推送的 updated_at 大于库中已记录的 updated_at 时覆写。
         """
         await self._db.execute(
-            "INSERT INTO youzan_products (item_id, title, alias, price_fen, stock, image, is_active, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "INSERT INTO youzan_products (item_id, title, alias, price_fen, stock, image, is_active, skus_json, desc, tags, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(item_id) DO UPDATE SET "
             "    title = excluded.title, "
             "    alias = excluded.alias, "
@@ -54,9 +57,12 @@ class YouzanProductRepo:
             "    stock = excluded.stock, "
             "    image = excluded.image, "
             "    is_active = excluded.is_active, "
+            "    skus_json = excluded.skus_json, "
+            "    desc = excluded.desc, "
+            "    tags = excluded.tags, "
             "    updated_at = excluded.updated_at "
             "WHERE excluded.updated_at > youzan_products.updated_at",
-            (item_id, title, alias, price_fen, stock, image, is_active, updated_at),
+            (item_id, title, alias, price_fen, stock, image, is_active, skus_json, desc, tags, updated_at),
         )
         await self._db.commit()
 

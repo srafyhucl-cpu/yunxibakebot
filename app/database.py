@@ -106,6 +106,9 @@ SCHEMA_STATEMENTS: list[str] = [
         stock INTEGER NOT NULL,
         image TEXT DEFAULT '',
         is_active INTEGER DEFAULT 1,
+        skus_json TEXT DEFAULT '[]',
+        desc TEXT DEFAULT '',
+        tags TEXT DEFAULT '',
         updated_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_yp_title ON youzan_products(title)",
@@ -170,6 +173,25 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 youzan_item_id 唯一约束列")
     except Exception as exc:
         logger.warning("动态校准 RAG 知识库表字段发生异常（可能已被成功迁移或表尚为空）：%s", exc)
+
+    # 动态微创迁移：为现存 youzan_products 表注入 skus_json, desc, tags 丰富商品画像
+    try:
+        async with conn.execute("PRAGMA table_info(youzan_products)") as cursor:
+            yp_columns = [row["name"] for row in await cursor.fetchall()]
+        if "skus_json" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN skus_json TEXT DEFAULT '[]'")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 skus_json 列")
+        if "desc" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN desc TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 desc 列")
+        if "tags" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN tags TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 tags 列")
+    except Exception as exc:
+        logger.warning("动态校准 youzan_products 表字段发生异常：%s", exc)
 
     logger.info("Database initialized at %s", db_path)
     return conn
