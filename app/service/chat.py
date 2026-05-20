@@ -464,9 +464,11 @@ class ChatService:
                     if "instock" in event_type or event_type.endswith("Instock"):
                         is_active = 0  # 软下架入库
 
-                    # 提取多规格 SKU 数据及详情页描述
+                    # 提取多规格 SKU 数据、详情页描述以及 SPU 自定义属性选配
                     skus = item_data.get("skus", [])
                     skus_json = json.dumps(skus, ensure_ascii=False)
+                    item_props = item_data.get("item_props", [])
+                    item_props_json = json.dumps(item_props, ensure_ascii=False)
 
                     raw_desc = item_data.get("desc", "") or item_data.get("summary", "") or ""
                     import re
@@ -475,7 +477,7 @@ class ChatService:
                     desc_clean = re.sub(r"\s+", " ", desc_clean)
                     desc_clean = re.sub(r"\n+", "\n", desc_clean).strip()
 
-                    # 智能解析 SKU properties 抽取奶油/尺寸/规格/夹心等高级标签属性
+                    # 智能解析 SKU properties 抽取尺寸等规格属性
                     spec_names = []
                     for sku in skus:
                         prop_json = sku.get("properties_name_json", "")
@@ -489,7 +491,18 @@ class ChatService:
                             except:
                                 pass
 
-                    # 补充详情页里的关键成分与特征标签（如蜜红豆、抹茶、草莓、夹心等）
+                    # 智能解析 item_props 并提取加料、胚体、甜度等标签名称融入搜索词索引
+                    prop_names = []
+                    for prop in item_props:
+                        p_name = prop.get("prop_name", "")
+                        if p_name:
+                            prop_names.append(p_name)
+                        for model in prop.get("text_models", []):
+                            option_name = model.get("prop_text_name", "")
+                            if option_name:
+                                prop_names.append(option_name)
+
+                    # 补充详情页里的关键成分与特征标签（如蜜红豆、抹茶等）
                     special_ingredients = ["蜜红豆", "抹茶", "草莓", "芒果", "提拉米苏", "巧克力", "动物奶油", "夹心", "千层", "乳酪", "芝士", "冷藏", "保质期"]
                     found_ingredients = [ing for ing in special_ingredients if ing in desc_clean or ing in title]
 
@@ -497,6 +510,8 @@ class ChatService:
                     tags_list = [status_lbl]
                     if spec_names:
                         tags_list.extend(list(set(spec_names)))
+                    if prop_names:
+                        tags_list.extend(list(set(prop_names)))
                     if found_ingredients:
                         tags_list.extend(list(set(found_ingredients)))
                     tags_str = ", ".join(tags_list)
@@ -512,6 +527,7 @@ class ChatService:
                         is_active=is_active,
                         updated_at=updated_at_str,
                         skus_json=skus_json,
+                        item_props_json=item_props_json,
                         desc=desc_clean,
                         tags=tags_str,
                     )
@@ -532,11 +548,27 @@ class ChatService:
                         sku_list_str.append(f"- 规格型号【{prop_desc}】：售价 ￥{price_yuan:.2f} 元，当前可用库存 {qty} 件")
                     skus_text = "\n".join(sku_list_str) if sku_list_str else f"- 规格：单售价 ￥{price_fen/100.0:.2f} 元，当前可用总库存 {stock} 件"
 
+                    # 拼装 SPU 自定义加料与属性详情列表并在 Markdown 知识库中展开展示
+                    prop_list_str = []
+                    for prop in item_props:
+                        p_name = prop.get("prop_name", "")
+                        is_mult = " (允许多选)" if prop.get("is_multiple") else " (单选)"
+                        options_str = []
+                        for model in prop.get("text_models", []):
+                            opt_val = model.get("prop_text_name", "")
+                            opt_price = model.get("price", 0) / 100.0
+                            opt_price_desc = f" (加价: +￥{opt_price:.2f}元)" if opt_price > 0 else ""
+                            options_str.append(f"{opt_val}{opt_price_desc}")
+                        options_joined = "、".join(options_str)
+                        prop_list_str.append(f"- 【{p_name}】{is_mult}：{options_joined}")
+                    props_text = "\n".join(prop_list_str) if prop_list_str else "- 定制加料选项：暂无特殊定制属性"
+
                     detail_url = f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
                     content_md = (
                         f"商品名称：{title}\n"
                         f"在售状态：{status_lbl}\n"
-                        f"商品规格及秒级实时库存明细：\n{skus_text}\n"
+                        f"商品规格及秒级实时库存明细：\n{skus_text}\n\n"
+                        f"可定制口味、蛋糕胚、夹心及甜度选项（SPU 自定义属性）：\n{props_text}\n\n"
                         f"商品特征与配方属性标签：{tags_str}\n"
                         f"直购下单链接：{detail_url}\n"
                         f"原料配方、保质期及夹心介绍：\n{desc_clean or '精品烘焙推荐，新西兰进口动物奶油调配，不含防腐剂。建议0-4℃冷藏并于3天内食用完毕。'}"

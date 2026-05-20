@@ -107,6 +107,7 @@ SCHEMA_STATEMENTS: list[str] = [
         image TEXT DEFAULT '',
         is_active INTEGER DEFAULT 1,
         skus_json TEXT DEFAULT '[]',
+        item_props_json TEXT DEFAULT '[]',
         desc TEXT DEFAULT '',
         tags TEXT DEFAULT '',
         updated_at TEXT NOT NULL
@@ -190,6 +191,10 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.execute("ALTER TABLE youzan_products ADD COLUMN tags TEXT DEFAULT ''")
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 tags 列")
+        if "item_props_json" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN item_props_json TEXT DEFAULT '[]'")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 item_props_json 列")
     except Exception as exc:
         logger.warning("动态校准 youzan_products 表字段发生异常：%s", exc)
 
