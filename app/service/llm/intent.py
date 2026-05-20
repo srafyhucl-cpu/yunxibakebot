@@ -1,92 +1,89 @@
-"""
-意图识别服务。
+"""意图识别服务。"""
 
-根据用户输入 + 对话历史，识别顾客意图并返回数字标记：
-1=商品查价与咨询, 2=运费查询, 3=配送时间咨询, 4=售后与转人工, 5=日常闲聊与其他
-"""
+import json
 
-from enum import IntEnum
-
-from openai import AsyncOpenAI
-
-from app.config import settings
+from app.exceptions import LLMError
 from app.logger import setup_logger
-
-
-class IntentType(IntEnum):
-    """意图分类 ID：所有合法意图值的唯一来源"""
-    PRODUCT_INQUIRY = 1    # 商品查价与咨询
-    SHIPPING_COST = 2      # 运费查询
-    DELIVERY_TIME = 3      # 配送时间咨询
-    AFTER_SALES = 4        # 售后与转人工
-    CASUAL_CHAT = 5        # 日常闲聊与其他
+from app.service.llm.client import chat_completion as llm_chat
+from app.service.llm.intent_taxonomy import AFTER_SALES_KEYWORDS
+from app.service.llm.intent_taxonomy import DELIVERY_SCHEDULE_KEYWORDS
+from app.service.llm.intent_taxonomy import HUMAN_ASSISTANCE_KEYWORDS
+from app.service.llm.intent_taxonomy import INTENT_ID_CHARACTERS
+from app.service.llm.intent_taxonomy import INTENT_PROMPT
+from app.service.llm.intent_taxonomy import ORDER_ACTION_KEYWORDS
+from app.service.llm.intent_taxonomy import ORDER_CONTEXT_KEYWORDS
+from app.service.llm.intent_taxonomy import ORDER_SERVICE_TOPIC_KEYWORDS
+from app.service.llm.intent_taxonomy import PRODUCT_KEYWORDS
+from app.service.llm.intent_taxonomy import QUESTION_KEYWORDS
+from app.service.llm.intent_taxonomy import SHIPPING_FEE_KEYWORDS
+from app.service.llm.intent_taxonomy import SMALL_TALK_KEYWORDS
+from app.service.llm.intent_taxonomy import STORE_POLICY_KEYWORDS
+from app.service.llm.intent_taxonomy import IntentType
 
 logger = setup_logger()
 
-INTENT_PROMPT = """### 角色
-你是一位杰出的意图识别专家，服务于「芸熙烘焙」的 AI 客服系统，具备极为敏锐的洞察力，能够迅速且精准地判断顾客问题的意图类型。
 
-### 技能：精准识别用户意图
-依据以下意图列表，仅返回与之对应的数字序号。
+def _contains_any(user_query: str, keywords: tuple[str, ...]) -> bool:
+    return any(keyword in user_query for keyword in keywords)
 
-| 序号 | 意图 | 描述 |
-| :--: | :--- | :--- |
-| 1 | 商品查价与咨询 | 询问蛋糕款式、价格、尺寸、口味、推荐、定制、下单、购买，以及积分、优惠券、兑换、会员、店铺规则等通用咨询 |
-| 2 | 运费查询 | 询问运费、邮费、配送费、谁出运费等 |
-| 3 | 配送时间咨询 | 询问配送时间、送达时间、营业时间、门店地址、预定时间等 |
-| 4 | 售后与转人工 | 客诉、催单、修改订单、复杂定制、要求转人工等 |
-| 5 | 日常闲聊与其他 | 问候、无关闲聊、或难以理解的输入 |
 
-优先级权重：4 > 1 > 2 > 3 > 5
+def _looks_like_question(user_query: str) -> bool:
+    return _contains_any(user_query, QUESTION_KEYWORDS)
 
-### 历史使用规则
-- 当前用户输入优先级最高，历史记录只用于补全省略信息，不得机械继承上一轮意图。
-- 如果历史里出现过售后、投诉、转人工，但当前输入是一个完整明确的新问题（如积分怎么用、优惠券怎么兑换、甜度能选吗），必须按当前输入重新分类，不能继续判为 4。
-- 只有当前输入本身明确表达不满、售后、催单、退款、修改订单、要求人工时，才能判为 4。
 
-### 回复格式
-仅回复数字：1、2、3、4 或 5。不附带任何解释文字。
+def _match_clear_intent(user_query: str) -> IntentType | None:
+    has_question_signal = _looks_like_question(user_query)
+    if _contains_any(user_query, HUMAN_ASSISTANCE_KEYWORDS):
+        return IntentType.HUMAN_ASSISTANCE
+    if _contains_any(user_query, AFTER_SALES_KEYWORDS):
+        return IntentType.AFTER_SALES_ISSUE
+    has_order_action = _contains_any(user_query, ORDER_ACTION_KEYWORDS)
+    has_order_context = _contains_any(user_query, ORDER_CONTEXT_KEYWORDS)
+    has_order_topic = _contains_any(user_query, ORDER_SERVICE_TOPIC_KEYWORDS)
+    if has_order_topic and (has_order_action or (has_order_context and not has_question_signal)):
+        return IntentType.ORDER_SERVICE
+    if _contains_any(user_query, SMALL_TALK_KEYWORDS) and len(user_query) <= 12 and not has_question_signal:
+        return IntentType.SMALL_TALK
+    if not has_question_signal:
+        return None
+    if _contains_any(user_query, SHIPPING_FEE_KEYWORDS):
+        return IntentType.SHIPPING_FEE
+    if _contains_any(user_query, DELIVERY_SCHEDULE_KEYWORDS):
+        return IntentType.DELIVERY_SCHEDULE
+    if _contains_any(user_query, STORE_POLICY_KEYWORDS):
+        return IntentType.STORE_POLICY
+    if _contains_any(user_query, PRODUCT_KEYWORDS):
+        return IntentType.PRODUCT_CONSULTATION
+    return None
 
-历史记录：
-{history}
-当前用户输入：{user_query}
-"""
+
+def _extract_intent(raw_content: str) -> IntentType:
+    for character in raw_content:
+        if character in INTENT_ID_CHARACTERS:
+            return IntentType(int(character))
+    return IntentType.PRODUCT_CONSULTATION
 
 
 async def detect_intent(user_query: str, history: str = "") -> IntentType:
-    """
-    识别用户意图。
-
-    返回：IntentType 枚举值，失败时默认返回 PRODUCT_INQUIRY
-    """
-    if not user_query.strip():
-        return IntentType.CASUAL_CHAT
-
-    client = AsyncOpenAI(
-        api_key=settings.DEEPSEEK_API_KEY,
-        base_url=settings.DEEPSEEK_BASE_URL,
-    )
-
-    prompt = INTENT_PROMPT.format(
-        history=history or "无",
-        user_query=user_query,
-    )
-
+    normalized_query = "".join(user_query.split())
+    if not normalized_query:
+        return IntentType.SMALL_TALK
+    matched_intent = _match_clear_intent(normalized_query)
+    if matched_intent is not None:
+        logger.debug("意图识别前置命中: '%s' -> %s", normalized_query[:30], matched_intent.name)
+        return matched_intent
+    prompt = INTENT_PROMPT.format(history=history or "无", user_query=normalized_query)
     try:
-        response = await client.chat.completions.create(
-            model=settings.DEEPSEEK_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=4,
+        raw_response = await llm_chat(
+            [{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=8,
         )
-        raw = (response.choices[0].message.content or "1").strip()
-        # 提取第一个数字
-        for ch in raw:
-            if ch in "12345":
-                intent = IntentType(int(ch))
-                logger.debug("意图识别: '%s' -> %s", user_query[:30], intent.name)
-                return intent
-        return IntentType.PRODUCT_INQUIRY
-    except Exception as exc:
-        logger.warning("意图识别失败，默认返回 PRODUCT_INQUIRY: %s", exc)
-        return IntentType.PRODUCT_INQUIRY
+        response = json.loads(raw_response)
+        raw_content = response["choices"][0]["message"].get("content", "1").strip()
+        intent = _extract_intent(raw_content)
+        logger.debug("意图识别: '%s' -> %s", normalized_query[:30], intent.name)
+        return intent
+    except (LLMError, KeyError, IndexError, json.JSONDecodeError) as exc:
+        logger.warning("意图识别失败，默认返回 PRODUCT_CONSULTATION: %s", exc)
+        return IntentType.PRODUCT_CONSULTATION

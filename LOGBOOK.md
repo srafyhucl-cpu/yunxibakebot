@@ -4,7 +4,45 @@
 
 ---
 
-## [版本/日期] - 2026-05-19
+## [版本/日期] - 2026-05-19 - 行业化意图重构：行为优先 8 类路由
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 将意图识别从“围绕个别词补丁”升级为行业通用的“行为目的优先 + 主题域补充”路由模型
+- **核心变更文件说明**:
+  - `app/service/llm/intent.py`: 重写意图识别主编排，改为“明确规则优先 + LLM 兜底”，先判断是否为人工诉求、售后异常、订单办理，再区分规则咨询、运费、配送履约、商品咨询与闲聊。
+  - `app/service/llm/intent_types.py`: 新增 8 类意图枚举与转人工集合，意图扩展为 `商品咨询 / 规则咨询 / 运费费用 / 配送履约 / 订单办理 / 售后异常 / 人工服务 / 闲聊其他`。
+  - `app/service/llm/intent_behavior_keywords.py` / `intent_domain_keywords.py` / `intent_prompt.py` / `intent_taxonomy.py`: 按文件体量约束拆出行为信号词、主题域词表、LLM 提示词与兼容出口，避免 `app/service/llm/*.py` 超警戒线继续膨胀。
+  - `app/service/chat.py`: 改为通过统一的 `is_transfer_intent()` 判定转人工，不再只依赖单一旧售后意图。
+  - `tests/service/llm/test_intent.py` / `scripts/test_intents.py` / `app/templates/admin/chat_test.html`: 全量对齐新的 8 类意图标签、回归案例与后台调试展示。
+- **数据库状态变更 (Schema Update)**:
+  - 无
+- **测试覆盖与验证结果**:
+  - `pytest tests/service/llm/test_intent.py tests/service/test_admin.py` ✅ 13 passed。
+  - `python scripts/check_project.py` ✅ 质量门禁通过。
+  - 文件体量复核：`intent.py` 89 行、`intent_behavior_keywords.py` 77 行、`intent_domain_keywords.py` 85 行，均回到 `app/service/llm/*.py` 警戒线内。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 当前系统虽已具备更通用的 8 类路由，但“开发票”“改地址”这类极短歧义句仍会在规则未命中时交给 LLM 判定；若后续需要进一步贴近行业成熟客服，可继续增加“澄清追问”而不是继续堆更多硬规则。
+
+## [版本/日期] - 2026-05-19 - 发票意图误判修复与日志 lint 整理
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 修复“可以开发票吗”误判转人工，并清理 `LOGBOOK.md` Markdown lint
+- **核心变更文件说明**:
+  - `app/service/llm/intent.py`: 新增“发票/开票/积分/优惠券/会员/团购”等店铺规则问句的前置确定性归类，避免这类明确业务咨询继续被 LLM 判成售后；同时补强意图提示词示例并将温度降为 `0`，减少分类抖动。
+  - `tests/service/llm/test_intent.py`: 新增意图识别单测，覆盖发票、团购开票、积分、会员等确定性问句，并验证命中前置规则时不会触发 LLM 调用。
+  - `LOGBOOK.md`: 为历史日志标题补齐唯一标题与空行，消除当前 `markdownlint` 关于重复标题、标题空行的告警。
+- **数据库状态变更 (Schema Update)**:
+  - 无
+- **测试覆盖与验证结果**:
+  - `pytest tests/service/llm/test_intent.py tests/service/test_admin.py` ✅ 7 passed。
+  - `python scripts/check_project.py` ✅ 质量门禁通过。
+  - `python -c "import asyncio; from app.service.llm.intent import detect_intent; print(asyncio.run(detect_intent('可以开发票吗')).name)"` ✅ 输出 `PRODUCT_INQUIRY`。
+  - `python scripts/check_project.py` ✅ 质量门禁通过。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 本次仅修复发票类明确业务咨询的误判；若仍存在更复杂的售后/业务混合问句误判，后续需要继续细化意图规则与提示词边界。
+
+## [版本/日期] - 2026-05-19 - 知识库统一管理与规则来源归口
+
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 知识库统一管理与规则来源归口
 - **核心变更文件说明**:
@@ -15,9 +53,6 @@
   - `knowledge/FAQ/基础服务FAQ.md` / `商品选购FAQ.md` / `场景与会员FAQ.md`: 将 FAQ 收敛为 3 份中粒度主文档，分别承接基础问答、选购问答与场景会员问答。
   - `knowledge/话术/下单引导话术.md` / `售后安抚话术.md`: 将客服话术独立出 FAQ 与规则目录，减少混合维护。
   - `knowledge/规则/`、`knowledge/FAQ/`: 删除上一轮过细拆分遗留的草稿文件，仅保留最终启用的中粒度主文档，避免维护入口再次分叉。
-  - `knowledge/芸熙烘焙通用服务与售后指引.md` / `芸熙烘焙常见问题FAQ.md` / `芸熙烘焙产品服务全指南.md`: 改为历史归档入口，不再参与运行时入库，防止维护者误改旧文件。
-  - `knowledge/芸熙烘焙商品库知识库.md`: 删除烟花蜡烛条目并清理蛋糕标题中的烟花蜡烛断货描述，避免商品资料与统一配件规则冲突。
-  - `knowledge/芸熙烘焙商品库知识库.md` / `knowledge/芸熙烘焙常见问题FAQ.md` / `knowledge/芸熙烘焙通用服务与售后指引.md` / `knowledge/芸熙烘焙产品服务全指南.md` / `knowledge/芸熙AI客服指引_Prompt.md`: 补充文档分类、是否直接入库、维护边界与生效说明，降低后续维护改错文件的风险。
   - `knowledge/知识源说明.md`: 新增知识源说明文档，统一说明知识文档分类、单一来源原则、维护入口、入库关系与日常维护流程。
   - `app/service/llm/prompt.py`: 去掉营业时间硬编码，改为要求严格依据店铺知识回答，避免 Prompt 与知识源双维护。
 - **数据库状态变更 (Schema Update)**:
@@ -55,7 +90,8 @@
   - `app/api/admin.py` 仍为存量警戒文件，本次仅修复错误调用，不新增路由职责。
   - `app/service/chat.py` 虽超警戒线，但本次仅抽取 `_load_knowledge_entries` 以减少 `_ai_conversation_loop` 的职责密度；知识检索与对话编排仍属紧密内聚，暂不拆文件。
 
-## [版本/日期] - 2026-05-19
+## [版本/日期] - 2026-05-19 - 高阶 DevOps 配置接入与历史红线违约清查
+
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 高阶 DevOps 配置接入与历史红线违约清查
 - **核心变更文件说明**:
@@ -71,7 +107,8 @@
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - `app/service/chat.py` 仍存在职责过载（行数超警戒线）但已做暂时隔离；待后续重构聊天链路时拆分。
 
-## [版本/日期] - 2026-05-19
+## [版本/日期] - 2026-05-19 - Harness Engineering 工程化支持升级
+
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: Harness Engineering 工程化支持升级
 - **核心变更文件说明**:
@@ -87,7 +124,8 @@
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - `app/api/admin.py` 和 `app/service/chat.py` 行数超限问题已确认，考虑到本轮未触及相关业务逻辑未强行重构；这些文件中的 `LEGACY`（如直接 import repository）继续保持登记预警，择期在重构独立任务中一并消除。
 
-## [版本/日期] - 2026-05-19
+## [版本/日期] - 2026-05-19 - 甲方测试反馈修复 + 主推款管理页 + 商品上下架管理页
+
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 甲方测试反馈修复 + 主推款管理页 + 商品上下架管理页
 - **核心变更文件说明**:
@@ -114,7 +152,8 @@
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 有赞对接后需实现 Webhook 自动调用 update_active 同步商品状态（预留接口已就绪）。
 
-## [版本/日期] - 2026-05-18
+## [版本/日期] - 2026-05-18 - 多任务综合（意图拆分/测试页改造/校验脚本/备份/日志规范）
+
 - **操作人**: AI (Claude Code)
 - **关联任务/功能**: 多任务综合（意图拆分/测试页改造/校验脚本/备份/日志规范）
 - **核心变更文件说明**:
@@ -135,6 +174,10 @@
   - `python scripts/test_intents.py` ✅ 7 个场景全部通过
   - `python tests/scripts/test_validate_products.py` ✅ 21/21 Passed
   - `python scripts/validate_products.py` ✅ 765 条商品校验完成（0 ERROR, 49 WARNING）
+  - 新结构抽查：`订购与履约规则`、`商品通用规则`、`企业服务规则`、`配送损坏处理`、`漏发配件处理`、`配送超时处理`、`话术1 主动询问需求`、`话术10 漏发配件话术`、`适合母亲节送礼的蛋糕有哪些推荐？`、`积分怎么用？` 已成功入库。
+  - `知识源说明.md` 入库校验：`knowledge_base` 中相关条目计数为 `0`，说明文档未被误导入。
+  - 深度回归验证：知识库总量 `796`、Embedding 文档数 `796`、重复执行 `python scripts/seed_knowledge.py` 后数据库快照哈希一致，确认导入幂等。
+  - 线上抽样回归：`积分怎么用`、`蛋糕可以放几天`、`怎么配送`、`母亲节有什么推荐` 返回内容与本轮知识重构口径一致；`蛋糕送坏了怎么办` 正常转人工。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - validate_products.py 输出的 49 条 WARNING 中大部分为"价格超出基准区间"——提拉米苏蛋糕（198-388元）和生日蛋糕（408-608元）的大尺寸版本超出当前保守区间，需人工确认后调整 `CORE_PRICE_RANGES`。
   - 部分商品标题存在中英文括号混用（如"（xxx)"或"(xxx）"），数据源需统一规范化处理。
@@ -143,9 +186,8 @@
   - SCF 转发代理（scripts/scf_proxy.py）已编写，需部署后测试。
   - 转人工服务的消息推送仅支持管理后台轮询。
 
----
+## [版本/日期] - 2026-05-18 - 后台管理大改版 + 知识库扩容 + 企微回调预备
 
-## [版本/日期] - 2026-05-18
 - **操作人**: AI (Claude Code)
 - **关联任务/功能**: 后台管理大改版 + 知识库扩容 + 企微回调预备
 - **核心变更文件说明**:
@@ -174,9 +216,8 @@
   - 对话测试页 + 按钮可能存在移动端兼容问题（需在真机测试）。
   - AI偶有编造尺寸食用人数的问题，已通过 prompt 规则缓解，需持续标注跟进。
 
----
+## [版本/日期] - 2026-05-18 - Bug修复 + 登录简化
 
-## [版本/日期] - 2026-05-18
 - **操作人**: AI (Claude Code)
 - **关联任务/功能**: Bug修复 + 登录简化
 - **核心变更文件说明**:

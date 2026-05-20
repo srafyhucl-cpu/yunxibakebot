@@ -571,7 +571,7 @@ async function send(msg) {
     if (data.session_id) { _currentSessionId = data.session_id; _ls('sessionId', data.session_id); }
     syncDrawerState();
     markActiveSavedSession();
-    document.getElementById('dbg-intent').textContent = {1:'商品',2:'运费',3:'配送',4:'售后',5:'闲聊'}[data.intent] || data.intent;
+    document.getElementById('dbg-intent').textContent = {1:'商品咨询',2:'规则咨询',3:'运费费用',4:'配送履约',5:'订单办理',6:'售后异常',7:'人工服务',8:'闲聊其他'}[data.intent] || data.intent;
     document.getElementById('dbg-time').textContent = ((Date.now()-t0)/1000).toFixed(1) + 's';
     document.getElementById('dbg-tokens').textContent = data.tokens || '-';
   } catch(e) {

@@ -1,4 +1,4 @@
-"""测试新的 5 意图分类"""
+"""测试新的 8 意图分类"""
 import sys, asyncio, httpx
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -8,20 +8,30 @@ async def test():
     headers = {"Authorization": "Bearer 100200"}
 
     tests = [
-        ("🚚 明天下午能送到吗", {"content": "明天下午能送到吗", "user_id": "t_delivery"}),
-        ("⏰ 你们几点营业", {"content": "你们几点营业", "user_id": "t_hours"}),
-        ("💰 运费多少钱", {"content": "运费多少钱", "user_id": "t_fee"}),
-        ("📍 门店在哪", {"content": "你们店在哪里", "user_id": "t_address"}),
-        ("🍰 提拉米苏", {"content": "提拉米苏多少钱", "user_id": "t_product"}),
-        ("😡 退款", {"content": "蛋糕塌了退款", "user_id": "t_refund"}),
-        ("👋 闲聊", {"content": "你好呀", "user_id": "t_greeting"}),
+        ("🍰 商品咨询", {"content": "提拉米苏多少钱", "user_id": "t_product"}),
+        ("📜 规则咨询", {"content": "可以开发票吗", "user_id": "t_policy"}),
+        ("💰 运费费用", {"content": "运费多少钱", "user_id": "t_fee"}),
+        ("� 配送履约", {"content": "明天下午能送到吗", "user_id": "t_delivery"}),
+        ("🧾 订单办理", {"content": "给我开发票", "user_id": "t_order_service"}),
+        ("😡 售后异常", {"content": "蛋糕塌了我要退款", "user_id": "t_after_sales"}),
+        ("🙋 人工服务", {"content": "转人工", "user_id": "t_human"}),
+        ("👋 闲聊其他", {"content": "你好呀", "user_id": "t_greeting"}),
     ]
 
     async with httpx.AsyncClient() as c:
         for label, payload in tests:
             r = await c.post(url, json=payload, headers=headers, timeout=30)
             data = r.json()
-            intent = {1:"商品",2:"运费",3:"配送",4:"售后",5:"闲聊"}.get(data.get("intent"), "?")
+            intent = {
+                1: "商品咨询",
+                2: "规则咨询",
+                3: "运费费用",
+                4: "配送履约",
+                5: "订单办理",
+                6: "售后异常",
+                7: "人工服务",
+                8: "闲聊其他",
+            }.get(data.get("intent"), "?")
             reply = (data.get("reply") or "(无回复)")[:120]
             print(f"[{intent}] {label}")
             print(f"  -> {reply}")

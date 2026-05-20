@@ -23,6 +23,7 @@ from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.llm.functions import FUNCTION_DEFINITIONS, MAX_TOOL_ROUNDS, dispatch_tool
 from app.service.llm.intent import IntentType, detect_intent
+from app.service.llm.intent_taxonomy import is_transfer_intent
 from app.service.llm.prompt import build_system_prompt
 from app.service.llm.query_rewriter import rewrite_query
 from app.service.llm.soothe import apply_soothe, needs_soothe
@@ -109,8 +110,8 @@ class ChatService:
         intent = await detect_intent(content, history=history_text)
         logger.info("会话 %s 意图: %s", session.id, intent.name)
 
-        # 售后/转人工 → 自动创建转人工工单
-        if intent == IntentType.AFTER_SALES:
+        # 转人工 → 自动创建转人工工单
+        if is_transfer_intent(intent):
             try:
                 await self._transfer_mgr.request_transfer(
                     session.id, user_id, reason=content,
@@ -154,7 +155,7 @@ class ChatService:
         history_text: str,
         intent: IntentType,
     ) -> list[KnowledgeEntry]:
-        if intent == IntentType.CASUAL_CHAT:
+        if intent == IntentType.SMALL_TALK:
             return await self._knowledge.search_keyword_only(user_query, limit=KNOWLEDGE_SEARCH_LIMIT)
 
         search_query = user_query or DEFAULT_SEARCH_QUERY
@@ -166,7 +167,7 @@ class ChatService:
             return []
 
     async def _ai_conversation_loop(
-        self, session: Session, user_query: str = "", intent: IntentType = IntentType.PRODUCT_INQUIRY,
+        self, session: Session, user_query: str = "", intent: IntentType = IntentType.PRODUCT_CONSULTATION,
     ) -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
