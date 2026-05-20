@@ -457,7 +457,7 @@ class ChatService:
                     alias = item_data.get("alias", "")
                     price_fen = item_data.get("price", 0)
                     stock = item_data.get("quantity", 0)
-                    image = item_data.get("image", "")
+                    image = item_data.get("pic_url") or item_data.get("image") or ""
 
                     # 商品上架在售状态判定
                     is_active = 1
