@@ -38,6 +38,7 @@ class EmbeddingSearcher:
         self._dirty: bool = False
         self._data_hash: str = ""
         self._lock = asyncio.Lock()
+        self._save_event = asyncio.Event()
 
     def _get_model(self) -> SentenceTransformer:
         """懒加载：首次调用时初始化模型（避免冷启动阻塞）。"""
@@ -112,6 +113,7 @@ class EmbeddingSearcher:
                 logger.info("已通过内存增量追加单条向量: %s", key)
             self._ready = True
             self._dirty = True
+            self._save_event.set()
 
     async def delete_one(self, key: str) -> None:
         """
@@ -125,6 +127,7 @@ class EmbeddingSearcher:
                     self._embeddings = np.delete(self._embeddings, idx, axis=0)
                 logger.info("已增量从内存原子删除单条向量: %s", key)
                 self._dirty = True
+                self._save_event.set()
                 if len(self._doc_keys) == 0:
                     self._ready = False
                     self._embeddings = None

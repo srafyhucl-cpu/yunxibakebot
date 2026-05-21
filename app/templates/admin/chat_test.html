@@ -480,12 +480,21 @@ const UMPEngine = {
     }
   },
   parseAndRender(rawText) {
+    let processText = rawText;
+    const lastUmpIndex = processText.lastIndexOf("[UMP:");
+    if (lastUmpIndex !== -1) {
+      const rest = processText.substring(lastUmpIndex);
+      if (rest.indexOf("]") === -1) {
+        // 发现未闭合的流式局部缓冲，执行静默拦截挂起，防止未渲染参数露出
+        processText = processText.substring(0, lastUmpIndex);
+      }
+    }
     const umpRegex = /\[UMP:\s*(.*?)\s*\]/g;
-    let cleanText = rawText.replace(umpRegex, "").trim();
+    let cleanText = processText.replace(umpRegex, "").trim();
     let htmlAppend = "";
     let match;
     umpRegex.lastIndex = 0;
-    while ((match = umpRegex.exec(rawText)) !== null) {
+    while ((match = umpRegex.exec(processText)) !== null) {
       let rawParams = match[1].replace(/[`\s]/g, "");
       const params = new URLSearchParams(rawParams);
       const type = params.get("type");

@@ -87,10 +87,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 异步定时节流刷盘后台守护任务
     async def periodic_save_task() -> None:
-        while True:
-            try:
-                await asyncio.sleep(120)
-                if vs._dirty:
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(vs._save_event.wait(), timeout=120.0)
+                    vs._save_event.clear()
+                except asyncio.TimeoutError:
+                    pass
+                if vs and vs._dirty:
                     active_docs = await knowledge_repo.get_all_titles_with_keys()
                     import hashlib
                     sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
@@ -98,22 +102,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
                     vs._data_hash = latest_db_md5
                     await vs.save(vs_path)
-            except asyncio.CancelledError:
-                # 正常退出拦截器，最后一次强制清算持久化
-                if vs._dirty:
-                    try:
-                        active_docs = await knowledge_repo.get_all_titles_with_keys()
-                        import hashlib
-                        sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                        concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
-                        latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
-                        vs._data_hash = latest_db_md5
-                        await vs.save(vs_path)
-                    except Exception as e:
-                        logger.error("守护协程退关刷盘异常: %s", e)
-                break
-            except Exception as e:
-                logger.error("定时节流刷盘守护协程异常: %s", e)
+        except asyncio.CancelledError:
+            # 正常退出拦截器，最后一次强制清算持久化
+            if vs and vs._dirty:
+                try:
+                    active_docs = await knowledge_repo.get_all_titles_with_keys()
+                    import hashlib
+                    sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
+                    concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
+                    latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                    vs._data_hash = latest_db_md5
+                    await vs.save(vs_path)
+                except Exception as e:
+                    logger.error("守护协程退关刷盘异常: %s", e)
+        except Exception as e:
+            logger.error("定时节流刷盘守护协程异常: %s", e)
 
     save_task = asyncio.create_task(periodic_save_task())
 
