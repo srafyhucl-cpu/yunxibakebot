@@ -38,9 +38,8 @@
 .chat-msgs {
   flex: 1; overflow-y: auto; padding: 16px 12px;
   display: flex; flex-direction: column; gap: 12px;
-  -webkit-overflow-scrolling: touch;
 }
-.msg-row { display: flex; max-width: 85%; }
+.msg-row { display: flex; max-width: 85%; gap: 8px; align-items: flex-start; }
 .msg-row.end { align-self: flex-end; }
 .msg-row.start { align-self: flex-start; }
 .bubble {
@@ -50,11 +49,6 @@
 .bubble.user { background: #95ec69; color: #000; border-radius: 6px 6px 2px 6px; }
 .bubble.ai { background: #fff; color: #000; border-radius: 6px 6px 6px 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .bubble.ai.loading { opacity: 0.5; }
-
-.chat-notice {
-  font-size: 11px; color: #b0b0b0; text-align: center;
-  padding: 6px 12px; flex-shrink: 0;
-}
 
 .chat-inputbar {
   background: #f7f7f7; border-top: 1px solid #ddd;
@@ -69,6 +63,149 @@
   background: var(--primary); color: #fff; border: none;
   border-radius: 4px; padding: 10px 16px; font-size: 14px;
   cursor: pointer; white-space: nowrap;
+}
+
+/* ==================== 微信模拟器样式 (WeChat Simulation) ==================== */
+.avatar-col {
+  display: flex;
+  flex-shrink: 0;
+}
+.bubble-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 头像基础样式：默认测试视图下隐藏 */
+.chat-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  display: none; /* 默认隐藏 */
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.user-avatar {
+  background: #abc8e2;
+}
+.ai-avatar {
+  background: #ffede8;
+}
+
+/* 微信模式生效时的样式变化 */
+.wechat-mode {
+  background-color: #ededed !important;
+}
+.wechat-mode .chat-msgs {
+  background-color: #ededed !important;
+}
+.wechat-mode .chat-avatar {
+  display: flex; /* 微信模式下显示头像 */
+}
+
+/* 微信模式顶栏 */
+.wechat-mode .chat-topbar {
+  background: #ededed !important;
+  color: #191919 !important;
+  border-bottom: 1px solid #dbdbdb;
+  box-shadow: none;
+}
+.wechat-mode .chat-topbar button {
+  color: #191919 !important;
+}
+.wechat-mode .chat-topbar .title {
+  color: #191919 !important;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* 微信模式输入栏 */
+.wechat-mode .chat-inputbar {
+  background: #f7f7f7 !important;
+  border-top: 1px solid #dbdbdb !important;
+  padding: 8px 10px !important;
+  gap: 8px !important;
+}
+.wechat-mode .chat-inputbar input {
+  background: #ffffff !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 10px 12px !important;
+  font-size: 15px !important;
+  outline: none !important;
+}
+.wechat-mode .chat-inputbar button {
+  background: #07c160 !important; /* 微信经典绿 */
+  color: #ffffff !important;
+  font-size: 14px !important;
+  padding: 10px 16px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+
+/* 微信气泡 */
+.wechat-mode .bubble {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  max-width: 100% !important;
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+.wechat-mode .bubble.user {
+  background: #95ec69 !important;
+  color: #191919 !important;
+}
+.wechat-mode .bubble.ai {
+  background: #ffffff !important;
+  color: #191919 !important;
+}
+
+/* 气泡小耳朵（三角） */
+.wechat-mode .bubble.user::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: -5px;
+  border-width: 5px 0 5px 5px;
+  border-style: solid;
+  border-color: transparent transparent transparent #95ec69;
+}
+.wechat-mode .bubble.ai::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  left: -5px;
+  border-width: 5px 5px 5px 0;
+  border-style: solid;
+  border-color: transparent #ffffff transparent transparent;
+}
+
+/* 占位符头像：微信多条消息连续发送时隐藏头像但保留对齐空间 */
+.placeholder-avatar {
+  width: 38px;
+  height: 38px;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+.wechat-mode .placeholder-avatar {
+  display: flex !important;
+  visibility: hidden !important;
+}
+
+/* Standalone media container layout */
+.media-container {
+  display: block;
+}
+
+/* 微信模式下对气泡列的限宽，防止文字/卡片横向全宽拉伸 */
+.wechat-mode .bubble-col {
+  max-width: 78% !important;
 }
 
 /* Drawer - fixed to viewport */
@@ -208,14 +345,12 @@
 }
 </style>
 
-<div class="chat-page">
+<div class="chat-page wechat-mode" id="chat-page-container">
   <div class="chat-topbar">
     <button onclick="drawerToggle()">☰</button>
-    <div class="title">芸熙烘焙</div>
+    <div class="title" id="chat-page-title">芸熙烘焙 AI 客服</div>
     <button onclick="onNewChat()">✚</button>
   </div>
-
-  <div class="chat-notice">⚠️ AI使用小程序导出数据，暂未对接有赞实时接口。</div>
 
   <div class="chat-msgs" id="chat-msgs"></div>
 
@@ -328,36 +463,54 @@
 const UMPEngine = {
   renderers: {
     image: (params) => {
-      return `<img src="${params.get('src')}" style="max-width: 100%; max-height: 180px; border-radius: 8px; margin-top: 8px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.06); cursor: pointer;" onclick="window.open('${params.get('src')}', '_blank')">`;
+      return `<img src="${params.get('src')}" class="wechat-media-img" style="max-width: 100%; max-height: 200px; border-radius: 6px; display: block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open('${params.get('src')}', '_blank')">`;
     },
     card: (params) => {
       return `
-      <div class="bubble-product-card" style="width: 240px; background: #fff; border: 1px solid #eef0f2; border-radius: 12px; margin-top: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); font-family: system-ui; text-align: left;">
-        <img src="${params.get('src')}" style="width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #f5f7f9;">
-        <div style="padding: 10px 12px;">
-          <div style="font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${params.get('title')}</div>
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
-            <span style="font-size: 15px; font-weight: 800; color: #fa5151;">￥${params.get('price')}</span>
-            <a href="${params.get('url')}" target="_blank" style="background: #07c160; color: #fff; text-decoration: none; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 6px; transition: opacity 0.2s;">去下单</a>
+      <div class="bubble-product-card" style="width: 250px; background: #fff; border: 1px solid #eef0f2; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; text-align: left;">
+        <div style="padding: 12px 14px; font-size: 14px; font-weight: 700; color: #191919; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; height: 38px; margin-bottom: 8px;">
+          ${params.get('title')}
+        </div>
+        <div style="display: flex; padding: 0 14px 12px; gap: 10px;">
+          <img src="${params.get('src')}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: #f7f7f7;">
+          <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; min-width: 0;">
+            <div style="font-size: 11px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">小程序 芸熙烘焙</div>
+            <div style="display: flex; align-items: baseline; gap: 2px;">
+              <span style="font-size: 15px; font-weight: 700; color: #fa5151;">￥${params.get('price')}</span>
+            </div>
           </div>
+        </div>
+        <div style="border-top: 1px solid #f2f2f2; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; background: #fafafa;">
+          <span style="font-size: 11px; color: #888; display: flex; align-items: center; gap: 4px;">
+            <svg viewBox="0 0 1024 1024" width="12" height="12" style="fill: #888;"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 480 448 448-200.6 448-448S759.4 64 512 64z m192 480H544v192c0 17.7-14.3 32-32 32s-32-14.3-32-32V544H288c-17.7 0-32-14.3-32-32s14.3-32 32-32h192V288c0-17.7 14.3-32 32-32s32 14.3 32 32v192h160c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
+            微信小程序
+          </span>
+          <a href="${params.get('url')}" target="_blank" style="color: #576b95; text-decoration: none; font-size: 11px; font-weight: 700; transition: opacity 0.2s;">去下单</a>
         </div>
       </div>`;
     }
   },
-  parseAndRender(rawText) {
+  parse(rawText) {
     const umpRegex = /\[UMP:\s*(.*?)\s*\]/g;
     let cleanText = rawText.replace(umpRegex, "").trim();
-    let htmlAppend = "";
+    let segments = [];
+    
+    // 1. 文本分词段 (非空时置入)
+    if (cleanText) {
+      segments.push({ type: 'text', content: cleanText });
+    }
+    
+    // 2. 提取 UMP 特殊富媒体流
     let match;
     umpRegex.lastIndex = 0;
     while ((match = umpRegex.exec(rawText)) !== null) {
       const params = new URLSearchParams(match[1]);
       const type = params.get("type");
       if (this.renderers[type]) {
-        htmlAppend += this.renderers[type](params);
+        segments.push({ type: type, params: params });
       }
     }
-    return { text: cleanText, html: htmlAppend };
+    return segments;
   }
 };
 
@@ -510,13 +663,49 @@ async function restore() {
 }
 
 function addMsg(role, content) {
-  var cls = role === 'user' ? 'msg-row end' : 'msg-row start';
-  var bub = role === 'user' ? 'bubble user' : 'bubble ai';
   if (role === 'user') {
-    _msgs.innerHTML += '<div class="' + cls + '"><div class="' + bub + '">' + esc(content) + '</div></div>';
+    var cls = 'msg-row end';
+    var bub = 'bubble user';
+    var avatarHtml = '<div class="avatar-col"><div class="chat-avatar user-avatar">👤</div></div>';
+    _msgs.innerHTML += `
+      <div class="${cls}">
+        <div class="bubble-col">
+          <div class="${bub}">${esc(content)}</div>
+        </div>
+        ${avatarHtml}
+      </div>`;
   } else {
-    var res = UMPEngine.parseAndRender(content);
-    _msgs.innerHTML += '<div class="' + cls + '"><div class="' + bub + '">' + esc(res.text) + res.html + '</div></div>';
+    // 微信模式下将消息按照 UMP 分词拆分为连续的独立行
+    var segments = UMPEngine.parse(content);
+    
+    segments.forEach((seg, index) => {
+      var cls = 'msg-row start';
+      
+      // 连续多条消息发送时，只有第一条显示真实头像，后续显示对齐占位头像
+      var avatarHtml = '';
+      if (index === 0) {
+        avatarHtml = '<div class="avatar-col"><div class="chat-avatar ai-avatar">🍰</div></div>';
+      } else {
+        avatarHtml = '<div class="avatar-col"><div class="chat-avatar placeholder-avatar"></div></div>';
+      }
+      
+      let innerHtml = '';
+      if (seg.type === 'text') {
+        innerHtml = `<div class="bubble ai">${esc(seg.content)}</div>`;
+      } else if (seg.type === 'image') {
+        innerHtml = `<div class="media-container">${UMPEngine.renderers.image(seg.params)}</div>`;
+      } else if (seg.type === 'card') {
+        innerHtml = `<div class="media-container">${UMPEngine.renderers.card(seg.params)}</div>`;
+      }
+      
+      _msgs.innerHTML += `
+        <div class="${cls}" style="margin-bottom: ${index === segments.length - 1 ? '12px' : '6px'};">
+          ${avatarHtml}
+          <div class="bubble-col">
+            ${innerHtml}
+          </div>
+        </div>`;
+    });
   }
 }
 
@@ -596,7 +785,13 @@ async function send(msg) {
   if (!msg) input.value = '';
   _userScrolledUp = false;
   addMsg('user', text);
-  _msgs.innerHTML += '<div class="msg-row start" id="loading-row"><div class="bubble ai loading">⏳ 正在思考...</div></div>';
+  _msgs.innerHTML += `
+    <div class="msg-row start" id="loading-row">
+      <div class="avatar-col"><div class="chat-avatar ai-avatar">🍰</div></div>
+      <div class="bubble-col">
+        <div class="bubble ai loading">⏳ 正在思考...</div>
+      </div>
+    </div>`;
   scrollBtm();
   var t0 = Date.now();
   try {
