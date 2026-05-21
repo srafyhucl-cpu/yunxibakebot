@@ -463,54 +463,37 @@
 const UMPEngine = {
   renderers: {
     image: (params) => {
-      return `<img src="${params.get('src')}" class="wechat-media-img" style="max-width: 100%; max-height: 200px; border-radius: 6px; display: block; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open('${params.get('src')}', '_blank')">`;
+      return `<img src="${params.get("src")}" style="max-width: 100%; max-height: 180px; border-radius: 8px; margin-top: 8px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.06); cursor: pointer;" onclick="window.open('${params.get("src")}', '_blank')">`;
     },
     card: (params) => {
       return `
-      <div class="bubble-product-card" style="width: 250px; background: #fff; border: 1px solid #eef0f2; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; text-align: left;">
-        <div style="padding: 12px 14px; font-size: 14px; font-weight: 700; color: #191919; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; height: 38px; margin-bottom: 8px;">
-          ${params.get('title')}
-        </div>
-        <div style="display: flex; padding: 0 14px 12px; gap: 10px;">
-          <img src="${params.get('src')}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: #f7f7f7;">
-          <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; min-width: 0;">
-            <div style="font-size: 11px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">小程序 芸熙烘焙</div>
-            <div style="display: flex; align-items: baseline; gap: 2px;">
-              <span style="font-size: 15px; font-weight: 700; color: #fa5151;">￥${params.get('price')}</span>
-            </div>
+      <div class="bubble-product-card" style="width: 240px; background: #fff; border: 1px solid #eef0f2; border-radius: 12px; margin-top: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); font-family: system-ui; text-align: left;">
+        <img src="${params.get("src")}" style="width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #f5f7f9;">
+        <div style="padding: 10px 12px;">
+          <div style="font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${params.get("title")}</div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+            <span style="font-size: 15px; font-weight: 800; color: #fa5151;">￥${params.get("price")}</span>
+            <a href="${params.get("url")}" target="_blank" style="background: #07c160; color: #fff; text-decoration: none; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 6px; transition: opacity 0.2s;">去下单</a>
           </div>
-        </div>
-        <div style="border-top: 1px solid #f2f2f2; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; background: #fafafa;">
-          <span style="font-size: 11px; color: #888; display: flex; align-items: center; gap: 4px;">
-            <svg viewBox="0 0 1024 1024" width="12" height="12" style="fill: #888;"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 480 448 448-200.6 448-448S759.4 64 512 64z m192 480H544v192c0 17.7-14.3 32-32 32s-32-14.3-32-32V544H288c-17.7 0-32-14.3-32-32s14.3-32 32-32h192V288c0-17.7 14.3-32 32-32s32 14.3 32 32v192h160c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
-            微信小程序
-          </span>
-          <a href="${params.get('url')}" target="_blank" style="color: #576b95; text-decoration: none; font-size: 11px; font-weight: 700; transition: opacity 0.2s;">去下单</a>
         </div>
       </div>`;
     }
   },
-  parse(rawText) {
+  parseAndRender(rawText) {
     const umpRegex = /\[UMP:\s*(.*?)\s*\]/g;
     let cleanText = rawText.replace(umpRegex, "").trim();
-    let segments = [];
-    
-    // 1. 文本分词段 (非空时置入)
-    if (cleanText) {
-      segments.push({ type: 'text', content: cleanText });
-    }
-    
-    // 2. 提取 UMP 特殊富媒体流
+    let htmlAppend = "";
     let match;
     umpRegex.lastIndex = 0;
     while ((match = umpRegex.exec(rawText)) !== null) {
-      const params = new URLSearchParams(match[1]);
+      let rawParams = match[1].replace(/[`\s]/g, "");
+      const params = new URLSearchParams(rawParams);
       const type = params.get("type");
-      if (this.renderers[type]) {
-        segments.push({ type: type, params: params });
+      if (type && this.renderers[type.trim()]) {
+        htmlAppend += this.renderers[type.trim()](params);
       }
     }
-    return segments;
+    return { text: cleanText, html: htmlAppend };
   }
 };
 
@@ -675,37 +658,18 @@ function addMsg(role, content) {
         ${avatarHtml}
       </div>`;
   } else {
-    // 微信模式下将消息按照 UMP 分词拆分为连续的独立行
-    var segments = UMPEngine.parse(content);
-    
-    segments.forEach((seg, index) => {
-      var cls = 'msg-row start';
-      
-      // 连续多条消息发送时，只有第一条显示真实头像，后续显示对齐占位头像
-      var avatarHtml = '';
-      if (index === 0) {
-        avatarHtml = '<div class="avatar-col"><div class="chat-avatar ai-avatar">🍰</div></div>';
-      } else {
-        avatarHtml = '<div class="avatar-col"><div class="chat-avatar placeholder-avatar"></div></div>';
-      }
-      
-      let innerHtml = '';
-      if (seg.type === 'text') {
-        innerHtml = `<div class="bubble ai">${esc(seg.content)}</div>`;
-      } else if (seg.type === 'image') {
-        innerHtml = `<div class="media-container">${UMPEngine.renderers.image(seg.params)}</div>`;
-      } else if (seg.type === 'card') {
-        innerHtml = `<div class="media-container">${UMPEngine.renderers.card(seg.params)}</div>`;
-      }
-      
-      _msgs.innerHTML += `
-        <div class="${cls}" style="margin-bottom: ${index === segments.length - 1 ? '12px' : '6px'};">
-          ${avatarHtml}
-          <div class="bubble-col">
-            ${innerHtml}
-          </div>
-        </div>`;
-    });
+    var cls = 'msg-row start';
+    var bub = 'bubble ai';
+    var avatarHtml = '<div class="avatar-col"><div class="chat-avatar ai-avatar">🍰</div></div>';
+
+    const pipeline = UMPEngine.parseAndRender(content);
+    _msgs.innerHTML += `
+      <div class="${cls}">
+        ${avatarHtml}
+        <div class="bubble-col">
+          <div class="${bub}">${esc(pipeline.text)}${pipeline.html}</div>
+        </div>
+      </div>`;
   }
 }
 

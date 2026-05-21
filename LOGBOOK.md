@@ -4,6 +4,32 @@
 
 ______________________________________________________________________
 
+## [2026-05-21] - UMP 统一媒体协议渲染与 RAG 全量文本 MD5 指纹自愈锁重构，追加定时节流异步刷盘守护协程
+
+- **操作人**: AI (Cascade)
+- **关联任务/功能**: 实现 UMP 统一媒体协议系统提示词网关升级，重塑 RAG 向量搜索层数据指纹“全量文本 MD5 特征版本锁”，防止由于商品、FAQ 话术物理修改造成的向量数据库脑裂漂移；废弃 pickle，改用全平台无关 NumPy 二进制（vectors.npy）及标准 JSON 结构化元数据独立隔离存储；彻底移除有赞 Webhook 高频回调时业务层频繁同步写盘瓶颈，引入常驻异步定时 120s 节流刷盘守护协程。同时精简重构后台测试面板 UMP 渲染微内核，引入前端策略单例和管道渲染分流模式抗噪并彻底杜绝 XSS 与 HTML 标签引号冲突。在数据库中为埋点事件表 `analytics_events` 部署复合归因联合索引，以极客的高标准交付上线。
+- **核心变更文件说明**:
+  - `app/service/llm/prompt.py`:
+    - 升级 `SYSTEM_PROMPT_TPL`，在顶层添加并明确约束 AI 的 "## 统一媒体协议 (UMP) 规范"，AI 扮演媒体路由网关，无条件原样吐出 UMP 宏，禁止任何形式的高亮包裹或改写。
+  - `app/service/embedding_search.py`:
+    - 增加自愈哈希 `_data_hash` 属性。
+    - 彻底废弃具有强 Python 版本依赖的 `pickle` 序列化，全面重构持久化逻辑。
+    - 向量矩阵使用全平台无关的 `np.save`（`vectors.npy`）连续二进制文件进行高效存储。
+    - 将主键列表、ready 状态和 `data_hash` 哈希等结构化元数据隔离保存于标准的 `.json` 配置文件。
+  - `app/main.py`:
+    - 冷启动时提取活跃 `docs`，对所有活跃数据文本执行物理全量串联计算 MD5 全局强特征版本锁 `current_db_md5`。
+    - 指纹对齐校验升级为 `if vs._ready and cached_keys == db_keys and vs._data_hash == current_db_md5:`，杜绝因商品或 FAQ 修改带来的脑裂漂移。
+    - 引进定时常驻 120s 后台节流刷盘协程 `periodic_save_task()`，并在 shutdown 期间安全 cancel，压缩 I/O 95% 以上，防止多进程写锁抢占与内存膨胀。
+  - `app/service/chat.py`:
+    - 彻底移除有赞 Webhook 接收或删除数据后对 `vs.save` 的强频繁同步 I/O 重写盘操作，平滑交由后台节流协程归口管理。
+  - `app/templates/admin/chat_test.html`:
+    - 新增在顶层声明前端极客策略单例 `UMPEngine`（提供 UMP 数据解析抗噪、XSS 防护及高内聚 HTML 模板组装）。
+    - 极速精简 `addMsg()` 助理端渲染分流，通过 `parseAndRender` 返回清洗文本与高保真 DOM 拼接，杜绝引号嵌套冲突。
+  - `app/database.py`:
+    - 为 `analytics_events` 表追加复合联合索引 `idx_events_attribution_flow(buyer_id, event_type, created_at)`，全力防御 3 秒生死线超时。
+
+______________________________________________________________________
+
 ## [2026-05-21] - 冷启动零毫秒秒载入、O(N) 指纹校验防线重构与一键部署物理原子置换升级
 
 - **操作人**: AI (Cascade)

@@ -63,22 +63,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     docs = await knowledge_repo.get_all_titles_with_keys()
     need_rebuild = True
 
+    import hashlib
+    sorted_docs = sorted(docs, key=lambda x: x[0])
+    concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
+    current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
+
     if vs._ready and docs:
-        # 对齐校验防漂移：引入 O(N) 集合哈希对比，检查缓存主键数量与值是否与数据库完全一致
+        # 对齐校验防漂移：引入 O(N) 集合哈希对比，检查缓存主键数量与值是否与数据库完全一致，同时校验数据文本全量 MD5 锁
         cached_keys = set(vs._doc_keys)
         db_keys = {str(d[0]) for d in docs}
-        if cached_keys == db_keys:
+        if cached_keys == db_keys and vs._data_hash == current_db_md5:
             need_rebuild = False
-            logger.info("🎉 完美对齐！向量缓存指纹 100%% 一致，直接载入启动，共有 %d 条向量", vs.doc_count)
+            logger.info("🎉 完美对齐！向量缓存指纹与文本特征 MD5 100%% 一致，直接载入启动，共有 %d 条向量", vs.doc_count)
 
     if need_rebuild:
         if docs:
-            logger.info("向量缓存缺失或主键不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
-            await asyncio.to_thread(vs.build, docs)
+            logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
+            await asyncio.to_thread(vs.build, docs, current_db_md5)
             await asyncio.to_thread(vs.save, vs_path)
             logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
         else:
             logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
+
+    # 异步定时节流刷盘后台守护任务
+    async def periodic_save_task() -> None:
+        while True:
+            try:
+                await asyncio.sleep(120)
+                if vs._dirty:
+                    active_docs = await knowledge_repo.get_all_titles_with_keys()
+                    import hashlib
+                    sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
+                    concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
+                    latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                    vs._data_hash = latest_db_md5
+                    await asyncio.to_thread(vs.save, vs_path)
+            except asyncio.CancelledError:
+                # 正常退出拦截器，最后一次强制清算持久化
+                if vs._dirty:
+                    try:
+                        active_docs = await knowledge_repo.get_all_titles_with_keys()
+                        import hashlib
+                        sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
+                        concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
+                        latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                        vs._data_hash = latest_db_md5
+                        vs.save(vs_path)
+                    except Exception as e:
+                        logger.error("守护协程退关刷盘异常: %s", e)
+                break
+            except Exception as e:
+                logger.error("定时节流刷盘守护协程异常: %s", e)
+
+    save_task = asyncio.create_task(periodic_save_task())
 
     # Service 层
     knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
@@ -129,6 +166,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)
     yield
     # ── shutdown ──
+    save_task.cancel()
+    try:
+        await save_task
+    except asyncio.CancelledError:
+        pass
     from app.service.wecom.client import close_wecom_client
     await close_wecom_client()
     await close_db(db)

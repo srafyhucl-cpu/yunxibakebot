@@ -144,6 +144,7 @@ SCHEMA_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_ae_session ON analytics_events(session_id)",
     "CREATE INDEX IF NOT EXISTS idx_ae_buyer ON analytics_events(buyer_id)",
     "CREATE INDEX IF NOT EXISTS idx_ae_created ON analytics_events(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_events_attribution_flow ON analytics_events(buyer_id, event_type, created_at)",
 ]
 
 PRAGMA_STATEMENTS: list[str] = [

@@ -10,8 +10,9 @@
 3. 返回 Top-K 最相关条目，消除 TF-IDF 对同义词/指代词的盲区
 """
 
-import pickle
+import json
 from pathlib import Path
+import os
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -34,22 +35,23 @@ class EmbeddingSearcher:
         self._doc_keys: list[str] = []
         self._ready: bool = False
         self._dirty: bool = False
+        self._data_hash: str = ""
 
     def _get_model(self) -> SentenceTransformer:
         """懒加载：首次调用时初始化模型（避免冷启动阻塞）。"""
         if self._model is None:
-            import os
             os.environ.setdefault("HF_HUB_OFFLINE", "1")
             self._model = SentenceTransformer(EMBEDDING_MODEL, local_files_only=True)
             logger.info("Embedding 模型已加载: %s", EMBEDDING_MODEL)
         return self._model
 
-    def build(self, documents: list[tuple[str, str, str]]) -> None:
+    def build(self, documents: list[tuple[str, str, str]], current_db_md5: str = "") -> None:
         """
         全量构建语义向量索引。
 
         参数：
             documents: [(doc_key, 标题, 内容), ...] — 与 KnowledgeRepo.get_all_titles_with_keys() 返回格式一致
+            current_db_md5: 当前数据库的 MD5 强特征版本锁
         """
         model = self._get_model()
         self._doc_keys = []
@@ -62,6 +64,7 @@ class EmbeddingSearcher:
         self._embeddings = np.array(raw, dtype=np.float32)
         self._ready = True
         self._dirty = True
+        self._data_hash = current_db_md5
         logger.info("Embedding 索引构建完成: %d 条", len(self._doc_keys))
 
     def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
@@ -129,25 +132,62 @@ class EmbeddingSearcher:
             return
         try:
             path = Path(path)
-            tmp_path = path.with_suffix(".tmp")
-            data = (self._doc_keys, self._embeddings, self._ready)
-            with open(tmp_path, "wb") as f:
-                pickle.dump(data, f)
-            import os
-            os.replace(str(tmp_path), str(path))
+            npy_path = path.with_suffix(".npy")
+            json_path = path.with_suffix(".json")
+
+            tmp_npy = npy_path.with_suffix(".tmp.npy")
+            tmp_json = json_path.with_suffix(".json.tmp")
+
+            if self._embeddings is not None:
+                np.save(tmp_npy, self._embeddings)
+            else:
+                # 写入空矩阵
+                np.save(tmp_npy, np.array([], dtype=np.float32))
+
+            meta = {
+                "doc_keys": self._doc_keys,
+                "ready": self._ready,
+                "data_hash": getattr(self, "_data_hash", "")
+            }
+            with open(tmp_json, "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
+
+            if tmp_npy.exists():
+                os.replace(str(tmp_npy), str(npy_path))
+            if tmp_json.exists():
+                os.replace(str(tmp_json), str(json_path))
+
             self._dirty = False
             logger.info("已通过原子写入安全持久化向量索引: %d 条", len(self._doc_keys))
-        except (OSError, pickle.PicklingError) as exc:
+        except Exception as exc:
             logger.error("向量索引原子保存失败: %s", exc)
 
     def load(self, path: str | Path) -> None:
         """从磁盘加载已缓存的向量索引（跳过模型推理）。"""
         try:
-            with open(path, "rb") as f:
-                self._doc_keys, self._embeddings, self._ready = pickle.load(f)
+            path = Path(path)
+            npy_path = path.with_suffix(".npy")
+            json_path = path.with_suffix(".json")
+
+            if not npy_path.exists() or not json_path.exists():
+                logger.warning("向量索引缓存文件不存在，将重新构建")
+                self._ready = False
+                return
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+
+            self._doc_keys = meta["doc_keys"]
+            self._ready = meta["ready"]
+            self._data_hash = meta.get("data_hash", "")
+
+            self._embeddings = np.load(npy_path)
+            if self._embeddings.size == 0:
+                self._embeddings = None
+
             self._dirty = False
             logger.info("Embedding 索引已从缓存加载: %d 条", len(self._doc_keys))
-        except (OSError, pickle.UnpicklingError) as exc:
+        except Exception as exc:
             logger.warning("向量索引加载失败，将重新构建: %s", exc)
             self._ready = False
 
