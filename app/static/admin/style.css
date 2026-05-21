@@ -443,7 +443,7 @@ textarea { resize: vertical; min-height: 60px; }
   .card { padding: 14px 16px; }
   .login-card { width: 90%; padding: 32px 24px; }
 
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { display: block; overflow-x: auto; }
   th, td { white-space: nowrap; font-size: 13px; padding: 10px 12px; }
   .btn { font-size: 13px; padding: 6px 12px; }
   .btn-sm { padding: 4px 10px; font-size: 12px; }
