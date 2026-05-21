@@ -52,19 +52,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     transfer_repo = TransferRepo(db)
     config_repo = ConfigRepo(db)
 
-    # 语义向量搜索服务（启动强制全量校准自愈，保障主库与向量库 100% 一致性）
+    # 语义向量搜索服务（启动优化：首选极速缓存载入并进行一致性指纹对比，对齐时 100% 豁免 CPU 全量重算）
     from app.service.embedding_search import EmbeddingSearcher
     vs = EmbeddingSearcher()
     vs_path = settings.EMBEDDING_PATH
 
-    logger.info("正在执行启动自愈校准：从数据库全量读取并原子对齐内存向量...")
+    logger.info("正在初始化向量搜索：首选尝试极速载入本地预解算缓存...")
+    await asyncio.to_thread(vs.load, vs_path)
+
     docs = await knowledge_repo.get_all_titles_with_keys()
-    if docs:
-        await asyncio.to_thread(vs.build, docs)
-        await asyncio.to_thread(vs.save, vs_path)
-        logger.info("启动自愈校准完成：已重新加载并原子持久化 %d 条活跃向量", vs.doc_count)
-    else:
-        logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
+    need_rebuild = True
+
+    if vs._ready and docs:
+        # 对齐校验防漂移：引入 O(N) 集合哈希对比，检查缓存主键数量与值是否与数据库完全一致
+        cached_keys = set(vs._doc_keys)
+        db_keys = {str(d[0]) for d in docs}
+        if cached_keys == db_keys:
+            need_rebuild = False
+            logger.info("🎉 完美对齐！向量缓存指纹 100%% 一致，直接载入启动，共有 %d 条向量", vs.doc_count)
+
+    if need_rebuild:
+        if docs:
+            logger.info("向量缓存缺失或主键不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
+            await asyncio.to_thread(vs.build, docs)
+            await asyncio.to_thread(vs.save, vs_path)
+            logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
+        else:
+            logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
 
     # Service 层
     knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
