@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import urllib.parse
 
 from app.logger import setup_logger
 from app.models.config import FEATURED_PRODUCTS_KEY
@@ -94,6 +95,24 @@ class KnowledgeRetriever:
                             live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
 
                         entry.content = live_prefix + entry.content
+
+                        # 当商品处于在售状态（is_active == 1）时，向 RAG 召回内容尾部增量组装统一媒体协议（UMP）线性标记
+                        if is_active == 1:
+                            alias = product["alias"] or ""
+                            img_params = urllib.parse.urlencode({
+                                "type": "image",
+                                "src": product["image"] or ""
+                            })
+                            card_params = urllib.parse.urlencode({
+                                "type": "card",
+                                "id": entry.youzan_item_id,
+                                "title": entry.title,
+                                "price": f"{price_yuan:.2f}",
+                                "src": product["image"] or "",
+                                "url": f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
+                            })
+                            entry.content += f"\n[UMP: {img_params}]"
+                            entry.content += f"\n[UMP: {card_params}]"
                 except Exception as exc:
                     logger.warning("现场反查商品库存（ID: %s）发生非致命异常: %s", entry.youzan_item_id, exc)
 
