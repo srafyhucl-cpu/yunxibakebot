@@ -35,7 +35,7 @@ async def test_function_calling() -> None:
     print("=" * 60)
     print("场景 1：用户查询订单")
     print("=" * 60)
-    print(f"\n【请求参数】")
+    print("\n【请求参数】")
     payload = {
         "model": settings.DEEPSEEK_MODEL,
         "messages": messages,
@@ -44,7 +44,7 @@ async def test_function_calling() -> None:
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
-    print(f"\n【响应结果】")
+    print("\n【响应结果】")
     response = await client.chat.completions.create(
         model=settings.DEEPSEEK_MODEL,
         messages=messages,  # type: ignore[arg-type]
@@ -71,7 +71,7 @@ async def test_function_calling() -> None:
     print(f"\n{'=' * 60}")
     print("场景 2：用户要求转人工")
     print("=" * 60)
-    print(f"\n【请求参数】")
+    print("\n【请求参数】")
     payload2 = {
         "model": settings.DEEPSEEK_MODEL,
         "messages": messages2,
@@ -80,7 +80,7 @@ async def test_function_calling() -> None:
     }
     print(json.dumps(payload2, ensure_ascii=False, indent=2))
 
-    print(f"\n【响应结果】")
+    print("\n【响应结果】")
     response2 = await client.chat.completions.create(
         model=settings.DEEPSEEK_MODEL,
         messages=messages2,  # type: ignore[arg-type]

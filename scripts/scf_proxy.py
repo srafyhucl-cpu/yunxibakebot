@@ -3,7 +3,6 @@
 SCF 的函数 URL 收到企微回调请求后，原样转发到 VPS。
 """
 
-import json
 import urllib.request
 import urllib.error
 

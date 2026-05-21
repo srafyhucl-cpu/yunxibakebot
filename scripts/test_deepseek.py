@@ -39,7 +39,7 @@ async def test_deepseek() -> None:
     print("\n" + "=" * 60)
     print("发送请求 (Request)")
     print("=" * 60)
-    print(f"\n请求参数:")
+    print("\n请求参数:")
     print(json.dumps({
         "model": settings.DEEPSEEK_MODEL,
         "messages": messages,
@@ -58,7 +58,7 @@ async def test_deepseek() -> None:
         max_tokens=1024,
     )
 
-    print(f"\n完整响应:")
+    print("\n完整响应:")
     print(json.dumps(response.model_dump(), ensure_ascii=False, indent=2, default=str))
 
     print(f"\n{'=' * 60}")

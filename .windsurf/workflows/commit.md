@@ -1,6 +1,6 @@
----
-description: 开发任务收口工作流，用于芸熙烘焙 AI 客服项目的任务完成检查、LOGBOOK 更新和代码提交
----
+______________________________________________________________________
+
+## description: 开发任务收口工作流，用于芸熙烘焙 AI 客服项目的任务完成检查、LOGBOOK 更新和代码提交
 
 # 开发任务收口工作流
 
@@ -99,15 +99,10 @@ git push
 
 ## 提交类型速查
 
-| type | 说明 | 示例 |
-|------|------|------|
-| `feat` | 新增功能 | `feat(chat): 新增运费关键词前置匹配` |
-| `fix` | 修复 bug | `fix(wecom): 修复企微消息解密失败问题` |
-| `docs` | 文档更新 | `docs(logbook): 更新项目演进记录` |
-| `refactor` | 重构 | `refactor(repo): 提取公共查询方法` |
-| `perf` | 性能优化 | `perf(vector): 优化 TF-IDF 构建速度` |
-| `test` | 测试 | `test(intent): 补充闲聊意图测试用例` |
-| `chore` | 构建/工具 | `chore(deps): 升级 openai 至最新版` |
+| type | 说明 | 示例 | |------|------|------| | `feat` | 新增功能 | `feat(chat): 新增运费关键词前置匹配` | | `fix` | 修复
+bug | `fix(wecom): 修复企微消息解密失败问题` | | `docs` | 文档更新 | `docs(logbook): 更新项目演进记录` | | `refactor` | 重构 |
+`refactor(repo): 提取公共查询方法` | | `perf` | 性能优化 | `perf(vector): 优化 TF-IDF 构建速度` | | `test` | 测试 |
+`test(intent): 补充闲聊意图测试用例` | | `chore` | 构建/工具 | `chore(deps): 升级 openai 至最新版` |
 
 ## 验收标准
 

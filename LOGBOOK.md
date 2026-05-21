@@ -2,37 +2,44 @@
 
 > 本文档是项目演进的唯一真实编年史。AI（Claude Code）在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
----
+______________________________________________________________________
 
 ## [2026-05-21] - UMP 统一媒体协议落地、过时 notice 移除及微信客户端高保真聊天模拟器集成
 
 - **操作人**: AI (Cascade)
-- **关联任务/功能**: 清理后台测试页过时提示；结合 UMP 统一媒体协议设计，在对话后台页面中集成高复用性的 UMP 媒体渲染引擎与高保真微信对话模拟器，让商家在后台便能 100% 模拟最终用户在微信中收到的富媒体（小卡片、图片）视觉呈现。
+- **关联任务/功能**: 清理后台测试页过时提示；结合 UMP 统一媒体协议设计，在对话后台页面中集成高复用性的 UMP 媒体渲染引擎与高保真微信对话模拟器，让商家在后台便能 100%
+  模拟最终用户在微信中收到的富媒体（小卡片、图片）视觉呈现。
 - **核心变更文件说明**:
   - `app/templates/admin/chat_test.html`:
     - 物理移除在售商品对接有赞实时接口前过时的 AI 静态 notice 提示。
     - CSS 中追加 `.avatar-col`、`.bubble-col` 布局与微信头像基础样式 `.chat-avatar`，并添加 Safari (-webkit) 的防选定样式适配。
-    - 新增微信模拟器核心控制类 `.wechat-mode`：将对话底色重置为微信经典灰色 (`#ededed`)，气泡圆角重构为 4px 紧凑圆角，并通过伪元素 `::after` 渲染了气泡左右两侧的精美三角形尾巴。
+    - 新增微信模拟器核心控制类 `.wechat-mode`：将对话底色重置为微信经典灰色 (`#ededed`)，气泡圆角重构为 4px 紧凑圆角，并通过伪元素 `::after`
+      渲染了气泡左右两侧的精美三角形尾巴。
     - 将顶栏变更为微信经典的极简灰色，输入框底部按钮重塑为经典的微信绿 (`#07c160`)，使得页面 100% 拟真。
-    - 重构 JavaScript 中的 `addMsg(role, content)`：输出双侧头像占位栏，默认模式下高度透明隐藏，微信模式下一键流畅浮现，在非侵入式的设计下完成对默认视图的全面兼容。
+    - 重构 JavaScript 中的
+      `addMsg(role, content)`：输出双侧头像占位栏，默认模式下高度透明隐藏，微信模式下一键流畅浮现，在非侵入式的设计下完成对默认视图的全面兼容。
     - 编写并绑定 `toggleWeChatMode()` 动画切换功能，支持单键快速视图折叠与 Toast 提示交互。
   - `scripts/deploy.sh`:
     - 部署脚本中添加针对服务器端 Git Bundle fetch 特殊 Ref 指针合并流的处理。
 
----
+______________________________________________________________________
 
 ## [版本/日期] - 2026-05-20 - 向量检索主键向不可变唯一 ID 驱动重构 & SPU 加料属性 100% RAG 展开落库
 
 - **操作人**: AI (Cascade)
-- **关联任务/功能**: 将 RAG 向量引擎 `EmbeddingSearcher` 与检索器 `KnowledgeRetriever` 召回桥接模型的主键，由变动的 `title` 强制重构为不可变的唯一 `youzan_item_id` (非商品为 `kb_<id>`)。同时提取并全量在 RAG 知识库中展开有赞 SPU 蛋糕选配加料属性（蛋糕胚、夹心、甜度、加价），在 RAG keywords 和 tags 中建立模糊检索高密度词索引，物理存储 `item_props_json`。
+- **关联任务/功能**: 将 RAG 向量引擎 `EmbeddingSearcher` 与检索器 `KnowledgeRetriever` 召回桥接模型的主键，由变动的 `title`
+  强制重构为不可变的唯一 `youzan_item_id` (非商品为 `kb_<id>`)。同时提取并全量在 RAG 知识库中展开有赞 SPU 蛋糕选配加料属性（蛋糕胚、夹心、甜度、加价），在
+  RAG keywords 和 tags 中建立模糊检索高密度词索引，物理存储 `item_props_json`。
 - **核心变更文件说明**:
   - `app/database.py`:
     - 商品物理宽表 `youzan_products` 动态无损新增并迁移注入 `item_props_json` 列。
   - `app/repository/youzan_repo.py`:
-    - `YouzanProductRepo` 升级 `get_by_id` / `get_by_alias` / `upsert_product` 方法，全面支持 `item_props_json` 的物理原子落地。
+    - `YouzanProductRepo` 升级 `get_by_id` / `get_by_alias` / `upsert_product` 方法，全面支持
+      `item_props_json` 的物理原子落地。
   - `app/repository/knowledge_repo.py`:
     - 新增 `get_all_titles_with_keys` 用于提取带唯一标识的知识训练元组 `(doc_key, title, content)`。
-    - 新增 `get_by_youzan_item_ids` 检索桥接器，在不破坏已有结构的前提下，完美承接带 `kb_` 前缀的本地非商品 ID 及有赞唯一商品 ID，进行超高确定性的数据库检索。
+    - 新增 `get_by_youzan_item_ids` 检索桥接器，在不破坏已有结构的前提下，完美承接带 `kb_` 前缀的本地非商品 ID 及有赞唯一商品
+      ID，进行超高确定性的数据库检索。
   - `app/service/embedding_search.py`:
     - 重塑 `build` 接口支持三元组结构，主键缓存及持久化序列化完全平移为 `youzan_item_id` 字符串（或自愈 `kb_<id>` 字符串）。
     - 提升 `upsert_one` 的 NumPy 矩阵在空载/一维初始化堆叠下的边界自愈和矩阵维度校验能力，打通容灾。
@@ -40,10 +47,12 @@
     - 召回后反查桥接逻辑，由原先变动的 `get_by_titles` 升级为 100% 绝对安全的 `get_by_youzan_item_ids` ID 碰撞锁定。
   - `app/service/chat.py`:
     - 提取 SPU 自定义属性 `item_props` 蛋糕胚/夹心/甜度加价明细，存入 `item_props_json`，并自动物尽其用展开成高精度的 RAG Markdown 文本。
-    - 将加料选项（如奥利奥、木糖醇、巧克力戚风等）作为检索词自动灌入 tags 和 keywords；商品 RAG 更新/下架的主键均升级为 `str(item_id)`，彻底解决幽灵残留向量污染。
+    - 将加料选项（如奥利奥、木糖醇、巧克力戚风等）作为检索词自动灌入 tags 和 keywords；商品 RAG 更新/下架的主键均升级为
+      `str(item_id)`，彻底解决幽灵残留向量污染。
   - `app/main.py`:
     - lifespan 启动校准流程对齐更换为全新的 `get_all_titles_with_keys` 构建。
-  - `scripts/sync_youzan_product_to_rag.py` / `sync_real_products_from_youzan.py` / `sync_10_products_from_youzan.py`:
+  - `scripts/sync_youzan_product_to_rag.py` / `sync_real_products_from_youzan.py` /
+    `sync_10_products_from_youzan.py`:
     - 商品同步自愈校准入口对齐更换为全新的 `get_all_titles_with_keys` 元组参数。
 - **数据库状态变更 (Schema Update)**:
   - `youzan_products` 物理表中新增 `item_props_json TEXT DEFAULT '[]'` 字段，并完成 SQLite 微创无损升级。
@@ -52,23 +61,25 @@
     - 成功建立“商品异动更名”高压集成单元测试。同一款商品 `item_id=888` 经历 `"老款慕斯"` 更名为 `"尊享重制版慕斯蛋糕"` 重复推送。
     - **验证断言**：矩阵内文档始终为 `1`（证明原地覆盖），且数据库更新成功，`pytest` ✅ 100% Passed。
 
----
+______________________________________________________________________
 
 ## [版本/日期] - 2026-05-20 - 有赞双轨实时同步与商业 ROI 归因 RAG 加固重构
 
 - **操作人**: AI (Cascade)
-- **关联任务/功能**: 实现基于事件驱动型原子化 Upsert 与分布式多重防御的数据数仓体系：向左流向增量高保真 RAG 向量，向右流向物理分析宽表并建立 4 大 Telemetry 分析埋点，用于 Dashboard 支撑与 AI 直接销售业绩（GMV）转化归因。
+- **关联任务/功能**: 实现基于事件驱动型原子化 Upsert 与分布式多重防御的数据数仓体系：向左流向增量高保真 RAG 向量，向右流向物理分析宽表并建立 4 大 Telemetry
+  分析埋点，用于 Dashboard 支撑与 AI 直接销售业绩（GMV）转化归因。
 - **核心变更文件说明**:
   - `app/database.py`:
     - 新增商品物理宽表 `youzan_products`、交易订单物理宽表 `youzan_orders`、分析日志宽表 `analytics_events`（配置强索引、整型分财务单位）。
-    - 数据库初始化前注入配置 `PRAGMA auto_vacuum = INCREMENTAL`，动态检测并向后兼容微创迁移 `knowledge_base` 主表，新增 `youzan_item_id` 唯一索引列。
+    - 数据库初始化前注入配置 `PRAGMA auto_vacuum = INCREMENTAL`，动态检测并向后兼容微创迁移 `knowledge_base` 主表，新增
+      `youzan_item_id` 唯一索引列。
   - `app/repository/knowledge_repo.py`:
     - 新增原子化带有 SQLite `ON CONFLICT` 乐观锁时序检查的商品 RAG 知识点 Upsert 写入方法与软下架方法。
   - `app/repository/youzan_repo.py` & `app/repository/analytics_repo.py` (新建文件):
     - 封装了针对物理商品、交易订单和埋点日志的纯异步、Raw SQL 强时序乐观锁存取方法。
     - 植入 1 小时导购去重和 24 小时 lookback 业绩推荐归因校验函数，并支持 90 天容量定时滚动重整物理空间。
   - `app/service/embedding_search.py`:
-    - 新增 `upsert_one` 和 `delete_one` NumPy 内存矩阵原地替换与追加裁剪（无外部依赖，运行延迟 $<1ms$）。
+    - 新增 `upsert_one` 和 `delete_one` NumPy 内存矩阵原地替换与追加裁剪（无外部依赖，运行延迟 $\<1ms$）。
     - save() 引入 `_dirty` 写延迟脏页标记，并执行 `.tmp` 先写入后 `os.replace` 内核原子覆写，阻断磁盘写放大和 OOM 坏死。
   - `app/models/knowledge.py`:
     - 强类型 KnowledgeEntry 实体微调，注入 `youzan_item_id: str | None = None`，满足契约。
@@ -80,10 +91,12 @@
     - 彻底重构订单、商品、物流工具，现场请求 `YouzanClient`。
     - 推荐商品时自动触发 `product_recommend` 会话埋点并对同会话商品 1 小时内执行排他判重，杜绝稀释转化率。
   - `app/api/webhook.py`:
-    - 重构 youzan_webhook。支持双轨异步协程管道消费有赞事件：付款成功或交易终结时记录 `order_state_change` 时效，并向前 lookback 24小时，成功付款则追溯记录 AI 导购直接销售转化 `order_conversion` 埋点并结算 GMV！
+    - 重构 youzan_webhook。支持双轨异步协程管道消费有赞事件：付款成功或交易终结时记录 `order_state_change` 时效，并向前 lookback
+      24小时，成功付款则追溯记录 AI 导购直接销售转化 `order_conversion` 埋点并结算 GMV！
     - 商品变更（ITEM_STATE）时，物理表、RAG 表（SQLite + NumPy 增量）同步秒级更新及价格库存异动审计写日志。
 - **数据库状态变更 (Schema Update)**:
-  - 动态添加了 `youzan_products`、`youzan_orders`、`analytics_events` 三张大宽表与其高性能索引，以及 `knowledge_base.youzan_item_id` 唯一字段。
+  - 动态添加了 `youzan_products`、`youzan_orders`、`analytics_events` 三张大宽表与其高性能索引，以及
+    `knowledge_base.youzan_item_id` 唯一字段。
 - **测试覆盖与验证结果**:
   - `tests/service/youzan/test_youzan_analytics_disaster.py` (新建文件):
     - 极端乱序 Optimistic Time Lock、1小时导购重复判重、24小时 lookback 业绩归因三大硬核机制集成测试。
@@ -91,7 +104,7 @@
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 无。时序乱序乐观锁、断电损坏保护、启动自愈校准、容量滚动爆盘释放、会话重复数据污染五大硬核防御全线就绪。
 
----
+______________________________________________________________________
 
 ## [版本/日期] - 2026-05-20 - 有赞生产环境连通性：Token 并发锁与 Webhook 秒回解耦
 
@@ -103,10 +116,13 @@
     - 结合双重检查锁（Double-Checked Locking）大幅降低不必要的有赞 OAuth 接口冲击。
     - 完美对接分层设计，引入 `ConfigRepo` 实现 Token 的非硬编码、Raw SQL 配置存储写入。
   - `app/service/chat.py`:
-    - 新增 `handle_message_and_reply_youzan`（业务层闭环方法），把 handle_message 判定和 outbound 自动回复主动推送闭环收敛在 Service 层中执行。
+    - 新增 `handle_message_and_reply_youzan`（业务层闭环方法），把 handle_message 判定和 outbound 自动回复主动推送闭环收敛在
+      Service 层中执行。
   - `app/api/webhook.py`:
-    - 重构 `youzan_webhook`。第一防线直接拦截非 200/403 签名；第二防线通过内存锁 `_processing_msg_ids` + 数据库 `has_processed` 保证并发瞬时去重。
-    - 使用 `asyncio.create_task()` 将后续的“意图识别 + 知识检索 + AI 回复投递（YouzanClient）”整体异步卸载，主协程 $<100\text{ms}$ 极速响应，秒回复有赞 3 秒重试生死线。
+    - 重构 `youzan_webhook`。第一防线直接拦截非 200/403 签名；第二防线通过内存锁 `_processing_msg_ids` + 数据库 `has_processed`
+      保证并发瞬时去重。
+    - 使用 `asyncio.create_task()` 将后续的“意图识别 + 知识检索 + AI 回复投递（YouzanClient）”整体异步卸载，主协程
+      $\<100\\text{ms}$ 极速响应，秒回复有赞 3 秒重试生死线。
   - `app/repository/message_repo.py`:
     - 增加 `has_processed` 方法作为 `exists` 的业务语义别名。
   - `tests/service/youzan/test_webhook_retry.py`:
@@ -115,7 +131,8 @@
   - 无，使用已有的 `shop_config` 键值表安全管理有赞 `youzan_access_token` 持久化记录。
 - **测试覆盖与验证结果**:
   - `pytest` ✅ 全量 50 passed 100%。
-  - `python scripts/check_project.py` ✅ 质量门禁和分层红线（api层禁止导入repository、service层禁止直接操作aiosqlite）审查全部绿灯通过。
+  - `python scripts/check_project.py` ✅
+    质量门禁和分层红线（api层禁止导入repository、service层禁止直接操作aiosqlite）审查全部绿灯通过。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 生产环境上线前需要将 `.env` 或系统环境变量中的有赞真实的凭证（`CLIENT_ID` 等）配置配齐并关闭 `MOCK_MODE` 即可连通真实环境。
 
@@ -128,11 +145,13 @@
     - 新增 `YOUZAN_MOCK_MODE: bool = True` 仿真开关，默认开启以在没有线上凭证时直接拦截和模拟 API。
     - 新增 `WECOM_ROBOT_WEBHOOK: str` 配置支持，便于在群机器人里实时接收真人紧急呼叫警报。
   - `app/service/youzan/mock_emulator.py`:
-    - 新增 `YouzanMockEmulator` 异步仿真器。提供 HMAC-SHA256 签名计算，一键生成仿真 Webhook payload，并预置仿真订单与物流查询接口的真实返回结果。
+    - 新增 `YouzanMockEmulator` 异步仿真器。提供 HMAC-SHA256 签名计算，一键生成仿真 Webhook
+      payload，并预置仿真订单与物流查询接口的真实返回结果。
   - `app/service/youzan/client.py`:
     - 改造 `YouzanClient._refresh_token` 和 `_call`。当 `YOUZAN_MOCK_MODE` 启用时，截断真实 HTTP 调用，自动流转到仿真数据模块。
   - `app/service/transfer_manager.py`:
-    - 新增 `notify_staff_emergency` 呼叫中心函数，使用 `httpx` 将客户会话 ID 与最后留言，在转人工发生时以 Markdown 形式异步推送给值班店员的企微群机器人或应用卡片接口。
+    - 新增 `notify_staff_emergency` 呼叫中心函数，使用 `httpx` 将客户会话 ID 与最后留言，在转人工发生时以 Markdown
+      形式异步推送给值班店员的企微群机器人或应用卡片接口。
   - `tests/service/test_youzan_emulator.py` / `tests/service/test_transfer_notification.py`:
     - 新建并补充 100% 隔离运行的有赞 Webhook 签名算力、Mock API 回归验证和企微双路由 Markdown 异步呼叫流程覆盖单测。
 - **数据库状态变更 (Schema Update)**:
@@ -151,10 +170,12 @@
   - `app/service/llm/intent.py`:
     - 增加“转人工敏感词”（`HUMAN_ASSISTANCE_KEYWORDS`）最前置 0 成本拦截，杜绝后续 LLM 接口调用。
     - 增加对“纯标点/空白/纯 emoji”极端噪声的快速过滤机制，直接返回 `SMALL_TALK`，避免大模型幻觉与不必要的调用成本。
-    - 增加 `_extract_intent` 对多标签 JSON 格式的安全解析（兼容原始单个数字、Markdown 代码块、单/双引号混用等），实现“只要包含人工或售后诉求就给予人工最高优先级晋升”。
+    - 增加 `_extract_intent` 对多标签 JSON 格式的安全解析（兼容原始单个数字、Markdown
+      代码块、单/双引号混用等），实现“只要包含人工或售后诉求就给予人工最高优先级晋升”。
     - 将 `llm_chat` 的 `max_tokens` 从 `8` 安全放宽至 `32`，彻底防止因 token 截断导致的 JSON 解析崩溃。
   - `app/service/llm/intent_prompt.py`:
-    - 升级 LLM 判定 Prompt，要求大模型在面对多意图交织的复合文本时输出带有主要与次要优先级的 JSON 结构（如 `{"primary_intent": 6, "secondary_intents": [7]}`）。
+    - 升级 LLM 判定 Prompt，要求大模型在面对多意图交织的复合文本时输出带有主要与次要优先级的 JSON 结构（如
+      `{"primary_intent": 6, "secondary_intents": [7]}`）。
   - `tests/service/llm/test_intent.py` / `scripts/test_intents.py`:
     - 补充纯噪声（空格、表情、全标点）、转人工前置硬拦截、多标签 JSON 优先级跃迁策略的回归单测与场景用例，清除全部单引号。
 - **数据库状态变更 (Schema Update)**:
@@ -170,17 +191,22 @@
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 将意图识别从“围绕个别词补丁”升级为行业通用的“行为目的优先 + 主题域补充”路由模型
 - **核心变更文件说明**:
-  - `app/service/llm/intent.py`: 重写意图识别主编排，改为“明确规则优先 + LLM 兜底”，先判断是否为人工诉求、售后异常、订单办理，再区分规则咨询、运费、配送履约、商品咨询与闲聊。
-  - `app/service/llm/intent_types.py`: 新增 8 类意图枚举与转人工集合，意图扩展为 `商品咨询 / 规则咨询 / 运费费用 / 配送履约 / 订单办理 / 售后异常 / 人工服务 / 闲聊其他`。
-  - `app/service/llm/intent_behavior_keywords.py` / `intent_domain_keywords.py` / `intent_prompt.py` / `intent_taxonomy.py`: 按文件体量约束拆出行为信号词、主题域词表、LLM 提示词与兼容出口，避免 `app/service/llm/*.py` 超警戒线继续膨胀。
+  - `app/service/llm/intent.py`: 重写意图识别主编排，改为“明确规则优先 + LLM
+    兜底”，先判断是否为人工诉求、售后异常、订单办理，再区分规则咨询、运费、配送履约、商品咨询与闲聊。
+  - `app/service/llm/intent_types.py`: 新增 8 类意图枚举与转人工集合，意图扩展为
+    `商品咨询 / 规则咨询 / 运费费用 / 配送履约 / 订单办理 / 售后异常 / 人工服务 / 闲聊其他`。
+  - `app/service/llm/intent_behavior_keywords.py` / `intent_domain_keywords.py` / `intent_prompt.py`
+    / `intent_taxonomy.py`: 按文件体量约束拆出行为信号词、主题域词表、LLM 提示词与兼容出口，避免 `app/service/llm/*.py` 超警戒线继续膨胀。
   - `app/service/chat.py`: 改为通过统一的 `is_transfer_intent()` 判定转人工，不再只依赖单一旧售后意图。
-  - `tests/service/llm/test_intent.py` / `scripts/test_intents.py` / `app/templates/admin/chat_test.html`: 全量对齐新的 8 类意图标签、回归案例与后台调试展示。
+  - `tests/service/llm/test_intent.py` / `scripts/test_intents.py` /
+    `app/templates/admin/chat_test.html`: 全量对齐新的 8 类意图标签、回归案例与后台调试展示。
 - **数据库状态变更 (Schema Update)**:
   - 无
 - **测试覆盖与验证结果**:
   - `pytest tests/service/llm/test_intent.py tests/service/test_admin.py` ✅ 13 passed。
   - `python scripts/check_project.py` ✅ 质量门禁通过。
-  - 文件体量复核：`intent.py` 89 行、`intent_behavior_keywords.py` 77 行、`intent_domain_keywords.py` 85 行，均回到 `app/service/llm/*.py` 警戒线内。
+  - 文件体量复核：`intent.py` 89 行、`intent_behavior_keywords.py` 77 行、`intent_domain_keywords.py` 85 行，均回到
+    `app/service/llm/*.py` 警戒线内。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 当前系统虽已具备更通用的 8 类路由，但“开发票”“改地址”这类极短歧义句仍会在规则未命中时交给 LLM 判定；若后续需要进一步贴近行业成熟客服，可继续增加“澄清追问”而不是继续堆更多硬规则。
 
@@ -189,7 +215,8 @@
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 修复“可以开发票吗”误判转人工，并清理 `LOGBOOK.md` Markdown lint
 - **核心变更文件说明**:
-  - `app/service/llm/intent.py`: 新增“发票/开票/积分/优惠券/会员/团购”等店铺规则问句的前置确定性归类，避免这类明确业务咨询继续被 LLM 判成售后；同时补强意图提示词示例并将温度降为 `0`，减少分类抖动。
+  - `app/service/llm/intent.py`: 新增“发票/开票/积分/优惠券/会员/团购”等店铺规则问句的前置确定性归类，避免这类明确业务咨询继续被 LLM
+    判成售后；同时补强意图提示词示例并将温度降为 `0`，减少分类抖动。
   - `tests/service/llm/test_intent.py`: 新增意图识别单测，覆盖发票、团购开票、积分、会员等确定性问句，并验证命中前置规则时不会触发 LLM 调用。
   - `LOGBOOK.md`: 为历史日志标题补齐唯一标题与空行，消除当前 `markdownlint` 关于重复标题、标题空行的告警。
 - **数据库状态变更 (Schema Update)**:
@@ -197,7 +224,8 @@
 - **测试覆盖与验证结果**:
   - `pytest tests/service/llm/test_intent.py tests/service/test_admin.py` ✅ 7 passed。
   - `python scripts/check_project.py` ✅ 质量门禁通过。
-  - `python -c "import asyncio; from app.service.llm.intent import detect_intent; print(asyncio.run(detect_intent('可以开发票吗')).name)"` ✅ 输出 `PRODUCT_INQUIRY`。
+  - `python -c "import asyncio; from app.service.llm.intent import detect_intent; print(asyncio.run(detect_intent('可以开发票吗')).name)"`
+    ✅ 输出 `PRODUCT_INQUIRY`。
   - `python scripts/check_project.py` ✅ 质量门禁通过。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 本次仅修复发票类明确业务咨询的误判；若仍存在更复杂的售后/业务混合问句误判，后续需要继续细化意图规则与提示词边界。
@@ -207,11 +235,15 @@
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 知识库统一管理与规则来源归口
 - **核心变更文件说明**:
-  - `scripts/seed_knowledge.py`: 从“绑定旧混合文档”切换为“按中粒度目录结构导入”，当前只读取 `knowledge/规则/`、`knowledge/FAQ/`、`knowledge/话术/` 下启用的主文档，避免继续依赖旧混合知识源。
+  - `scripts/seed_knowledge.py`: 从“绑定旧混合文档”切换为“按中粒度目录结构导入”，当前只读取
+    `knowledge/规则/`、`knowledge/FAQ/`、`knowledge/话术/` 下启用的主文档，避免继续依赖旧混合知识源。
   - `knowledge/README.md`: 新增知识库目录首页，明确商品、规则、FAQ、话术、参考五类目录的维护入口。
-  - `knowledge/规则/README.md` / `knowledge/FAQ/README.md` / `knowledge/话术/README.md`: 为各子目录补充局部导航说明，帮助维护者进入子目录后快速判断每个文件的职责边界与入库方式。
-  - `knowledge/规则/订购与履约规则.md` / `商品通用规则.md` / `售后规则.md` / `企业服务规则.md`: 将通用业务规则收敛为 4 份中粒度主文档，每份只负责一类规则面。
-  - `knowledge/FAQ/基础服务FAQ.md` / `商品选购FAQ.md` / `场景与会员FAQ.md`: 将 FAQ 收敛为 3 份中粒度主文档，分别承接基础问答、选购问答与场景会员问答。
+  - `knowledge/规则/README.md` / `knowledge/FAQ/README.md` / `knowledge/话术/README.md`:
+    为各子目录补充局部导航说明，帮助维护者进入子目录后快速判断每个文件的职责边界与入库方式。
+  - `knowledge/规则/订购与履约规则.md` / `商品通用规则.md` / `售后规则.md` / `企业服务规则.md`: 将通用业务规则收敛为 4
+    份中粒度主文档，每份只负责一类规则面。
+  - `knowledge/FAQ/基础服务FAQ.md` / `商品选购FAQ.md` / `场景与会员FAQ.md`: 将 FAQ 收敛为 3
+    份中粒度主文档，分别承接基础问答、选购问答与场景会员问答。
   - `knowledge/话术/下单引导话术.md` / `售后安抚话术.md`: 将客服话术独立出 FAQ 与规则目录，减少混合维护。
   - `knowledge/规则/`、`knowledge/FAQ/`: 删除上一轮过细拆分遗留的草稿文件，仅保留最终启用的中粒度主文档，避免维护入口再次分叉。
   - `knowledge/知识源说明.md`: 新增知识源说明文档，统一说明知识文档分类、单一来源原则、维护入口、入库关系与日常维护流程。
@@ -223,40 +255,51 @@
   - `python scripts/seed_knowledge.py` ✅ 成功导入 796 条知识。
   - `python scripts/check_project.py` ✅ 质量门禁通过，红线检查与 `tests/scripts/test_validate_products.py` 全部通过。
   - `python scripts/validate_products.py` ✅ 0 Error / 53 Warning；均为商品库历史数据告警，本次知识结构重构未新增商品数据异常。
-  - 新结构抽查：`订购与履约规则`、`商品通用规则`、`企业服务规则`、`配送损坏处理`、`漏发配件处理`、`配送超时处理`、`话术1 主动询问需求`、`话术10 漏发配件话术`、`适合母亲节送礼的蛋糕有哪些推荐？`、`积分怎么用？` 已成功入库。
+  - 新结构抽查：`订购与履约规则`、`商品通用规则`、`企业服务规则`、`配送损坏处理`、`漏发配件处理`、`配送超时处理`、`话术1 主动询问需求`、`话术10 漏发配件话术`、`适合母亲节送礼的蛋糕有哪些推荐？`、`积分怎么用？`
+    已成功入库。
   - `知识源说明.md` 入库校验：`knowledge_base` 中相关条目计数为 `0`，说明文档未被误导入。
-  - 深度回归验证：知识库总量 `796`、Embedding 文档数 `796`、重复执行 `python scripts/seed_knowledge.py` 后数据库快照哈希一致，确认导入幂等。
+  - 深度回归验证：知识库总量 `796`、Embedding 文档数 `796`、重复执行 `python scripts/seed_knowledge.py`
+    后数据库快照哈希一致，确认导入幂等。
   - 线上抽样回归：`积分怎么用`、`蛋糕可以放几天`、`怎么配送`、`母亲节有什么推荐` 返回内容与本轮知识重构口径一致；`蛋糕送坏了怎么办` 正常转人工。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
-  - 深测发现混合检索对“可以开发票吗”这类自然问句仍可能夹带少量无关 FAQ 或商品结果；当前线上链路会先做 `rewrite_query`，不影响本次知识结构上线，但后续仍应在 `app/service/knowledge_retriever.py` 与 `app/repository/knowledge_repo.py` 继续优化排序与过滤。
+  - 深测发现混合检索对“可以开发票吗”这类自然问句仍可能夹带少量无关 FAQ 或商品结果；当前线上链路会先做 `rewrite_query`，不影响本次知识结构上线，但后续仍应在
+    `app/service/knowledge_retriever.py` 与 `app/repository/knowledge_repo.py` 继续优化排序与过滤。
   - 线上抽样发现 `可以开发票吗` 仍会被误判为售后并直接转人工，说明问题不只在检索排序，还涉及意图识别或发票规则兜底策略，需后续专项修复。
-  - 服务器同步时若直接用绝对路径执行 `scripts/seed_knowledge.py` 而未先 `cd /opt/yunxibakebot`，相对路径 `data/bot.db` 可能误写到错误工作目录；后续线上重灌知识库必须先切到项目根目录再执行脚本。
+  - 服务器同步时若直接用绝对路径执行 `scripts/seed_knowledge.py` 而未先 `cd /opt/yunxibakebot`，相对路径 `data/bot.db`
+    可能误写到错误工作目录；后续线上重灌知识库必须先切到项目根目录再执行脚本。
 - **关联任务/功能**: 修复管理后台 chat-test 500 与 FAQ 精确命中
 - **核心变更文件说明**:
   - `app/service/admin.py`: 补齐管理后台 API 依赖的会话查询、消息查询、状态更新与扩展信息更新代理方法，避免 API 层直接穿透 Repository。
   - `app/api/admin.py`: 修复 chat-test 复用非默认测试用户时仍处于人工服务状态导致 AI 跳过并返回空回复的问题。
   - `app/service/knowledge_retriever.py`: 调整混合检索逻辑，始终合并关键词结果与向量结果，确保新增精确 FAQ 不被向量结果挤掉。
-  - `app/service/chat.py`: 抽取知识装载 helper；当意图误判为 `CASUAL_CHAT` 时，先做关键词精确 FAQ 检索，避免“积分怎么用”这类店铺规则问题丢失知识上下文。
+  - `app/service/chat.py`: 抽取知识装载 helper；当意图误判为 `CASUAL_CHAT` 时，先做关键词精确 FAQ
+    检索，避免“积分怎么用”这类店铺规则问题丢失知识上下文。
   - `app/service/llm/intent.py`: 强化意图识别规则，明确“积分/优惠券/会员/店铺规则”属于业务咨询，并要求当前输入优先，避免被历史售后上下文带偏为转人工。
   - `app/api/admin.py`: 移除 chat-test 路由层的售后提前短路，统一由 `ChatService` 决定最终分支，避免页面显示意图与实际执行结果不一致。
-  - `app/templates/admin/chat_test.html`: 停止按 `user_id` 自动恢复临时测试会话，默认生成新的临时用户，仅恢复已保存会话，消除历史上下文污染导致“问什么都跑偏/显示无回复”的问题。
-  - `app/templates/admin/chat_test.html`: 恢复未保存会话的 `sessionId` 回显能力，并修正“新增对话”按钮的弹窗判定，避免首次进入看不到刚才对话、二次点击才弹保存框从而丢失会话。
-  - `app/templates/admin/chat_test.html`: 优化聊天页抽屉导航，新增“当前会话”状态卡、保存/新建快捷操作、卡片化页面导航、已保存对话高亮与时间信息展示，以及更清晰的快捷测试入口。
-  - `app/service/admin.py`: 补齐 `get_all_active` 与 `get_recent` 兼容方法，修复移动端从聊天页抽屉点击“概览”或后续进入转人工页时的 `50000 服务器内部错误`。
+  - `app/templates/admin/chat_test.html`: 停止按 `user_id`
+    自动恢复临时测试会话，默认生成新的临时用户，仅恢复已保存会话，消除历史上下文污染导致“问什么都跑偏/显示无回复”的问题。
+  - `app/templates/admin/chat_test.html`: 恢复未保存会话的 `sessionId`
+    回显能力，并修正“新增对话”按钮的弹窗判定，避免首次进入看不到刚才对话、二次点击才弹保存框从而丢失会话。
+  - `app/templates/admin/chat_test.html`:
+    优化聊天页抽屉导航，新增“当前会话”状态卡、保存/新建快捷操作、卡片化页面导航、已保存对话高亮与时间信息展示，以及更清晰的快捷测试入口。
+  - `app/service/admin.py`: 补齐 `get_all_active` 与 `get_recent` 兼容方法，修复移动端从聊天页抽屉点击“概览”或后续进入转人工页时的
+    `50000 服务器内部错误`。
   - `app/templates/admin/chat_test.html`: 修复右上角“新对话”按钮在无当前会话时看似无反应的问题，点击后会明确进入新对话、聚焦输入框并给出提示反馈。
 - **测试覆盖与验证结果**:
   - `python scripts/check_project.py` ✅ 质量门禁通过。
   - `pytest tests/service/test_admin.py` ✅ 2 passed。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - `app/api/admin.py` 仍为存量警戒文件，本次仅修复错误调用，不新增路由职责。
-  - `app/service/chat.py` 虽超警戒线，但本次仅抽取 `_load_knowledge_entries` 以减少 `_ai_conversation_loop` 的职责密度；知识检索与对话编排仍属紧密内聚，暂不拆文件。
+  - `app/service/chat.py` 虽超警戒线，但本次仅抽取 `_load_knowledge_entries` 以减少 `_ai_conversation_loop`
+    的职责密度；知识检索与对话编排仍属紧密内聚，暂不拆文件。
 
 ## [版本/日期] - 2026-05-19 - 高阶 DevOps 配置接入与历史红线违约清查
 
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: 高阶 DevOps 配置接入与历史红线违约清查
 - **核心变更文件说明**:
-  - `app/service/admin.py`: 新增。剥离 `admin_config.py` 和 `admin.py` 的 API 层中对 Repository 层的直接调用，补全业务薄层，符合 `api -> service -> repo` 分层约束。
+  - `app/service/admin.py`: 新增。剥离 `admin_config.py` 和 `admin.py` 的 API 层中对 Repository
+    层的直接调用，补全业务薄层，符合 `api -> service -> repo` 分层约束。
   - `app/repository/knowledge_repo.py`: 修复。重构 IN 参数绑定逻辑，彻底消除潜在 SQL f-string 拼接报警风险。
   - `.pre-commit-config.yaml`: 新增。配置 `check_project.py` 为 Git Hook，本地防呆强制拦截红线。
   - `.github/workflows/ci.yml`: 新增。云端 CI 流水线（支持自动装依赖、跑门禁、数据 Mock 生成、以及只读冒烟测试闭环）。
@@ -273,17 +316,22 @@
 - **操作人**: AI (Cascade)
 - **关联任务/功能**: Harness Engineering 工程化支持升级
 - **核心变更文件说明**:
-  - `scripts/check_project.py`: 新增。统一质量门禁脚本，固化了 `CLAUDE.md` 中的红线规则（单引号、Optional、SELECT *、架构分层防穿透等），并支持 Windows UTF-8 emoji 输出测试。
-  - `scripts/smoke_test.py`: 新增。只读环境探针脚本，用于一键检查依赖环境（包括 .env 存在性、数据库表结构完整性、知识库加载状态、Embedding 文件存在性及服务 /health 接口存活状态）。
+  - `scripts/check_project.py`: 新增。统一质量门禁脚本，固化了 `CLAUDE.md` 中的红线规则（单引号、Optional、SELECT
+    \*、架构分层防穿透等），并支持 Windows UTF-8 emoji 输出测试。
+  - `scripts/smoke_test.py`: 新增。只读环境探针脚本，用于一键检查依赖环境（包括 .env 存在性、数据库表结构完整性、知识库加载状态、Embedding 文件存在性及服务
+    /health 接口存活状态）。
   - `pytest.ini`: 新增。配置 `pytest` 自动发现入口。
-  - `requirements-dev.txt`: 新增。分离开发依赖（包含 `pytest`、`ruff`、`pre-commit`、`detect-secrets` 等），解耦生产依赖与工具链。
+  - `requirements-dev.txt`: 新增。分离开发依赖（包含 `pytest`、`ruff`、`pre-commit`、`detect-secrets`
+    等），解耦生产依赖与工具链。
 - **数据库状态变更 (Schema Update)**:
   - 触发了 `shop_config` 表的初始化构建（此前仅存在于 schema 声明中未落地开发库）。
 - **测试覆盖与验证结果**:
-  - `python scripts/check_project.py` ✅ 红线约束与 `test_validate_products.py`（21 passed）双通过。暂未彻底阻断的存量违约已作 LEGACY 标识登记。
+  - `python scripts/check_project.py` ✅ 红线约束与 `test_validate_products.py`（21
+    passed）双通过。暂未彻底阻断的存量违约已作 LEGACY 标识登记。
   - `python scripts/smoke_test.py` ✅ 环境探针（7 项指标）全数 PASS。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
-  - `app/api/admin.py` 和 `app/service/chat.py` 行数超限问题已确认，考虑到本轮未触及相关业务逻辑未强行重构；这些文件中的 `LEGACY`（如直接 import repository）继续保持登记预警，择期在重构独立任务中一并消除。
+  - `app/api/admin.py` 和 `app/service/chat.py` 行数超限问题已确认，考虑到本轮未触及相关业务逻辑未强行重构；这些文件中的 `LEGACY`（如直接
+    import repository）继续保持登记预警，择期在重构独立任务中一并消除。
 
 ## [版本/日期] - 2026-05-19 - 甲方测试反馈修复 + 主推款管理页 + 商品上下架管理页
 
@@ -319,12 +367,15 @@
 - **关联任务/功能**: 多任务综合（意图拆分/测试页改造/校验脚本/备份/日志规范）
 - **核心变更文件说明**:
   - `app/service/llm/intent.py`: 意图分类从 4 类扩展为 5 类（1-商品, 2-运费, 3-配送时间, 4-售后, 5-闲聊），运费与配送时间分离。
-  - `app/service/chat.py`: 新增运费关键词前置匹配（不走 LLM 直接返回固定话术）；意图 4 替换原意图 3 的转人工逻辑；意图 5 替换原意图 4 的闲聊不走知识检索逻辑；全链路 Markdown 星号清理。
+  - `app/service/chat.py`: 新增运费关键词前置匹配（不走 LLM 直接返回固定话术）；意图 4 替换原意图 3 的转人工逻辑；意图 5 替换原意图 4
+    的闲聊不走知识检索逻辑；全链路 Markdown 星号清理。
   - `app/api/admin.py`: 移除硬编码的旧 intent==3 转人工分支，替换为 intent==4；运费关键词前置匹配优先于意图识别。
-  - `app/templates/admin/chat_test.html`: 移除"新对话"按钮；快捷按钮与输入框共用同一会话（`admin_tester`）实现持续对话；更新意图标签映射为 5 类；Bearer token 同步更新。
+  - `app/templates/admin/chat_test.html`: 移除"新对话"按钮；快捷按钮与输入框共用同一会话（`admin_tester`）实现持续对话；更新意图标签映射为 5
+    类；Bearer token 同步更新。
   - `scripts/test_scenarios.py`: 意图标签映射更新为 5 类。
   - `scripts/validate_products.py`: 新建商品数据校验脚本，逐条验证 765 条商品的价格合法性、编码异常、截断、括号闭合等。
-  - `tests/scripts/test_validate_products.py`: 新建 21 条单元测试（含内存 SQLite Mock 数据），覆盖正常/脏数据/空价格/混合数据等边界 Case，漏报率为 0。
+  - `tests/scripts/test_validate_products.py`: 新建 21 条单元测试（含内存 SQLite Mock 数据），覆盖正常/脏数据/空价格/混合数据等边界
+    Case，漏报率为 0。
   - `scripts/backup_db.sh`: 新建 SQLite 热备份脚本，使用 `.backup` 命令，含完整性验证和 72 小时旧备份清理。
   - `CLAUDE.md`: 新增常用开发命令清单和 AI 预提交红线审查守则。
   - `LOGBOOK.md`: 新建项目开发日志。
@@ -335,12 +386,15 @@
   - `python scripts/test_intents.py` ✅ 7 个场景全部通过
   - `python tests/scripts/test_validate_products.py` ✅ 21/21 Passed
   - `python scripts/validate_products.py` ✅ 765 条商品校验完成（0 ERROR, 49 WARNING）
-  - 新结构抽查：`订购与履约规则`、`商品通用规则`、`企业服务规则`、`配送损坏处理`、`漏发配件处理`、`配送超时处理`、`话术1 主动询问需求`、`话术10 漏发配件话术`、`适合母亲节送礼的蛋糕有哪些推荐？`、`积分怎么用？` 已成功入库。
+  - 新结构抽查：`订购与履约规则`、`商品通用规则`、`企业服务规则`、`配送损坏处理`、`漏发配件处理`、`配送超时处理`、`话术1 主动询问需求`、`话术10 漏发配件话术`、`适合母亲节送礼的蛋糕有哪些推荐？`、`积分怎么用？`
+    已成功入库。
   - `知识源说明.md` 入库校验：`knowledge_base` 中相关条目计数为 `0`，说明文档未被误导入。
-  - 深度回归验证：知识库总量 `796`、Embedding 文档数 `796`、重复执行 `python scripts/seed_knowledge.py` 后数据库快照哈希一致，确认导入幂等。
+  - 深度回归验证：知识库总量 `796`、Embedding 文档数 `796`、重复执行 `python scripts/seed_knowledge.py`
+    后数据库快照哈希一致，确认导入幂等。
   - 线上抽样回归：`积分怎么用`、`蛋糕可以放几天`、`怎么配送`、`母亲节有什么推荐` 返回内容与本轮知识重构口径一致；`蛋糕送坏了怎么办` 正常转人工。
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
-  - validate_products.py 输出的 49 条 WARNING 中大部分为"价格超出基准区间"——提拉米苏蛋糕（198-388元）和生日蛋糕（408-608元）的大尺寸版本超出当前保守区间，需人工确认后调整 `CORE_PRICE_RANGES`。
+  - validate_products.py 输出的 49 条 WARNING
+    中大部分为"价格超出基准区间"——提拉米苏蛋糕（198-388元）和生日蛋糕（408-608元）的大尺寸版本超出当前保守区间，需人工确认后调整 `CORE_PRICE_RANGES`。
   - 部分商品标题存在中英文括号混用（如"（xxx)"或"(xxx）"），数据源需统一规范化处理。
   - 企微接入待 SCF 函数 URL 回调验证通过后上线。
   - 企微 API 客户端已就绪（access_token 缓存、消息发送）。
@@ -383,7 +437,8 @@
 - **关联任务/功能**: Bug修复 + 登录简化
 - **核心变更文件说明**:
   - `app/templates/admin/login.html`: 去除密码输入，自动登录跳转到对话测试页。
-  - `app/templates/admin/chat_test.html`: 新增 `loadHistory()` 页面加载时恢复历史消息；丢弃对话时关闭旧会话不再残留；删除对话同时清空当前画布。
+  - `app/templates/admin/chat_test.html`: 新增 `loadHistory()`
+    页面加载时恢复历史消息；丢弃对话时关闭旧会话不再残留；删除对话同时清空当前画布。
   - `app/api/admin.py`: 历史消息接口返回 `session_id` 供前端绑定。
 - **数据库状态变更 (Schema Update)**:
   - 无

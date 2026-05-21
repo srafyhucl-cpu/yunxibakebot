@@ -1,8 +1,6 @@
----
-name: yunxi-clean-code-guard
-version: 1.0.0
-description: "芸熙烘焙 AI 客服的洁净代码约束。当涉及魔法数字/字符串、函数长度、命名质量、重复逻辑、配置硬编码、可复用性设计时使用。确保代码可读性高、可复用性强、零硬编码。"
----
+______________________________________________________________________
+
+## name: yunxi-clean-code-guard version: 1.0.0 description: "芸熙烘焙 AI 客服的洁净代码约束。当涉及魔法数字/字符串、函数长度、命名质量、重复逻辑、配置硬编码、可复用性设计时使用。确保代码可读性高、可复用性强、零硬编码。"
 
 # 芸熙烘焙洁净代码守卫
 
@@ -137,7 +135,7 @@ rewritten_query = await rewrite_query(raw_query, history)
 transfer_info = await transfer_repo.get_pending(db, session_id)
 ```
 
-### 布尔值命名以 is_/has_/needs_ 开头
+### 布尔值命名以 is\_/has\_/needs\_ 开头
 
 ```python
 # 错误

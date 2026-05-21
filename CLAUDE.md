@@ -1,6 +1,7 @@
 # 芸熙烘焙 AI 客服 — 极客开发手册
 
-本项目是一套多渠道（有赞小程序、企微 1 对 1、企微群）AI 智能客服系统，使用 DeepSeek API 作为 LLM 大脑，SQLite 存储，单服务器部署。核心目标：**让烘焙门店的咨询、报价、售后 80% 自动化，同时保证人工可随时无缝介入**。
+本项目是一套多渠道（有赞小程序、企微 1 对 1、企微群）AI 智能客服系统，使用 DeepSeek API 作为 LLM 大脑，SQLite
+存储，单服务器部署。核心目标：**让烘焙门店的咨询、报价、售后 80% 自动化，同时保证人工可随时无缝介入**。
 
 ## 👤 角色定义
 
@@ -9,22 +10,15 @@
 ## 🌐 语言与沟通准则
 
 1. **全中文环境**：所有交流、方案输出及思考推演必须使用自然、专业的母语级别中文。
-2. **源码注释**：所有模块说明、类说明、方法说明及复杂逻辑注释必须 100% 使用清晰的中文，严禁混杂英文。
-3. **沉默是金**：少说废话，多写代码，仅输出必要的代码修改块。
+1. **源码注释**：所有模块说明、类说明、方法说明及复杂逻辑注释必须 100% 使用清晰的中文，严禁混杂英文。
+1. **沉默是金**：少说废话，多写代码，仅输出必要的代码修改块。
 
 ## 🛠 技术栈
 
-| 组件 | 选型 | 说明 |
-|------|------|------|
-| 语言 | Python 3.11+ | 强制类型注解 |
-| Web 框架 | FastAPI + Uvicorn | 异步、Pydantic 校验、自动文档 |
-| 数据库 | SQLite (aiosqlite) | WAL 模式，零运维 |
-| LLM | DeepSeek（OpenAI 兼容协议） | openai SDK 调用 |
-| HTTP 客户端 | httpx | 有赞 / 企微 API |
-| 配置 | pydantic-settings | `.env` + 环境变量 |
-| 模板 | Jinja2 | 管理后台页面 |
-| 向量搜索 | 自研 TF-IDF n-gram | 零 API 成本 |
-| 反向代理 | Nginx + Let's Encrypt | HTTPS 终结 |
+| 组件 | 选型 | 说明 | |------|------|------| | 语言 | Python 3.11+ | 强制类型注解 | | Web 框架 | FastAPI + Uvicorn
+| 异步、Pydantic 校验、自动文档 | | 数据库 | SQLite (aiosqlite) | WAL 模式，零运维 | | LLM | DeepSeek（OpenAI 兼容协议） |
+openai SDK 调用 | | HTTP 客户端 | httpx | 有赞 / 企微 API | | 配置 | pydantic-settings | `.env` + 环境变量 | | 模板 |
+Jinja2 | 管理后台页面 | | 向量搜索 | 自研 TF-IDF n-gram | 零 API 成本 | | 反向代理 | Nginx + Let's Encrypt | HTTPS 终结 |
 
 ## 🏗 架构规范（分层 Clean Architecture）
 
@@ -81,37 +75,35 @@ app/
 ## 🚫 开发红线（Strict Anti-Patterns）
 
 1. **禁止 ORM**：不使用 SQLAlchemy / tortoise-orm，全部 raw SQL + aiosqlite。
-2. **禁止同步阻塞**：所有 I/O 必须 `async/await`，包括文件操作。
-3. **禁止 Optional/Union**：一律使用 `X | None` 和 `X | Y`。
-4. **禁止单引号字符串**：统一双引号 `"`（SQL 内部字符串和 f-string 内部闭环除外）。
-5. **禁止层级穿透**：`api/` 不得直接调用 `repository/`，必须经过 `service/`。
-6. **禁止 SQL 拼接**：全部使用 `?` 参数化绑定，禁止 f-string / `+` 拼 SQL 参数。
-7. **禁止硬编码秘密**：API Key、Secret、Token 必须走 `.env`，不进代码仓库。
-8. **禁止静默吞异常**：禁止 `except: pass`，所有异常必须记录日志或上抛。
-9. **禁止 `SELECT *`**：查询必须明确列出字段。
-10. **禁止 TODO 占位符**：代码中不允许残留 `# TODO` 或返回 `"待实现"` 的 stub 函数。
-11. **禁止魔法数字/字符串**：有业务含义的数字必须定义为命名常量；渠道名、状态值使用枚举。
-12. **禁止注释掉的代码**：不用的代码直接删除，版本历史由 Git 管理。
-13. **禁止上帝函数**：单个函数体 ≤ 50 行；单文件公开类 ≤ 3 个；参数超 5 个必须封装数据类。
+1. **禁止同步阻塞**：所有 I/O 必须 `async/await`，包括文件操作。
+1. **禁止 Optional/Union**：一律使用 `X | None` 和 `X | Y`。
+1. **禁止单引号字符串**：统一双引号 `"`（SQL 内部字符串和 f-string 内部闭环除外）。
+1. **禁止层级穿透**：`api/` 不得直接调用 `repository/`，必须经过 `service/`。
+1. **禁止 SQL 拼接**：全部使用 `?` 参数化绑定，禁止 f-string / `+` 拼 SQL 参数。
+1. **禁止硬编码秘密**：API Key、Secret、Token 必须走 `.env`，不进代码仓库。
+1. **禁止静默吞异常**：禁止 `except: pass`，所有异常必须记录日志或上抛。
+1. **禁止 `SELECT *`**：查询必须明确列出字段。
+1. **禁止 TODO 占位符**：代码中不允许残留 `# TODO` 或返回 `"待实现"` 的 stub 函数。
+1. **禁止魔法数字/字符串**：有业务含义的数字必须定义为命名常量；渠道名、状态值使用枚举。
+1. **禁止注释掉的代码**：不用的代码直接删除，版本历史由 Git 管理。
+1. **禁止上帝函数**：单个函数体 ≤ 50 行；单文件公开类 ≤ 3 个；参数超 5 个必须封装数据类。
+1. **禁止英文注释**：所有代码注释、函数说明、模块文档和类 docstring 必须 100% 使用清晰中文，严禁夹杂任何英文注释（专有名词、标准类型名及核心内置关键字除外）。
 
 ## 📏 职责过载信号阈值表
 
 > 阈值是「职责可能过载」的早期信号，不是拆分目标。超线必须先评估职责是否真实混杂，再决定是否拆分。
 
-| 层级 | 警戒线（warning） | 硬上限（blocking） |
-|------|------------------|-------------------|
-| `app/api/*.py` 路由层 | 250 行 | 350 行 |
-| `app/service/*.py` 业务层 | 220 行 | 320 行 |
-| `app/service/llm/*.py` LLM 子模块 | 120 行 | 180 行 |
-| `app/service/wecom/*/youzan/*.py` | 150 行 | 250 行 |
-| `app/repository/*.py` 数据层 | 150 行 | 250 行 |
-| `app/models/*.py` 模型层 | 80 行 | 120 行 |
+| 层级 | 警戒线（warning） | 硬上限（blocking） | |------|------------------|-------------------| |
+`app/api/*.py` 路由层 | 250 行 | 350 行 | | `app/service/*.py` 业务层 | 220 行 | 320 行 | |
+`app/service/llm/*.py` LLM 子模块 | 120 行 | 180 行 | | `app/service/wecom/*/youzan/*.py` | 150 行 | 250 行
+| | `app/repository/*.py` 数据层 | 150 行 | 250 行 | | `app/models/*.py` 模型层 | 80 行 | 120 行 |
 
 **附加硬约束：** 单文件公开类 ≤ 3，单类公开方法 ≤ 20，单函数体 ≤ 50 行。
 
 超警戒线时必须先走 `large-file-refactor-review` 工作流评估职责，不得盲目拆分也不得继续追加新职责。
 
 **当前存量警戒文件：**
+
 - `app/api/admin.py`（293行）— ⚠️ 超警戒线，不得继续追加职责
 - `app/service/chat.py`（232行）— ⚠️ 超警戒线，不得继续追加职责
 - `app/service/llm/functions.py`（128行）— ⚠️ 超警戒线，不得继续追加职责
@@ -120,14 +112,9 @@ app/
 
 ### 命名规范
 
-| 类型 | 规范 | 示例 |
-|------|------|------|
-| 文件/模块 | 小写+下划线 | `session_manager.py` |
-| 类 | 大驼峰 | `SessionManager` |
-| 函数/方法 | 小写+下划线 | `get_or_create()` |
-| 变量 | 小写+下划线 | `session_id` |
-| 常量 | 全大写+下划线 | `MAX_TOOL_ROUNDS` |
-| 私有方法 | 前导下划线 | `_verify_signature()` |
+| 类型 | 规范 | 示例 | |------|------|------| | 文件/模块 | 小写+下划线 | `session_manager.py` | | 类 | 大驼峰 |
+`SessionManager` | | 函数/方法 | 小写+下划线 | `get_or_create()` | | 变量 | 小写+下划线 | `session_id` | | 常量 |
+全大写+下划线 | `MAX_TOOL_ROUNDS` | | 私有方法 | 前导下划线 | `_verify_signature()` |
 
 ### 类型注解
 
@@ -254,13 +241,8 @@ AppError（基类）
 
 ## 📝 日志规范
 
-| 级别 | 场景 |
-|------|------|
-| `DEBUG` | SQL 执行、API 请求/响应体 |
-| `INFO` | 服务启动、会话创建、消息收发 |
-| `WARNING` | API 重试、配置缺失但可降级 |
-| `ERROR` | 外部 API 失败、数据库错误 |
-| `CRITICAL` | 启动失败、致命错误 |
+| 级别 | 场景 | |------|------| | `DEBUG` | SQL 执行、API 请求/响应体 | | `INFO` | 服务启动、会话创建、消息收发 | | `WARNING`
+| API 重试、配置缺失但可降级 | | `ERROR` | 外部 API 失败、数据库错误 | | `CRITICAL` | 启动失败、致命错误 |
 
 - service 层日志必须带 `session_id`
 - API 调用日志必须带 `channel` 和 `user_id`
@@ -295,16 +277,10 @@ python scripts/validate_products.py
 
 ### 服务器信息
 
-| 项目 | 值 |
-|------|-----|
-| IP | `47.94.102.250` |
-| 用户 | `root` |
-| 端口 | `22`（SSH 免密登录） |
-| 项目路径 | `/opt/yunxibakebot` |
-| 域名 | `hclstudio.cn`（已备案），管理后台 `yunxi.hclstudio.cn/admin` |
-| 进程管理 | systemd（`yunxibakebot.service`） |
-| 反向代理 | Nginx，443 (外部) → 7001 (内部 FastAPI) |
-| HTTPS | Let's Encrypt 通配符证书 |
+| 项目 | 值 | |------|-----| | IP | `47.94.102.250` | | 用户 | `root` | | 端口 | `22`（SSH 免密登录） | | 项目路径 |
+`/opt/yunxibakebot` | | 域名 | `hclstudio.cn`（已备案），管理后台 `yunxi.hclstudio.cn/admin` | | 进程管理 |
+systemd（`yunxibakebot.service`） | | 反向代理 | Nginx，443 (外部) → 7001 (内部 FastAPI) | | HTTPS | Let's
+Encrypt 通配符证书 |
 
 ### 服务器同步流程（强制遵循）
 
@@ -334,6 +310,7 @@ del server.bundle
 ```
 
 **关键约束：**
+
 - `server.bundle` 已加入 `.gitignore`，禁止提交到仓库
 - 服务器当前 commit 可通过 `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git log --oneline -1"` 查询
 - 首次启动需等待约 60 秒（模型加载 + 向量索引构建），后续重启约 20 秒（索引从缓存加载）
@@ -364,25 +341,18 @@ ssh root@47.94.102.250 "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:
 
 ### 提交类型
 
-| type | 说明 |
-|------|------|
-| `feat` | 新增功能 |
-| `fix` | 修复 bug |
-| `docs` | 文档更新 |
-| `refactor` | 重构（不改行为） |
-| `perf` | 性能优化 |
-| `test` | 测试 |
-| `chore` | 构建/工具变动 |
+| type | 说明 | |------|------| | `feat` | 新增功能 | | `fix` | 修复 bug | | `docs` | 文档更新 | | `refactor` |
+重构（不改行为） | | `perf` | 性能优化 | | `test` | 测试 | | `chore` | 构建/工具变动 |
 
 ## 🔍 质量门禁（每次变更必须通过）
 
 ### 预提交红线审查
 
 1. **单引号检查**：新增代码中禁止单引号（SQL 和 f-string 内部除外）
-2. **Optional/Union 检查**：禁止 `typing.Optional` 或 `typing.Union`
-3. **TODO 检查**：禁止残留 `# TODO` 或 stub 函数
-4. **LOGBOOK 同步**：本轮修改必须在 `LOGBOOK.md` 中记录
-5. **测试验证**：核心逻辑修改需运行对应测试
+1. **Optional/Union 检查**：禁止 `typing.Optional` 或 `typing.Union`
+1. **TODO 检查**：禁止残留 `# TODO` 或 stub 函数
+1. **LOGBOOK 同步**：本轮修改必须在 `LOGBOOK.md` 中记录
+1. **测试验证**：核心逻辑修改需运行对应测试
 
 ### 审查命令
 
@@ -399,22 +369,14 @@ git diff --cached -- LOGBOOK.md | grep "+" || echo "WARNING: LOGBOOK.md 未更�
 
 ## 📚 文档索引
 
-| 文档 | 用途 |
-|------|------|
-| `CLAUDE.md`（本文件） | 唯一开发手册，所有规则汇总 |
-| `LOGBOOK.md` | 项目演进编年史，每次提交必更新 |
-| `1-业务方案.md` | 业务需求与自动化分析 |
-| `2-工作流设计.md` | 用户视角的工作流程 |
-| `3-技术架构.md` | 系统架构与数据库设计 |
-| `4-上线检查清单.md` | 上线前检查项 |
-| `项目进度与配置清单.md` | 阶段进度与配置状态 |
+| 文档 | 用途 | |------|------| | `CLAUDE.md`（本文件） | 唯一开发手册，所有规则汇总 | | `LOGBOOK.md` | 项目演进编年史，每次提交必更新 |
+| `1-业务方案.md` | 业务需求与自动化分析 | | `2-工作流设计.md` | 用户视角的工作流程 | | `3-技术架构.md` | 系统架构与数据库设计 | |
+`4-上线检查清单.md` | 上线前检查项 | | `项目进度与配置清单.md` | 阶段进度与配置状态 |
 
 ### Windsurf 工作流（`.windsurf/workflows/`）
 
-| 工作流 | 触发指令 | 用途 |
-|--------|----------|------|
-| `commit.md` | `/commit` | 任务收口：红线自查 → 测试 → LOGBOOK → 提交 |
-| `check.md` | `/check` | 规范化检查：语法红线 / 分层约束 / 安全审查 |
-| `review.md` | `/review` | 深度 Code Review：bug / 安全 / 红线全面审查 |
+| 工作流 | 触发指令 | 用途 | |--------|----------|------| | `commit.md` | `/commit` | 任务收口：红线自查 → 测试 →
+LOGBOOK → 提交 | | `check.md` | `/check` | 规范化检查：语法红线 / 分层约束 / 安全审查 | | `review.md` | `/review` | 深度
+Code Review：bug / 安全 / 红线全面审查 |
 
 **查找规则时**：先看本文件（`CLAUDE.md`），它是唯一的开发规范源。业务细节不足时查阅对应文档。

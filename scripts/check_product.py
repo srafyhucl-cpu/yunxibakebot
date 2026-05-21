@@ -1,4 +1,5 @@
-import aiosqlite, asyncio
+import aiosqlite
+import asyncio
 async def c():
     conn = await aiosqlite.connect("data/bot.db")
     conn.row_factory = aiosqlite.Row

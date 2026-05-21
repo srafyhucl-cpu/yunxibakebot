@@ -8,7 +8,6 @@
 2. POST 接收消息（解密 XML → 交给 ChatService 处理 → 发回复）
 """
 
-import json
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -18,7 +17,7 @@ from fastapi.responses import PlainTextResponse
 
 from app.config import settings
 from app.logger import setup_logger
-from app.service.wecom.crypto import decrypt, encrypt, verify_signature
+from app.service.wecom.crypto import decrypt, verify_signature
 
 logger = setup_logger()
 

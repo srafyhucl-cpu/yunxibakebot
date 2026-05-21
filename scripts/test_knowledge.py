@@ -6,7 +6,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import asyncio
-import json
 from openai import AsyncOpenAI
 from app.config import settings
 from app.repository.knowledge_repo import KnowledgeRepo

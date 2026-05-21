@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
-from app.models.message import Message, MessageRole
+from app.models.message import Message
 
 MAX_MESSAGES_PER_SESSION = 200
 

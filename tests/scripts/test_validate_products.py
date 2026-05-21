@@ -18,8 +18,6 @@ from scripts.validate_products import (
     has_encoding_issues,
     check_title_anomaly,
     validate_product,
-    PRICE_PATTERN,
-    CORE_PRICE_RANGES,
 )
 
 # ── 辅助：创建内存知识库 ──

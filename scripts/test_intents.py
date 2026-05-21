@@ -1,5 +1,7 @@
 """测试新的 8 意图分类"""
-import sys, asyncio, httpx
+import sys
+import asyncio
+import httpx
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

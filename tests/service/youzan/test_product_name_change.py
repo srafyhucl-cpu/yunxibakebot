@@ -2,7 +2,6 @@
 有赞商品名称异动与向量唯一主键防幽灵残留压力集成测试。
 """
 
-import asyncio
 import json
 import os
 import pytest

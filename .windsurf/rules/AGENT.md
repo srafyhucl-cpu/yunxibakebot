@@ -1,6 +1,6 @@
----
-trigger: always_on
----
+______________________________________________________________________
+
+## trigger: always_on
 
 # 芸熙烘焙 AI 客服 — 开发约束（常驻生效）
 
@@ -10,7 +10,8 @@ trigger: always_on
 
 ## 🛠 技术栈
 
-Python 3.11+ / FastAPI / aiosqlite (SQLite WAL) / DeepSeek (openai SDK) / httpx / pydantic-settings / Jinja2 / Nginx
+Python 3.11+ / FastAPI / aiosqlite (SQLite WAL) / DeepSeek (openai SDK) / httpx / pydantic-settings
+/ Jinja2 / Nginx
 
 ## 🏗 分层架构（不得穿透）
 
@@ -26,33 +27,28 @@ api/（路由层）→ service/（业务层）→ repository/（数据层）→ 
 ## 🚫 开发红线（任意一条违反即阻断）
 
 1. 禁止 ORM（SQLAlchemy / tortoise-orm）
-2. 禁止同步阻塞 I/O，一律 `async/await`
-3. 禁止 `Optional[X]` / `Union[X, Y]`，改用 `X | None` / `X | Y`
-4. 禁止单引号字符串，统一双引号 `"`（SQL 内部和 f-string 闭环除外）
-5. 禁止 `api/` 直接调用 `repository/`
-6. 禁止 f-string / `+` 拼接 SQL 参数，全部用 `?` 参数化绑定
-7. 禁止硬编码 API Key / Secret / Token，必须走 `.env`
-8. 禁止 `except: pass` 或 `except Exception: pass` 静默吞异常
-9. 禁止 `SELECT *`，必须明确列出字段
-10. 禁止 `# TODO` 占位符或返回 `"待实现"` 的 stub 函数
-11. 禁止魔法数字/字符串，有业务含义的数字必须定义为命名常量；渠道名、状态值使用枚举
-12. 禁止注释掉的代码，不用的代码直接删除
-13. 禁止上帝函数：单函数体 ≤ 50 行；参数超 5 个必须封装数据类
+1. 禁止同步阻塞 I/O，一律 `async/await`
+1. 禁止 `Optional[X]` / `Union[X, Y]`，改用 `X | None` / `X | Y`
+1. 禁止单引号字符串，统一双引号 `"`（SQL 内部和 f-string 闭环除外）
+1. 禁止 `api/` 直接调用 `repository/`
+1. 禁止 f-string / `+` 拼接 SQL 参数，全部用 `?` 参数化绑定
+1. 禁止硬编码 API Key / Secret / Token，必须走 `.env`
+1. 禁止 `except: pass` 或 `except Exception: pass` 静默吞异常
+1. 禁止 `SELECT *`，必须明确列出字段
+1. 禁止 `# TODO` 占位符或返回 `"待实现"` 的 stub 函数
+1. 禁止魔法数字/字符串，有业务含义的数字必须定义为命名常量；渠道名、状态值使用枚举
+1. 禁止注释掉的代码，不用的代码直接删除
+1. 禁止上帝函数：单函数体 ≤ 50 行；参数超 5 个必须封装数据类
 
 ## 📏 职责过载信号阈值
 
 修改 `.py` 文件前必须先确认行数。超警戒线时**先走 `large-file-refactor-review` 工作流评估职责**，不得盲目拆分也不得继续追加新职责。
 
-| 层级 | 警戒线 | 硬上限 |
-| --- | --- | --- |
-| `app/api/*.py` | 250 行 | 350 行 |
-| `app/service/*.py` | 220 行 | 320 行 |
-| `app/service/llm/*.py` | 120 行 | 180 行 |
-| `app/repository/*.py` | 150 行 | 250 行 |
-| `app/models/*.py` | 80 行 | 120 行 |
+| 层级 | 警戒线 | 硬上限 | | --- | --- | --- | | `app/api/*.py` | 250 行 | 350 行 | | `app/service/*.py` | 220
+行 | 320 行 | | `app/service/llm/*.py` | 120 行 | 180 行 | | `app/repository/*.py` | 150 行 | 250 行 | |
+`app/models/*.py` | 80 行 | 120 行 |
 
-**当前存量警戒文件（禁止继续追加职责）：**
-`admin.py`(293) / `chat.py`(232) / `functions.py`(128)
+**当前存量警戒文件（禁止继续追加职责）：** `admin.py`(293) / `chat.py`(232) / `functions.py`(128)
 
 ## 📏 代码风格
 
@@ -88,10 +84,7 @@ api/（路由层）→ service/（业务层）→ repository/（数据层）→ 
 
 ## 🔍 工作流
 
-| 指令 | 工作流 | 用途 |
-| --- | --- | --- |
-| `/check` | `check.md` | 红线扫描 + 分层约束验证 |
-| `/commit` | `commit.md` | 任务收口 + 测试 + LOGBOOK + 提交 |
-| `/review` | `review.md` | 深度 Code Review |
+| 指令 | 工作流 | 用途 | | --- | --- | --- | | `/check` | `check.md` | 红线扫描 + 分层约束验证 | | `/commit` |
+`commit.md` | 任务收口 + 测试 + LOGBOOK + 提交 | | `/review` | `review.md` | 深度 Code Review |
 
 完整规则见 `CLAUDE.md`，本文件为常驻精简版。

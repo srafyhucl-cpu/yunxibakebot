@@ -1,8 +1,6 @@
----
-name: yunxi-architecture-guard
-version: 1.0.0
-description: "芸熙烘焙 AI 客服项目的架构边界约束检查。当修改 api/、service/、repository/、models/ 任意一层，或涉及数据库操作、Webhook 处理、跨层调用时使用。"
----
+______________________________________________________________________
+
+## name: yunxi-architecture-guard version: 1.0.0 description: "芸熙烘焙 AI 客服项目的架构边界约束检查。当修改 api/、service/、repository/、models/ 任意一层，或涉及数据库操作、Webhook 处理、跨层调用时使用。"
 
 # 芸熙烘焙架构守卫
 
@@ -12,12 +10,9 @@ description: "芸熙烘焙 AI 客服项目的架构边界约束检查。当修�
 api/ → service/ → repository/ → models/
 ```
 
-| 层级 | 允许调用 | 禁止调用 |
-|------|----------|----------|
-| `api/` | `service/` | `repository/`、`aiosqlite` |
-| `service/` | `repository/`、`models/` | `aiosqlite` 直接操作 |
-| `repository/` | `aiosqlite`、`models/` | 业务判断、外部 API |
-| `models/` | 标准库、`pydantic` | 其他任何模块 |
+| 层级 | 允许调用 | 禁止调用 | |------|----------|----------| | `api/` | `service/` |
+`repository/`、`aiosqlite` | | `service/` | `repository/`、`models/` | `aiosqlite` 直接操作 | |
+`repository/` | `aiosqlite`、`models/` | 业务判断、外部 API | | `models/` | 标准库、`pydantic` | 其他任何模块 |
 
 ## 检查方法
 
@@ -44,7 +39,7 @@ await db.execute(f"SELECT id FROM sessions WHERE user_id = '{uid}'")
 await db.execute("SELECT id, channel, status FROM sessions WHERE user_id = ?", (uid,))
 ```
 
-### 字段明确列出（禁止 SELECT *）
+### 字段明确列出（禁止 SELECT \*）
 
 ```python
 # 错误

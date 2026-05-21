@@ -1,8 +1,6 @@
----
-name: yunxi-file-size-guard
-version: 1.0.0
-description: "芸熙烘焙 AI 客服项目防止上帝类与单文件膨胀的强制约束。当修改任意 .py 文件行数 ≥ 警戒线、新增公开类/函数、或评估文件是否需要拆分时使用。超阈值强制触发 large-file-refactor-review 工作流。"
----
+______________________________________________________________________
+
+## name: yunxi-file-size-guard version: 1.0.0 description: "芸熙烘焙 AI 客服项目防止上帝类与单文件膨胀的强制约束。当修改任意 .py 文件行数 ≥ 警戒线、新增公开类/函数、或评估文件是否需要拆分时使用。超阈值强制触发 large-file-refactor-review 工作流。"
 
 # 芸熙烘焙单文件体量与上帝类守卫
 
@@ -10,14 +8,10 @@ description: "芸熙烘焙 AI 客服项目防止上帝类与单文件膨胀的�
 
 > 阈值是「职责可能过载」的早期信号，不是拆分目标。超线必须先评估职责是否真实混杂，不是为压行数而拆。
 
-| 层级 | 警戒线（warning） | 硬上限（blocking） |
-|------|------------------|-------------------|
-| `app/api/*.py` 路由层 | 250 行 | 350 行 |
-| `app/service/*.py` 业务层 | 220 行 | 320 行 |
-| `app/service/llm/*.py` LLM 子模块 | 120 行 | 180 行 |
-| `app/service/wecom/*.py` / `youzan/*.py` | 150 行 | 250 行 |
-| `app/repository/*.py` 数据层 | 150 行 | 250 行 |
-| `app/models/*.py` 模型层 | 80 行 | 120 行 |
+| 层级 | 警戒线（warning） | 硬上限（blocking） | |------|------------------|-------------------| |
+`app/api/*.py` 路由层 | 250 行 | 350 行 | | `app/service/*.py` 业务层 | 220 行 | 320 行 | |
+`app/service/llm/*.py` LLM 子模块 | 120 行 | 180 行 | | `app/service/wecom/*.py` / `youzan/*.py` | 150 行
+| 250 行 | | `app/repository/*.py` 数据层 | 150 行 | 250 行 | | `app/models/*.py` 模型层 | 80 行 | 120 行 |
 
 **附加硬约束（任一违反即 blocking）：**
 
@@ -38,10 +32,8 @@ description: "芸熙烘焙 AI 客服项目防止上帝类与单文件膨胀的�
 
 ## ⚠️ 当前存量警戒文件
 
-| 文件 | 实测行数 | 阈值 | 状态 |
-|------|---------|------|------|
-| `app/api/admin.py` | 293 行 | 250 warning / 350 blocking | ⚠️ 超警戒线 |
-| `app/service/chat.py` | 232 行 | 220 warning / 320 blocking | ⚠️ 超警戒线 |
+| 文件 | 实测行数 | 阈值 | 状态 | |------|---------|------|------| | `app/api/admin.py` | 293 行 | 250 warning
+/ 350 blocking | ⚠️ 超警戒线 | | `app/service/chat.py` | 232 行 | 220 warning / 320 blocking | ⚠️ 超警戒线 |
 | `app/service/llm/functions.py` | 128 行 | 120 warning / 180 blocking | ⚠️ 超警戒线 |
 
 **修改这些文件时必须先走 `large-file-refactor-review` 工作流，且不得追加新职责。**
@@ -101,8 +93,8 @@ $content = Get-Content "app/service/chat.py"
 ## 拆分前 3 问自检（任一为 No 就不拆）
 
 1. 抽出后的单元能否被独立 mock 测试？
-2. 抽出后原文件与新文件的职责边界是否更清晰？
-3. 抽出是否会引入循环依赖、过多 callback、或破坏已有调用链？
+1. 抽出后原文件与新文件的职责边界是否更清晰？
+1. 抽出是否会引入循环依赖、过多 callback、或破坏已有调用链？
 
 ## ✅ 拆分 Review Checklist
 

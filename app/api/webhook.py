@@ -8,11 +8,10 @@ Webhook API 路由。
 - 立即返回 200（不阻塞渠道重试）
 """
 
-from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 
 from app.config import settings
 from app.logger import setup_logger
-from app.models.session import Channel
 from app.service.chat import ChatService
 from app.service.youzan.webhook import verify_signature as verify_youzan_signature
 

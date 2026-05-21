@@ -61,7 +61,7 @@ class TransferManager:
 
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.post(
-                        f"https://qyapi.weixin.qq.com/cgi-bin/message/send",
+                        "https://qyapi.weixin.qq.com/cgi-bin/message/send",
                         params={"access_token": token},
                         json={
                             "touser": settings.WECOM_STAFF_ID,

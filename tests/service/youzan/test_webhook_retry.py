@@ -7,7 +7,6 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.api.webhook import create_webhook_router
-from app.service.youzan import webhook as webhook_module
 
 
 class MockSessionRepo:

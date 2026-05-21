@@ -3,7 +3,6 @@
 import base64
 import hashlib
 import struct
-from typing import Any
 
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes

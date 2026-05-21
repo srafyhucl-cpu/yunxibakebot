@@ -488,8 +488,8 @@ class ChatService:
                                     v_val = p.get("v", "")
                                     if v_val:
                                         spec_names.append(v_val)
-                            except:
-                                pass
+                            except Exception as _e:
+                                logger.warning("解析商品规格失败: %s", _e)
 
                     # 智能解析 item_props 并提取加料、胚体、甜度等标签名称融入搜索词索引
                     prop_names = []
@@ -543,8 +543,8 @@ class ChatService:
                             try:
                                 props = json.loads(prop_json)
                                 prop_desc = " | ".join([f"{p.get('k')}:{p.get('v')}" for p in props])
-                            except:
-                                pass
+                            except Exception as _e:
+                                logger.warning("解析 SKU 属性失败: %s", _e)
                         sku_list_str.append(f"- 规格型号【{prop_desc}】：售价 ￥{price_yuan:.2f} 元，当前可用库存 {qty} 件")
                     skus_text = "\n".join(sku_list_str) if sku_list_str else f"- 规格：单售价 ￥{price_fen/100.0:.2f} 元，当前可用总库存 {stock} 件"
 

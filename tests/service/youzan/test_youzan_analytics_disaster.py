@@ -2,13 +2,11 @@
 有赞双轨同步与分布式容灾加固（乐观锁、推荐判重、24小时支付归因）集成回归测试。
 """
 
-import asyncio
 import datetime
 import pytest
-import aiosqlite
 
 from app.database import init_db
-from app.repository.youzan_repo import YouzanProductRepo, YouzanOrderRepo
+from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.analytics_repo import AnalyticsRepo
 
 

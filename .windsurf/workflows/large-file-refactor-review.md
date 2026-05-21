@@ -1,6 +1,6 @@
----
-description: 职责过载评估与拆分 Review 工作流，每次修改 ≥ 警戒线的 .py 文件、新增公开类、或拆分 service/api 模块时强制前后各走一遍
----
+______________________________________________________________________
+
+## description: 职责过载评估与拆分 Review 工作流，每次修改 ≥ 警戒线的 .py 文件、新增公开类、或拆分 service/api 模块时强制前后各走一遍
 
 # 职责过载评估与拆分 Review 工作流
 
@@ -15,13 +15,9 @@ description: 职责过载评估与拆分 Review 工作流，每次修改 ≥ 警
 
 ## 📏 阈值速查
 
-| 层级 | 警戒线 | 硬上限 |
-|------|--------|--------|
-| `app/api/*.py` | 250 行 | 350 行 |
-| `app/service/*.py` | 220 行 | 320 行 |
-| `app/service/llm/*.py` | 120 行 | 180 行 |
-| `app/service/wecom/*.py` / `youzan/*.py` | 150 行 | 250 行 |
-| `app/repository/*.py` | 150 行 | 250 行 |
+| 层级 | 警戒线 | 硬上限 | |------|--------|--------| | `app/api/*.py` | 250 行 | 350 行 | |
+`app/service/*.py` | 220 行 | 320 行 | | `app/service/llm/*.py` | 120 行 | 180 行 | |
+`app/service/wecom/*.py` / `youzan/*.py` | 150 行 | 250 行 | | `app/repository/*.py` | 150 行 | 250 行 |
 | `app/models/*.py` | 80 行 | 120 行 |
 
 ## 🎯 触发条件（任一命中即必须走完本工作流）
@@ -60,8 +56,8 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 列出该文件**当前承担的所有职责**，对每项职责问 3 个问题：
 
 1. 这个职责能否用 3 句话独立描述其输入/输出/副作用？
-2. 抽出后能否被独立 mock 测试，不需要构造完整的 service 依赖树？
-3. 抽出是否会引入循环依赖或破坏现有调用链？
+1. 抽出后能否被独立 mock 测试，不需要构造完整的 service 依赖树？
+1. 抽出是否会引入循环依赖或破坏现有调用链？
 
 **3 种合法结论：**
 
@@ -73,12 +69,9 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 
 ### Python 四象限拆分法
 
-| 象限 | 内容 | 目标文件 |
-|------|------|----------|
-| 接口/协议 | 抽象基类、Protocol | `<module>/<topic>_protocol.py` |
-| 数据结构 | Pydantic 模型、枚举、常量 | `<module>/<topic>_types.py` |
-| 外部适配 | 第三方 API 桥接、加解密 | `<module>/<topic>_adapter.py` |
-| 业务编排 | 核心逻辑 | 保留在原文件或 `<topic>_service.py` |
+| 象限 | 内容 | 目标文件 | |------|------|----------| | 接口/协议 | 抽象基类、Protocol |
+`<module>/<topic>_protocol.py` | | 数据结构 | Pydantic 模型、枚举、常量 | `<module>/<topic>_types.py` | | 外部适配 |
+第三方 API 桥接、加解密 | `<module>/<topic>_adapter.py` | | 业务编排 | 核心逻辑 | 保留在原文件或 `<topic>_service.py` |
 
 ### 向后兼容策略
 

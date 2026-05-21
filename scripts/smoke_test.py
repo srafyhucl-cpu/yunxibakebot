@@ -11,8 +11,7 @@ import httpx
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from app.config import settings
-from app.database import SCHEMA_STATEMENTS
+from app.config import settings  # noqa: E402
 
 HTTP_OK = 200
 REQUEST_TIMEOUT_SECONDS = 5

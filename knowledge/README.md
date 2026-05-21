@@ -94,6 +94,6 @@
 ## 四、修改后的收口动作
 
 1. 修改正确的知识文档
-2. 执行 `python scripts/seed_knowledge.py`
-3. 重建向量索引
-4. 更新 `LOGBOOK.md`
+1. 执行 `python scripts/seed_knowledge.py`
+1. 重建向量索引
+1. 更新 `LOGBOOK.md`
