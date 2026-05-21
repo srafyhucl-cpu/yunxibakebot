@@ -23,7 +23,7 @@ from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.llm.functions import FUNCTION_DEFINITIONS, MAX_TOOL_ROUNDS, dispatch_tool
 from app.service.llm.intent import IntentType, detect_intent
-from app.service.llm.intent_taxonomy import is_transfer_intent
+from app.service.llm.intent_types import is_transfer_intent
 from app.service.llm.prompt import build_system_prompt
 from app.service.llm.query_rewriter import rewrite_query
 from app.service.llm.soothe import apply_soothe, needs_soothe

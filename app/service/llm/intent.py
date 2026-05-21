@@ -5,19 +5,23 @@ import json
 from app.exceptions import LLMError
 from app.logger import setup_logger
 from app.service.llm.client import chat_completion as llm_chat
-from app.service.llm.intent_taxonomy import AFTER_SALES_KEYWORDS
-from app.service.llm.intent_taxonomy import DELIVERY_SCHEDULE_KEYWORDS
-from app.service.llm.intent_taxonomy import HUMAN_ASSISTANCE_KEYWORDS
-from app.service.llm.intent_taxonomy import INTENT_ID_CHARACTERS
-from app.service.llm.intent_taxonomy import INTENT_PROMPT
-from app.service.llm.intent_taxonomy import ORDER_ACTION_KEYWORDS
-from app.service.llm.intent_taxonomy import ORDER_CONTEXT_KEYWORDS
-from app.service.llm.intent_taxonomy import ORDER_SERVICE_TOPIC_KEYWORDS
-from app.service.llm.intent_taxonomy import PRODUCT_KEYWORDS
-from app.service.llm.intent_taxonomy import QUESTION_KEYWORDS
-from app.service.llm.intent_taxonomy import SHIPPING_FEE_KEYWORDS
-from app.service.llm.intent_taxonomy import SMALL_TALK_KEYWORDS
-from app.service.llm.intent_taxonomy import STORE_POLICY_KEYWORDS
+from app.service.llm.intent_types import INTENT_ID_CHARACTERS
+from app.service.llm.intent_prompt import INTENT_PROMPT
+from app.service.llm.intent_domain_keywords import (
+    DELIVERY_SCHEDULE_KEYWORDS,
+    ORDER_SERVICE_TOPIC_KEYWORDS,
+    PRODUCT_KEYWORDS,
+    SHIPPING_FEE_KEYWORDS,
+    SMALL_TALK_KEYWORDS,
+    STORE_POLICY_KEYWORDS,
+)
+from app.service.llm.intent_behavior_keywords import (
+    AFTER_SALES_KEYWORDS,
+    HUMAN_ASSISTANCE_KEYWORDS,
+    ORDER_ACTION_KEYWORDS,
+    ORDER_CONTEXT_KEYWORDS,
+    QUESTION_KEYWORDS,
+)
 from app.service.llm.intent_types import IntentType
 
 logger = setup_logger()

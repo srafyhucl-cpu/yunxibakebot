@@ -88,11 +88,16 @@ class KnowledgeRetriever:
                         is_active = product["is_active"]
 
                         # 构造富提示前置前缀，死锁 AI 回复幻觉风险
-                        live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：{stock}件】\n\n"
                         if is_active == 0:
                             live_prefix = "【芸熙烘焙小程序实时官方数据 — ⚠️商品当前已下架或暂停预定】\n\n"
                         elif stock <= 0:
                             live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
+                        elif stock >= 200:
+                            # 🎂 生日/选配蛋糕类（虚拟高库存 >= 200）
+                            live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：充足（常态化现做预定制商品，只要买家下单即可新鲜现做，请告知买家随时可放心下单，无需向其透露具体数字）】\n\n"
+                        else:
+                            # 🥖 现烤面包/西点类（实体日限量 < 200）
+                            live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：仅剩 {stock} 件（属于每日限量现烤面包西点，售罄即止，若库存偏低请温和提示买家抢购）】\n\n"
 
                         entry.content = live_prefix + entry.content
 
