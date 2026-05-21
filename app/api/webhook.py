@@ -21,8 +21,28 @@ router = APIRouter(prefix="/api/v1/webhook", tags=["webhook"])
 
 def create_webhook_router(chat_service: ChatService) -> APIRouter:
     """工厂函数：注入 ChatService 依赖后返回路由实例。"""
-    # 高并发内存锁集合，防止同一秒内重复报文冲击
-    _processing_msg_ids: set[str] = set()
+    import asyncio
+    import time
+
+    # 高并发带滑动窗口自清洗的 TTL 去重容器，彻底在长周期连续运行下死锁任何内存泄漏与锁悬挂
+    _processing_msg_timestamps: dict[str, float] = {}
+
+    # 定时异步自愈清洗任务（30秒 TTL 自动物理擦除）
+    async def _cleanup_stale_msg_ids() -> None:
+        while True:
+            try:
+                await asyncio.sleep(10)
+                now = time.time()
+                stale_ids = [msg_id for msg_id, ts in _processing_msg_timestamps.items() if now - ts > 30.0]
+                for msg_id in stale_ids:
+                    _processing_msg_timestamps.pop(msg_id, None)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error("去重容器定时自愈清洗器异常: %s", e)
+
+    # 启动清洗守护协程
+    asyncio.create_task(_cleanup_stale_msg_ids())
 
     @router.post("/youzan")
     async def youzan_webhook(request: Request) -> dict:
@@ -53,12 +73,19 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             raise HTTPException(status_code=400, detail="缺少 msg_id")
 
         # 3. 秒回防御去重校验（内存锁与数据库双重防线）
-        if msg_id in _processing_msg_ids or await chat_service._message_repo.has_processed(msg_id):
-            logger.info("有赞推送已在处理或已处理完毕，秒回复成功: %s", msg_id)
+        now = time.time()
+        if msg_id in _processing_msg_timestamps:
+            last_ts = _processing_msg_timestamps[msg_id]
+            if now - last_ts < 10.0:
+                logger.info("有赞推送处于 10s 滑动锁定窗口期内，秒回复成功: %s", msg_id)
+                return {"code": 0, "msg": "success"}
+
+        if await chat_service._message_repo.has_processed(msg_id):
+            logger.info("有赞推送已处理完毕，秒回复成功: %s", msg_id)
             return {"code": 0, "msg": "success"}
 
-        # 锁定当前处理的消息 ID
-        _processing_msg_ids.add(msg_id)
+        # 锁定当前处理的消息 ID 并记录时间戳
+        _processing_msg_timestamps[msg_id] = now
 
         # 4. 判断是买家咨询客服消息，还是有赞系统事件消息（如商品上架、交易付款等）
         event_type = payload.get("type", "")
@@ -68,7 +95,6 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             async def _background_process_system_event() -> None:
                 try:
                     import datetime
-                    import time
                     timestamp_sec = payload.get("timestamp", int(time.time()))
                     updated_at_str = datetime.datetime.fromtimestamp(timestamp_sec).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -80,9 +106,8 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                 except Exception as exc:
                     logger.error("有赞系统事件后台业务处理异常 [msg_id=%s]: %s", msg_id, exc)
                 finally:
-                    _processing_msg_ids.discard(msg_id)
+                    _processing_msg_timestamps.pop(msg_id, None)
 
-            import asyncio
             asyncio.create_task(_background_process_system_event())
             return {"code": 0, "msg": "success"}
 
@@ -100,7 +125,7 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                 text_content = f"[{msg_type}] {content_obj}"
 
             if not text_content:
-                _processing_msg_ids.discard(msg_id)
+                _processing_msg_timestamps.pop(msg_id, None)
                 return {"code": 0, "msg": "success"}
 
             async def _background_process() -> None:
@@ -114,9 +139,8 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                     logger.error("有赞后台消息处理异常 [msg_id=%s]: %s", msg_id, exc)
                 finally:
                     # 释放内存锁定
-                    _processing_msg_ids.discard(msg_id)
+                    _processing_msg_timestamps.pop(msg_id, None)
 
-            import asyncio
             asyncio.create_task(_background_process())
 
             # 秒回：主协程小于100ms内极速响应，有赞的3秒生死线安全通过

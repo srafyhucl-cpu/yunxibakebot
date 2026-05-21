@@ -107,7 +107,7 @@ class KnowledgeRetriever:
                             img_params = urllib.parse.urlencode({
                                 "type": "image",
                                 "src": product["image"] or ""
-                            })
+                            }, quote_via=urllib.parse.quote)
                             card_params = urllib.parse.urlencode({
                                 "type": "card",
                                 "id": entry.youzan_item_id,
@@ -115,7 +115,7 @@ class KnowledgeRetriever:
                                 "price": f"{price_yuan:.2f}",
                                 "src": product["image"] or "",
                                 "url": f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
-                            })
+                            }, quote_via=urllib.parse.quote)
                             entry.content += f"\n[UMP: {img_params}]"
                             entry.content += f"\n[UMP: {card_params}]"
                 except Exception as exc:
