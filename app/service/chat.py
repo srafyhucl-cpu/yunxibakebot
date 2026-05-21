@@ -588,13 +588,13 @@ class ChatService:
                         vs = self._knowledge._vs
                         if vs:
                             vector = vs._get_model().encode([f"{title} {content_md}"], normalize_embeddings=True)[0].tolist()
-                            vs.upsert_one(str(item_id), vector)
+                            await vs.upsert_one(str(item_id), vector)
                     else:
                         # RAG 下架物理擦除
                         await knowledge_repo.delete_product_knowledge(str(item_id))
                         vs = self._knowledge._vs
                         if vs:
-                            vs.delete_one(str(item_id))
+                            await vs.delete_one(str(item_id))
 
                     # (5) 触点一：价格/库存异动审计变更埋点 (price_sync / stock_alert)
                     if old_price != -1 and old_price != price_fen:

@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     vs_path = settings.EMBEDDING_PATH
 
     logger.info("正在初始化向量搜索：首选尝试极速载入本地预解算缓存...")
-    await asyncio.to_thread(vs.load, vs_path)
+    await vs.load(vs_path)
 
     docs = await knowledge_repo.get_all_titles_with_keys()
     need_rebuild = True
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if docs:
             logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
             await asyncio.to_thread(vs.build, docs, current_db_md5)
-            await asyncio.to_thread(vs.save, vs_path)
+            await vs.save(vs_path)
             logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
         else:
             logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
                     latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
                     vs._data_hash = latest_db_md5
-                    await asyncio.to_thread(vs.save, vs_path)
+                    await vs.save(vs_path)
             except asyncio.CancelledError:
                 # 正常退出拦截器，最后一次强制清算持久化
                 if vs._dirty:
@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
                         latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
                         vs._data_hash = latest_db_md5
-                        vs.save(vs_path)
+                        await vs.save(vs_path)
                     except Exception as e:
                         logger.error("守护协程退关刷盘异常: %s", e)
                 break

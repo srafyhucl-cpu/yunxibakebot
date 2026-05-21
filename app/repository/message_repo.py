@@ -11,7 +11,7 @@ import aiosqlite
 
 from app.models.message import Message
 
-MAX_MESSAGES_PER_SESSION = 200
+MAX_MESSAGES_PER_SESSION = 50
 
 
 class MessageRepo:
