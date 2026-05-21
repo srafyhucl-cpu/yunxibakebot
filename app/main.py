@@ -147,6 +147,19 @@ BASE_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
+@app.get("/{filename}.txt")
+async def serve_verify_txt(filename: str):
+    """微信/有赞等平台域名所有权 TXT 文件根目录穿透自动响应路由。"""
+    import os
+    from fastapi.responses import FileResponse
+    from fastapi.exceptions import HTTPException
+
+    file_path = BASE_DIR / "static" / f"{filename}.txt"
+    if os.path.exists(file_path):
+        return FileResponse(str(file_path))
+    raise HTTPException(status_code=404, detail="Not Found")
+
+
 # ── 全局异常处理器 ──
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
