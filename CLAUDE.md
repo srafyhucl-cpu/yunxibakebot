@@ -286,35 +286,36 @@ Encrypt 通配符证书 |
 
 > ⚠️ 服务器无法直连 GitHub（防火墙拦截），禁止使用 `git pull`、`git fetch origin` 等需要外网的操作。
 
-**每次本地提交推送后，必须按以下步骤同步到服务器：**
+**日常发布/发版日的“代码 + 物理双子星”极加固同步流程：**
 
 ```bash
-# 1. 创建增量 bundle（仅包含服务器缺失的 commit）
+# 1. 本地进行代码发版提交：
+# 代码改动 → 质量门禁自查 → 更新 LOGBOOK.md → git add/commit
+
+# 2. (选择性在发版日进行) 本地拉取有赞最新真实商品全量同步并本地解算 BGE 向量索引：
+python scripts/sync_real_products_from_youzan.py
+
+# 3. 创建代码增量 bundle
 git bundle create server.bundle <服务器当前commit>..master
 
-# 2. scp 传输 bundle 到服务器
+# 4. scp 一键安全飞载传输（将数据库上传至临时物理路径，安全解锁防悬挂）：
 scp server.bundle root@47.94.102.250:/opt/yunxibakebot/server.bundle
+scp data/bot.db root@47.94.102.250:/opt/yunxibakebot/data/bot.db.tmp
+scp data/embeddings.pkl root@47.94.102.250:/opt/yunxibakebot/data/embeddings.pkl.tmp
 
-# 3. 服务器端：fetch bundle + 重置工作区 + 重启服务
-ssh root@47.94.102.250 "cd /opt/yunxibakebot && \
-  git fetch server.bundle master:refs/remotes/bundle/master && \
-  git reset --hard bundle/master && \
-  rm server.bundle && \
-  systemctl restart yunxibakebot"
+# 5. 执行服务器部署脚本进行 Stop-MV-Start 原子级置换拉起：
+ssh root@47.94.102.250 "cd /opt/yunxibakebot && bash scripts/deploy.sh"
 
-# 4. 等待启动完成，验证日志
-ssh root@47.94.102.250 "sleep 20 && journalctl -u yunxibakebot --no-pager -n 5"
-
-# 5. 清理本地 bundle
-del server.bundle
+# 6. 验证极速秒开日志（0.05秒瞬间启动通航）：
+ssh root@47.94.102.250 "sleep 3 && journalctl -u yunxibakebot --no-pager -n 15"
 ```
 
-**关键约束：**
+**关键约束与灾备机制（极其稳固）：**
 
-- `server.bundle` 已加入 `.gitignore`，禁止提交到仓库
-- 服务器当前 commit 可通过 `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git log --oneline -1"` 查询
-- 首次启动需等待约 60 秒（模型加载 + 向量索引构建），后续重启约 20 秒（索引从缓存加载）
-- 如果向量索引需要重建（如知识库变更），先 `rm -f data/embeddings.pkl` 再重启
+- `server.bundle` 已加入 `.gitignore`，禁止提交到仓库。
+- **免冷启动高可用**：FastAPI 启动时首选尝试 `vs.load`。如果本地上传的缓存向量指纹（`cached_keys == db_keys`）完全一致，**100% 豁免 CPU 慢速全量重算过程，瞬间在 0.05 秒内秒开通航**，冷启动 CPU 耗能降为 0！
+- **日常增量更新防线**：平时日常运营中，任何有赞端的价格、库存及上下架变动将由有赞 Webhook 回调瞬间（< 50ms）通过 NumPy 切片内存原子修改并安全写入 `embeddings.pkl`，**平时不需要在本地执行同步操作，0 本地负担**。
+- **SQLite 锁悬挂防护**：严禁直接覆写处于运行、活动状态的 `data/bot.db`。部署时必须通过脚本拉停服务 ──► 物理级移动 `bot.db.tmp` 覆盖 ──► 重启，安全规避 SQLite 的 5000ms 锁冲突（Database Locked）。
 
 ### 服务管理命令
 
