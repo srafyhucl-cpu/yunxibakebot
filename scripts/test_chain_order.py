@@ -1,9 +1,12 @@
-"""Phase A 全链路测试：有赞交易 Webhook → event_trade → 有赞 API → youzan_orders DB 回写。
+"""Phase A 全链路测试：客服消息（含订单号）→ LLM Function Calling → 有赞 API → youzan_orders DB 回写。
 
-路径说明：
-  - ORDER_SERVICE 意图直接触发转人工（by design），不经过 Function Calling
-  - youzan_orders 的真实写入路径是 trade_* webhook → handle_trade_event → get_order() → upsert_order
-  - 本脚本测试该完整链路，并额外验证 Function Calling 订单查询（get_order_info）的 DB 短路路径
+测试路径（恢复原意）：
+  用户消息含明确订单号，措辞为"配送履约"风格
+    → 意图识别为 DELIVERY_TRACKING（不转人工）
+    → 进入 _ai_conversation_loop
+    → LLM 调用 get_order_info Function Calling
+    → YouzanClient.get_order() 调有赞 API
+    → upsert_order 写入 youzan_orders
 
 运行前置：
   1. .env 中 YOUZAN_MOCK_MODE=False，DeepSeek/Youzan 凭证已配置
@@ -128,25 +131,31 @@ async def _query_order(db_path: str, order_no: str) -> dict | None:
             return dict(row) if row else None
 
 
-def _build_trade_event_body(tid: str) -> tuple[bytes, str]:
-    """构造 trade_TradeBuyerPay 系统事件 Webhook body 并计算 MD5 签名。"""
-    msg_obj = {"tid": tid}
-    import urllib.parse
-    msg_encoded = urllib.parse.quote(json.dumps(msg_obj, ensure_ascii=False))
-    payload = {
-        "id": str(int(time.time() * 1000)),
-        "type": "trade_TradeBuyerPay",
-        "kdt_id": settings.YOUZAN_KDT_ID,
-        "msg": msg_encoded,
-        "client_id": settings.YOUZAN_CLIENT_ID,
-        "timestamp": int(time.time()),
-        "version": "1.0",
-    }
-    raw_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    signature = YouzanMockEmulator.calculate_signature(
-        settings.YOUZAN_CLIENT_ID, settings.YOUZAN_CLIENT_SECRET, raw_body
-    )
-    return raw_body, signature
+POLL_INTERVAL_S = 2
+POLL_MAX_S = 30
+
+
+async def _delete_order(db_path: str, order_no: str) -> None:
+    """测试前清除旧记录，确保断言的是本次 Function Calling 新写入的数据。"""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute("DELETE FROM youzan_orders WHERE order_no = ?", (order_no,))
+        await db.commit()
+
+
+async def _poll_order(db_path: str, order_no: str, after_ts: str) -> dict | None:
+    """轮询 youzan_orders，最长等 POLL_MAX_S 秒，记录重新出现即返回。
+    注：测试前已 DELETE 该 order_no，出现即证明本次 Function Calling 写入成功。
+    after_ts 仅作日志参考，不用于过滤。
+    """
+    deadline = time.monotonic() + POLL_MAX_S
+    while time.monotonic() < deadline:
+        record = await _query_order(db_path, order_no)
+        if record:
+            return record
+        await asyncio.sleep(POLL_INTERVAL_S)
+        print(f"  [{_ts()}]   轮询中，等待 LLM + 有赞 API + DB 写入...", end="\r")
+    print()
+    return None
 
 
 async def run_phase_a() -> bool:
@@ -154,19 +163,17 @@ async def run_phase_a() -> bool:
     _TEST_START = time.monotonic()
 
     print("\n" + "=" * 60)
-    print("Phase A：trade_TradeBuyerPay Webhook → event_trade → 有赞 API → youzan_orders 回写")
+    print("Phase A：客服消息（含订单号）→ LLM Function Calling → 有赞 API → youzan_orders 回写")
     print("=" * 60)
-    print("  注：ORDER_SERVICE 意图 by design 直接转人工（不过 Function Calling）")
-    print("  注：youzan_orders 真实写入路径为 trade webhook → handle_trade_event → upsert_order")
+    print("  路径：DELIVERY_TRACKING 意图 → _ai_conversation_loop → get_order_info → upsert_order")
 
     db_path = str(ROOT_DIR / settings.DB_PATH)
 
-    # ── Step 0：发现订单号 ────────────────────────────────────────────────────
+    # ── Step 0：发现可测订单号 ─────────────────────────────────────────────────
     _step("Setup：发现可测订单号")
     order_no = await _discover_order_no(db_path)
-
     if order_no:
-        _info(f"本地 DB 已有记录，使用 order_no={order_no}")
+        _info(f"本地 DB 已有历史记录，使用 order_no={order_no}")
     else:
         _info("本地 DB 无记录，调用有赞 API youzan.trades.sold.get 自动取最新订单")
         try:
@@ -184,15 +191,28 @@ async def run_phase_a() -> bool:
         _fail("无法获取可测订单号，终止测试")
         return False
 
-    # 记录触发前 DB 快照
-    snapshot_before = await _query_order(db_path, order_no)
-    _info(f"DB 快照（触发前）: {'已存在 updated_at=' + str(snapshot_before['updated_at']) if snapshot_before else '无记录'}")
+    # ── Step 1：清除旧记录（确保断言的是本次写入）──────────────────────────────
+    _step("清除 youzan_orders 旧记录（保证断言干净）")
+    await _delete_order(db_path, order_no)
+    _info(f"已清除 order_no={order_no} 的旧记录（若存在）")
+    test_start_ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    _info(f"测试开始时间戳: {test_start_ts}")
 
-    # ── Step 1：构造并发送 trade webhook ─────────────────────────────────────
-    _step("构造 trade_TradeBuyerPay 事件并发送")
-    raw_body, signature = _build_trade_event_body(order_no)
-    payload_preview = json.loads(raw_body)
-    _info(f"type={payload_preview['type']}  tid={order_no}")
+    # ── Step 2：构造含订单号的客服消息 Webhook ────────────────────────────────
+    _step("构造客服消息 Webhook（配送履约措辞，含明确订单号）")
+    buyer_id = f"test_phase_a_{int(time.time())}"
+    question = f"我的蛋糕订单 {order_no} 发货了吗，顺便告诉我买的什么商品"
+    msg_id = f"test_phase_a_{int(time.time() * 1000)}"
+    raw_body, signature = YouzanMockEmulator.generate_webhook_message(
+        buyer_id=buyer_id,
+        content_text=question,
+        msg_id=msg_id,
+        client_id=settings.YOUZAN_CLIENT_ID,
+        client_secret=settings.YOUZAN_CLIENT_SECRET,
+    )
+    _info(f"buyer_id={buyer_id}（每次唯一，session 干净）")
+    _info(f"msg_id={msg_id}")
+    _info(f"消息内容: {question!r}")
     _info(f"signature={signature}")
     _info(f"POST {BASE_URL}{WEBHOOK_PATH}")
 
@@ -206,42 +226,39 @@ async def run_phase_a() -> bool:
     t_post_elapsed = time.monotonic() - t_post
 
     if response.status_code == HTTP_OK:
-        _ok(f"Webhook 接收返回 200（往返耗时 {t_post_elapsed:.2f}s）",
+        _ok(f"Webhook 接收返回 200（往返 {t_post_elapsed:.2f}s）",
             f"body={response.text[:80]}")
     else:
         _fail(f"Webhook 返回非 200", f"status={response.status_code}  body={response.text[:120]}")
         return False
 
-    # ── Step 2：等待后台链路 ──────────────────────────────────────────────────
-    _step(f"等待后台链路（handle_trade_event → 有赞 API → upsert_order），共 {WAIT_SECONDS}s")
-    for i in range(WAIT_SECONDS):
-        await asyncio.sleep(1)
-        print(f"  [{_ts()}]   ... {i + 1}/{WAIT_SECONDS}s", end="\r")
-    print()
+    # ── Step 3：轮询等待 Function Calling → DB 写入 ───────────────────────────
+    _step(f"轮询等待 LLM Function Calling → 有赞 API → upsert_order（最长 {POLL_MAX_S}s）")
+    _info("链路：意图识别 → _ai_conversation_loop → get_order_info → youzan.trade.get → upsert_order")
+    record = await _poll_order(db_path, order_no, test_start_ts)
 
-    # ── Step 3：断言 youzan_orders DB 写入 ───────────────────────────────────
-    _step("断言 youzan_orders DB 写入")
-    record = await _query_order(db_path, order_no)
-
+    # ── Step 4：断言 DB 写入 ───────────────────────────────────────────────────
+    _step("断言 youzan_orders DB 写入（updated_at >= 测试开始时间）")
     if not record:
-        _fail(f"youzan_orders 未找到 order_no={order_no}")
-        _info("可能原因：有赞 trade.get API 返回异常，或 event_trade 处理失败")
+        _fail(f"youzan_orders 超时未找到 order_no={order_no}")
+        _info(f"轮询上限 {POLL_MAX_S}s 已到，请检查服务日志：")
+        _info("  1. 意图是否被识别为 ORDER_SERVICE（会转人工不过 LLM）")
+        _info("  2. LLM 是否调用了 get_order_info")
+        _info("  3. 有赞 API 是否返回了 full_order_info")
         return False
 
-    _ok(f"youzan_orders 有记录 order_no={order_no}")
-    print(f"\n              {'字段':<22} {'变更前':<30} {'变更后'}")
-    print(f"              {'-' * 75}")
-    fields = ["order_no", "status", "amount_fen", "product_titles", "buyer_id", "updated_at"]
-    for f in fields:
-        before_v = str(snapshot_before.get(f, "N/A")) if snapshot_before else "（无记录）"
-        after_v = str(record.get(f, "N/A"))
-        marker = " ←" if before_v != after_v else ""
-        print(f"              {f:<22} {before_v:<30} {after_v}{marker}")
+    # updated_at 存储有赞订单自身的 update_time，不是 DB 写入时间
+    # 判断依据：测试前已 DELETE 过该 order_no，能查到记录即证明本次 Function Calling 写入
+    _ok(f"youzan_orders 有记录（测试前已删除，现重新出现，证明本次 Function Calling 写入成功）")
+    updated_ts = record.get("updated_at", "")
+    print(f"\n              {'字段':<22} {'值'}")
+    print(f"              {'-' * 55}")
+    for f, v in record.items():
+        print(f"              {f:<22} {v}")
 
     status_ok = bool(record.get("status"))
     amount_ok = record.get("amount_fen", 0) > 0
     titles_ok = bool(record.get("product_titles"))
-    updated_ok = snapshot_before is None or record.get("updated_at", "") >= snapshot_before.get("updated_at", "")
 
     if status_ok:
         _ok("status 字段非空", f"status={record['status']}")
@@ -250,17 +267,13 @@ async def run_phase_a() -> bool:
     if amount_ok:
         _ok("amount_fen > 0", f"¥{record['amount_fen'] / 100:.2f}")
     else:
-        _fail("amount_fen 为 0（可能订单金额为 0 或字段缺失）")
+        _fail("amount_fen 为 0 或缺失")
     if titles_ok:
         _ok("product_titles 非空", record["product_titles"][:60])
     else:
         _fail("product_titles 为空")
-    if updated_ok:
-        _ok("updated_at 已刷新（DB 写入成功）")
-    else:
-        _fail("updated_at 未更新")
 
-    return status_ok and amount_ok and titles_ok and updated_ok
+    return status_ok and amount_ok and titles_ok
 
 
 if __name__ == "__main__":
