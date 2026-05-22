@@ -1,6 +1,6 @@
-______________________________________________________________________
-
-## description: 职责过载评估与拆分 Review 工作流，每次修改 ≥ 警戒线的 .py 文件、新增公开类、或拆分 service/api 模块时强制前后各走一遍
+---
+description: 职责过载评估与拆分 Review 工作流，每次修改 ≥ 警戒线的 .py 文件、新增公开类、或拆分 service/api 模块时强制前后各走一遍
+---
 
 # 职责过载评估与拆分 Review 工作流
 
@@ -128,6 +128,6 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 
 ## 🔗 联动
 
-- 触发技能：`yunxi-file-size-guard`
-- 收尾 Review：`/review`
-- 提交收口：`/commit`
+- 本工作流开始前：**必须先调用 `芸熙文件体量守卫`**，深读当前文件的阈值和分拆方向指引
+- 拆分完成后：`/review` 对拆分后的文件进行 Review
+- 收口提交：`/commit`（commit 工作流会进一步调用 `/sync-skills` 同步 Skill 文档）

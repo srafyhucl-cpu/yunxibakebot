@@ -38,11 +38,12 @@ async def test_youzan_webhook_concurrency_deduplication(monkeypatch: pytest.Monk
     """测试在高并发重复报文打入时，Webhook 层的秒回防御与后台协程分流是否 100% 幂等。"""
     # 1. 强制开启 Mock 模式
     monkeypatch.setattr(settings, "YOUZAN_MOCK_MODE", True)
-    monkeypatch.setattr(settings, "YOUZAN_WEBHOOK_TOKEN", "mock_webhook_token_xyz")
+    monkeypatch.setattr(settings, "YOUZAN_CLIENT_ID", "mock_client_id")
+    monkeypatch.setattr(settings, "YOUZAN_CLIENT_SECRET", "mock_client_secret")
 
     # 2. 模拟签名验证：总是验证通过 (需在消费端的 webhook 路由模块上打桩)
     from app.api import webhook as api_webhook_module
-    def fake_verify_signature(secret: str, raw_body: bytes, signature_header: str) -> bool:
+    def fake_verify_signature(client_id: str, client_secret: str, raw_body: bytes, signature_header: str) -> bool:
         return True
 
     monkeypatch.setattr(api_webhook_module, "verify_youzan_signature", fake_verify_signature)
@@ -72,7 +73,7 @@ async def test_youzan_webhook_concurrency_deduplication(monkeypatch: pytest.Monk
                 client.post(
                     "/api/v1/webhook/youzan",
                     json=payload,
-                    headers={"X-Youzan-Signature": "dummy_sig"}
+                    headers={"event-sign": "dummy_sig"}
                 )
             )
 

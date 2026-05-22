@@ -2,7 +2,7 @@
 Webhook API 路由。
 
 接收有赞/企微的消息回调：
-- 验证签名（有赞 HMAC-SHA256 / 企微 SHA1）
+- 验证签名（有赞 MD5(client_id+body+client_secret) / 企微 SHA1）
 - 解析消息内容
 - 提交到 ChatService 异步处理
 - 立即返回 200（不阻塞渠道重试）
@@ -49,14 +49,14 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
         """
         有赞消息回调入口（统一接收客服消息推送与交易/商品事件推送）。
 
-        验证 HMAC-SHA256 签名后异步处理消息。
+        验证 MD5 签名后异步处理消息。
         通过秒级内存锁与数据库双重防线去重。
         """
         raw_body = await request.body()
 
         # 1. 验证签名（抗伪造安全防线）
-        signature = request.headers.get("X-Youzan-Signature", "")
-        if not verify_youzan_signature(settings.YOUZAN_WEBHOOK_TOKEN, raw_body, signature):
+        signature = request.headers.get("event-sign", "")
+        if not verify_youzan_signature(settings.YOUZAN_CLIENT_ID, settings.YOUZAN_CLIENT_SECRET, raw_body, signature):
             logger.warning("有赞签名验证失败")
             raise HTTPException(status_code=403, detail="签名验证失败")
 
@@ -67,10 +67,16 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             logger.error("有赞消息解析失败: %s", exc)
             raise HTTPException(status_code=400, detail="无效的 JSON 消息") from exc
 
-        msg_id = payload.get("msg_id", "")
+        msg_id = payload.get("msg_id") or payload.get("id") or ""
         if not msg_id:
-            logger.warning("有赞消息缺少 msg_id")
-            raise HTTPException(status_code=400, detail="缺少 msg_id")
+            _rontgen = request.headers.get("x-rontgen", "")
+            for _part in _rontgen.split(";"):
+                if _part.startswith("traceId="):
+                    msg_id = _part[len("traceId="):]
+                    break
+        if not msg_id:
+            logger.warning("有赞消息缺少可用的去重 ID，丢弃")
+            return {"code": 0, "msg": "success"}
 
         # 3. 秒回防御去重校验（内存锁与数据库双重防线）
         now = time.time()
@@ -88,7 +94,7 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
         _processing_msg_timestamps[msg_id] = now
 
         # 4. 判断是买家咨询客服消息，还是有赞系统事件消息（如商品上架、交易付款等）
-        event_type = payload.get("type", "")
+        event_type = payload.get("type", "") or request.headers.get("event-type", "")
         if event_type:
             # A 轨：系统事件处理管道（双轨合流分发：物理表数仓 + RAG增量 + Telemetry审计）
             # Webhook 充当极简网关分发，彻底移除所有 repository 导入，契合架构红线

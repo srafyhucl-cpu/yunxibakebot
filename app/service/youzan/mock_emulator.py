@@ -4,7 +4,6 @@
 """
 
 import hashlib
-import hmac
 import json
 import time
 
@@ -13,9 +12,9 @@ class YouzanMockEmulator:
     """有赞异步仿真器。"""
 
     @staticmethod
-    def calculate_signature(secret: str, raw_body: bytes) -> str:
-        """根据有赞 Webhook 规范计算 HMAC-SHA256 签名。"""
-        return hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    def calculate_signature(client_id: str, client_secret: str, raw_body: bytes) -> str:
+        """根据有赞 Webhook 规范计算签名：MD5(client_id + raw_body + client_secret)。"""
+        return hashlib.md5((client_id + raw_body.decode("utf-8", errors="replace") + client_secret).encode()).hexdigest()
 
     @staticmethod
     def generate_webhook_message(
@@ -23,9 +22,10 @@ class YouzanMockEmulator:
         content_text: str,
         msg_type: str = "text",
         msg_id: str | None = None,
-        secret: str = "mock_secret",
+        client_id: str = "mock_client_id",
+        client_secret: str = "mock_secret",
     ) -> tuple[bytes, str]:
-        """生成有赞买家端客服消息推送 Webhook Payload 及对应的 X-Youzan-Signature 签名。"""
+        """生成有赞买家端客服消息推送 Webhook Payload 及对应的 event-sign 签名。"""
         actual_msg_id = msg_id or f"msg_{int(time.time() * 1000)}"
         payload = {
             "msg_id": actual_msg_id,
@@ -37,7 +37,7 @@ class YouzanMockEmulator:
             "timestamp": int(time.time()),
         }
         raw_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        signature = YouzanMockEmulator.calculate_signature(secret, raw_body)
+        signature = YouzanMockEmulator.calculate_signature(client_id, client_secret, raw_body)
         return raw_body, signature
 
     @staticmethod

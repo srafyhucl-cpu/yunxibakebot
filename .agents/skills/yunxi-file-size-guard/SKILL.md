@@ -1,6 +1,8 @@
-______________________________________________________________________
-
-## name: yunxi-file-size-guard version: 1.0.0 description: "芸熙烘焙 AI 客服项目防止上帝类与单文件膨胀的强制约束。当修改任意 .py 文件行数 ≥ 警戒线、新增公开类/函数、或评估文件是否需要拆分时使用。超阈值强制触发 large-file-refactor-review 工作流。"
+﻿---
+name: 芸熙文件体量守卫
+version: 1.0.0
+description: "芸熙烘焙 AI 客服项目防止上帝类与单文件膨胀的强制约束。当修改任意 .py 文件行数 ≥ 警戒线、新增公开类/函数、或评估文件是否需要拆分时使用。超阈值强制触发 large-file-refactor-review 工作流。新增或修改任意 .py 文件时均应主动检查行数是否逼近警戒线。"
+---
 
 # 芸熙烘焙单文件体量与上帝类守卫
 
@@ -32,11 +34,15 @@ ______________________________________________________________________
 
 ## ⚠️ 当前存量警戒文件
 
-| 文件 | 实测行数 | 阈值 | 状态 | |------|---------|------|------| | `app/api/admin.py` | 293 行 | 250 warning
-/ 350 blocking | ⚠️ 超警戒线 | | `app/service/chat.py` | 232 行 | 220 warning / 320 blocking | ⚠️ 超警戒线 |
-| `app/service/llm/functions.py` | 128 行 | 120 warning / 180 blocking | ⚠️ 超警戒线 |
+| 文件 | 实测行数 | 阈值 | 状态 |
+|------|---------|------|------|
+| `app/api/admin.py` | 284 行 | 250 warning / 350 blocking | ⚠️ 超警戒线 |
+| `app/service/chat.py` | 291 行 | 220 warning / 320 blocking | ✅ 已回归绿区（拆分完成） |
+| `app/service/llm/functions.py` | 72 行 | 120 warning / 180 blocking | ✅ 已回归绿区（拆分完成） |
+| `app/service/llm/function_tool_order.py` | 143 行 | 120 warning / 180 blocking | ⚠️ 超警戒线，关注 |
+| `app/service/youzan/event_item.py` | 215 行 | 150 warning / 250 blocking | ⚠️ 超警戒线，关注 |
 
-**修改这些文件时必须先走 `large-file-refactor-review` 工作流，且不得追加新职责。**
+**`admin.py` 修改时必须先走 `large-file-refactor-review` 工作流，且不得追加新职责。**
 
 ## 🧭 拆分方向指引
 
@@ -51,24 +57,29 @@ app/api/
 └── admin_auth.py     # 认证依赖（token 验证/cookie 验证）
 ```
 
-### `chat.py`（意图→检索→AI 循环混杂）
+### `chat.py`（已拆分完成 ✅）
 
-建议拆分为：
+实际拆分结果：
 
 ```
 app/service/
-├── chat.py               # 保留：入口调度 + 幂等去重 + 状态判断
-└── chat_pipeline.py      # 抽出：AI 对话循环（query改写→检索→LLM→tool调用）
+├── chat.py                        # 保留：AI 对话循环 + 入口调度（291 行）
+└── youzan/
+    ├── event_handler.py           # 新增：YouzanEventHandler 分发器（51 行）
+    ├── event_trade.py             # 新增：交易事件处理（126 行）
+    └── event_item.py              # 新增：商品事件处理 + RAG 同步（215 行）
 ```
 
-### `functions.py`（工具定义 + dispatch 混杂）
+### `functions.py`（已拆分完成 ✅）
 
-建议拆分为：
+实际拆分结果：
 
 ```
 app/service/llm/
-├── function_defs.py   # FUNCTION_DEFINITIONS 常量列表
-└── function_dispatch.py  # dispatch_tool + 各工具处理函数
+├── function_defs.py          # 新增：FUNCTION_DEFINITIONS + 常量（82 行）
+├── function_tool_order.py    # 新增：get_order_info + get_logistics_info（143 行）
+├── function_tool_product.py  # 新增：get_product_info + search_knowledge（83 行）
+└── functions.py              # 保留：dispatch_tool + re-export 向后兼容（72 行）
 ```
 
 ## 🔧 检查方法（PowerShell）
@@ -105,3 +116,4 @@ $content = Get-Content "app/service/chat.py"
 - [ ] 原调用方 import 路径无需修改（或已做向后兼容 re-export）
 - [ ] 相关测试仍通过
 - [ ] `LOGBOOK.md` 已更新
+

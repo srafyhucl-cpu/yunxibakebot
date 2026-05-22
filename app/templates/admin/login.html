@@ -1,15 +1,20 @@
 {% extends "admin/base.html" %}
 {% block login_content %}
-<script>
-// 自动登录，跳过密码
-document.cookie = "admin_token=logged_in; path=/; max-age=86400";
-window.location.href = "/admin/chat-test";
-</script>
 <div class="login-page">
-  <div class="login-card" style="text-align:center">
+  <div class="login-card">
     <h1>🍰 芸熙烘焙</h1>
-    <p>AI 客服管理后台</p>
-    <p style="color:var(--text-muted);margin-top:20px;">正在跳转...</p>
+    <p style="color:var(--text-muted);margin-bottom:24px;">AI 客服管理后台</p>
+    {% if error %}
+    <div class="alert alert-danger" style="margin-bottom:16px;">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/admin/login">
+      <div class="form-group">
+        <label for="token">管理员密码</label>
+        <input type="password" id="token" name="token" class="form-control"
+               placeholder="请输入管理员密码" autofocus autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">登录</button>
+    </form>
   </div>
 </div>
 {% endblock %}

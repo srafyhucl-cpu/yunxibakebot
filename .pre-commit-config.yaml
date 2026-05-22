@@ -1,10 +1,16 @@
 repos:
   - repo: local
     hooks:
+      - id: detect-secrets
+        name: 密钥硬编码扫描
+        entry: detect-secrets-hook
+        args: [--baseline, .secrets.baseline]
+        language: system
+
       - id: check-project
         name: YunxiBakeBot Quality Gate
         entry: python scripts/check_project.py
         language: system
         pass_filenames: false
         always_run: true
-        description: 运行项目红线门禁与本地单元测试
+        description: 运行项目红线门禁与全套单元测试（pytest）

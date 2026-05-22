@@ -199,6 +199,7 @@ async def serve_verify_txt(filename: str):
     from fastapi.responses import FileResponse
     from fastapi.exceptions import HTTPException
 
+    filename = os.path.basename(filename)
     file_path = BASE_DIR / "static" / f"{filename}.txt"
     if os.path.exists(file_path):
         return FileResponse(str(file_path))

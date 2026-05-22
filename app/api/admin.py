@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.config import settings
 from app.logger import setup_logger
@@ -23,7 +23,11 @@ from app.service.transfer_manager import TransferManager
 
 # 模板引擎（独立初始化，避免 Starlette Jinja2Templates 兼容问题）
 BASE_DIR = Path(__file__).resolve().parent.parent
-_jinja_env = Environment(loader=FileSystemLoader(str(BASE_DIR / "templates")), cache_size=0)
+_jinja_env = Environment(
+    loader=FileSystemLoader(str(BASE_DIR / "templates")),
+    cache_size=0,
+    autoescape=select_autoescape(["html"]),
+)
 
 logger = setup_logger()
 
@@ -32,18 +36,17 @@ api_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
 def verify_token(authorization: str | None = Header(default=None)) -> None:
-    if not settings.ADMIN_API_TOKEN:
-        return
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="未授权")
     token = authorization.removeprefix("Bearer ")
-    if token != settings.ADMIN_API_TOKEN:
+    if not settings.ADMIN_API_TOKEN or token != settings.ADMIN_API_TOKEN:
         raise HTTPException(status_code=403, detail="Token 无效")
 
 
 # ── 页面鉴权 ──
-def check_login(request: Request) -> str | None:
-    return request.cookies.get("admin_token")
+def check_login(request: Request) -> bool:
+    token = request.cookies.get("admin_token")
+    return bool(token and settings.ADMIN_API_TOKEN and token == settings.ADMIN_API_TOKEN)
 
 
 def create_admin_router(
@@ -77,7 +80,7 @@ def create_admin_router(
             )
             return HTMLResponse(html)
         resp = RedirectResponse(url="/admin/dashboard", status_code=302)
-        resp.set_cookie(key="admin_token", value="logged_in", max_age=86400)
+        resp.set_cookie(key="admin_token", value=settings.ADMIN_API_TOKEN, max_age=86400, httponly=False, samesite="strict")
         return resp
 
     @router.get("/admin/logout")

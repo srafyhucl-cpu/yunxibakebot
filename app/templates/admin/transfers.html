@@ -114,8 +114,12 @@
 </div>
 
 <script>
+function _getCookie(name) {
+  var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : '';
+}
 var _sid = '';
-var _auth = {headers: {'Authorization': 'Bearer 100200'}};
+var _auth = {headers: {'Authorization': 'Bearer ' + _getCookie('admin_token')}};
 
 async function viewConv(sessionId) {
   _sid = sessionId;

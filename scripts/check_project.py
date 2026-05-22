@@ -45,7 +45,7 @@ RED_LINE_RULES: tuple[ScanRule, ...] = (
 )
 
 TEST_COMMANDS: tuple[tuple[str, ...], ...] = (
-    (sys.executable, "tests/scripts/test_validate_products.py"),
+    (sys.executable, "-m", "pytest", "-q", "--tb=short"),
 )
 
 

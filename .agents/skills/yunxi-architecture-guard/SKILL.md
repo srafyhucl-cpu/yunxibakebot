@@ -1,6 +1,8 @@
-______________________________________________________________________
-
-## name: yunxi-architecture-guard version: 1.0.0 description: "芸熙烘焙 AI 客服项目的架构边界约束检查。当修改 api/、service/、repository/、models/ 任意一层，或涉及数据库操作、Webhook 处理、跨层调用时使用。"
+---
+name: 芸熙架构守卫
+version: 1.0.0
+description: "芸熙烘焙 AI 客服项目的架构边界约束检查。当修改 api/、service/、repository/、models/ 任意一层，或涉及数据库操作、Webhook 处理、跨层调用时使用。"
+---
 
 # 芸熙烘焙架构守卫
 

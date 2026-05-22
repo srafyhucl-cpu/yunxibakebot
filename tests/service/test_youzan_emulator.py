@@ -12,17 +12,19 @@ def test_youzan_webhook_emulator_signature_verification() -> None:
     """测试有赞 Webhook 仿真数据生成与签名算法的正确性。"""
     buyer_id = "test_buyer_888"
     content_text = "帮我查一下订单发货了没"
-    secret = "test_webhook_token_secret"
+    client_id = "test_client_id"
+    client_secret = "test_webhook_token_secret"
 
     # 生成仿真数据
     raw_body, signature = YouzanMockEmulator.generate_webhook_message(
         buyer_id=buyer_id,
         content_text=content_text,
-        secret=secret,
+        client_id=client_id,
+        client_secret=client_secret,
     )
 
     # 验证有赞 Webhook 模块的验证逻辑是否能通过
-    assert verify_signature(secret, raw_body, signature) is True
+    assert verify_signature(client_id, client_secret, raw_body, signature) is True
 
 
 @pytest.mark.asyncio

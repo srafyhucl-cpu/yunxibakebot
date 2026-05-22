@@ -506,7 +506,11 @@ const UMPEngine = {
   }
 };
 
-var _auth = {headers: {'Authorization': 'Bearer 100200'}};
+function _getCookie(name) {
+  var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : '';
+}
+var _auth = {headers: {'Authorization': 'Bearer ' + _getCookie('admin_token')}};
 var _userScrolledUp = false;
 
 function _ls(k, v) {
@@ -770,7 +774,7 @@ async function send(msg) {
   try {
     var resp = await fetch('/api/v1/admin/chat-test', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer 100200'},
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _getCookie('admin_token')},
       body: JSON.stringify({content: text, user_id: _userId})
     });
     var data = await resp.json();

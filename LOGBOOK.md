@@ -4,6 +4,104 @@
 
 ______________________________________________________________________
 
+## [2026-05-22] - 有赞 Webhook 全链路修复：签名 + 路由 + 商品事件解析
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 修复有赞 Webhook 签名验证失败及商品事件 item_id 无法解析问题
+- **核心变更文件说明**:
+  - `app/service/youzan/webhook.py`（修改）:
+    - 签名算法从 HMAC-SHA256(secret, body) 改为有赞实际使用的 MD5(client_id + body + client_secret)
+    - `verify_signature` 函数参数更新为 `client_id`、`client_secret`
+  - `app/api/webhook.py`（修改）:
+    - 签名头从 `X-Youzan-Signature` 改为 `event-sign`
+    - `msg_id` 提取增加多级兜底：`payload.msg_id` → `payload.id` → `x-rontgen` traceId
+    - `event_type` 提取增加 `event-type` header 兜底（有赞无容器推送不含 body type 字段时使用）
+  - `app/service/youzan/event_handler.py`（新增，部署）:
+    - 有赞系统事件分发器，将 `handle_youzan_system_event` 路由到 `event_item` / `event_trade`
+  - `app/service/youzan/event_item.py`（新增，部署）:
+    - 商品事件处理器；修复 `item_id` 提取：有赞无容器推送将 item_id 嵌套于 `msg.data` 内层 JSON，需二次解析
+    - `ITEM_STATE` 事件用 `data.is_display` 字段覆盖 `is_active`，而非从 event_type 字符串推断
+  - `app/service/youzan/event_trade.py`（新增，部署）:
+    - 交易事件处理器，从旧版单体 `chat.py` 拆分
+  - `app/service/chat.py`（修改）:
+    - `handle_youzan_system_event` 从旧版内联实现重构为委托 `YouzanEventHandler`（服务器侧同步）
+  - `app/service/youzan/mock_emulator.py`（修改）:
+    - `generate_webhook_message` 签名算法同步更新为 MD5(client_id + body + client_secret)
+  - `tests/service/test_youzan_emulator.py`（修改）:
+    - 更新测试用例参数：`secret=` → `client_id=` / `client_secret=`
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - 生产服务器 `ITEM_STATE` 事件实测 ✅ 200 OK、item_id 正确提取、库存变更埋点写入成功
+  - `tests/service/test_youzan_emulator.py` 签名验证逻辑已同步更新
+- **潜伏风险/遗留未决事项说明**:
+  - 有赞客服消息（B 轨）尚未在生产环境实测，仅代码逻辑对齐
+
+______________________________________________________________________
+
+## [2026-05-22] - 驾驭工程补强：Skill 体系 + 测试基础设施 + pre-commit 门禁
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 项目驾驭工程全面评估后，执行三项补强任务
+- **核心变更文件说明**:
+  - `docs/specs/.gitkeep`（新增）:
+    - 创建设计文档存储目录，供 `/design` 工作流的 brainstorming 产物落地
+  - `tests/conftest.py`（新增）:
+    - 共享内存 SQLite 夹具，调用 `init_db(":memory:")` 含动态迁移，供全部测试层复用
+  - `pytest.ini`（更新）:
+    - 新增 `asyncio_mode = auto`，新测试无需逐个标注 `@pytest.mark.asyncio`
+  - `tests/repository/test_session_repo.py`（新增，7 个测试）:
+    - 覆盖 `SessionRepo` 幂等创建、状态流转、关闭后重建、活跃会话过滤
+  - `tests/repository/test_youzan_repo.py`（新增，10 个测试）:
+    - 覆盖 `YouzanProductRepo` / `YouzanOrderRepo` CRUD 与时序防线（旧推送不覆盖新数据）
+  - `tests/repository/test_knowledge_repo.py`（新增，10 个测试）:
+    - 覆盖关键词搜索、分类查询、upsert 时序防线、软下架、混合 key 路由
+  - `.pre-commit-config.yaml`（更新）:
+    - 新增 `detect-secrets` hook（密钥硬编码扫描）
+  - `scripts/check_project.py`（更新）:
+    - `TEST_COMMANDS` 从单文件脚本升级为 `pytest -q --tb=short`，覆盖全套 80 个测试
+  - `.secrets.baseline`（新增）:
+    - detect-secrets 扫描基线，UTF-8 编码（PowerShell 重定向坑已规避）
+  - `.windsurf/workflows/commit.md`（更新）:
+    - 新增步骤 4.6：Windsurf 系统级记忆核查，要求架构变更后同步更新项目状态记忆
+  - `.windsurf/workflows/` 多个工作流（更新）:
+    - frontmatter 格式修复、新增 Skill 联动入口（check/review/commit/design/sync-skills/update-knowledge）
+  - `.agents/SKILL_AUDIT.md`（更新）:
+    - 全量 Skill 审计，明确所有 Skill 调用路径，无删除，全部保留并激活
+- **测试结果**: `pytest -q` → 80 passed（全部通过）
+- **pre-commit 验证**: `pre-commit run --all-files` → 2 hooks Passed
+- **潜伏风险/遗留未决事项**:
+  - pre-commit Quality Gate 含全套 pytest（~37s），提交速度较慢，后续可按需拆分快/慢测试集
+
+______________________________________________________________________
+
+## [2026-05-22] - 安全审计无争议漏洞全量修复 + 安全红线规则收敛
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 修复 V2.0 安全审计报告中全部无争议漏洞（C-01/02/03/04/05/07 + H-06），并将安全规则收敛固化至 CLAUDE.md
+- **核心变更文件说明**:
+  - `app/templates/admin/login.html` (C-01):
+    - 删除 JS 自动登录脚本，改为真实密码表单，彻底关闭零鉴权后门
+  - `app/api/admin.py` (C-02/C-03/C-07):
+    - `check_login()`: 改为 cookie 值与 `ADMIN_API_TOKEN` 严格比对
+    - `verify_token()`: 删除空 Token 豁免逻辑（`if not token: return`）
+    - `login_submit()`: Cookie 写入真实 Token 值（而非 `"logged_in"`）
+    - Jinja2 `Environment` 增加 `autoescape=select_autoescape(["html"])`，封堵 XSS
+  - `app/templates/admin/chat_test.html` + `transfers.html` (C-05):
+    - 增加 `_getCookie()` 辅助函数，将 3 处硬编码 `Bearer 100200` 替换为动态 cookie 读取
+  - `app/main.py` (C-04):
+    - `serve_verify_txt()` 增加 `os.path.basename()` 清洗，防止路径穿越读取任意文件
+  - `app/service/chat.py` + `app/service/llm/functions.py` (H-06):
+    - 5 处 `datetime.datetime.now()` 统一替换为 `datetime.datetime.now(datetime.timezone.utc)`，消除 8h 时区偏差
+  - `CLAUDE.md`:
+    - 🔒 安全约束章节新增 7 条安全红线（认证/路径/模板/时区），固化防止死灰复燃
+- **附带修复**:
+  - `admin_config.py` 的商品管理页（主推款/商品列表）因 login 历史写 `"logged_in"` 导致 `_check_login()` 永远失败（界面始终重定向），本次修复 `login_submit()` 后自动恢复正常
+- **尚待讨论（暂不修复）**:
+  - C-06 XXE: CPython 3.8+ ElementTree 已内置外部实体拦截，实际危险较低
+  - H-02 企微 Webhook 超时：涉及后台任务架构，待讨论 `asyncio.create_task` 策略
+
+______________________________________________________________________
+
 ## [2026-05-22] - 完成极客级全量代码安全审计 V2.0（Claude Opus 4.6 深度推理）
 
 - **操作人**: AI (Antigravity - Claude Opus 4.6 Thinking)
