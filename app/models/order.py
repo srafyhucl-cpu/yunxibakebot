@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -24,3 +24,31 @@ class Order:
     remark: str = ""
     created_at: str = ""
     updated_at: str = ""
+
+
+@dataclass
+class YouzanOrderData:
+    """有赞交易订单 Upsert 数据容器，封装 youzan_orders 全量可写字段。"""
+    order_no: str
+    buyer_id: str
+    status: str
+    amount_fen: int
+    product_titles: str
+    total_quantity: int
+    created_at: str
+    updated_at: str
+    logistics_no: str = ""
+    logistics_status: str = ""
+    pay_time: str = ""
+    consign_time: str = ""
+    pay_type_str: str = ""
+    express_type: int = 0
+    refund_state: int = 0
+    post_fee_fen: int = 0
+    discount_fen: int = 0
+    delivery_province: str = ""
+    delivery_city: str = ""
+    delivery_district: str = ""
+    delivery_time: str = ""
+    outer_user_id: str = ""
+    order_items_json: str = field(default="[]")

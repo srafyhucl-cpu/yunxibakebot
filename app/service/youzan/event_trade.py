@@ -11,6 +11,7 @@ import datetime
 import json
 
 from app.logger import setup_logger
+from app.models.order import YouzanOrderData
 
 logger = setup_logger()
 
@@ -58,20 +59,38 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
         pay_info = foi.get("pay_info", {})
         buyer_info = foi.get("buyer_info", {})
 
+        addr_info = foi.get("address_info", {})
         status = order_info.get("status", "WAIT_BUYER_PAY")
         payment_fen = int(float(pay_info.get("payment", 0)) * 100)
+        total_fee = float(pay_info.get("total_fee", 0))
+        post_fee = float(pay_info.get("post_fee", 0))
+        post_fee_fen = int(post_fee * 100)
+        discount_fen = max(0, int((total_fee + post_fee - float(pay_info.get("payment", 0))) * 100))
         buyer_id = str(buyer_info.get("buyer_id", "") or buyer_info.get("open_id", ""))
+        outer_user_id = str(buyer_info.get("outer_user_id", ""))
 
         order_items = foi.get("orders", [])
         titles_list = []
         total_qty = 0
+        items_detail = []
         for item in order_items:
-            titles_list.append(f"{item.get('title', item.get('goods_title', '商品'))} x {item.get('num', 1)}")
-            total_qty += item.get("num", 1)
+            title = item.get("title", item.get("goods_title", "商品"))
+            num = item.get("num", 1)
+            titles_list.append(f"{title} x {num}")
+            total_qty += num
+            items_detail.append({
+                "oid": item.get("oid", ""),
+                "item_id": item.get("item_id", 0),
+                "alias": item.get("alias", ""),
+                "title": title,
+                "num": num,
+                "price": item.get("price", "0"),
+                "sku_properties_name": item.get("sku_properties_name", ""),
+                "buyer_messages": item.get("buyer_messages", ""),
+            })
         product_titles = ", ".join(titles_list)
-        created = order_info.get("created", "")
 
-        await order_repo.upsert_order(
+        await order_repo.upsert_order(YouzanOrderData(
             order_no=tid,
             buyer_id=buyer_id,
             status=status,
@@ -80,9 +99,22 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
             logistics_status=local_order["logistics_status"] if local_order else "",
             product_titles=product_titles,
             total_quantity=total_qty,
-            created_at=created,
+            pay_time=order_info.get("pay_time", ""),
+            consign_time=order_info.get("consign_time", ""),
+            pay_type_str=order_info.get("pay_type_str", ""),
+            express_type=int(order_info.get("express_type", 0)),
+            refund_state=int(order_info.get("refund_state", 0)),
+            post_fee_fen=post_fee_fen,
+            discount_fen=discount_fen,
+            delivery_province=addr_info.get("delivery_province", ""),
+            delivery_city=addr_info.get("delivery_city", ""),
+            delivery_district=addr_info.get("delivery_district", ""),
+            delivery_time=addr_info.get("delivery_start_time", ""),
+            outer_user_id=outer_user_id,
+            order_items_json=json.dumps(items_detail, ensure_ascii=False),
+            created_at=order_info.get("created", ""),
             updated_at=updated_at_str,
-        )
+        ))
 
         if old_status != status:
             await analytics_repo.add_event(

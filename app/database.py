@@ -124,6 +124,19 @@ SCHEMA_STATEMENTS: list[str] = [
         logistics_status TEXT DEFAULT '',
         product_titles TEXT NOT NULL,
         total_quantity INTEGER NOT NULL,
+        pay_time TEXT DEFAULT '',
+        consign_time TEXT DEFAULT '',
+        pay_type_str TEXT DEFAULT '',
+        express_type INTEGER DEFAULT 0,
+        refund_state INTEGER DEFAULT 0,
+        post_fee_fen INTEGER DEFAULT 0,
+        discount_fen INTEGER DEFAULT 0,
+        delivery_province TEXT DEFAULT '',
+        delivery_city TEXT DEFAULT '',
+        delivery_district TEXT DEFAULT '',
+        delivery_time TEXT DEFAULT '',
+        outer_user_id TEXT DEFAULT '',
+        order_items_json TEXT DEFAULT '[]',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""",
@@ -198,6 +211,36 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 item_props_json 列")
     except Exception as exc:
         logger.warning("动态校准 youzan_products 表字段发生异常：%s", exc)
+
+    # 动态微创迁移：为现存 youzan_orders 表补充扩展字段
+    _YO_EXTRA_COLUMNS: list[tuple[str, str]] = [
+        ("pay_time", "TEXT DEFAULT ''"),
+        ("consign_time", "TEXT DEFAULT ''"),
+        ("pay_type_str", "TEXT DEFAULT ''"),
+        ("express_type", "INTEGER DEFAULT 0"),
+        ("refund_state", "INTEGER DEFAULT 0"),
+        ("post_fee_fen", "INTEGER DEFAULT 0"),
+        ("discount_fen", "INTEGER DEFAULT 0"),
+        ("delivery_province", "TEXT DEFAULT ''"),
+        ("delivery_city", "TEXT DEFAULT ''"),
+        ("delivery_district", "TEXT DEFAULT ''"),
+        ("delivery_time", "TEXT DEFAULT ''"),
+        ("outer_user_id", "TEXT DEFAULT ''"),
+        ("order_items_json", "TEXT DEFAULT '[]'"),
+    ]
+    try:
+        async with conn.execute("PRAGMA table_info(youzan_orders)") as cursor:
+            yo_cols = {row["name"] for row in await cursor.fetchall()}
+        added: list[str] = []
+        for col_name, col_def in _YO_EXTRA_COLUMNS:
+            if col_name not in yo_cols:
+                await conn.execute(f"ALTER TABLE youzan_orders ADD COLUMN {col_name} {col_def}")
+                added.append(col_name)
+        if added:
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：youzan_orders 新增列 %s", added)
+    except Exception as exc:
+        logger.warning("动态校准 youzan_orders 表字段发生异常：%s", exc)
 
     logger.info("Database initialized at %s", db_path)
     return conn

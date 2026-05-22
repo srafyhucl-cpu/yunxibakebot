@@ -10,6 +10,7 @@ import json
 from typing import TYPE_CHECKING
 
 from app.logger import setup_logger
+from app.models.order import YouzanOrderData
 
 if TYPE_CHECKING:
     from app.service.knowledge_retriever import KnowledgeRetriever
@@ -61,22 +62,40 @@ async def get_order_info(
         order_info = foi.get("order_info", {})
         pay_info = foi.get("pay_info", {})
         buyer_info = foi.get("buyer_info", {})
+        addr_info = foi.get("address_info", {})
 
         status = order_info.get("status", "WAIT_BUYER_PAY")
         payment_fen = int(float(pay_info.get("payment", 0)) * 100)
+        total_fee = float(pay_info.get("total_fee", 0))
+        post_fee = float(pay_info.get("post_fee", 0))
+        post_fee_fen = int(post_fee * 100)
+        discount_fen = max(0, int((total_fee + post_fee - float(pay_info.get("payment", 0))) * 100))
         buyer_id = str(buyer_info.get("buyer_id", "") or buyer_info.get("open_id", ""))
+        outer_user_id = str(buyer_info.get("outer_user_id", ""))
 
         order_items = foi.get("orders", [])
         titles_list = []
         total_qty = 0
+        items_detail = []
         for item in order_items:
-            titles_list.append(f"{item.get('title', item.get('goods_title', '商品'))} x {item.get('num', 1)}")
-            total_qty += item.get("num", 1)
+            title = item.get("title", item.get("goods_title", "商品"))
+            num = item.get("num", 1)
+            titles_list.append(f"{title} x {num}")
+            total_qty += num
+            items_detail.append({
+                "oid": item.get("oid", ""),
+                "item_id": item.get("item_id", 0),
+                "alias": item.get("alias", ""),
+                "title": title,
+                "num": num,
+                "price": item.get("price", "0"),
+                "sku_properties_name": item.get("sku_properties_name", ""),
+                "buyer_messages": item.get("buyer_messages", ""),
+            })
         product_titles = ", ".join(titles_list)
-        created = order_info.get("created", "")
         updated = order_info.get("update_time", "") or order_info.get("created", "")
 
-        await order_repo.upsert_order(
+        await order_repo.upsert_order(YouzanOrderData(
             order_no=order_no,
             buyer_id=buyer_id,
             status=status,
@@ -85,22 +104,38 @@ async def get_order_info(
             logistics_status=local_order["logistics_status"] if local_order else "",
             product_titles=product_titles,
             total_quantity=total_qty,
-            created_at=created,
+            pay_time=order_info.get("pay_time", ""),
+            consign_time=order_info.get("consign_time", ""),
+            pay_type_str=order_info.get("pay_type_str", ""),
+            express_type=int(order_info.get("express_type", 0)),
+            refund_state=int(order_info.get("refund_state", 0)),
+            post_fee_fen=post_fee_fen,
+            discount_fen=discount_fen,
+            delivery_province=addr_info.get("delivery_province", ""),
+            delivery_city=addr_info.get("delivery_city", ""),
+            delivery_district=addr_info.get("delivery_district", ""),
+            delivery_time=addr_info.get("delivery_start_time", ""),
+            outer_user_id=outer_user_id,
+            order_items_json=json.dumps(items_detail, ensure_ascii=False),
+            created_at=order_info.get("created", ""),
             updated_at=updated,
-        )
+        ))
 
-        address_info = foi.get("address_info", {})
         return json.dumps({
             "order_no": order_no,
             "status": status,
+            "status_str": order_info.get("status_str", ""),
             "amount_yuan": payment_fen / 100.0,
+            "post_fee_yuan": post_fee,
+            "discount_yuan": discount_fen / 100.0,
             "product_titles": product_titles,
-            "receiver_name": address_info.get("receiver_name", buyer_id),
-            "receiver_mobile": address_info.get("receiver_tel", ""),
-            "address": (
-                address_info.get("state", "") + address_info.get("city", "")
-                + address_info.get("county", "") + address_info.get("address", "")
-            ),
+            "pay_time": order_info.get("pay_time", ""),
+            "pay_type": order_info.get("pay_type_str", ""),
+            "delivery_province": addr_info.get("delivery_province", ""),
+            "delivery_city": addr_info.get("delivery_city", ""),
+            "delivery_district": addr_info.get("delivery_district", ""),
+            "delivery_time": addr_info.get("delivery_start_time", ""),
+            "order_items": items_detail,
             "source": "youzan_live_api",
         }, ensure_ascii=False)
 
@@ -144,7 +179,7 @@ async def get_logistics_info(
         order_repo = YouzanOrderRepo(db)
         local_order = await order_repo.get_by_order_no(order_no)
         if local_order:
-            await order_repo.upsert_order(
+            await order_repo.upsert_order(YouzanOrderData(
                 order_no=local_order["order_no"],
                 buyer_id=local_order["buyer_id"],
                 status=local_order["status"],
@@ -153,9 +188,22 @@ async def get_logistics_info(
                 logistics_status=step_descs[-1] if step_descs else "暂无轨迹",
                 product_titles=local_order["product_titles"],
                 total_quantity=local_order["total_quantity"],
+                pay_time=local_order.get("pay_time", ""),
+                consign_time=local_order.get("consign_time", ""),
+                pay_type_str=local_order.get("pay_type_str", ""),
+                express_type=local_order.get("express_type", 0),
+                refund_state=local_order.get("refund_state", 0),
+                post_fee_fen=local_order.get("post_fee_fen", 0),
+                discount_fen=local_order.get("discount_fen", 0),
+                delivery_province=local_order.get("delivery_province", ""),
+                delivery_city=local_order.get("delivery_city", ""),
+                delivery_district=local_order.get("delivery_district", ""),
+                delivery_time=local_order.get("delivery_time", ""),
+                outer_user_id=local_order.get("outer_user_id", ""),
+                order_items_json=local_order.get("order_items_json", "[]"),
                 created_at=local_order["created_at"],
                 updated_at=local_order["updated_at"],
-            )
+            ))
 
         return json.dumps({
             "order_no": order_no,
