@@ -10,7 +10,6 @@ import asyncio
 import json
 import sys
 import time
-import hashlib
 from pathlib import Path
 
 import aiosqlite
@@ -80,6 +79,65 @@ async def _reset_timestamps(db_path: str, item_id: int) -> None:
             ("2000-01-01 00:00:00", str(item_id)),
         )
         await db.commit()
+
+
+async def _snapshot_product(db_path: str, item_id: int) -> dict | None:
+    """读取商品当前快照（重置前后均可复用）。"""
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT item_id, title, price_fen, stock, is_active, updated_at"
+            " FROM youzan_products WHERE item_id = ?",
+            (item_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def _fetch_assistant_reply(db_path: str, buyer_id: str) -> str | None:
+    """查询 buyer_id 最新会话中最后一条 assistant 消息内容。"""
+    async with aiosqlite.connect(db_path) as db:
+        async with db.execute(
+            "SELECT id FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+            (buyer_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            session_id = row[0]
+        async with db.execute(
+            "SELECT content FROM messages"
+            " WHERE session_id = ? AND role = 'assistant'"
+            " ORDER BY created_at DESC LIMIT 1",
+            (session_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+
+async def _poll_assistant_reply(db_path: str, buyer_id: str, timeout: int = 20) -> str | None:
+    """轮询直到 buyer_id 对应会话中出现 assistant 回复（LLM 生成回复有延迟）。"""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        reply = await _fetch_assistant_reply(db_path, buyer_id)
+        if reply and len(reply) > 20:
+            return reply
+        await asyncio.sleep(1)
+    return None
+
+
+def _print_diff_table(before: dict | None, after: dict | None) -> None:
+    """打印商品字段变更前后对比表格。"""
+    if not before or not after:
+        return
+    print()
+    print(f"              {'字段':<18} {'变更前':<28} {'变更后'}")
+    print(f"              {'-' * 70}")
+    for key in ("title", "price_fen", "stock", "is_active", "updated_at"):
+        bv = str(before.get(key, ""))
+        av = str(after.get(key, ""))
+        marker = " ←" if bv != av else ""
+        print(f"              {key:<18} {bv:<28} {av}{marker}")
 
 
 async def _poll_product_updated(db_path: str, item_id: int) -> dict | None:
@@ -164,6 +222,11 @@ async def run_phase_c() -> bool:
         return False
     _info(f"item_id={item_id}")
 
+    _step("采集重置前快照")
+    snapshot_before = await _snapshot_product(db_path, item_id)
+    _info(f"title={snapshot_before['title'] if snapshot_before else 'N/A'}")
+    _info(f"price_fen={snapshot_before['price_fen'] if snapshot_before else 'N/A'}  stock={snapshot_before['stock'] if snapshot_before else 'N/A'}")
+
     _step("重置 youzan_products + knowledge_base updated_at 到 2000 年")
     await _reset_timestamps(db_path, item_id)
     _info(f"item_id={item_id} 两张表 updated_at 已降至 2000-01-01")
@@ -204,21 +267,17 @@ async def run_phase_c() -> bool:
 
     updated_row = await _poll_product_updated(db_path, item_id)
 
-    # ── 断言 youzan_products ──────────────────────────────────────────────────
+    # ── Run 1 断言 ─────────────────────────────────────────────────────────────
     print()
     _step("断言 youzan_products 回写")
     prod_ok = updated_row is not None
     if prod_ok:
-        _ok("youzan_products 有记录（updated_at 超过哨兵，证明本次 Function Calling 写入成功）")
-        print(f"\n              {'字段':<22} {'值'}")
-        print(f"              {'-' * 55}")
-        for k, v in updated_row.items():
-            print(f"              {k:<22} {v}")
+        _ok("youzan_products 已写入（updated_at 超过哨兵，证明本次 Function Calling 触发 API 刷新）")
+        _print_diff_table(snapshot_before, updated_row)
     else:
         _fail(f"youzan_products 未在 {WAIT_MAX_SECONDS}s 内更新")
         return False
 
-    # ── 断言 knowledge_base ───────────────────────────────────────────────────
     _step("断言 knowledge_base RAG 回写")
     kb = await _fetch_knowledge(db_path, item_id)
     kb_ok = kb is not None and kb["updated_at"] > _SENTINEL
@@ -229,7 +288,6 @@ async def run_phase_c() -> bool:
     else:
         _fail("knowledge_base 无对应条目")
 
-    # ── 断言向量索引 ──────────────────────────────────────────────────────────
     _step("断言向量索引磁盘刷新（embeddings.json mtime + doc_keys）")
     emb_mtime_r1, emb_keys_r1 = _snapshot_embeddings()
     emb_ok = emb_mtime_r1 > test_start_ts
@@ -243,7 +301,55 @@ async def run_phase_c() -> bool:
     else:
         _fail(f"doc_keys 未找到 item_id={item_id}")
 
-    passed = prod_ok and kb_ok and emb_ok and key_ok
+    _step("断言 LLM 实际回复（轮询 assistant 消息，最长 20s）")
+    reply = await _poll_assistant_reply(db_path, buyer_id, timeout=20)
+    reply_ok = bool(reply and len(reply) > 20)
+    if reply_ok:
+        _ok("assistant 已回复", f"长度 {len(reply)} 字")
+        print(f"\n              ── 回复内容前 200 字 ──")
+        for line in reply[:200].splitlines():
+            print(f"              {line}")
+    else:
+        _fail("assistant 回复为空或过短（可能意图识别错误/兜底失败）",
+              f"reply={repr(reply)}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    print(f"\n  ── Run 2（重复推送同 item_id，期望 doc_keys 幂等不增）──")
+    # ══════════════════════════════════════════════════════════════════════════
+
+    _step("构造 Run 2 消息（新 buyer_id，同 item_id）")
+    buyer_id_r2 = f"test_phase_c_r2_{int(time.monotonic() * 1000)}"
+    msg_id_r2 = f"{buyer_id_r2}_{int(time.time() * 1000)}"
+    raw_body_r2, sig_r2 = _build_chat_webhook(buyer_id_r2, msg_id_r2, content)
+    _info(f"buyer_id_r2={buyer_id_r2}")
+
+    t0 = time.monotonic()
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp2 = await client.post(
+            f"{BASE_URL}{WEBHOOK_PATH}",
+            content=raw_body_r2,
+            headers={"Content-Type": "application/json", "event-sign": sig_r2},
+        )
+    if resp2.status_code == HTTP_OK:
+        _ok(f"Run 2 Webhook 接收返回 200（往返 {time.monotonic() - t0:.2f}s）")
+    else:
+        _fail(f"Run 2 Webhook 返回 {resp2.status_code}")
+
+    _step(f"等待 Run 2 后台处理链路（{WAIT_MAX_SECONDS}s）")
+    await _poll_product_updated(db_path, item_id)
+
+    _step("断言幂等：doc_keys 数量无新增（重复推送原地替换而非追加）")
+    _, emb_keys_r2 = _snapshot_embeddings()
+    idempotent = len(emb_keys_r2) == len(emb_keys_r1)
+    if idempotent:
+        _ok(
+            f"doc_keys 数量未变（{len(emb_keys_r1)} → {len(emb_keys_r2)}）",
+            "重复推送同 item_id 是原地替换而非追加，幂等性通过"
+        )
+    else:
+        _fail(f"doc_keys 意外新增（{len(emb_keys_r1)} → {len(emb_keys_r2)}），幂等防线失效")
+
+    passed = prod_ok and kb_ok and emb_ok and key_ok and reply_ok and idempotent
     return passed
 
 
