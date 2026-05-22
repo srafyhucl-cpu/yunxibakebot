@@ -29,6 +29,8 @@ from app.service.llm.query_rewriter import rewrite_query
 from app.service.llm.soothe import apply_soothe, needs_soothe
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
+from app.repository.config_repo import ConfigRepo
+from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_handler import YouzanEventHandler
 
 logger = setup_logger()
@@ -59,9 +61,11 @@ class ChatService:
         self._message_repo = message_repo
         self._transfer_mgr = TransferManager(transfer_repo)
         self._knowledge = knowledge_retriever
+        self._youzan_client = YouzanClient(config_repo=ConfigRepo(session_repo._db))
         self._youzan_events = YouzanEventHandler(
             db=session_repo._db,
             knowledge_retriever=knowledge_retriever,
+            youzan_client=self._youzan_client,
         )
 
     async def handle_message_and_reply_youzan(self, buyer_id: str, content: str, msg_id: str) -> None:
@@ -73,11 +77,7 @@ class ChatService:
             channel_msg_id=msg_id,
         )
         if reply:
-            from app.repository.config_repo import ConfigRepo
-            from app.service.youzan.client import YouzanClient
-            yz_client = YouzanClient(config_repo=ConfigRepo(self._session_repo._db))
-            await yz_client.send_reply(buyer_open_id=buyer_id, content=reply)
-            await yz_client.close()
+            await self._youzan_client.send_reply(buyer_open_id=buyer_id, content=reply)
 
     async def handle_message(
         self,

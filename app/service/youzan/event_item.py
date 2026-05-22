@@ -125,13 +125,14 @@ async def _sync_rag_knowledge(
 
 
 async def handle_item_event(
-    db, knowledge_retriever, event_type: str, msg_obj: dict, updated_at_str: str
+    db, youzan_client, knowledge_retriever, event_type: str, msg_obj: dict, updated_at_str: str
 ) -> None:
     """
     处理有赞商品系统事件。
 
     参数：
         db: aiosqlite 数据库连接
+        youzan_client: 共享 YouzanClient 单例（避免并发刷新 token 竞态）
         knowledge_retriever: 知识检索器（用于 RAG 向量同步）
         event_type: 事件类型（如 item_ItemAdd）
         msg_obj: 有赞 Webhook msg 字段解码后的字典
@@ -139,8 +140,6 @@ async def handle_item_event(
     """
     from app.repository.youzan_repo import YouzanProductRepo
     from app.repository.analytics_repo import AnalyticsRepo
-    from app.repository.config_repo import ConfigRepo
-    from app.service.youzan.client import YouzanClient
 
     item_id = msg_obj.get("item_id", 0)
     _inner_data: dict = {}
@@ -167,9 +166,7 @@ async def handle_item_event(
             old_price = local_product["price_fen"]
             old_stock = local_product["stock"]
 
-        yz_client = YouzanClient(config_repo=ConfigRepo(db))
-        raw_product = await yz_client.get_product(item_id)
-        await yz_client.close()
+        raw_product = await youzan_client.get_product(item_id)
 
         outer_data = raw_product.get("data") or raw_product.get("response") if isinstance(raw_product, dict) else None
         if not isinstance(outer_data, dict) or "item" not in outer_data:

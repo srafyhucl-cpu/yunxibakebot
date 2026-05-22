@@ -9,6 +9,7 @@ import json
 import urllib.parse
 
 from app.logger import setup_logger
+from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_item import handle_item_event
 from app.service.youzan.event_trade import handle_trade_event
 
@@ -18,9 +19,10 @@ logger = setup_logger()
 class YouzanEventHandler:
     """有赞系统事件处理器（商品 + 交易 Webhook 双轨合流分发器）。"""
 
-    def __init__(self, db, knowledge_retriever) -> None:
+    def __init__(self, db, knowledge_retriever, youzan_client: YouzanClient) -> None:
         self._db = db
         self._knowledge = knowledge_retriever
+        self._youzan_client = youzan_client
 
     async def handle_system_event(self, payload: dict, updated_at_str: str, msg_id: str) -> None:
         """
@@ -43,6 +45,7 @@ class YouzanEventHandler:
         if event_type.startswith("trade_"):
             await handle_trade_event(
                 db=self._db,
+                youzan_client=self._youzan_client,
                 event_type=event_type,
                 msg_obj=msg_obj,
                 updated_at_str=updated_at_str,
@@ -50,6 +53,7 @@ class YouzanEventHandler:
         elif event_type.startswith("item_") or event_type == "ITEM_STATE":
             await handle_item_event(
                 db=self._db,
+                youzan_client=self._youzan_client,
                 knowledge_retriever=self._knowledge,
                 event_type=event_type,
                 msg_obj=msg_obj,

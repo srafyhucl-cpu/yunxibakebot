@@ -15,20 +15,19 @@ from app.logger import setup_logger
 logger = setup_logger()
 
 
-async def handle_trade_event(db, event_type: str, msg_obj: dict, updated_at_str: str) -> None:
+async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, updated_at_str: str) -> None:
     """
     处理有赞交易系统事件。
 
     参数：
         db: aiosqlite 数据库连接
+        youzan_client: 共享 YouzanClient 单例（避免并发刷新 token 竞态）
         event_type: 事件类型（如 trade_TradeBuyerPay）
         msg_obj: 有赞 Webhook msg 字段解码后的字典
         updated_at_str: 事件时间字符串
     """
     from app.repository.youzan_repo import YouzanOrderRepo, YouzanProductRepo
     from app.repository.analytics_repo import AnalyticsRepo
-    from app.repository.config_repo import ConfigRepo
-    from app.service.youzan.client import YouzanClient
 
     tid = msg_obj.get("tid", "")
     if not tid:
@@ -47,9 +46,7 @@ async def handle_trade_event(db, event_type: str, msg_obj: dict, updated_at_str:
         if local_order:
             old_status = local_order["status"]
 
-        yz_client = YouzanClient(config_repo=ConfigRepo(db))
-        raw_order = await yz_client.get_order(tid)
-        await yz_client.close()
+        raw_order = await youzan_client.get_order(tid)
 
         outer_data = raw_order.get("data") or raw_order.get("response") if isinstance(raw_order, dict) else None
         if not isinstance(outer_data, dict) or "trade" not in outer_data:
