@@ -53,7 +53,7 @@ async def _refresh_product_live(
         desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
         spec_names, prop_names, ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
         tags_str = ", ".join(["\u5728\u552e"] + list(set(spec_names)) + list(set(prop_names)) + list(set(ingredients)))
-        updated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        updated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         await YouzanProductRepo(db).upsert_product(
             item_id=item_id, title=title, alias=alias, price_fen=price_fen,
@@ -131,7 +131,7 @@ async def get_product_info(
                                 event_source="ai_bot",
                                 ref_id=alias,
                                 meta_data=json.dumps({"title": entry.title}, ensure_ascii=False),
-                                created_at=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                                created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             )
                             logger.info("已成功记录 AI 推荐埋点触点 (1小时防刷校验通过): session=%s, alias=%s", session.id, alias)
                         else:

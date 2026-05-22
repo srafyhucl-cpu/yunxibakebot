@@ -5,7 +5,7 @@
 """
 
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime
 
 import aiosqlite
 
@@ -50,7 +50,7 @@ class SessionRepo:
         existing = await self.get_active(data.user_id, data.channel)
         if existing:
             return existing
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         session_id = data.id or str(uuid4())
         await self._db.execute(
             "INSERT INTO sessions (id, channel, user_id, staff_id, created_at, updated_at) "
@@ -69,7 +69,7 @@ class SessionRepo:
 
     async def update_status(self, session_id: str, status: SessionStatus) -> None:
         """更新会话状态并记录时间戳。"""
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         val = status.value
         await self._db.execute(
             "UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?",
@@ -97,7 +97,7 @@ class SessionRepo:
 
     async def update_extra(self, session_id: str, extra_info: str) -> None:
         """更新会话的 extra_info 字段。"""
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await self._db.execute(
             "UPDATE sessions SET extra_info = ?, updated_at = ? WHERE id = ?",
             (extra_info, now, session_id),

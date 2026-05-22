@@ -4,7 +4,7 @@
 根据当前时间、知识库内容动态生成 System Prompt。
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.models.knowledge import KnowledgeEntry
 
@@ -41,7 +41,7 @@ SYSTEM_PROMPT_TPL = """你是芸熙烘焙的专属AI客服，性格温柔、体�
 
 
 def build_system_prompt(knowledge_entries: list[KnowledgeEntry] | None = None) -> str:
-    now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     if knowledge_entries:
         knowledge_text = "\n".join(f"- [{e.category}] {e.title}: {e.content}" for e in knowledge_entries)

@@ -5,7 +5,7 @@
 """
 
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime
 
 import aiosqlite
 
@@ -37,7 +37,7 @@ class MessageRepo:
     async def save(self, message: Message) -> None:
         """保存一条消息到数据库。"""
         msg_id = message.id or str(uuid4())
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await self._db.execute(
             "INSERT INTO messages "
             "(id, session_id, role, content, channel_msg_id, "

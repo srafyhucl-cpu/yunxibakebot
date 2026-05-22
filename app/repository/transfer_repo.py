@@ -5,7 +5,7 @@
 """
 
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime
 
 import aiosqlite
 
@@ -22,7 +22,7 @@ class TransferRepo:
                      reason: str = "", summary: str = "") -> HumanTransfer:
         """创建转人工工单，状态初始为 pending。"""
         transfer_id = str(uuid4())
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await self._db.execute(
             "INSERT INTO human_transfers "
             "(id, session_id, user_id, reason, conversation_summary, created_at) "
@@ -47,7 +47,7 @@ class TransferRepo:
     async def update_status(self, transfer_id: str, status: TransferStatus,
                             staff_id: str = "") -> None:
         """更新工单状态，接单时记录客服 ID 和接单时间。"""
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if status == TransferStatus.ACCEPTED:
             await self._db.execute(
                 "UPDATE human_transfers SET status = ?, staff_id = ?, "

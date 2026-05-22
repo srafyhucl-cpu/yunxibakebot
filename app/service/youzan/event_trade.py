@@ -124,7 +124,7 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
                 event_source="webhook_youzan",
                 ref_id=tid,
                 meta_data=json.dumps({"old_status": old_status, "new_status": status}, ensure_ascii=False),
-                created_at=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             )
             logger.info("已成功记录订单履约时效埋点: tid=%s, old=%s, new=%s", tid, old_status, status)
 
@@ -158,7 +158,7 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
                             "amount_fen": int(float(item.get("payment", 0)) * 100),
                             "lookback": "24_hours",
                         }, ensure_ascii=False),
-                        created_at=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                        created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     )
                     logger.info(
                         "🎉 完美！AI 导购业绩归因匹配成功！已为 Dashboard 记账绩效: session_id=%s, buyer_id=%s, gmv_fen=%s",

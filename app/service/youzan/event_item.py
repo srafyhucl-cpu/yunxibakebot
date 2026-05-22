@@ -209,7 +209,7 @@ async def handle_item_event(
         content_md = _build_rag_content(title, alias, status_lbl, skus, item_props, price_fen, stock, desc_clean, tags_str)
         await _sync_rag_knowledge(db, knowledge_retriever, item_id, title, content_md, tags_str, updated_at_str, is_active)
 
-        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if old_price != -1 and old_price != price_fen:
             await analytics_repo.add_event(
                 session_id=None, buyer_id=None, event_type="price_sync",
