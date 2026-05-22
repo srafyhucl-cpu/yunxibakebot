@@ -1,31 +1,101 @@
 """
 Function Calling 工具实现：商品查询与知识库检索。
 
-提供 get_product_info（RAG 检索 + AI 导购埋点）和 search_knowledge（通用知识库检索）。
+提供 get_product_info（RAG 检索 + 实时有赞 API 刷新 + AI 导购埋点）和 search_knowledge（通用知识库检索）。
 """
 
 from __future__ import annotations
 
+import datetime
 import json
+import re
 from typing import TYPE_CHECKING
 
 from app.logger import setup_logger
 from app.models.session import Session
 from app.service.llm.function_defs import KNOWLEDGE_SEARCH_LIMIT, PRODUCT_SEARCH_LIMIT
+from app.service.youzan.event_item import _build_rag_content, _extract_item_tags
 
 if TYPE_CHECKING:
     from app.service.knowledge_retriever import KnowledgeRetriever
+    from app.service.youzan.client import YouzanClient
 
 logger = setup_logger()
+
+
+async def _refresh_product_live(
+    item_id: int,
+    youzan_client: YouzanClient,
+    db,
+    knowledge_retriever: KnowledgeRetriever,
+) -> dict | None:
+    """
+    调用有赞 API 获取商品实时数据，回写 youzan_products + knowledge_base + 向量索引。
+    返回商品基本信息字典，失败时返回 None。
+    """
+    from app.repository.youzan_repo import YouzanProductRepo
+    from app.repository.knowledge_repo import KnowledgeRepo
+
+    try:
+        raw = await youzan_client.get_product(item_id)
+        outer = raw.get("data") or raw.get("response") if isinstance(raw, dict) else None
+        if not isinstance(outer, dict) or "item" not in outer:
+            return None
+        item = outer["item"]
+        title = item.get("title", "")
+        alias = item.get("alias", "")
+        price_fen = item.get("price", 0)
+        stock = item.get("quantity", 0)
+        image = item.get("pic_url") or item.get("image") or ""
+        skus = item.get("skus", [])
+        item_props = item.get("item_props", [])
+        raw_desc = item.get("desc", "") or item.get("summary", "") or ""
+        desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
+        spec_names, prop_names, ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
+        tags_str = ", ".join(["\u5728\u552e"] + list(set(spec_names)) + list(set(prop_names)) + list(set(ingredients)))
+        updated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+        await YouzanProductRepo(db).upsert_product(
+            item_id=item_id, title=title, alias=alias, price_fen=price_fen,
+            stock=stock, image=image, is_active=1, updated_at=updated_at,
+            skus_json=json.dumps(skus, ensure_ascii=False),
+            item_props_json=json.dumps(item_props, ensure_ascii=False),
+            desc=desc_clean, tags=tags_str,
+        )
+        content_md = _build_rag_content(title, alias, "\u5728\u552e", skus, item_props, price_fen, stock, desc_clean, tags_str)
+        await KnowledgeRepo(db).upsert_product_knowledge(
+            youzan_item_id=str(item_id), title=title, content=content_md,
+            keywords=f"\u5546\u54c1, \u4ef7\u683c, \u63a8\u8350, \u86cb\u7cd5, {title}, {tags_str}",
+            priority=50, updated_at=updated_at,
+        )
+        vs = knowledge_retriever._vs
+        if vs:
+            vector = vs._get_model().encode([f"{title} {content_md}"], normalize_embeddings=True)[0].tolist()
+            await vs.upsert_one(str(item_id), vector)
+        logger.info("商品实时刷新写入成功: item_id=%s title=%s", item_id, title)
+        return {"item_id": item_id, "title": title, "price_fen": price_fen, "stock": stock,
+                "tags": tags_str, "updated_at": updated_at}
+    except Exception as exc:
+        logger.error("商品实时刷新失败: item_id=%s err=%s", item_id, exc)
+        return None
 
 
 async def get_product_info(
     knowledge_retriever: KnowledgeRetriever,
     session: Session | None = None,
+    youzan_client: YouzanClient | None = None,
     product_name: str = "",
     product_id: str = "",
 ) -> str:
-    """使用知识库（RAG+双轨制）检索商品信息，并静默注入 AI 导购推荐埋点触点。"""
+    """查询商品信息。当 product_id 为数字 item_id 且 youzan_client 可用时，先实时调用有赞 API 刷新数据；
+    否则按名称走 RAG 检索，并静默注入 AI 导购推荐埋点。"""
+    if product_id and product_id.isdigit() and youzan_client is not None:
+        db = knowledge_retriever._repo._db
+        live = await _refresh_product_live(int(product_id), youzan_client, db, knowledge_retriever)
+        if live:
+            return json.dumps({"source": "live_api", "product": live}, ensure_ascii=False)
+        return json.dumps({"message": "\u5b9e时商品查询失败，请稍后重试"}, ensure_ascii=False)
+
     query = product_name or product_id
     if not query:
         return json.dumps({"message": "未提供商品名称或ID"}, ensure_ascii=False)

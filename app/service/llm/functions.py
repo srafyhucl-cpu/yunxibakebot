@@ -71,7 +71,7 @@ async def dispatch_tool(
         case "get_product_info":
             if knowledge_retriever is None:
                 return json.dumps({"message": "商品查询服务暂不可用"}, ensure_ascii=False)
-            return await get_product_info(knowledge_retriever, session, **args)
+            return await get_product_info(knowledge_retriever, session, youzan_client=youzan_client, **args)
         case "search_knowledge":
             if knowledge_retriever is None:
                 return json.dumps({"message": "知识库服务暂不可用"}, ensure_ascii=False)
