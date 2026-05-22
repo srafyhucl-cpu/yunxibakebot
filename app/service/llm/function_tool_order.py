@@ -13,13 +13,21 @@ from app.logger import setup_logger
 
 if TYPE_CHECKING:
     from app.service.knowledge_retriever import KnowledgeRetriever
+    from app.service.youzan.client import YouzanClient
 
 logger = setup_logger()
 
 
-async def get_order_info(knowledge_retriever: KnowledgeRetriever, order_no: str) -> str:
+async def get_order_info(
+    knowledge_retriever: KnowledgeRetriever,
+    order_no: str,
+    youzan_client: YouzanClient | None = None,
+) -> str:
     """
     查询订单详细信息（内置已完成/已关闭订单状态机本地短路流控防线）。
+
+    参数：
+        youzan_client: 共享 YouzanClient 单例（由 ChatService 注入，避免并发竞态）
     """
     db = knowledge_retriever._repo._db
     from app.repository.youzan_repo import YouzanOrderRepo
@@ -39,30 +47,34 @@ async def get_order_info(knowledge_retriever: KnowledgeRetriever, order_no: str)
                 "source": "local_short_circuit",
             }, ensure_ascii=False)
 
-        from app.service.youzan.client import YouzanClient
-        from app.repository.config_repo import ConfigRepo
-        yz_client = YouzanClient(config_repo=ConfigRepo(db))
-        raw_order = await yz_client.get_order(order_no)
-        await yz_client.close()
+        if youzan_client is None:
+            from app.service.youzan.client import YouzanClient as _YZC
+            from app.repository.config_repo import ConfigRepo
+            youzan_client = _YZC(config_repo=ConfigRepo(db))
+        raw_order = await youzan_client.get_order(order_no)
 
-        outer_data = raw_order.get("data") or raw_order.get("response") if isinstance(raw_order, dict) else None
-        if not isinstance(outer_data, dict) or "trade" not in outer_data:
+        outer_data = raw_order.get("data") if isinstance(raw_order, dict) else None
+        if not isinstance(outer_data, dict) or "full_order_info" not in outer_data:
             return json.dumps({"order_no": order_no, "available": False, "message": "未找到此订单，请检查您的订单号或小程序绑定手机号是否输入正确"}, ensure_ascii=False)
 
-        trade = outer_data["trade"]
-        status = trade.get("status", "WAIT_BUYER_PAY")
-        payment_fen = int(float(trade.get("payment", 0)) * 100)
-        buyer_id = trade.get("buyer_id", "") or trade.get("open_id", "")
+        foi = outer_data["full_order_info"]
+        order_info = foi.get("order_info", {})
+        pay_info = foi.get("pay_info", {})
+        buyer_info = foi.get("buyer_info", {})
 
-        order_items = trade.get("orders", [])
+        status = order_info.get("status", "WAIT_BUYER_PAY")
+        payment_fen = int(float(pay_info.get("payment", 0)) * 100)
+        buyer_id = str(buyer_info.get("buyer_id", "") or buyer_info.get("open_id", ""))
+
+        order_items = foi.get("orders", [])
         titles_list = []
         total_qty = 0
         for item in order_items:
-            titles_list.append(f"{item.get('title', '商品')} x {item.get('num', 1)}")
+            titles_list.append(f"{item.get('title', item.get('goods_title', '商品'))} x {item.get('num', 1)}")
             total_qty += item.get("num", 1)
         product_titles = ", ".join(titles_list)
-        created = trade.get("created", "")
-        updated = trade.get("update_time", "") or trade.get("created", "")
+        created = order_info.get("created", "")
+        updated = order_info.get("update_time", "") or order_info.get("created", "")
 
         await order_repo.upsert_order(
             order_no=order_no,
@@ -77,14 +89,18 @@ async def get_order_info(knowledge_retriever: KnowledgeRetriever, order_no: str)
             updated_at=updated,
         )
 
+        address_info = foi.get("address_info", {})
         return json.dumps({
             "order_no": order_no,
             "status": status,
             "amount_yuan": payment_fen / 100.0,
             "product_titles": product_titles,
-            "receiver_name": trade.get("receiver_name", "买家"),
-            "receiver_mobile": trade.get("receiver_mobile", ""),
-            "address": f"{trade.get('receiver_state','')}{trade.get('receiver_city','')}{trade.get('receiver_district','')}{trade.get('receiver_address','')}",
+            "receiver_name": address_info.get("receiver_name", buyer_id),
+            "receiver_mobile": address_info.get("receiver_tel", ""),
+            "address": (
+                address_info.get("state", "") + address_info.get("city", "")
+                + address_info.get("county", "") + address_info.get("address", "")
+            ),
             "source": "youzan_live_api",
         }, ensure_ascii=False)
 
@@ -93,18 +109,25 @@ async def get_order_info(knowledge_retriever: KnowledgeRetriever, order_no: str)
         return json.dumps({"order_no": order_no, "available": False, "message": "订单查询发生系统异常，请稍后再试或联系人工客服"}, ensure_ascii=False)
 
 
-async def get_logistics_info(knowledge_retriever: KnowledgeRetriever, order_no: str) -> str:
+async def get_logistics_info(
+    knowledge_retriever: KnowledgeRetriever,
+    order_no: str,
+    youzan_client: YouzanClient | None = None,
+) -> str:
     """
     查询物流配送进度并反写更新 orders 交易物理大宽表。
+
+    参数：
+        youzan_client: 共享 YouzanClient 单例（由 ChatService 注入，避免并发竞态）
     """
     db = knowledge_retriever._repo._db
-    from app.service.youzan.client import YouzanClient
-    from app.repository.config_repo import ConfigRepo
 
     try:
-        yz_client = YouzanClient(config_repo=ConfigRepo(db))
-        raw_logistics = await yz_client.get_logistics(order_no)
-        await yz_client.close()
+        if youzan_client is None:
+            from app.service.youzan.client import YouzanClient as _YZC
+            from app.repository.config_repo import ConfigRepo
+            youzan_client = _YZC(config_repo=ConfigRepo(db))
+        raw_logistics = await youzan_client.get_logistics(order_no)
 
         express_data = raw_logistics.get("data") or raw_logistics.get("response") if isinstance(raw_logistics, dict) else None
         if not isinstance(express_data, dict):

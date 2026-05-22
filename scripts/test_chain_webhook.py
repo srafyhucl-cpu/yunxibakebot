@@ -27,6 +27,32 @@ WEBHOOK_PATH = "/api/v1/webhook/youzan"
 WAIT_SECONDS = 6
 HTTP_OK = 200
 
+_TEST_START: float = 0.0
+
+
+def _ts() -> str:
+    return f"T+{time.monotonic() - _TEST_START:.2f}s"
+
+
+def _step(label: str) -> None:
+    print(f"\n  [{_ts()}] ── {label}")
+
+
+def _ok(label: str, detail: str = "") -> None:
+    print(f"  [{_ts()}] ✅ PASS  {label}")
+    if detail:
+        print(f"              {detail}")
+
+
+def _fail(label: str, detail: str = "") -> None:
+    print(f"  [{_ts()}] ❌ FAIL  {label}")
+    if detail:
+        print(f"              {detail}")
+
+
+def _info(msg: str) -> None:
+    print(f"  [{_ts()}] ℹ  {msg}")
+
 
 async def _get_test_item_id(db_path: str) -> int | None:
     """从本地 youzan_products 取一条在售商品 item_id。"""
@@ -39,12 +65,26 @@ async def _get_test_item_id(db_path: str) -> int | None:
 
 
 async def _snapshot_product(db_path: str, item_id: int) -> dict | None:
-    """读取商品当前快照（updated_at）。"""
+    """读取商品当前完整快照。"""
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT item_id, title, updated_at, is_active FROM youzan_products WHERE item_id = ?",
+            "SELECT item_id, title, price_fen, stock, is_active, updated_at"
+            " FROM youzan_products WHERE item_id = ?",
             (item_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def _fetch_knowledge(db_path: str, item_id: int) -> dict | None:
+    """读取 knowledge_base 对应商品条目（含内容预览）。"""
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, title, category, updated_at, SUBSTR(content, 1, 300) AS content_preview"
+            " FROM knowledge_base WHERE youzan_item_id = ?",
+            (str(item_id),),
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
@@ -54,22 +94,12 @@ async def _count_analytics(db_path: str, item_id: int) -> int:
     """统计 analytics_events 中与该商品相关的 price_sync / stock_alert 埋点数。"""
     async with aiosqlite.connect(db_path) as db:
         async with db.execute(
-            "SELECT COUNT(*) FROM analytics_events WHERE event_type IN ('price_sync','stock_alert') AND ref_id = ?",
+            "SELECT COUNT(*) FROM analytics_events"
+            " WHERE event_type IN ('price_sync','stock_alert') AND ref_id = ?",
             (str(item_id),),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
-
-
-async def _check_knowledge(db_path: str, item_id: int) -> bool:
-    """确认 knowledge_base 中存在该商品的知识条目。"""
-    async with aiosqlite.connect(db_path) as db:
-        async with db.execute(
-            "SELECT COUNT(*) FROM knowledge_base WHERE youzan_item_id = ?",
-            (str(item_id),),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return (row[0] if row else 0) > 0
 
 
 def _build_system_event_body(item_id: int) -> tuple[bytes, str]:
@@ -92,102 +122,144 @@ def _build_system_event_body(item_id: int) -> tuple[bytes, str]:
     return raw_body, signature
 
 
-def _print_result(name: str, passed: bool, detail: str = "") -> None:
-    mark = "✅ PASS" if passed else "❌ FAIL"
-    print(f"  {mark}  {name}")
-    if detail:
-        print(f"         {detail}")
-
-
-async def _post_event(raw_body: bytes, signature: str) -> int:
+async def _post_event(raw_body: bytes, signature: str) -> tuple[int, float]:
+    t0 = time.monotonic()
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.post(
             f"{BASE_URL}{WEBHOOK_PATH}",
             content=raw_body,
             headers={"Content-Type": "application/json", "event-sign": signature},
         )
-    return response.status_code
+    return response.status_code, time.monotonic() - t0
+
+
+def _print_diff_table(before: dict | None, after: dict | None) -> None:
+    """打印商品快照字段前后对比表格。"""
+    fields = ["title", "price_fen", "stock", "is_active", "updated_at"]
+    print(f"              {'字段':<16} {'变更前':<28} {'变更后'}")
+    print(f"              {'-' * 70}")
+    for f in fields:
+        bv = str(before.get(f, "N/A")) if before else "N/A"
+        av = str(after.get(f, "N/A")) if after else "N/A"
+        marker = " ←" if bv != av else ""
+        print(f"              {f:<16} {bv:<28} {av}{marker}")
 
 
 async def run_phase_b() -> bool:
-    print("\n=== Phase B：商品系统事件 Webhook → DB + RAG + 埋点（含幂等验证）===\n")
+    global _TEST_START
+    _TEST_START = time.monotonic()
+
+    print("\n" + "=" * 60)
+    print("Phase B：商品系统事件 Webhook → DB + RAG + 埋点（含幂等验证）")
+    print("=" * 60)
 
     db_path = str(ROOT_DIR / settings.DB_PATH)
 
-    # 1. 选取测试商品
+    # ── Setup：选取测试商品 ───────────────────────────────────────────────────
+    _step("Setup：选取测试商品 item_id")
     item_id = await _get_test_item_id(db_path)
     if not item_id:
-        print("  ❌ youzan_products 中无在售商品，请先同步商品数据")
+        _fail("youzan_products 中无在售商品，请先同步商品数据")
         return False
-    print(f"  [Setup] 测试商品 item_id={item_id}")
+    _info(f"选用 item_id={item_id}")
 
-    # 2. 基线快照
+    # ── 基线快照 ──────────────────────────────────────────────────────────────
+    _step("采集基线快照")
     snapshot_before = await _snapshot_product(db_path, item_id)
     analytics_before = await _count_analytics(db_path, item_id)
-    print(f"  [基线] updated_at={snapshot_before['updated_at'] if snapshot_before else 'N/A'}")
-    print(f"  [基线] analytics_events(price_sync/stock_alert)={analytics_before}")
+    kb_before = await _fetch_knowledge(db_path, item_id)
+    _info(f"youzan_products.title={snapshot_before['title'] if snapshot_before else 'N/A'}")
+    _info(f"youzan_products.updated_at={snapshot_before['updated_at'] if snapshot_before else 'N/A'}")
+    _info(f"youzan_products.price_fen={snapshot_before['price_fen'] if snapshot_before else 'N/A'}")
+    _info(f"youzan_products.stock={snapshot_before['stock'] if snapshot_before else 'N/A'}")
+    _info(f"knowledge_base 条目: {'存在' if kb_before else '不存在'}")
+    _info(f"analytics_events(price_sync/stock_alert)={analytics_before}")
 
-    # ── Run 1 ──────────────────────────────────────────────────────────────────
-    print(f"\n  ── Run 1（首次推送，期望触发同步与埋点）──")
+    # ══════════════════════════════════════════════════════════════════════════
+    print(f"\n  ── Run 1（首次推送，期望触发同步）──")
+    # ══════════════════════════════════════════════════════════════════════════
+
+    _step("构造 item_ItemUpdate 事件并 POST")
     raw_body, sig = _build_system_event_body(item_id)
-    status = await _post_event(raw_body, sig)
-    _print_result("Webhook 接收返回 200", status == HTTP_OK, f"status={status}")
-    if status != HTTP_OK:
+    payload_preview = json.loads(raw_body)
+    _info(f"type={payload_preview['type']}  item_id={item_id}  kdt_id={payload_preview['kdt_id']}")
+    _info(f"signature={sig}")
+
+    status, elapsed = await _post_event(raw_body, sig)
+    if status == HTTP_OK:
+        _ok(f"Webhook 接收返回 200（往返 {elapsed:.2f}s）")
+    else:
+        _fail(f"Webhook 返回 {status}")
         return False
 
-    print(f"  [等待] {WAIT_SECONDS}s（有赞 API + DB 写入）...")
-    await asyncio.sleep(WAIT_SECONDS)
+    _step(f"等待后台链路（有赞 API → upsert → RAG 增量），共 {WAIT_SECONDS}s")
+    for i in range(WAIT_SECONDS):
+        await asyncio.sleep(1)
+        print(f"  [{_ts()}]   ... {i + 1}/{WAIT_SECONDS}s", end="\r")
+    print()
 
-    snapshot_run1 = await _snapshot_product(db_path, item_id)
-    analytics_run1 = await _count_analytics(db_path, item_id)
-    knowledge_exists = await _check_knowledge(db_path, item_id)
-
+    _step("断言 youzan_products 回写")
+    snapshot_r1 = await _snapshot_product(db_path, item_id)
     updated = (
-        snapshot_run1 is not None
-        and (
-            snapshot_before is None
-            or snapshot_run1["updated_at"] >= snapshot_before["updated_at"]
-        )
+        snapshot_r1 is not None
+        and (snapshot_before is None or snapshot_r1["updated_at"] >= snapshot_before["updated_at"])
     )
-    _print_result(
-        "youzan_products.updated_at 已更新",
-        updated,
-        f"before={snapshot_before['updated_at'] if snapshot_before else 'N/A'}  after={snapshot_run1['updated_at'] if snapshot_run1 else 'N/A'}",
-    )
-    _print_result(
-        "knowledge_base 有该商品条目",
-        knowledge_exists,
-        f"item_id={item_id}",
-    )
-    analytics_increased = analytics_run1 >= analytics_before
-    _print_result(
-        f"analytics_events 数量 ≥ 基线（{analytics_before} → {analytics_run1}）",
-        analytics_increased,
-        "price_sync / stock_alert 至少持平",
-    )
+    if updated:
+        _ok("updated_at 已刷新")
+    else:
+        _fail("updated_at 未更新")
+    _print_diff_table(snapshot_before, snapshot_r1)
 
-    # ── Run 2（幂等验证）──────────────────────────────────────────────────────
-    print(f"\n  ── Run 2（重复推送，期望 analytics 无新增——幂等验证）──")
+    _step("断言 knowledge_base RAG 增量更新")
+    kb_r1 = await _fetch_knowledge(db_path, item_id)
+    if kb_r1:
+        _ok(f"knowledge_base 条目存在", f"id={kb_r1['id']}  category={kb_r1['category']}  updated_at={kb_r1['updated_at']}")
+        print(f"\n              ── 知识内容前 300 字 ──")
+        for line in kb_r1["content_preview"].splitlines():
+            print(f"              {line}")
+    else:
+        _fail("knowledge_base 无对应条目")
+
+    _step("断言 analytics_events 埋点")
+    analytics_r1 = await _count_analytics(db_path, item_id)
+    if analytics_r1 >= analytics_before:
+        _ok(f"analytics_events 数量 ≥ 基线（{analytics_before} → {analytics_r1}）",
+            "price_sync / stock_alert 至少持平（无变化时正常为 0）")
+    else:
+        _fail(f"analytics_events 数量异常下降（{analytics_before} → {analytics_r1}）")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    print(f"\n  ── Run 2（重复推送，期望 analytics_events 无新增——幂等验证）──")
+    # ══════════════════════════════════════════════════════════════════════════
+
+    _step("再次 POST 同 item_id 事件")
     raw_body2, sig2 = _build_system_event_body(item_id)
-    status2 = await _post_event(raw_body2, sig2)
-    _print_result("Run 2 Webhook 接收返回 200", status2 == HTTP_OK, f"status={status2}")
+    status2, elapsed2 = await _post_event(raw_body2, sig2)
+    if status2 == HTTP_OK:
+        _ok(f"Webhook 接收返回 200（往返 {elapsed2:.2f}s）")
+    else:
+        _fail(f"Webhook 返回 {status2}")
 
-    print(f"  [等待] {WAIT_SECONDS}s...")
-    await asyncio.sleep(WAIT_SECONDS)
+    _step(f"等待 {WAIT_SECONDS}s")
+    for i in range(WAIT_SECONDS):
+        await asyncio.sleep(1)
+        print(f"  [{_ts()}]   ... {i + 1}/{WAIT_SECONDS}s", end="\r")
+    print()
 
-    analytics_run2 = await _count_analytics(db_path, item_id)
-    idempotent = analytics_run2 == analytics_run1
-    _print_result(
-        f"Run 2 analytics_events 无新增（{analytics_run1} → {analytics_run2}）",
-        idempotent,
-        "幂等验证",
-    )
+    _step("断言幂等：analytics_events 无新增")
+    analytics_r2 = await _count_analytics(db_path, item_id)
+    idempotent = analytics_r2 == analytics_r1
+    if idempotent:
+        _ok(f"无新增埋点（{analytics_r1} → {analytics_r2}）")
+    else:
+        _fail(f"埋点意外新增（{analytics_r1} → {analytics_r2}）")
 
-    passed = updated and knowledge_exists and analytics_increased and (status == HTTP_OK) and (status2 == HTTP_OK)
+    passed = updated and (kb_r1 is not None) and (analytics_r1 >= analytics_before) and (status == HTTP_OK) and idempotent
     return passed
 
 
 if __name__ == "__main__":
     result = asyncio.run(run_phase_b())
-    print(f"\n{'✅ Phase B 通过' if result else '❌ Phase B 失败'}\n")
+    elapsed = time.monotonic() - _TEST_START
+    print(f"\n{'✅ Phase B 通过' if result else '❌ Phase B 失败'}  总耗时 {elapsed:.1f}s\n")
     sys.exit(0 if result else 1)

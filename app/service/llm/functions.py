@@ -23,6 +23,7 @@ from app.service.llm.function_tool_product import get_product_info, search_knowl
 
 if TYPE_CHECKING:
     from app.service.knowledge_retriever import KnowledgeRetriever
+    from app.service.youzan.client import YouzanClient
 
 logger = setup_logger()
 
@@ -44,6 +45,7 @@ async def dispatch_tool(
     args: dict,
     session: Session | None = None,
     knowledge_retriever: KnowledgeRetriever | None = None,
+    youzan_client: YouzanClient | None = None,
 ) -> str:
     """
     根据工具名称分发到对应处理函数。
@@ -53,6 +55,7 @@ async def dispatch_tool(
         args: 工具参数字典
         session: 当前会话
         knowledge_retriever: 知识检索器（search_knowledge / get_product_info 必传）
+        youzan_client: 共享 YouzanClient 单例（避免 get_order_info / get_logistics_info 各自 new 实例）
     返回：
         工具执行结果的 JSON 字符串
     """
@@ -60,11 +63,11 @@ async def dispatch_tool(
         case "get_order_info":
             if knowledge_retriever is None:
                 return json.dumps({"message": "订单查询服务暂不可用"}, ensure_ascii=False)
-            return await get_order_info(knowledge_retriever, **args)
+            return await get_order_info(knowledge_retriever, youzan_client=youzan_client, **args)
         case "get_logistics_info":
             if knowledge_retriever is None:
                 return json.dumps({"message": "物流查询服务暂不可用"}, ensure_ascii=False)
-            return await get_logistics_info(knowledge_retriever, **args)
+            return await get_logistics_info(knowledge_retriever, youzan_client=youzan_client, **args)
         case "get_product_info":
             if knowledge_retriever is None:
                 return json.dumps({"message": "商品查询服务暂不可用"}, ensure_ascii=False)

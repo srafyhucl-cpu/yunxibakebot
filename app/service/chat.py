@@ -263,7 +263,7 @@ class ChatService:
                             logger.error("创建转人工工单失败: session=%s err=%s", session.id, exc)
                             result = json.dumps({"status": "error", "message": "转接失败，请稍后重试"}, ensure_ascii=False)
                     else:
-                        result = await dispatch_tool(fn_name, fn_args, session, self._knowledge)
+                        result = await dispatch_tool(fn_name, fn_args, session, self._knowledge, self._youzan_client)
 
                     # 将 tool call 和结果追加到消息列表
                     messages.append({

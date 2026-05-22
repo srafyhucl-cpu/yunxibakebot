@@ -48,23 +48,28 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
 
         raw_order = await youzan_client.get_order(tid)
 
-        outer_data = raw_order.get("data") or raw_order.get("response") if isinstance(raw_order, dict) else None
-        if not isinstance(outer_data, dict) or "trade" not in outer_data:
+        outer_data = raw_order.get("data") if isinstance(raw_order, dict) else None
+        if not isinstance(outer_data, dict) or "full_order_info" not in outer_data:
+            logger.warning("有赞 trade.get 响应缺少 full_order_info，跳过 DB 写入: tid=%s", tid)
             return
 
-        trade = outer_data["trade"]
-        status = trade.get("status", "WAIT_BUYER_PAY")
-        payment_fen = int(float(trade.get("payment", 0)) * 100)
-        buyer_id = trade.get("buyer_id", "") or trade.get("open_id", "")
+        foi = outer_data["full_order_info"]
+        order_info = foi.get("order_info", {})
+        pay_info = foi.get("pay_info", {})
+        buyer_info = foi.get("buyer_info", {})
 
-        order_items = trade.get("orders", [])
+        status = order_info.get("status", "WAIT_BUYER_PAY")
+        payment_fen = int(float(pay_info.get("payment", 0)) * 100)
+        buyer_id = str(buyer_info.get("buyer_id", "") or buyer_info.get("open_id", ""))
+
+        order_items = foi.get("orders", [])
         titles_list = []
         total_qty = 0
         for item in order_items:
-            titles_list.append(f"{item.get('title', '商品')} x {item.get('num', 1)}")
+            titles_list.append(f"{item.get('title', item.get('goods_title', '商品'))} x {item.get('num', 1)}")
             total_qty += item.get("num", 1)
         product_titles = ", ".join(titles_list)
-        created = trade.get("created", "")
+        created = order_info.get("created", "")
 
         await order_repo.upsert_order(
             order_no=tid,
