@@ -24,7 +24,7 @@ logger = setup_logger()
 
 EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
-MIN_SIMILARITY_SCORE = 0.0
+MIN_SIMILARITY_SCORE = 0.35
 
 
 class EmbeddingSearcher:

@@ -133,6 +133,7 @@ async def main() -> None:
 
                 await chat_service.handle_youzan_system_event(
                     payload=payload,
+                    event_type=payload["type"],
                     updated_at_str=updated_at_str,
                     msg_id=payload["msg_id"]
                 )

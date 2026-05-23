@@ -1,5 +1,13 @@
 {% extends "admin/base.html" %}
 {% block content %}
+<style>
+@media (max-width: 767px) {
+  .stats { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .stat-card { flex-direction: row !important; align-items: center !important; gap: 14px !important; }
+  .stat-icon { width: 44px !important; height: 44px !important; font-size: 20px !important; flex-shrink: 0; }
+  .stat-number { font-size: 26px !important; }
+}
+</style>
 <div class="page-header">
   <h1>概览</h1>
   <p>系统运行状态与关键指标</p>

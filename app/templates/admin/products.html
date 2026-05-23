@@ -21,14 +21,15 @@
     <span class="total-count">共 {{ total }} 条</span>
   </div>
 
-  <table class="table">
+  <!-- 桌面端表格视图 -->
+  <table class="table desktop-table">
     <thead>
       <tr>
         <th>ID</th>
         <th>分类</th>
         <th>商品名称</th>
         <th class="th-center">AI 可见</th>
-        <th class="th-center">操作</th>
+        <th class="th-center">状态</th>
       </tr>
     </thead>
     <tbody>
@@ -47,7 +48,7 @@
           </label>
         </td>
         <td class="td-center">
-          <span id="status-{{ e.id }}" class="status-text {{ 'text-green' if e.is_active else 'text-red' }}">
+          <span data-status-id="{{ e.id }}" class="status-text {{ 'text-green' if e.is_active else 'text-red' }}">
             {{ '上架' if e.is_active else '下架' }}
           </span>
         </td>
@@ -57,6 +58,32 @@
       {% endfor %}
     </tbody>
   </table>
+
+  <!-- 手机端卡片视图 -->
+  <div class="prod-card-list mobile-table">
+    {% for e in entries %}
+    <div class="prod-card" id="pcard-{{ e.id }}">
+      <div class="prod-card-info">
+        <span class="cat-badge cat-{{ e.category }}">{{ e.category }}</span>
+        <div class="prod-card-title">{{ e.title }}</div>
+      </div>
+      <div class="prod-card-action">
+        <span data-status-id="{{ e.id }}" class="status-text {{ 'text-green' if e.is_active else 'text-red' }}">
+          {{ '上架' if e.is_active else '下架' }}
+        </span>
+        <label class="toggle-switch">
+          <input type="checkbox"
+            data-id="{{ e.id }}"
+            {% if e.is_active %}checked{% endif %}
+            onchange="toggleProduct(this.dataset.id, this)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+    {% else %}
+    <div class="td-empty">暂无数据</div>
+    {% endfor %}
+  </div>
 
   {% if total_pages > 1 %}
   <div class="pagination">
@@ -81,18 +108,18 @@
 .cat-policy { background:#fdf5e8;color:#9a6a1a; }
 .cat-store_info { background:#f0e8fd;color:#6a1a9a; }
 .cat-after_sales { background:#fde8e8;color:#9a1a1a; }
-.toggle-switch { position:relative;display:inline-block;width:40px;height:22px; }
+.toggle-switch { position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0; }
 .toggle-switch input { opacity:0;width:0;height:0; }
 .toggle-slider { position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
-  background:#ccc;border-radius:22px;transition:.3s; }
-.toggle-slider:before { content:"";position:absolute;width:16px;height:16px;
+  background:#ccc;border-radius:24px;transition:.3s; }
+.toggle-slider:before { content:"";position:absolute;width:18px;height:18px;
   left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s; }
 input:checked + .toggle-slider { background:#e91e63; }
-input:checked + .toggle-slider:before { transform:translateX(18px); }
+input:checked + .toggle-slider:before { transform:translateX(20px); }
 .text-green { color:#27ae60;font-weight:600; }
 .text-red { color:#e74c3c;font-weight:600; }
 .card-search { margin-bottom:16px; }
-.search-form { display:flex;gap:8px; }
+.search-form { display:flex;gap:8px;align-items:center; }
 .search-input { flex:1; }
 .total-count { font-size:12px;font-weight:normal;color:#999;margin-left:8px; }
 .th-center { text-align:center; }
@@ -100,8 +127,33 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
 .td-title { max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .td-center { text-align:center; }
 .td-empty { text-align:center;color:#999;padding:24px; }
-.pagination { display:flex;gap:8px;justify-content:center;margin-top:16px; }
+.pagination { display:flex;gap:8px;justify-content:center;align-items:center;margin-top:16px;flex-wrap:wrap; }
 .page-info { align-self:center;font-size:13px; }
+
+/* 手机卡片视图 */
+.prod-card-list { display:flex;flex-direction:column;gap:10px; }
+.prod-card {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 14px;border:1px solid #f0f0f0;border-radius:10px;
+  background:#fff;transition:background .15s;
+}
+.prod-card:active { background:#faf8f6; }
+.prod-card-info { flex:1;min-width:0; }
+.prod-card-title {
+  margin-top:5px;font-size:14px;font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.prod-card-action { display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0; }
+
+/* 桌面显示表格、隐藏卡片；手机相反 */
+@media (min-width: 768px) {
+  .mobile-table { display:none; }
+}
+@media (max-width: 767px) {
+  .desktop-table { display:none !important; }
+  .search-form { flex-wrap:wrap; }
+  .search-form .btn { flex-shrink:0; }
+}
 </style>
 {% endblock %}
 
@@ -110,7 +162,7 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
 const TOKEN = '{{ request.cookies.get("admin_token","") }}';
 
 async function toggleProduct(id, checkbox) {
-  const statusEl = document.getElementById('status-' + id);
+  const statusEls = document.querySelectorAll('[data-status-id="' + id + '"]');
   try {
     const r = await fetch('/api/v1/admin/products/' + id + '/toggle', {
       method: 'POST',
@@ -118,8 +170,10 @@ async function toggleProduct(id, checkbox) {
     });
     const d = await r.json();
     if (d.code === 0) {
-      statusEl.textContent = d.is_active ? '上架' : '下架';
-      statusEl.className = 'status-text ' + (d.is_active ? 'text-green' : 'text-red');
+      statusEls.forEach(function(el) {
+        el.textContent = d.is_active ? '上架' : '下架';
+        el.className = 'status-text ' + (d.is_active ? 'text-green' : 'text-red');
+      });
       showToast((d.is_active ? '已上架：' : '已下架：') + d.title, d.is_active ? 'success' : 'error');
     } else {
       checkbox.checked = !checkbox.checked;

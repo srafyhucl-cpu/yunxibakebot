@@ -423,6 +423,29 @@ textarea { resize: vertical; min-height: 60px; }
 .msg-assistant { background: var(--bg); border-bottom-right-radius: 4px; }
 .msg-label     { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
 
+/* ── 底部导航栏（移动端专用）── */
+.bottom-nav {
+  display: none;
+}
+.bottom-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-decoration: none;
+  color: var(--text-muted);
+  padding: 6px 4px 4px;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+}
+.bottom-nav a.active { color: var(--primary-dark); }
+.bottom-nav a.active .bnav-icon { transform: scale(1.1); }
+.bnav-icon { font-size: 22px; line-height: 1; display: block; transition: transform 0.15s; }
+.bnav-label { font-size: 10px; font-weight: 500; white-space: nowrap; }
+
 /* ── 响应式 ── */
 @media (max-width: 767px) {
   .topbar { display: flex; }
@@ -435,18 +458,24 @@ textarea { resize: vertical; min-height: 60px; }
   .sidebar.open { left: 0; }
 
   .layout { flex-direction: column; }
-  .main { padding: 16px; max-width: 100%; }
+  .main {
+    padding: 16px 14px;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    max-width: 100%;
+  }
+  .page-header { margin-bottom: 16px; }
   .page-header h1 { font-size: 18px; }
+  .page-header p { font-size: 12px; }
   .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat-card { padding: 14px; gap: 10px; }
   .stat-number { font-size: 22px; }
-  .card { padding: 14px 16px; }
+  .card { padding: 14px 14px; }
   .login-card { width: 90%; padding: 32px 24px; }
 
-  table { display: block; overflow-x: auto; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   th, td { white-space: nowrap; font-size: 13px; padding: 10px 12px; }
-  .btn { font-size: 13px; padding: 6px 12px; }
-  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn { font-size: 13px; padding: 8px 14px; min-height: 40px; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; min-height: 36px; }
 
   .chat-wrapper { flex-direction: column !important; height: calc(100vh - 60px) !important; }
   .sidebar-test {
@@ -455,6 +484,31 @@ textarea { resize: vertical; min-height: 60px; }
   }
   .sidebar-test .quick-btn { font-size: 12px; padding: 8px 10px; }
   .debug-card { grid-column: 1 / -1; }
+
+  /* 底部导航栏显示 */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: calc(52px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #fff;
+    border-top: 1px solid var(--border);
+    z-index: 200;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+  }
+
+  /* 统计卡片垂直布局，让数字更突出 */
+  .stat-card { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .stat-icon { width: 36px; height: 36px; font-size: 16px; }
+
+  /* 表单触摸优化 */
+  input[type="text"], input[type="password"], textarea {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+    padding: 12px 14px;
+    min-height: 48px;
+  }
+  .form-actions { flex-wrap: wrap; }
 }
 
 @media (min-width: 768px) and (max-width: 1024px) {

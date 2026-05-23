@@ -42,6 +42,26 @@
     </main>
   </div>
 
+  <!-- 底部导航栏（手机端） -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <a href="/admin/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">
+      <span class="bnav-icon">📊</span>
+      <span class="bnav-label">概览</span>
+    </a>
+    <a href="/admin/chat-test" class="{{ 'active' if active == 'chat_test' else '' }}">
+      <span class="bnav-icon">💬</span>
+      <span class="bnav-label">AI 测试</span>
+    </a>
+    <a href="/admin/featured-products" class="{{ 'active' if active == 'featured_products' else '' }}">
+      <span class="bnav-icon">⭐</span>
+      <span class="bnav-label">主推款</span>
+    </a>
+    <a href="/admin/products" class="{{ 'active' if active == 'products' else '' }}">
+      <span class="bnav-icon">📦</span>
+      <span class="bnav-label">商品</span>
+    </a>
+  </nav>
+
   <script>
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('open');

@@ -46,7 +46,15 @@ def build_system_prompt(knowledge_entries: list[KnowledgeEntry] | None = None) -
 
     if knowledge_entries:
         knowledge_text = "\n".join(f"- [{e.category}] {e.title}: {e.content}" for e in knowledge_entries)
-        no_hallucination_rule = "绝不编造商品信息！只依据下方店铺知识回答。如果商品名不在知识库里，直接说没有，不要推荐名字近似的其他商品"
+        product_titles = [e.title for e in knowledge_entries if e.category == "product"]
+        if product_titles:
+            titles_enum = "、".join(f"《{t}》" for t in product_titles)
+            no_hallucination_rule = (
+                f"绝不编造商品信息！本次数据库仅检索到以下商品：{titles_enum}。"
+                "只能推荐这些名称，禁止推荐任何不在此列表中的商品名称，哪怕名字相近也不行"
+            )
+        else:
+            no_hallucination_rule = "绝不编造商品信息！只依据下方店铺知识回答。如果商品名不在知识库里，直接说没有，不要推荐名字近似的其他商品"
     else:
         knowledge_text = "(店铺数据库中暂无相关知识)"
         no_hallucination_rule = "顾客询问的商品不在店铺产品列表中，必须如实告知\"查不到该商品\"，一句话带过即可，不要推荐任何东西"

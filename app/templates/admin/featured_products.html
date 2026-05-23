@@ -33,18 +33,24 @@
 .product-tag {
   display:inline-flex;align-items:center;gap:6px;
   background:#fff0f5;border:1px solid #ffc0cb;border-radius:20px;
-  padding:4px 12px;margin:4px;font-size:14px;
+  padding:6px 14px;margin:4px;font-size:14px;
 }
 .tag-remove {
-  background:none;border:none;color:#999;cursor:pointer;font-size:12px;padding:0;
+  background:none;border:none;color:#bbb;cursor:pointer;font-size:14px;
+  padding:2px 0 2px 4px;line-height:1;
+  -webkit-tap-highlight-color: transparent;
 }
-.tag-remove:hover{color:#e74c3c;}
-.product-list { margin-bottom:16px; }
-.empty-hint { color:#999;font-size:13px; }
-.add-row { display:flex;gap:8px;margin-bottom:16px; }
-.add-input { flex:1; }
-.save-row { display:flex;gap:8px; }
-.save-status { align-self:center;font-size:13px;color:#999; }
+.tag-remove:active{color:#e74c3c;}
+.product-list { margin-bottom:16px;min-height:44px; }
+.empty-hint { color:#999;font-size:13px;padding:8px 0; }
+.add-row { display:flex;gap:8px;margin-bottom:16px;align-items:center; }
+.add-input { flex:1;min-width:0; }
+.save-row { display:flex;gap:8px;align-items:center; }
+.save-status { font-size:13px;color:#999; }
+@media (max-width: 767px) {
+  .add-row { flex-wrap:nowrap; }
+  .save-row .btn { flex:1;justify-content:center; }
+}
 </style>
 <script type="application/json" id="init-products">{{ products | tojson }}</script>
 {% endblock %}
