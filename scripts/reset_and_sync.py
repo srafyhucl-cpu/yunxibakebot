@@ -45,19 +45,25 @@ async def phase0_reset(db) -> None:
     print("Phase 0: 精细化数据重置")
     print("=" * 60)
 
-    # 全表清空的业务表
+    # 临时关闭外键约束（避免级联依赖阻止删除）
+    await db.execute("PRAGMA foreign_keys = OFF")
+
+    # 全表清空的业务表（子表在前，父表在后）
     full_delete_tables = [
-        "youzan_products",
-        "youzan_orders",
-        "sessions",
         "messages",
         "human_transfers",
-        "orders",
         "analytics_events",
+        "orders",
+        "sessions",
+        "youzan_products",
+        "youzan_orders",
     ]
     for table in full_delete_tables:
         await db.execute(f"DELETE FROM {table}")
         print(f"  ✓ 已清空 {table}")
+
+    # 恢复外键约束
+    await db.execute("PRAGMA foreign_keys = ON")
 
     # knowledge_base 精细化清除：仅删除商品类条目
     result = await db.execute(
