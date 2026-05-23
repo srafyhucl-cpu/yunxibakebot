@@ -463,17 +463,32 @@
 const UMPEngine = {
   renderers: {
     card: (params) => {
-      return `
-      <div class="bubble-product-card" style="width: 240px; background: #fff; border: 1px solid #eef0f2; border-radius: 12px; margin-top: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); font-family: system-ui; text-align: left;">
-        <img src="${params.get("src")}" style="width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #f5f7f9;">
-        <div style="padding: 10px 12px;">
-          <div style="font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${params.get("title")}</div>
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
-            <span style="font-size: 15px; font-weight: 800; color: #fa5151;">￥${params.get("price")}</span>
-            <a href="${params.get("url")}" target="_blank" style="background: #07c160; color: #fff; text-decoration: none; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 6px; transition: opacity 0.2s;">去下单</a>
-          </div>
-        </div>
-      </div>`;
+      const title = esc(params.get("title") || "");
+      const price = esc(params.get("price") || "");
+      const src   = params.get("src") || "";
+      const url   = params.get("url") || "#";
+      const imgHtml = src
+        ? `<img src="${src}" width="58" height="58" style="object-fit:cover;border-radius:4px;flex-shrink:0;" onerror="this.style.opacity='0'">`
+        : `<div style="width:58px;height:58px;background:#f5f5f5;border-radius:4px;flex-shrink:0;"></div>`;
+      return `<a href="${url}" target="_blank" style="text-decoration:none;display:block;max-width:240px;">` +
+        `<div style="background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:8px;overflow:hidden;` +
+        `font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;">` +
+          `<div style="padding:12px 12px 10px;font-size:14px;color:#1a1a1a;line-height:1.5;` +
+          `display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;">${title}</div>` +
+          `<div style="display:flex;align-items:center;padding:0 12px 12px;gap:10px;">${imgHtml}` +
+            `<span style="font-size:13px;color:#606060;line-height:1.5;">￥${price}</span>` +
+          `</div>` +
+          `<div style="height:0.5px;background:#e8e8e8;"></div>` +
+          `<div style="display:flex;align-items:center;padding:7px 10px;gap:5px;">` +
+            `<div style="width:15px;height:15px;background:#07c160;border-radius:3px;` +
+            `display:flex;align-items:center;justify-content:center;flex-shrink:0;">` +
+              `<span style="color:#fff;font-size:7px;font-weight:900;line-height:1;">小</span>` +
+            `</div>` +
+            `<span style="font-size:11px;color:#9b9b9b;">有赞小程序</span>` +
+            `<span style="margin-left:auto;font-size:11px;color:#c0c0c0;">&rsaquo;</span>` +
+          `</div>` +
+        `</div>` +
+      `</a>`;
     }
   },
   parseAndRender(rawText) {
@@ -669,17 +684,39 @@ function addMsg(role, content) {
       </div>`;
   } else {
     var cls = 'msg-row start';
-    var bub = 'bubble ai';
     var avatarHtml = '<div class="avatar-col"><div class="chat-avatar ai-avatar">🍰</div></div>';
-
+    var placeholderHtml = '<div class="avatar-col"><div class="chat-avatar placeholder-avatar"></div></div>';
     const pipeline = UMPEngine.parseAndRender(content);
-    _msgs.innerHTML += `
-      <div class="${cls}">
-        ${avatarHtml}
-        <div class="bubble-col">
-          <div class="${bub}">${esc(pipeline.text)}${pipeline.html}</div>
-        </div>
-      </div>`;
+    var rows = '';
+    if (pipeline.text) {
+      rows += `
+        <div class="${cls}">
+          ${avatarHtml}
+          <div class="bubble-col">
+            <div class="bubble ai">${esc(pipeline.text)}</div>
+          </div>
+        </div>`;
+    }
+    if (pipeline.html) {
+      const cardAvatar = pipeline.text ? placeholderHtml : avatarHtml;
+      rows += `
+        <div class="${cls}">
+          ${cardAvatar}
+          <div class="bubble-col">
+            <div class="media-container">${pipeline.html}</div>
+          </div>
+        </div>`;
+    }
+    if (!rows) {
+      rows = `
+        <div class="${cls}">
+          ${avatarHtml}
+          <div class="bubble-col">
+            <div class="bubble ai">${esc(content)}</div>
+          </div>
+        </div>`;
+    }
+    _msgs.innerHTML += rows;
   }
 }
 
