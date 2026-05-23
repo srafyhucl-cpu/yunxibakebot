@@ -43,10 +43,11 @@ async def test_youzan_client_mock_api_calls() -> None:
         reply_resp = await client.send_reply(buyer_open_id="buyer_888", content="收到，马上处理")
         assert reply_resp == {"response": {"success": True}}
 
-        # 3. 验证订单详情查询拦截
+        # 3. 验证订单详情查询拦截（data.full_order_info 结构）
         order_resp = await client.get_order(order_no="order_xyz999")
-        assert order_resp["response"]["trade"]["tid"] == "order_xyz999"
-        assert order_resp["response"]["trade"]["status"] == "TRADE_PAID"
+        foi = order_resp["data"]["full_order_info"]
+        assert foi["order_info"]["tid"] == "order_xyz999"
+        assert foi["order_info"]["status"] == "WAIT_SELLER_SEND_GOODS"
 
         # 4. 验证物流详情查询拦截
         logistics_resp = await client.get_logistics(order_no="order_xyz999")

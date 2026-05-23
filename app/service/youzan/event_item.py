@@ -52,8 +52,9 @@ def _build_rag_content(
     title: str, alias: str, status_lbl: str,
     skus: list, item_props: list,
     price_fen: int, stock: int, desc_clean: str, tags_str: str,
+    item_id: int = 0, image: str = "",
 ) -> str:
-    """构建 RAG 知识库商品内容 Markdown 文本。"""
+    """构建 RAG 知识库商品内容 Markdown 文本。末尾附 UMP 商品卡片标签供 LLM 原样输出。"""
     sku_lines: list[str] = []
     for sku in skus:
         price_yuan = sku.get("price", price_fen) / 100.0
@@ -82,8 +83,18 @@ def _build_rag_content(
         prop_lines.append(f"- 【{p_name}】{is_mult}：{'、'.join(options)}")
     props_text = "\n".join(prop_lines) if prop_lines else "- 定制加料选项：暂无特殊定制属性"
 
+    from urllib.parse import quote as _q
     detail_url = f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
     fallback_desc = "精品烘焙推荐，新西兰进口动物奶油调配，不含防腐剂。建议0-4℃冷藏并于3天内食用完毕。"
+    ump_line = ""
+    if item_id and image and alias:
+        min_price_fen = min((s.get("price", price_fen) for s in skus), default=price_fen)
+        price_str = f"{min_price_fen / 100:.2f}"
+        ump_line = (
+            f"\n[UMP: type=card&id={item_id}&title={_q(title)}"
+            f"&price={price_str}&src={_q(image)}"
+            f"&url={_q(detail_url)}]"
+        )
     return (
         f"商品名称：{title}\n"
         f"在售状态：{status_lbl}\n"
@@ -92,6 +103,7 @@ def _build_rag_content(
         f"商品特征与配方属性标签：{tags_str}\n"
         f"直购下单链接：{detail_url}\n"
         f"原料配方、保质期及夹心介绍：\n{desc_clean or fallback_desc}"
+        + ump_line
     )
 
 
@@ -168,13 +180,17 @@ async def handle_item_event(
 
         raw_product = await youzan_client.get_product(item_id)
 
+        if isinstance(raw_product, dict) and raw_product.get("gw_err_resp"):
+            logger.error("商品事件 API 拒绝: item_id=%s err=%s", item_id, raw_product["gw_err_resp"])
+            return
         outer_data = raw_product.get("data") or raw_product.get("response") if isinstance(raw_product, dict) else None
         if not isinstance(outer_data, dict) or "item" not in outer_data:
+            logger.error("商品事件响应结构异常: item_id=%s raw_keys=%s", item_id, list(raw_product.keys()) if isinstance(raw_product, dict) else type(raw_product))
             return
 
         item_data = outer_data["item"]
         title = item_data.get("title", "")
-        alias = item_data.get("alias", "")
+        alias = item_data.get("alias", "") or str(item_id)
         price_fen = item_data.get("price", 0)
         stock = item_data.get("quantity", 0)
         image = item_data.get("pic_url") or item_data.get("image") or ""
@@ -206,7 +222,7 @@ async def handle_item_event(
             tags=tags_str,
         )
 
-        content_md = _build_rag_content(title, alias, status_lbl, skus, item_props, price_fen, stock, desc_clean, tags_str)
+        content_md = _build_rag_content(title, alias, status_lbl, skus, item_props, price_fen, stock, desc_clean, tags_str, item_id=item_id, image=image)
         await _sync_rag_knowledge(db, knowledge_retriever, item_id, title, content_md, tags_str, updated_at_str, is_active)
 
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

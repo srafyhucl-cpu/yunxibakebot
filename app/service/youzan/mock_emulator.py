@@ -42,29 +42,51 @@ class YouzanMockEmulator:
 
     @staticmethod
     def get_mock_order_response(order_no: str) -> dict:
-        """生成仿真有赞订单详情数据。"""
+        """生成仿真有赞订单详情数据（结构与 youzan.trade.get 4.0.0 真实响应对齐）。"""
         return {
             "gw_err_resp": None,
-            "response": {
-                "trade": {
-                    "tid": order_no,
-                    "status": "TRADE_PAID",
-                    "payment": "188.00",
-                    "post_fee": "0.00",
-                    "created": "2026-05-19 12:00:00",
+            "data": {
+                "full_order_info": {
+                    "order_info": {
+                        "tid": order_no,
+                        "status": "WAIT_SELLER_SEND_GOODS",
+                        "status_str": "待发货",
+                        "pay_time": "2026-05-19 12:00:00",
+                        "consign_time": "",
+                        "created": "2026-05-19 11:58:00",
+                        "pay_type_str": "微信支付",
+                        "express_type": 1,
+                        "refund_state": 0,
+                    },
+                    "pay_info": {
+                        "payment": "188.00",
+                        "total_fee": "188.00",
+                        "post_fee": "0.00",
+                    },
+                    "buyer_info": {
+                        "buyer_id": "63889",
+                        "outer_user_id": "wx_mock_user_001",
+                    },
+                    "address_info": {
+                        "delivery_province": "上海",
+                        "delivery_city": "上海市",
+                        "delivery_district": "浦东新区",
+                        "delivery_address": "碧波路 888 号",
+                        "delivery_start_time": "",
+                    },
                     "orders": [
                         {
+                            "oid": "mock_oid_001",
+                            "item_id": 5836487486,
+                            "alias": "mock5836487486",
                             "title": "皇家草莓双层奶油蛋糕 (6寸)",
                             "num": 1,
                             "price": "188.00",
+                            "payment": "188.00",
+                            "sku_properties_name": "6寸",
+                            "buyer_messages": "",
                         }
                     ],
-                    "receiver_name": "张三",
-                    "receiver_mobile": "13888888888",
-                    "receiver_state": "上海",
-                    "receiver_city": "上海市",
-                    "receiver_district": "浦东新区",
-                    "receiver_address": "碧波路 888 号",
                 }
             },
         }
@@ -94,7 +116,7 @@ class YouzanMockEmulator:
     def get_mock_product_response(item_id: int, alias: str) -> dict:
         """生成高保真的有赞单品规格与实时库存仿真响应。"""
         actual_item_id = item_id or 5836487486
-        actual_alias = alias or "36bzefehblz4i7v"
+        actual_alias = alias or f"mock{actual_item_id}"
         return {
             "gw_err_resp": None,
             "response": {

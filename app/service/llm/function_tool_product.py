@@ -38,12 +38,16 @@ async def _refresh_product_live(
 
     try:
         raw = await youzan_client.get_product(item_id)
+        if isinstance(raw, dict) and raw.get("gw_err_resp"):
+            logger.error("商品实时刷新 API 拒绝: item_id=%s err=%s", item_id, raw["gw_err_resp"])
+            return None
         outer = raw.get("data") or raw.get("response") if isinstance(raw, dict) else None
         if not isinstance(outer, dict) or "item" not in outer:
+            logger.error("商品实时刷新响应结构异常: item_id=%s raw_keys=%s", item_id, list(raw.keys()) if isinstance(raw, dict) else type(raw))
             return None
         item = outer["item"]
         title = item.get("title", "")
-        alias = item.get("alias", "")
+        alias = item.get("alias", "") or str(item_id)
         price_fen = item.get("price", 0)
         stock = item.get("quantity", 0)
         image = item.get("pic_url") or item.get("image") or ""
@@ -62,7 +66,7 @@ async def _refresh_product_live(
             item_props_json=json.dumps(item_props, ensure_ascii=False),
             desc=desc_clean, tags=tags_str,
         )
-        content_md = _build_rag_content(title, alias, "\u5728\u552e", skus, item_props, price_fen, stock, desc_clean, tags_str)
+        content_md = _build_rag_content(title, alias, "\u5728\u552e", skus, item_props, price_fen, stock, desc_clean, tags_str, item_id=item_id, image=image)
         await KnowledgeRepo(db).upsert_product_knowledge(
             youzan_item_id=str(item_id), title=title, content=content_md,
             keywords=f"\u5546\u54c1, \u4ef7\u683c, \u63a8\u8350, \u86cb\u7cd5, {title}, {tags_str}",

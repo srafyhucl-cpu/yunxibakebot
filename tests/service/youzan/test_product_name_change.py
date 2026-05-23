@@ -84,6 +84,7 @@ async def test_product_name_change_prevents_residue(monkeypatch: pytest.MonkeyPa
         }
         await chat_service.handle_youzan_system_event(
             payload=payload_v1,
+            event_type=payload_v1["type"],
             updated_at_str="2026-05-20 17:16:00",
             msg_id="msg_001",
         )
@@ -122,6 +123,7 @@ async def test_product_name_change_prevents_residue(monkeypatch: pytest.MonkeyPa
         }
         await chat_service.handle_youzan_system_event(
             payload=payload_v2,
+            event_type=payload_v2["type"],
             updated_at_str="2026-05-20 17:17:00",
             msg_id="msg_002",
         )

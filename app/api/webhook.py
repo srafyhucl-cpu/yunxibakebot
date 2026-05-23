@@ -106,11 +106,12 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
 
                     await chat_service.handle_youzan_system_event(
                         payload=payload,
+                        event_type=event_type,
                         updated_at_str=updated_at_str,
                         msg_id=msg_id,
                     )
                 except Exception as exc:
-                    logger.error("有赞系统事件后台业务处理异常 [msg_id=%s]: %s", msg_id, exc)
+                    logger.error("有赞系统事件后台业务处理异常 [msg_id=%s]: %s", msg_id, exc, exc_info=True)
                 finally:
                     _processing_msg_timestamps.pop(msg_id, None)
 

@@ -304,7 +304,7 @@ class ChatService:
         await self._message_repo.save(msg)
         logger.info("人工客服回复: session=%s", session_id)
 
-    async def handle_youzan_system_event(self, payload: dict, updated_at_str: str, msg_id: str) -> None:
+    async def handle_youzan_system_event(self, payload: dict, event_type: str, updated_at_str: str, msg_id: str) -> None:
         """有赞系统事件处理（商品/交易 Webhook），委托至 YouzanEventHandler。"""
-        await self._youzan_events.handle_system_event(payload, updated_at_str, msg_id)
+        await self._youzan_events.handle_system_event(payload, event_type, updated_at_str, msg_id)
 

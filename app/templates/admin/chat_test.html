@@ -462,9 +462,6 @@
 <script>
 const UMPEngine = {
   renderers: {
-    image: (params) => {
-      return `<img src="${params.get("src")}" style="max-width: 100%; max-height: 180px; border-radius: 8px; margin-top: 8px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.06); cursor: pointer;" onclick="window.open('${params.get("src")}', '_blank')">`;
-    },
     card: (params) => {
       return `
       <div class="bubble-product-card" style="width: 240px; background: #fff; border: 1px solid #eef0f2; border-radius: 12px; margin-top: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04); font-family: system-ui; text-align: left;">

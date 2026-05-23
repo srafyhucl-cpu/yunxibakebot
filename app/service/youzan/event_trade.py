@@ -32,6 +32,9 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
 
     tid = msg_obj.get("tid", "")
     if not tid:
+        _foi = msg_obj.get("full_order_info", {})
+        tid = _foi.get("order_info", {}).get("tid", "")
+    if not tid:
         logger.warning("有赞交易事件缺少 tid")
         return
 

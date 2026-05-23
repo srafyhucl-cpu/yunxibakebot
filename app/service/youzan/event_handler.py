@@ -15,6 +15,12 @@ from app.service.youzan.event_trade import handle_trade_event
 
 logger = setup_logger()
 
+# 预留废弃事件集合（目前为空，ITEM_INFO 已恢复，真实推送 msg 大概率含 item_id）
+_DEPRECATED_EVENT_TYPES: frozenset[str] = frozenset()
+
+# 有赞新式库存/销量变更事件：item_id 直接在 payload 顶层，无 msg 字段
+_SKU_STOCK_UPDATE_EVENT = "youzan_item_skustockorsoldnumupdated"
+
 
 class YouzanEventHandler:
     """有赞系统事件处理器（商品 + 交易 Webhook 双轨合流分发器）。"""
@@ -24,25 +30,37 @@ class YouzanEventHandler:
         self._knowledge = knowledge_retriever
         self._youzan_client = youzan_client
 
-    async def handle_system_event(self, payload: dict, updated_at_str: str, msg_id: str) -> None:
+    async def handle_system_event(self, payload: dict, event_type: str, updated_at_str: str, msg_id: str) -> None:
         """
         解析并分发有赞系统事件至对应处理模块。
 
         参数：
             payload: 有赞 Webhook 原始 payload
+            event_type: 由 webhook 网关解析的事件类型（优先取 header event-type）
             updated_at_str: 事件时间字符串（格式 %Y-%m-%d %H:%M:%S）
             msg_id: 消息去重 ID
         """
-        event_type = payload.get("type", "")
-
-        msg_str = urllib.parse.unquote(payload.get("msg", "{}"))
-        try:
-            msg_obj = json.loads(msg_str)
-        except Exception as exc:
-            logger.error("解析有赞系统事件 msg 详情失败: %s", exc)
+        if event_type in _DEPRECATED_EVENT_TYPES:
+            logger.info("有赞已废弃事件，跳过处理: type=%s msg_id=%s", event_type, msg_id)
             return
 
-        if event_type.startswith("trade_"):
+        raw_msg = payload.get("msg")
+        if isinstance(raw_msg, dict):
+            msg_obj = raw_msg
+        else:
+            msg_str = urllib.parse.unquote(raw_msg or "{}")
+            try:
+                msg_obj = json.loads(msg_str)
+            except Exception as exc:
+                # msg 解析失败不立即返回，降级为空字典让后续 fallback（如 ITEM_INFO 的 payload.id）兜底
+                logger.warning("有赞系统事件 msg JSON 解析失败，降级为空字典继续: type=%s msg_id=%s err=%s", event_type, msg_id, exc)
+                msg_obj = {}
+            if not isinstance(msg_obj, dict):
+                logger.warning("有赞系统事件 msg 解析结果非字典，已重置: type=%s msg_id=%s val_type=%s", event_type, msg_id, type(msg_obj).__name__)
+                msg_obj = {}
+
+        event_type_lower = event_type.lower()
+        if event_type_lower.startswith("trade_"):
             await handle_trade_event(
                 db=self._db,
                 youzan_client=self._youzan_client,
@@ -50,7 +68,23 @@ class YouzanEventHandler:
                 msg_obj=msg_obj,
                 updated_at_str=updated_at_str,
             )
-        elif event_type.startswith("item_") or event_type == "ITEM_STATE":
+        elif event_type_lower.startswith("item_"):
+            msg_data = msg_obj.get("data", {})
+            if not isinstance(msg_data, dict):
+                msg_data = {}
+            payload_data = payload.get("data", {})
+            if not isinstance(payload_data, dict):
+                payload_data = {}
+            if not msg_obj.get("item_id") and not msg_data.get("item_id"):
+                # ITEM_INFO/ITEM_SKU_INFO 顶层 id 就是商品 id（官方文档 MSG/277 确认）
+                payload_id_as_item = payload.get("id") if event_type_lower in ("item_info", "item_sku_info") else None
+                item_id_from_payload = (
+                    payload_data.get("item_id")
+                    or payload.get("item_id")
+                    or payload_id_as_item
+                )
+                if item_id_from_payload:
+                    msg_obj = {"item_id": item_id_from_payload}
             await handle_item_event(
                 db=self._db,
                 youzan_client=self._youzan_client,
@@ -59,3 +93,18 @@ class YouzanEventHandler:
                 msg_obj=msg_obj,
                 updated_at_str=updated_at_str,
             )
+        elif event_type_lower == _SKU_STOCK_UPDATE_EVENT:
+            item_id = payload.get("item_id")
+            if item_id:
+                await handle_item_event(
+                    db=self._db,
+                    youzan_client=self._youzan_client,
+                    knowledge_retriever=self._knowledge,
+                    event_type=event_type,
+                    msg_obj={"item_id": item_id},
+                    updated_at_str=updated_at_str,
+                )
+            else:
+                logger.warning("商品规格库存更新事件缺少 item_id: msg_id=%s", msg_id)
+        else:
+            logger.info("有赞系统事件已接收，暂无处理器，已跳过: type=%s msg_id=%s", event_type, msg_id)

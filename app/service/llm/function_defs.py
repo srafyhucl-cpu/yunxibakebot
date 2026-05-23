@@ -31,7 +31,7 @@ FUNCTION_DEFINITIONS: list[dict] = [
         "type": "function",
         "function": {
             "name": "get_product_info",
-            "description": "查询商品详情：价格、规格、库存等",
+            "description": "实时查询指定商品的最新价格、规格和库存；当用户提供了商品ID（纯数字）或商品名称时，必须优先调用此工具而非搜索知识库",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -73,7 +73,7 @@ FUNCTION_DEFINITIONS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_knowledge",
-            "description": "搜索知识库，查找常见问题、店铺政策、产品介绍等",
+            "description": "搜索知识库，查找店铺政策、常见问题（如退换货规则、配送说明等）；不适用于查询特定商品的实时库存和价格",
             "parameters": {
                 "type": "object",
                 "properties": {
