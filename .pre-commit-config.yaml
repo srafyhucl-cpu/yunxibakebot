@@ -7,6 +7,14 @@ repos:
         args: [--baseline, .secrets.baseline]
         language: system
 
+      - id: check-logbook
+        name: LOGBOOK.md 更新检查
+        entry: python scripts/check_logbook.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 有代码变更时要求同步更新 LOGBOOK.md；可用 SKIP_LOGBOOK_CHECK=1 临时跳过
+
       - id: check-project
         name: YunxiBakeBot Quality Gate
         entry: python scripts/check_project.py

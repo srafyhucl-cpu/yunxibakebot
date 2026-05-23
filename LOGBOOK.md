@@ -4,6 +4,102 @@
 
 ______________________________________________________________________
 
+## [2026-05-23] - 修复AI拒绝发图片 + 商品卡片升级为大图样式
+
+- **操作人**: AI (Devin)
+- **关联任务**: 修复 AI 遇到顾客说"发图片/看款式"时回答"发不了图片"的问题，同时升级商品卡片渲染样式
+- **核心变更文件说明**:
+  - `app/service/llm/prompt.py`（修改）:
+    - UMP 规范章节补充说明：顾客说"看图/发图片/看款式"时直接输出商品卡片，
+      不要因禁用独立 image 标签而回复"发不了图片"
+  - `app/templates/admin/chat_test.html`（修改）:
+    - UMPEngine card 渲染器：从 58×58 小缩略图升级为 160px 满宽大图＋加粗标题＋红色价格，
+      无图时显示 🎂 占位符
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: `pytest -q` → 103 passed ✅
+- **潜伏风险/遗留未决事项说明**: 无
+
+______________________________________________________________________
+
+## [2026-05-23] - 修复幻觉商品推荐 + 全面升级手机端UI + 全量商品同步305条
+
+- **操作人**: AI (Devin)
+- **关联任务**: 修复 RAG 幻觉商品、升级手机端UI、同步305个真实商品到数据库
+- **核心变更文件说明**:
+  - `app/service/embedding_search.py`（修改）:
+    - `MIN_SIMILARITY_SCORE` 从 `0.0` 提高至 `0.35`，过滤低相似度结果避免幻觉推荐
+  - `app/service/llm/prompt.py`（修改）:
+    - `build_system_prompt()` 新增基于 RAG 结果的商品标题枚举"只能推荐《商品A》、《商品B》..."，彻底禁止编造
+  - `app/static/admin/style.css`（修改）:
+    - 新增手机底部导航栏（`.bottom-nav`）、iOS safe-area 支持、触摸目标最小高度 44px
+  - `app/templates/admin/base.html`（修改）:
+    - 加入底部导航栏 HTML（概览/AI测试/主推款/商品），仅手机端显示
+  - `app/templates/admin/products.html`（修改）:
+    - 手机卡片视图 / PC 表格视图双布局自适应切换
+  - `app/templates/admin/chat_test.html`（修改）:
+    - 商品卡片样式升级为原生微信小程序分享样式（logo 区域＋有赞脚标）
+  - `scripts/sync_real_products_from_youzan.py`（修改）:
+    - 修复 `handle_youzan_system_event()` 缺少 `event_type` 参数的 Bug，同步 305/305 个真实商品
+- **数据库状态变更**:
+  - `youzan_products`: 305 行（is_active=1）
+  - `knowledge_base`（category=product）: 305 行 + 9 条 FAQ = 314 总
+- **测试覆盖与验证结果**: `pytest -q` → 103 passed ✅
+- **潜伏风险/遗留未决事项**: 无
+
+______________________________________________________________________
+
+## [2026-05-23] - 有赞全量商品同步脚本 + Webhook 9种事件集成测试 + 百路并发压测
+
+- **操作人**: AI (Devin)
+- **关联任务**: 原始数据入库、集成测试覆盖及性能基准建立
+- **核心变更文件说明**:
+  - `scripts/reset_and_sync.py`（新增）:
+    - 高性能全量同步脚本，支持重置 DB 后从有赞全量拉取商品写入；
+      禁用外键约束＋表删顺序重排修复 (commit 47d356a)
+  - `scripts/test_concurrent_100.py`（新增）:
+    - 100 路并发压测脚本，资源量成功率、p95延迟、并发安全基准指标
+  - `tests/integration/test_youzan_e2e.py`（新增）:
+    - 端到端集成测试——覆盖订单创建、支付、取消、商品上架/下架等 9 种 Webhook 事件
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: 集成测试全量通过; 百路并发压测基准指标建立
+- **潜伏风险/遗留未决事项**: 百路压测脚本暂时为手动执行脚本，未纳入 pytest 套件
+
+______________________________________________________________________
+
+## [2026-05-22] - Function Calling Phase B/C 补备 + 订单模型扩展 + 客户端单例修复
+
+- **操作人**: AI (Devin)
+- **关联任务**: 补全 Function Calling 测试三个 Phase，扩展订单数据模型，修复 YouzanClient 的并发竞态问题
+- **核心变更文件说明**:
+  - `app/service/youzan/client.py`（修改）:
+    - 修复非单例竞态：每次 `new` 独立实例导致 token 并发刷新冲突——改为模块级单例
+  - `app/repository/youzan_repo.py`（修改）:
+    - `youzan_orders` 新增 13 个字段，`upsert_order` 重构为 `YouzanOrderData` dataclass 入参
+  - `app/service/llm/functions.py`（修改）:
+    - `get_product_info` 新增实时有赞 API 刷新路径（Phase C）
+  - `tests/integration/test_youzan_full_cycle.py`（修改）:
+    - Phase A 恢复原意，Phase B 补全向量索引断言，Phase C 补全 before/after 快照对比＋LLM 回复断言＋Run2 幂等验证
+  - `app/service/youzan/trade.py` 及相关文件（修改）:
+    - youzan.trade.get v4 响应解析修复，全链路测试详细时间戳改版
+- **数据库状态变更**: `youzan_orders` 表新增 13 个字段（鲁棒订单结构匹配）
+- **测试覆盖与验证结果**: 全链路集成测试 Phase A/B/C 全部通过 ✅
+- **潜伏风险/遗留未决事项**: 无
+
+______________________________________________________________________
+
+## [2026-05-22] - 全库时区统一：北京本地时，移除 timezone.utc
+
+- **操作人**: AI (Devin)
+- **关联任务**: 修复全库 `datetime.now(timezone.utc)` 导致时间戳偏差 8 小时的问题
+- **核心变更文件说明**:
+  - `app/service/chat.py`、`app/service/llm/functions.py` 及其他 5 处（修改）:
+    - `datetime.datetime.now(datetime.timezone.utc)` 统一替换为 `datetime.datetime.now()`，符合项目北京本地时规范
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: `pytest -q` → 全部通过 ✅
+- **潜伏风险/遗留未决事项**: 无
+
+______________________________________________________________________
+
 ## [2026-05-22] - 有赞 Webhook 全链路修复：签名 + 路由 + 商品事件解析
 
 - **操作人**: AI (Cascade)
