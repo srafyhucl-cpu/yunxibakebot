@@ -25,4 +25,10 @@ server.bundle
 ngrok.exe
 middle_region.png
 task.md
+scripts/_db_verify.sh
+scripts/_debug_items.py
+scripts/_kb_content.sh
+scripts/_perf_check.py
+scripts/_test_product_api.py
+scripts/_verify2.sh
 资料.md
