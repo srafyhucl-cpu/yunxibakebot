@@ -16,9 +16,11 @@ from app.logger import setup_logger
 from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionCreate, SessionStatus
+from app.models.youzan_webhook_event import YouzanWebhookEventCreate, YouzanWebhookEventUpdate
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
+from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.llm.functions import FUNCTION_DEFINITIONS, MAX_TOOL_ROUNDS, dispatch_tool
@@ -61,12 +63,26 @@ class ChatService:
         self._message_repo = message_repo
         self._transfer_mgr = TransferManager(transfer_repo)
         self._knowledge = knowledge_retriever
+        self._youzan_webhook_events_repo = YouzanWebhookEventRepo(session_repo._db)
         self._youzan_client = YouzanClient(config_repo=ConfigRepo(session_repo._db))
         self._youzan_events = YouzanEventHandler(
             db=session_repo._db,
             knowledge_retriever=knowledge_retriever,
             youzan_client=self._youzan_client,
+            audit_repo=self._youzan_webhook_events_repo,
         )
+
+    async def create_youzan_webhook_audit(self, event: YouzanWebhookEventCreate) -> int:
+        """Record receipt of a Youzan webhook before async business handling."""
+        return await self._youzan_webhook_events_repo.create_received(event)
+
+    async def mark_youzan_webhook_processing(self, audit_id: int, stage: str = "dispatched") -> None:
+        """Mark a Youzan webhook as dispatched to background processing."""
+        await self._youzan_webhook_events_repo.mark_processing(audit_id, stage)
+
+    async def mark_youzan_webhook_result(self, audit_id: int, update: YouzanWebhookEventUpdate) -> None:
+        """Persist a terminal result for a Youzan webhook."""
+        await self._youzan_webhook_events_repo.mark_result(audit_id, update)
 
     async def handle_message_and_reply_youzan(self, buyer_id: str, content: str, msg_id: str) -> None:
         """处理消息，并将 AI 回复通过有赞客户端投递给买家（业务层闭环封装）。"""
@@ -304,7 +320,14 @@ class ChatService:
         await self._message_repo.save(msg)
         logger.info("人工客服回复: session=%s", session_id)
 
-    async def handle_youzan_system_event(self, payload: dict, event_type: str, updated_at_str: str, msg_id: str) -> None:
+    async def handle_youzan_system_event(
+        self,
+        payload: dict,
+        event_type: str,
+        updated_at_str: str,
+        msg_id: str,
+        audit_id: int | None = None,
+    ) -> None:
         """有赞系统事件处理（商品/交易 Webhook），委托至 YouzanEventHandler。"""
-        await self._youzan_events.handle_system_event(payload, event_type, updated_at_str, msg_id)
+        await self._youzan_events.handle_system_event(payload, event_type, updated_at_str, msg_id, audit_id)
 

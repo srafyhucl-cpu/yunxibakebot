@@ -157,6 +157,13 @@
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
 }
+.wechat-mode .msg-row.end .bubble-col {
+  flex: 0 1 auto;
+  max-width: min(72vw, 560px) !important;
+}
+.wechat-mode .msg-row.end .bubble.user {
+  display: inline-block;
+}
 .wechat-mode .bubble.user {
   background: #95ec69 !important;
   color: #191919 !important;
@@ -207,6 +214,9 @@
 /* 微信模式下对气泡列的限宽，防止文字/卡片横向全宽拉伸 */
 .wechat-mode .bubble-col {
   max-width: 78% !important;
+}
+.wechat-mode .msg-row.end .bubble-col {
+  max-width: min(72vw, 560px) !important;
 }
 
 /* Drawer - fixed to viewport */

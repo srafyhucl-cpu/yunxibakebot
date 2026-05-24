@@ -14,16 +14,19 @@ import urllib.parse
 
 from app.logger import setup_logger
 from app.models.config import FEATURED_PRODUCTS_KEY
-from app.models.knowledge import KnowledgeCategory, KnowledgeEntry
+from app.models.knowledge import KnowledgeEntry
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.service.embedding_search import EmbeddingSearcher
 
 logger = setup_logger()
 
+RECOMMENDABLE_PRODUCT_ACTIVE = 1
+MIN_RECOMMENDABLE_STOCK = 1
+
 
 class KnowledgeRetriever:
-    """知识检索器：向量搜索 + 关键词搜索组合，始终注入主推款。"""
+    """知识检索器：向量搜索 + 关键词搜索组合，并优先注入可售主推款。"""
 
     def __init__(
         self,
@@ -140,19 +143,88 @@ class KnowledgeRetriever:
                 break
         return results
 
-    async def _inject_featured(self, results: list[KnowledgeEntry], limit: int) -> list[KnowledgeEntry]:
-        """始终在检索结果首位插入主推款合成条目。"""
+    async def _inject_featured(
+        self, results: list[KnowledgeEntry], limit: int,
+    ) -> list[KnowledgeEntry]:
+        """Prepend configured featured products only when they are sellable."""
         if not self._config_repo:
             return results
         products = await self._config_repo.get_list(FEATURED_PRODUCTS_KEY)
         if not products:
             return results
-        featured = KnowledgeEntry(
-            category=KnowledgeCategory.STORE_INFO,
-            title="近期主推款",
-            content="近期重点推荐款式（顾客询问推荐时优先介绍）：" + "、".join(products),
-            keywords="推荐,主推,好吃,热门,人气",
-            priority=100,
+
+        featured_entries = await self._repo.get_by_titles(products, limit=len(products))
+        featured_by_title = {entry.title: entry for entry in featured_entries}
+        matched_featured_entries = [
+            featured_by_title[title] for title in products if title in featured_by_title
+        ]
+        ordered_featured = await self._filter_recommendable_featured_products(
+            matched_featured_entries
         )
-        deduped = [e for e in results if e.title != "近期主推款"]
-        return [featured, *deduped[:limit - 1]]
+        missing_titles = [title for title in products if title not in featured_by_title]
+        if missing_titles:
+            logger.warning(
+                "后台主推款未匹配到启用商品知识: %s",
+                "、".join(missing_titles),
+            )
+
+        if not ordered_featured:
+            return results
+
+        seen_titles = {entry.title for entry in ordered_featured}
+        deduped_results = [entry for entry in results if entry.title not in seen_titles]
+        return [*ordered_featured, *deduped_results][:limit]
+
+    async def _filter_recommendable_featured_products(
+        self, entries: list[KnowledgeEntry],
+    ) -> list[KnowledgeEntry]:
+        """Keep featured products that are active and in stock in youzan_products."""
+        if not entries:
+            return []
+
+        from app.repository.youzan_repo import YouzanProductRepo
+        product_repo = YouzanProductRepo(self._repo._db)
+
+        recommendable_entries: list[KnowledgeEntry] = []
+        for entry in entries:
+            if not entry.youzan_item_id:
+                logger.warning(
+                    "后台主推款缺少有赞商品ID，已跳过: %s",
+                    entry.title,
+                )
+                continue
+            try:
+                product = await product_repo.get_by_id(int(entry.youzan_item_id))
+            except (TypeError, ValueError) as exc:
+                logger.warning(
+                    "后台主推款有赞商品ID无效，已跳过: title=%s id=%s err=%s",
+                    entry.title,
+                    entry.youzan_item_id,
+                    exc,
+                )
+                continue
+            if not product:
+                logger.warning(
+                    "后台主推款未找到有赞商品物理数据，已跳过: title=%s id=%s",
+                    entry.title,
+                    entry.youzan_item_id,
+                )
+                continue
+            if product["is_active"] != RECOMMENDABLE_PRODUCT_ACTIVE:
+                logger.warning(
+                    "后台主推款商品未上架，已跳过: title=%s id=%s",
+                    entry.title,
+                    entry.youzan_item_id,
+                )
+                continue
+            if product["stock"] < MIN_RECOMMENDABLE_STOCK:
+                logger.warning(
+                    "后台主推款商品库存不足，已跳过: title=%s id=%s stock=%s",
+                    entry.title,
+                    entry.youzan_item_id,
+                    product["stock"],
+                )
+                continue
+            recommendable_entries.append(entry)
+
+        return recommendable_entries

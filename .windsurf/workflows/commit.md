@@ -33,6 +33,9 @@ git diff --cached -- "*.py" | Select-String "= '"
 根据修改范围选择性运行：
 
 ```powershell
+# 当前代码基线测试（默认必跑，防止本地代码落后于 CI 或遗漏依赖）
+python -m pytest tests/ -q
+
 # 场景测试（覆盖意图识别、对话流）
 python scripts/test_scenarios.py
 
@@ -42,6 +45,11 @@ python scripts/test_intents.py
 # 商品数据校验（修改了知识库时运行）
 python scripts/validate_products.py
 ```
+
+- 如果 GitHub Actions / CI 处于失败状态，先对齐本地代码与 CI 入口：
+  - 本地必须至少运行 `python -m pytest tests/ -q`。
+  - 若 CI 使用 `scripts/check_project.py`，本地同步运行 `python scripts/check_project.py`。
+  - 若本地通过但 CI 失败，记录失败 job、失败命令和差异原因，再提交修复；不要只依赖局部测试。
 
 ### 3. 服务启动验证
 

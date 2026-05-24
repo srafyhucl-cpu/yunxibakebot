@@ -158,6 +158,34 @@ SCHEMA_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_ae_buyer ON analytics_events(buyer_id)",
     "CREATE INDEX IF NOT EXISTS idx_ae_created ON analytics_events(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_events_attribution_flow ON analytics_events(buyer_id, event_type, created_at)",
+    # youzan_webhook_events
+    """CREATE TABLE IF NOT EXISTS youzan_webhook_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        msg_id TEXT NOT NULL UNIQUE,
+        trace_id TEXT DEFAULT '',
+        event_type TEXT DEFAULT '',
+        business_type TEXT NOT NULL
+            CHECK(business_type IN ('trade','item','chat','unknown')),
+        business_key TEXT DEFAULT '',
+        status TEXT NOT NULL
+            CHECK(status IN ('received','processing','processed','skipped','failed','duplicate')),
+        http_status INTEGER DEFAULT 200,
+        process_stage TEXT DEFAULT '',
+        error_type TEXT DEFAULT '',
+        error_message TEXT DEFAULT '',
+        payload_hash TEXT DEFAULT '',
+        payload_summary_json TEXT DEFAULT '{}',
+        received_at TEXT NOT NULL,
+        process_started_at TEXT,
+        process_finished_at TEXT,
+        duration_ms INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ywe_received ON youzan_webhook_events(received_at)",
+    "CREATE INDEX IF NOT EXISTS idx_ywe_status ON youzan_webhook_events(status)",
+    "CREATE INDEX IF NOT EXISTS idx_ywe_event_type ON youzan_webhook_events(event_type)",
+    "CREATE INDEX IF NOT EXISTS idx_ywe_business_key ON youzan_webhook_events(business_key)",
 ]
 
 PRAGMA_STATEMENTS: list[str] = [
@@ -214,27 +242,27 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
 
     # 动态微创迁移：为现存 youzan_orders 表补充扩展字段
     _YO_EXTRA_COLUMNS: list[tuple[str, str]] = [
-        ("pay_time", "TEXT DEFAULT ''"),
-        ("consign_time", "TEXT DEFAULT ''"),
-        ("pay_type_str", "TEXT DEFAULT ''"),
-        ("express_type", "INTEGER DEFAULT 0"),
-        ("refund_state", "INTEGER DEFAULT 0"),
-        ("post_fee_fen", "INTEGER DEFAULT 0"),
-        ("discount_fen", "INTEGER DEFAULT 0"),
-        ("delivery_province", "TEXT DEFAULT ''"),
-        ("delivery_city", "TEXT DEFAULT ''"),
-        ("delivery_district", "TEXT DEFAULT ''"),
-        ("delivery_time", "TEXT DEFAULT ''"),
-        ("outer_user_id", "TEXT DEFAULT ''"),
-        ("order_items_json", "TEXT DEFAULT '[]'"),
+        ("pay_time", "ALTER TABLE youzan_orders ADD COLUMN pay_time TEXT DEFAULT ''"),
+        ("consign_time", "ALTER TABLE youzan_orders ADD COLUMN consign_time TEXT DEFAULT ''"),
+        ("pay_type_str", "ALTER TABLE youzan_orders ADD COLUMN pay_type_str TEXT DEFAULT ''"),
+        ("express_type", "ALTER TABLE youzan_orders ADD COLUMN express_type INTEGER DEFAULT 0"),
+        ("refund_state", "ALTER TABLE youzan_orders ADD COLUMN refund_state INTEGER DEFAULT 0"),
+        ("post_fee_fen", "ALTER TABLE youzan_orders ADD COLUMN post_fee_fen INTEGER DEFAULT 0"),
+        ("discount_fen", "ALTER TABLE youzan_orders ADD COLUMN discount_fen INTEGER DEFAULT 0"),
+        ("delivery_province", "ALTER TABLE youzan_orders ADD COLUMN delivery_province TEXT DEFAULT ''"),
+        ("delivery_city", "ALTER TABLE youzan_orders ADD COLUMN delivery_city TEXT DEFAULT ''"),
+        ("delivery_district", "ALTER TABLE youzan_orders ADD COLUMN delivery_district TEXT DEFAULT ''"),
+        ("delivery_time", "ALTER TABLE youzan_orders ADD COLUMN delivery_time TEXT DEFAULT ''"),
+        ("outer_user_id", "ALTER TABLE youzan_orders ADD COLUMN outer_user_id TEXT DEFAULT ''"),
+        ("order_items_json", "ALTER TABLE youzan_orders ADD COLUMN order_items_json TEXT DEFAULT '[]'"),
     ]
     try:
         async with conn.execute("PRAGMA table_info(youzan_orders)") as cursor:
             yo_cols = {row["name"] for row in await cursor.fetchall()}
         added: list[str] = []
-        for col_name, col_def in _YO_EXTRA_COLUMNS:
+        for col_name, alter_sql in _YO_EXTRA_COLUMNS:
             if col_name not in yo_cols:
-                await conn.execute(f"ALTER TABLE youzan_orders ADD COLUMN {col_name} {col_def}")
+                await conn.execute(alter_sql)
                 added.append(col_name)
         if added:
             await conn.commit()

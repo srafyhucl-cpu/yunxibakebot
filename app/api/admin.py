@@ -8,6 +8,7 @@
 """
 
 import json
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -30,6 +31,7 @@ _jinja_env = Environment(
 )
 
 logger = setup_logger()
+ADMIN_CHAT_TEST_TIMEOUT_SECONDS = 35.0
 
 # ── API 路由 ──
 api_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -215,12 +217,24 @@ def create_admin_router(
         s = await admin_service.get_active(test_user, "admin_test")
         if s and s.status in ("transfer_pending", "human_service"):
             await admin_service.update_status(s.id, "active")
-        reply = await chat_service.handle_message(
-            channel="admin_test",
-            user_id=test_user,
-            channel_msg_id=str(uuid.uuid4()),
-            content=content,
-        )
+        try:
+            reply = await asyncio.wait_for(
+                chat_service.handle_message(
+                    channel="admin_test",
+                    user_id=test_user,
+                    channel_msg_id=str(uuid.uuid4()),
+                    content=content,
+                ),
+                timeout=ADMIN_CHAT_TEST_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            logger.error("后台 AI 测试接口超时: user=%s content=%s", test_user, content[:80])
+            return {
+                "code": 0,
+                "reply": "查询超时了，当前大模型服务响应较慢。请稍后重试，或直接联系人工确认订单配送时间。",
+                "intent": intent,
+                "session_id": s.id if s else "",
+            }
         # 获取当前会话 ID
         session = await admin_service.get_active(test_user, "admin_test")
         session_id = session.id if session else ""

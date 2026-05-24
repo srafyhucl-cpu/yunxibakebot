@@ -4,6 +4,75 @@
 
 ______________________________________________________________________
 
+## [2026-05-24] - 商品 Markdown 知识库退役，统一切换为有赞商品数据
+- **操作人**: AI (Codex)
+- **关联任务**: 清理商品死数据入口，避免 `seed_knowledge.py` 再次把 Markdown 商品导回 `knowledge_base`
+- **核心变更文件说明**:
+  - `knowledge/芸熙烘焙商品库知识库.md`（修改）:
+    - 删除全部商品条目，仅保留“商品以有赞数据为准”的来源说明
+  - `scripts/seed_knowledge.py`（修改）:
+    - 移除商品 Markdown 解析与导入逻辑
+    - 保留 FAQ、规则、话术三类知识的种子导入
+- **数据库状态变更**: 无新增表；初始化种子脚本后续不再把 Markdown 商品写入 `knowledge_base`
+- **测试覆盖与验证结果**:
+  - `python -m py_compile scripts\seed_knowledge.py` 通过
+  - `python -m pytest tests/ -q` 通过（106 passed）
+  - `uvicorn app.main:app --host 127.0.0.1 --port 7001` 启动后 `/health` 返回 `{"status":"ok","version":"0.1.0"}`
+- **潜在风险/遗留未决事项说明**:
+  - 若历史库里仍有旧商品知识，需要通过现有有赞同步脚本或清库后重建来统一数据口径；本次修改只阻断后续 Markdown 回灌
+______________________________________________________________________
+
+## [2026-05-24] - 后台 AI 测试接口 LLM 超时兜底
+- **操作人**: AI (Codex)
+- **关联任务**: 排查后台 AI 测试页面“请求失败”，修复 DeepSeek 上游 524/长时间无响应导致前端等待失败的问题
+- **核心变更文件说明**:
+  - `app/config.py`（修改）:
+    - 新增 `DEEPSEEK_TIMEOUT_SECONDS`，默认 15 秒，作为大模型 API 调用硬超时
+  - `app/service/llm/client.py`（修改）:
+    - `AsyncOpenAI` 客户端接入 `timeout=settings.DEEPSEEK_TIMEOUT_SECONDS`
+  - `app/api/admin.py`（修改）:
+    - 后台 `POST /api/v1/admin/chat-test` 外层增加 35 秒 `asyncio.wait_for` 兜底
+    - 超时时返回友好提示，避免前端长时间挂起后显示“请求失败”
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - `python -m py_compile app\config.py app\service\llm\client.py app\api\admin.py` 通过
+  - `python -m pytest tests\service\test_youzan_emulator.py tests\service\youzan\test_event_handler_edge.py tests\repository\test_youzan_webhook_event_repo.py -q` 通过（7 passed）
+  - `python -m pytest tests/ -q` 通过（106 passed）
+- **潜在风险/遗留未决事项说明**:
+  - 生产问题根因为 DeepSeek/上游网关 524 超时，本修复避免后台页面被拖死；若上游持续慢，仍需观察模型服务稳定性或考虑更短链路的订单本地查询能力
+______________________________________________________________________
+
+## [2026-05-24] - 有赞 Webhook 推送审计台账与日报脚本
+- **操作人**: AI (Codex)
+- **关联任务**: 补齐有赞推送数据的可审计、可追溯能力，避免仅依赖 journal 日志排查
+- **核心变更文件说明**:
+  - `app/database.py`（修改）:
+    - 新增 `youzan_webhook_events` 审计表与 `msg_id`、状态、事件类型、业务键、接收时间等索引
+  - `app/models/youzan_webhook_event.py`（新增）:
+    - 新增有赞 webhook 审计状态、业务类型与创建/更新数据容器
+  - `app/repository/youzan_webhook_event_repo.py`（新增）:
+    - 新增审计事件收件、处理中、终态结果更新与按 msg_id 查询能力
+  - `app/api/webhook.py`（修改）:
+    - 有赞入口在签名与 JSON 解析后写入 `received`
+    - 对内存重复、DB 重复、空消息、后台异常写入 `duplicate` / `skipped` / `failed`
+    - 保持原有秒回 200 与后台异步处理模式不变
+  - `app/service/chat.py`、`app/service/youzan/event_handler.py`、`event_trade.py`、`event_item.py`（修改）:
+    - 将审计上下文贯穿系统事件分发、交易事件、商品事件处理链路
+    - 记录 `processing`、`processed`、`skipped`、`failed` 终态与业务键
+  - `scripts/report_youzan_webhook_events.py`（新增）:
+    - 新增只读日报脚本，支持按日期、失败清单、订单/商品业务键查询审计记录
+  - `tests/repository/test_youzan_webhook_event_repo.py`（新增）:
+    - 覆盖审计事件创建、处理中、成功终态、重复 msg_id 标记
+- **数据库状态变更**: 新增 `youzan_webhook_events` 表和 4 个查询索引
+- **测试覆盖与验证结果**:
+  - `python -m py_compile app\models\youzan_webhook_event.py app\repository\youzan_webhook_event_repo.py app\api\webhook.py app\service\chat.py app\service\youzan\event_handler.py app\service\youzan\event_trade.py app\service\youzan\event_item.py scripts\report_youzan_webhook_events.py` 通过
+  - `python -m pytest tests\repository\test_youzan_webhook_event_repo.py tests\service\youzan\test_webhook_retry.py tests\service\youzan\test_event_handler_edge.py -q` 通过（6 passed）
+  - `python -m pytest tests/ -q` 通过（106 passed）
+- **潜在风险/遗留未决事项说明**:
+  - 第一阶段未保存完整原始 payload，仅保存摘要与 hash；如后续需要供应商级别原文对账，可再设计短期原文归档
+  - 第一阶段未做后台页面与自动告警，仅提供 SQLite 台账和只读日报脚本
+______________________________________________________________________
+
 ## [2026-05-24] - 全局 Skill 集成 + sync-skills 工作流完善
 
 - **操作人**: AI (Devin)

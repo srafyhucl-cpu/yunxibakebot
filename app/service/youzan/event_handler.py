@@ -9,6 +9,11 @@ import json
 import urllib.parse
 
 from app.logger import setup_logger
+from app.models.youzan_webhook_event import (
+    YouzanWebhookEventUpdate,
+    YouzanWebhookStatus,
+)
+from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_item import handle_item_event
 from app.service.youzan.event_trade import handle_trade_event
@@ -25,12 +30,26 @@ _SKU_STOCK_UPDATE_EVENT = "youzan_item_skustockorsoldnumupdated"
 class YouzanEventHandler:
     """有赞系统事件处理器（商品 + 交易 Webhook 双轨合流分发器）。"""
 
-    def __init__(self, db, knowledge_retriever, youzan_client: YouzanClient) -> None:
+    def __init__(
+        self,
+        db,
+        knowledge_retriever,
+        youzan_client: YouzanClient,
+        audit_repo: YouzanWebhookEventRepo | None = None,
+    ) -> None:
         self._db = db
         self._knowledge = knowledge_retriever
         self._youzan_client = youzan_client
+        self._audit_repo = audit_repo
 
-    async def handle_system_event(self, payload: dict, event_type: str, updated_at_str: str, msg_id: str) -> None:
+    async def handle_system_event(
+        self,
+        payload: dict,
+        event_type: str,
+        updated_at_str: str,
+        msg_id: str,
+        audit_id: int | None = None,
+    ) -> None:
         """
         解析并分发有赞系统事件至对应处理模块。
 
@@ -42,6 +61,7 @@ class YouzanEventHandler:
         """
         if event_type in _DEPRECATED_EVENT_TYPES:
             logger.info("有赞已废弃事件，跳过处理: type=%s msg_id=%s", event_type, msg_id)
+            await self._mark_skipped(audit_id, "deprecated_event", event_type)
             return
 
         raw_msg = payload.get("msg")
@@ -67,6 +87,8 @@ class YouzanEventHandler:
                 event_type=event_type,
                 msg_obj=msg_obj,
                 updated_at_str=updated_at_str,
+                audit_repo=self._audit_repo,
+                audit_id=audit_id,
             )
         elif event_type_lower.startswith("item_"):
             msg_data = msg_obj.get("data", {})
@@ -92,6 +114,8 @@ class YouzanEventHandler:
                 event_type=event_type,
                 msg_obj=msg_obj,
                 updated_at_str=updated_at_str,
+                audit_repo=self._audit_repo,
+                audit_id=audit_id,
             )
         elif event_type_lower == _SKU_STOCK_UPDATE_EVENT:
             item_id = payload.get("item_id")
@@ -103,8 +127,25 @@ class YouzanEventHandler:
                     event_type=event_type,
                     msg_obj={"item_id": item_id},
                     updated_at_str=updated_at_str,
+                    audit_repo=self._audit_repo,
+                    audit_id=audit_id,
                 )
             else:
                 logger.warning("商品规格库存更新事件缺少 item_id: msg_id=%s", msg_id)
+                await self._mark_skipped(audit_id, "missing_item_id", event_type)
         else:
             logger.info("有赞系统事件已接收，暂无处理器，已跳过: type=%s msg_id=%s", event_type, msg_id)
+            await self._mark_skipped(audit_id, "unknown_event_type", event_type)
+
+    async def _mark_skipped(self, audit_id: int | None, error_type: str, event_type: str) -> None:
+        if self._audit_repo is None or audit_id is None:
+            return
+        await self._audit_repo.mark_result(
+            audit_id,
+            YouzanWebhookEventUpdate(
+                status=YouzanWebhookStatus.SKIPPED,
+                process_stage="dispatch_skipped",
+                error_type=error_type,
+                error_message=f"event_type={event_type}",
+            ),
+        )

@@ -12,11 +12,25 @@ import json
 
 from app.logger import setup_logger
 from app.models.order import YouzanOrderData
+from app.models.youzan_webhook_event import (
+    YouzanWebhookBusinessType,
+    YouzanWebhookEventUpdate,
+    YouzanWebhookStatus,
+)
+from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 
 logger = setup_logger()
 
 
-async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, updated_at_str: str) -> None:
+async def handle_trade_event(
+    db,
+    youzan_client,
+    event_type: str,
+    msg_obj: dict,
+    updated_at_str: str,
+    audit_repo: YouzanWebhookEventRepo | None = None,
+    audit_id: int | None = None,
+) -> None:
     """
     处理有赞交易系统事件。
 
@@ -35,10 +49,24 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
         _foi = msg_obj.get("full_order_info", {})
         tid = _foi.get("order_info", {}).get("tid", "")
     if not tid:
+        await _mark_trade_audit(
+            audit_repo,
+            audit_id,
+            YouzanWebhookStatus.SKIPPED,
+            "trade_missing_tid",
+            "missing_tid",
+        )
         logger.warning("有赞交易事件缺少 tid")
         return
 
     logger.info("开始处理有赞交易 Webhook 事件 [%s]: tid=%s", event_type, tid)
+    await _mark_trade_audit(
+        audit_repo,
+        audit_id,
+        YouzanWebhookStatus.PROCESSING,
+        "trade_api_fetch",
+        business_key=tid,
+    )
 
     order_repo = YouzanOrderRepo(db)
     product_repo = YouzanProductRepo(db)
@@ -55,6 +83,14 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
         outer_data = raw_order.get("data") if isinstance(raw_order, dict) else None
         if not isinstance(outer_data, dict) or "full_order_info" not in outer_data:
             logger.warning("有赞 trade.get 响应缺少 full_order_info，跳过 DB 写入: tid=%s", tid)
+            await _mark_trade_audit(
+                audit_repo,
+                audit_id,
+                YouzanWebhookStatus.FAILED,
+                "trade_api_bad_response",
+                "missing_full_order_info",
+                business_key=tid,
+            )
             return
 
         foi = outer_data["full_order_info"]
@@ -167,6 +203,54 @@ async def handle_trade_event(db, youzan_client, event_type: str, msg_obj: dict, 
                         "🎉 完美！AI 导购业绩归因匹配成功！已为 Dashboard 记账绩效: session_id=%s, buyer_id=%s, gmv_fen=%s",
                         ai_session_id, buyer_id, item.get("payment"),
                     )
+        await _mark_trade_audit(
+            audit_repo,
+            audit_id,
+            YouzanWebhookStatus.PROCESSED,
+            "trade_processed",
+            business_key=tid,
+        )
 
     except Exception as exc:
         logger.error("处理有赞交易系统事件失败: tid=%s err=%s", tid, exc)
+        await _mark_trade_audit(
+            audit_repo,
+            audit_id,
+            YouzanWebhookStatus.FAILED,
+            "trade_failed",
+            type(exc).__name__,
+            str(exc),
+            business_key=tid,
+        )
+
+
+async def _mark_trade_audit(
+    audit_repo: YouzanWebhookEventRepo | None,
+    audit_id: int | None,
+    status: str,
+    process_stage: str,
+    error_type: str = "",
+    error_message: str = "",
+    business_key: str = "",
+) -> None:
+    if audit_repo is None or audit_id is None:
+        return
+    if status == YouzanWebhookStatus.PROCESSING:
+        await audit_repo.mark_processing(
+            audit_id,
+            process_stage,
+            business_type=YouzanWebhookBusinessType.TRADE,
+            business_key=business_key,
+        )
+        return
+    await audit_repo.mark_result(
+        audit_id,
+        YouzanWebhookEventUpdate(
+            status=status,
+            process_stage=process_stage,
+            business_type=YouzanWebhookBusinessType.TRADE,
+            business_key=business_key,
+            error_type=error_type,
+            error_message=error_message,
+        ),
+    )

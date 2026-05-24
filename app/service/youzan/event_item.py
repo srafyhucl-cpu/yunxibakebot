@@ -12,6 +12,12 @@ import json
 import re
 
 from app.logger import setup_logger
+from app.models.youzan_webhook_event import (
+    YouzanWebhookBusinessType,
+    YouzanWebhookEventUpdate,
+    YouzanWebhookStatus,
+)
+from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 
 logger = setup_logger()
 
@@ -137,7 +143,14 @@ async def _sync_rag_knowledge(
 
 
 async def handle_item_event(
-    db, youzan_client, knowledge_retriever, event_type: str, msg_obj: dict, updated_at_str: str
+    db,
+    youzan_client,
+    knowledge_retriever,
+    event_type: str,
+    msg_obj: dict,
+    updated_at_str: str,
+    audit_repo: YouzanWebhookEventRepo | None = None,
+    audit_id: int | None = None,
 ) -> None:
     """
     处理有赞商品系统事件。
@@ -164,9 +177,23 @@ async def handle_item_event(
             logger.warning("解析有赞事件内层 data 失败: %s", exc)
     if not item_id:
         logger.warning("有赞商品事件缺少 item_id")
+        await _mark_item_audit(
+            audit_repo,
+            audit_id,
+            YouzanWebhookStatus.SKIPPED,
+            "item_missing_item_id",
+            "missing_item_id",
+        )
         return
 
     logger.info("开始处理有赞商品 Webhook 事件 [%s]: item_id=%s", event_type, item_id)
+    await _mark_item_audit(
+        audit_repo,
+        audit_id,
+        YouzanWebhookStatus.PROCESSING,
+        "item_api_fetch",
+        business_key=str(item_id),
+    )
 
     product_repo = YouzanProductRepo(db)
     analytics_repo = AnalyticsRepo(db)
@@ -182,10 +209,27 @@ async def handle_item_event(
 
         if isinstance(raw_product, dict) and raw_product.get("gw_err_resp"):
             logger.error("商品事件 API 拒绝: item_id=%s err=%s", item_id, raw_product["gw_err_resp"])
+            await _mark_item_audit(
+                audit_repo,
+                audit_id,
+                YouzanWebhookStatus.FAILED,
+                "item_api_rejected",
+                "gw_err_resp",
+                str(raw_product["gw_err_resp"]),
+                business_key=str(item_id),
+            )
             return
         outer_data = raw_product.get("data") or raw_product.get("response") if isinstance(raw_product, dict) else None
         if not isinstance(outer_data, dict) or "item" not in outer_data:
             logger.error("商品事件响应结构异常: item_id=%s raw_keys=%s", item_id, list(raw_product.keys()) if isinstance(raw_product, dict) else type(raw_product))
+            await _mark_item_audit(
+                audit_repo,
+                audit_id,
+                YouzanWebhookStatus.FAILED,
+                "item_api_bad_response",
+                "missing_item",
+                business_key=str(item_id),
+            )
             return
 
         item_data = outer_data["item"]
@@ -243,6 +287,54 @@ async def handle_item_event(
                 created_at=now_str,
             )
             logger.info("已成功记录商品库存预警审计埋点: title=%s, old_stock=%d, new_stock=%d", title, old_stock, stock)
+        await _mark_item_audit(
+            audit_repo,
+            audit_id,
+            YouzanWebhookStatus.PROCESSED,
+            "item_processed",
+            business_key=str(item_id),
+        )
 
     except Exception as exc:
         logger.error("处理有赞商品系统事件失败: item_id=%s err=%s", item_id, exc)
+        await _mark_item_audit(
+            audit_repo,
+            audit_id,
+            YouzanWebhookStatus.FAILED,
+            "item_failed",
+            type(exc).__name__,
+            str(exc),
+            business_key=str(item_id),
+        )
+
+
+async def _mark_item_audit(
+    audit_repo: YouzanWebhookEventRepo | None,
+    audit_id: int | None,
+    status: str,
+    process_stage: str,
+    error_type: str = "",
+    error_message: str = "",
+    business_key: str = "",
+) -> None:
+    if audit_repo is None or audit_id is None:
+        return
+    if status == YouzanWebhookStatus.PROCESSING:
+        await audit_repo.mark_processing(
+            audit_id,
+            process_stage,
+            business_type=YouzanWebhookBusinessType.ITEM,
+            business_key=business_key,
+        )
+        return
+    await audit_repo.mark_result(
+        audit_id,
+        YouzanWebhookEventUpdate(
+            status=status,
+            process_stage=process_stage,
+            business_type=YouzanWebhookBusinessType.ITEM,
+            business_key=business_key,
+            error_type=error_type,
+            error_message=error_message,
+        ),
+    )

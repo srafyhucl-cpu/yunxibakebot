@@ -8,15 +8,161 @@ Webhook API 路由。
 - 立即返回 200（不阻塞渠道重试）
 """
 
+import hashlib
+import json
+import urllib.parse
+
 from fastapi import APIRouter, Request, HTTPException
 
 from app.config import settings
 from app.logger import setup_logger
+from app.models.youzan_webhook_event import (
+    YouzanWebhookBusinessType,
+    YouzanWebhookEventCreate,
+    YouzanWebhookEventUpdate,
+    YouzanWebhookStatus,
+)
 from app.service.chat import ChatService
 from app.service.youzan.webhook import verify_signature as verify_youzan_signature
 
 logger = setup_logger()
 router = APIRouter(prefix="/api/v1/webhook", tags=["webhook"])
+
+AUDIT_HTTP_OK = 200
+PAYLOAD_PREVIEW_LIMIT = 300
+
+
+def _extract_trace_id(request: Request) -> str:
+    rontgen = request.headers.get("x-rontgen", "")
+    for part in rontgen.split(";"):
+        if part.startswith("traceId="):
+            return part[len("traceId="):]
+    return ""
+
+
+def _parse_payload_msg(payload: dict) -> dict:
+    raw_msg = payload.get("msg")
+    if isinstance(raw_msg, dict):
+        return raw_msg
+    if not raw_msg:
+        return {}
+    try:
+        parsed = json.loads(urllib.parse.unquote(str(raw_msg)))
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _extract_business_fields(payload: dict, event_type: str, buyer_id: str) -> tuple[str, str]:
+    event_type_lower = event_type.lower()
+    msg_obj = _parse_payload_msg(payload)
+    if event_type_lower.startswith("trade_"):
+        tid = msg_obj.get("tid", "")
+        if not tid:
+            order_info = msg_obj.get("full_order_info", {}).get("order_info", {})
+            tid = order_info.get("tid", "")
+        return YouzanWebhookBusinessType.TRADE, str(tid)
+    if event_type_lower.startswith("item_") or event_type_lower == "youzan_item_skustockorsoldnumupdated":
+        msg_data = msg_obj.get("data", {})
+        if isinstance(msg_data, str):
+            try:
+                msg_data = json.loads(msg_data)
+            except Exception:
+                msg_data = {}
+        if not isinstance(msg_data, dict):
+            msg_data = {}
+        payload_data = payload.get("data", {})
+        if not isinstance(payload_data, dict):
+            payload_data = {}
+        item_id = (
+            msg_obj.get("item_id")
+            or msg_data.get("item_id")
+            or payload_data.get("item_id")
+            or payload.get("item_id")
+        )
+        if not item_id and event_type_lower in ("item_info", "item_sku_info"):
+            item_id = payload.get("id")
+        return YouzanWebhookBusinessType.ITEM, str(item_id or "")
+    if buyer_id:
+        return YouzanWebhookBusinessType.CHAT, buyer_id
+    return YouzanWebhookBusinessType.UNKNOWN, ""
+
+
+def _build_payload_summary(payload: dict, event_type: str, business_type: str, business_key: str) -> str:
+    summary = {
+        "id": payload.get("id", ""),
+        "msg_id": payload.get("msg_id", ""),
+        "type": event_type,
+        "business_type": business_type,
+        "business_key": business_key,
+        "timestamp": payload.get("timestamp", ""),
+        "msg_type": payload.get("msg_type", ""),
+        "buyer_id": payload.get("buyer_id", ""),
+    }
+    return json.dumps(summary, ensure_ascii=False)[:PAYLOAD_PREVIEW_LIMIT]
+
+
+async def _create_audit_event(
+    chat_service: ChatService,
+    payload: dict,
+    raw_body: bytes,
+    msg_id: str,
+    trace_id: str,
+    event_type: str,
+    buyer_id: str,
+) -> int | None:
+    if not hasattr(chat_service, "create_youzan_webhook_audit"):
+        return None
+    business_type, business_key = _extract_business_fields(payload, event_type, buyer_id)
+    try:
+        return await chat_service.create_youzan_webhook_audit(
+            YouzanWebhookEventCreate(
+                msg_id=msg_id,
+                trace_id=trace_id,
+                event_type=event_type,
+                business_type=business_type,
+                business_key=business_key,
+                http_status=AUDIT_HTTP_OK,
+                payload_hash=hashlib.sha256(raw_body).hexdigest(),
+                payload_summary_json=_build_payload_summary(payload, event_type, business_type, business_key),
+            ),
+        )
+    except Exception as exc:
+        logger.error("有赞 webhook 审计收件写入失败 [msg_id=%s]: %s", msg_id, exc)
+        return None
+
+
+async def _mark_audit_processing(chat_service: ChatService, audit_id: int | None, stage: str) -> None:
+    if audit_id is None or not hasattr(chat_service, "mark_youzan_webhook_processing"):
+        return
+    try:
+        await chat_service.mark_youzan_webhook_processing(audit_id, stage)
+    except Exception as exc:
+        logger.error("有赞 webhook 审计处理中状态写入失败 [audit_id=%s]: %s", audit_id, exc)
+
+
+async def _mark_audit_result(
+    chat_service: ChatService,
+    audit_id: int | None,
+    status: str,
+    stage: str,
+    error_type: str = "",
+    error_message: str = "",
+) -> None:
+    if audit_id is None or not hasattr(chat_service, "mark_youzan_webhook_result"):
+        return
+    try:
+        await chat_service.mark_youzan_webhook_result(
+            audit_id,
+            YouzanWebhookEventUpdate(
+                status=status,
+                process_stage=stage,
+                error_type=error_type,
+                error_message=error_message,
+            ),
+        )
+    except Exception as exc:
+        logger.error("有赞 webhook 审计结果写入失败 [audit_id=%s]: %s", audit_id, exc)
 
 
 def create_webhook_router(chat_service: ChatService) -> APIRouter:
@@ -28,21 +174,16 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
     _processing_msg_timestamps: dict[str, float] = {}
 
     # 定时异步自愈清洗任务（30秒 TTL 自动物理擦除）
-    async def _cleanup_stale_msg_ids() -> None:
-        while True:
-            try:
-                await asyncio.sleep(10)
-                now = time.time()
-                stale_ids = [msg_id for msg_id, ts in _processing_msg_timestamps.items() if now - ts > 30.0]
-                for msg_id in stale_ids:
-                    _processing_msg_timestamps.pop(msg_id, None)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
+    def _cleanup_stale_msg_ids(now: float) -> None:
+        try:
+            stale_ids = [msg_id for msg_id, ts in _processing_msg_timestamps.items() if now - ts > 30.0]
+            for msg_id in stale_ids:
+                _processing_msg_timestamps.pop(msg_id, None)
+        except Exception as e:
                 logger.error("去重容器定时自愈清洗器异常: %s", e)
 
     # 启动清洗守护协程
-    asyncio.create_task(_cleanup_stale_msg_ids())
+    # cleanup is performed opportunistically inside each request to avoid orphan tasks in tests
 
     @router.post("/youzan")
     async def youzan_webhook(request: Request) -> dict:
@@ -52,6 +193,8 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
         验证 MD5 签名后异步处理消息。
         通过秒级内存锁与数据库双重防线去重。
         """
+        now = time.time()
+        _cleanup_stale_msg_ids(now)
         raw_body = await request.body()
 
         # 1. 验证签名（抗伪造安全防线）
@@ -67,35 +210,45 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             logger.error("有赞消息解析失败: %s", exc)
             raise HTTPException(status_code=400, detail="无效的 JSON 消息") from exc
 
+        trace_id = _extract_trace_id(request)
         msg_id = payload.get("msg_id") or payload.get("id") or ""
         if not msg_id:
-            _rontgen = request.headers.get("x-rontgen", "")
-            for _part in _rontgen.split(";"):
-                if _part.startswith("traceId="):
-                    msg_id = _part[len("traceId="):]
-                    break
+            msg_id = trace_id
         if not msg_id:
             logger.warning("有赞消息缺少可用的去重 ID，丢弃")
             return {"code": 0, "msg": "success"}
 
         # 3. 秒回防御去重校验（内存锁与数据库双重防线）
-        now = time.time()
+        event_type = payload.get("type", "") or request.headers.get("event-type", "")
+        buyer_id = payload.get("buyer_id", "")
+        audit_id = await _create_audit_event(
+            chat_service,
+            payload,
+            raw_body,
+            msg_id,
+            trace_id,
+            event_type,
+            buyer_id,
+        )
+
         if msg_id in _processing_msg_timestamps:
             last_ts = _processing_msg_timestamps[msg_id]
             if now - last_ts < 10.0:
                 logger.info("有赞推送处于 10s 滑动锁定窗口期内，秒回复成功: %s", msg_id)
+                await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.DUPLICATE, "in_memory_duplicate")
                 return {"code": 0, "msg": "success"}
 
         if await chat_service._message_repo.has_processed(msg_id):
             logger.info("有赞推送已处理完毕，秒回复成功: %s", msg_id)
+            await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.DUPLICATE, "db_duplicate")
             return {"code": 0, "msg": "success"}
 
         # 锁定当前处理的消息 ID 并记录时间戳
         _processing_msg_timestamps[msg_id] = now
 
         # 4. 判断是买家咨询客服消息，还是有赞系统事件消息（如商品上架、交易付款等）
-        event_type = payload.get("type", "") or request.headers.get("event-type", "")
         if event_type:
+            await _mark_audit_processing(chat_service, audit_id, "system_dispatched")
             # A 轨：系统事件处理管道（双轨合流分发：物理表数仓 + RAG增量 + Telemetry审计）
             # Webhook 充当极简网关分发，彻底移除所有 repository 导入，契合架构红线
             async def _background_process_system_event() -> None:
@@ -109,9 +262,18 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                         event_type=event_type,
                         updated_at_str=updated_at_str,
                         msg_id=msg_id,
+                        audit_id=audit_id,
                     )
                 except Exception as exc:
                     logger.error("有赞系统事件后台业务处理异常 [msg_id=%s]: %s", msg_id, exc, exc_info=True)
+                    await _mark_audit_result(
+                        chat_service,
+                        audit_id,
+                        YouzanWebhookStatus.FAILED,
+                        "system_background_failed",
+                        type(exc).__name__,
+                        str(exc),
+                    )
                 finally:
                     _processing_msg_timestamps.pop(msg_id, None)
 
@@ -133,7 +295,10 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
 
             if not text_content:
                 _processing_msg_timestamps.pop(msg_id, None)
+                await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.SKIPPED, "chat_empty_content")
                 return {"code": 0, "msg": "success"}
+
+            await _mark_audit_processing(chat_service, audit_id, "chat_dispatched")
 
             async def _background_process() -> None:
                 try:
@@ -142,8 +307,17 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                         content=text_content,
                         msg_id=msg_id,
                     )
+                    await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_processed")
                 except Exception as exc:
                     logger.error("有赞后台消息处理异常 [msg_id=%s]: %s", msg_id, exc)
+                    await _mark_audit_result(
+                        chat_service,
+                        audit_id,
+                        YouzanWebhookStatus.FAILED,
+                        "chat_background_failed",
+                        type(exc).__name__,
+                        str(exc),
+                    )
                 finally:
                     # 释放内存锁定
                     _processing_msg_timestamps.pop(msg_id, None)

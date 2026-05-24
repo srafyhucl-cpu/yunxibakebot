@@ -1,0 +1,127 @@
+"""Repository for Youzan webhook audit events."""
+
+from datetime import datetime
+
+import aiosqlite
+
+from app.models.youzan_webhook_event import (
+    YouzanWebhookEventCreate,
+    YouzanWebhookEventUpdate,
+    YouzanWebhookStatus,
+)
+
+
+class YouzanWebhookEventRepo:
+    """Stores a durable audit trail for every received Youzan webhook."""
+
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self._db = db
+
+    async def create_received(self, event: YouzanWebhookEventCreate) -> int:
+        now = _now_str()
+        await self._db.execute(
+            "INSERT INTO youzan_webhook_events ("
+            "msg_id, trace_id, event_type, business_type, business_key, status, "
+            "http_status, received_at, payload_hash, payload_summary_json, created_at, updated_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(msg_id) DO UPDATE SET "
+            "    status = ?, "
+            "    trace_id = excluded.trace_id, "
+            "    event_type = excluded.event_type, "
+            "    business_type = excluded.business_type, "
+            "    business_key = excluded.business_key, "
+            "    http_status = excluded.http_status, "
+            "    payload_hash = excluded.payload_hash, "
+            "    payload_summary_json = excluded.payload_summary_json, "
+            "    updated_at = excluded.updated_at",
+            (
+                event.msg_id,
+                event.trace_id,
+                event.event_type,
+                event.business_type,
+                event.business_key,
+                YouzanWebhookStatus.RECEIVED,
+                event.http_status,
+                now,
+                event.payload_hash,
+                event.payload_summary_json,
+                now,
+                now,
+                YouzanWebhookStatus.DUPLICATE,
+            ),
+        )
+        await self._db.commit()
+        row = await self._db.execute_fetchall(
+            "SELECT id FROM youzan_webhook_events WHERE msg_id = ?",
+            (event.msg_id,),
+        )
+        return int(row[0]["id"])
+
+    async def mark_processing(
+        self,
+        event_id: int,
+        process_stage: str = "dispatched",
+        business_type: str | None = None,
+        business_key: str = "",
+    ) -> None:
+        now = _now_str()
+        await self._db.execute(
+            "UPDATE youzan_webhook_events SET status = ?, process_stage = ?, "
+            "business_type = COALESCE(?, business_type), "
+            "business_key = COALESCE(NULLIF(?, ''), business_key), "
+            "process_started_at = COALESCE(process_started_at, ?), updated_at = ? "
+            "WHERE id = ?",
+            (YouzanWebhookStatus.PROCESSING, process_stage, business_type, business_key, now, now, event_id),
+        )
+        await self._db.commit()
+
+    async def mark_result(self, event_id: int, update: YouzanWebhookEventUpdate) -> None:
+        now = _now_str()
+        rows = await self._db.execute_fetchall(
+            "SELECT process_started_at FROM youzan_webhook_events WHERE id = ?",
+            (event_id,),
+        )
+        started_at = rows[0]["process_started_at"] if rows else None
+        duration_ms = _duration_ms(started_at, now) if started_at else None
+        await self._db.execute(
+            "UPDATE youzan_webhook_events SET "
+            "status = ?, process_stage = ?, "
+            "business_type = COALESCE(?, business_type), "
+            "business_key = COALESCE(NULLIF(?, ''), business_key), "
+            "error_type = ?, error_message = ?, "
+            "process_finished_at = ?, duration_ms = ?, updated_at = ? "
+            "WHERE id = ?",
+            (
+                update.status,
+                update.process_stage,
+                update.business_type,
+                update.business_key,
+                update.error_type,
+                update.error_message,
+                now,
+                duration_ms,
+                now,
+                event_id,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_by_msg_id(self, msg_id: str) -> dict | None:
+        rows = await self._db.execute_fetchall(
+            "SELECT id, msg_id, trace_id, event_type, business_type, business_key, "
+            "status, http_status, process_stage, error_type, error_message, "
+            "received_at, process_started_at, process_finished_at, duration_ms "
+            "FROM youzan_webhook_events WHERE msg_id = ?",
+            (msg_id,),
+        )
+        return dict(rows[0]) if rows else None
+
+
+def _now_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _duration_ms(started_at: str, finished_at: str) -> int:
+    started = datetime.strptime(started_at, "%Y-%m-%d %H:%M:%S")
+    finished = datetime.strptime(finished_at, "%Y-%m-%d %H:%M:%S")
+    return max(0, int((finished - started).total_seconds() * 1000))
