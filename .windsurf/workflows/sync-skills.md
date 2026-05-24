@@ -82,13 +82,29 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 
 若本次变更需要**新建** Skill（例如某个新子系统缺少对应守卫），**必须先调用 `skill-creator` skill** 进行 Skill 设计和评估，再落笔写 SKILL.md。
 
+若对**现有 Skill 做较大改动**（description 重写、验收清单大幅调整、新增 eval 测试用例），同样调用 `skill-creator` 进行评估和迭代，确保触发精度不下降。小型修正（单行勘误、路径更新）无需调用。
+
 ---
 
 ### 5. 更新 LOGBOOK.md
 
-在 `LOGBOOK.md` 末尾追加今日条目（若已有今日条目则补充），记录：
+在 `LOGBOOK.md` **顶部**追加今日条目（若已有今日条目则在其下方补充），记录：
 
 ```
+### YYYY-MM-DD HH:MM — [一句话标题]
 - 变更摘要：[一句话描述做了什么]
 - Skill 更新：[修改了哪些 Skill 及原因，无变更则写"Skill 无需更新"]
 ```
+
+---
+
+### 6. 更新 SKILL_AUDIT.md（每月或重大 Skill 变动后）
+
+打开 `.agents/SKILL_AUDIT.md`，核对状态列：
+
+- 已引入且稳定 → 🟢
+- 已引入但存在已知问题 → 🟡  
+- 未引入、低优先级保留备用 → ⚪
+- 已评估、明确不适用 → 🔴
+
+更新"审计日期"字段，并在对应行补充"本项目引入状态"说明。

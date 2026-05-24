@@ -1,6 +1,6 @@
 # Skill 死亡风险审计
 
-> 审计日期：2026-05-22
+> 审计日期：2026-05-22（更新：2026-05-24）
 > 范围：全局 `c:\Users\srafy\.agents\skills\` + 项目 `.agents\skills\`
 > 操作建议仅供参考，**不自动删除任何文件**
 
@@ -30,15 +30,15 @@
 
 ### 通用工具类（非飞书）
 
-| 状态 | Skill | 功能说明 |
-|------|-------|---------|
-| � | `using-superpowers` | **元技能**：教 AI 如何发现和调用其他 skill，每次对话/任务开始前调用。已补充 Windsurf 中文触发词，description 已适配 Windsurf 平台 |
-| ⚪ | `brainstorming` | **设计前探索**：任何新功能开发前，强制先进行需求/设计对话，形成方案后才能写代码。要求写设计文档到 `docs/superpowers/specs/` |
-| ⚪ | `skill-creator` | **Skill 工厂**：从零创建新 skill、迭代改进现有 skill、跑评估测试、用脚本优化 description 触发精度 |
-| ⚪ | `defuddle` | **网页转 Markdown**：用户提供 URL 时，用 Defuddle CLI 提取干净正文（去导航栏/广告），比直接 fetch 省 token |
-| ⚪ | `markitdown` | **本地文件转 Markdown**：用微软 markitdown 工具把 PDF/Word/Excel/PPT/图片/音频/YouTube 链接转成 markdown |
-| ⚪ | `json-canvas` | **Obsidian Canvas 文件编辑**：创建和编辑 `.canvas` 文件（可视化节点/连接/分组）。本项目暂不适用，已归档保留 |
-| ⚪ | `playwright-skill` | **E2E 自动化测试**：Playwright 测试模式（E2E/API/视觉/无障碍），支持 TypeScript/JavaScript，含 CI/CD。本项目暂不适用，已归档保留 |
+| 状态 | Skill | 功能说明 | 本项目引入状态 |
+|------|-------|---------|--------------|
+| 🟢 | `using-superpowers` | **元技能**：建立 skill 检索习惯，任务开始前强制检查可用 skill。核心原则"1% 概率就调用"已写入 `AGENTS.md` 零号章节 | ✅ 已引入 AGENTS.md |
+| 🟢 | `brainstorming` | **设计前探索**：新功能 / 新需求开发前必须调用，探索需求、提 2-3 方案、用户确认后才动代码 | ✅ 已引入 AGENTS.md Step 1，强制调用 |
+| 🟢 | `defuddle` | **网页转 Markdown**：查阅有赞 API 文档、DeepSeek 文档、微信开放平台文档时使用，比 WebFetch 省 token | ✅ 已引入 AGENTS.md 5.2 场景表 |
+| 🟢 | `skill-creator` | **Skill 工厂**：Guard Skill 需要迭代改进时使用，提供草稿→测试→迭代→description 优化全流程 | ✅ 已引入 AGENTS.md 5.2，sync-skills.md 联动 |
+| ⚪ | `markitdown` | **本地文件转 Markdown**：用微软 markitdown 工具把 PDF/Word/Excel/PPT/图片/音频/YouTube 链接转成 markdown | 低频，保留备用 |
+| 🔴 | `json-canvas` | **Obsidian Canvas 文件编辑**：本项目无 Obsidian vault，不适用 | 不引入 |
+| 🔴 | `playwright-skill` | **E2E 自动化测试**：本项目用 pytest，不使用 Playwright | 不引入 |
 
 ### Obsidian 类（⚪ 已归档/不活跃，保留备用）
 
@@ -50,9 +50,9 @@
 
 ### 飞书工具类
 
-| 状态 | Skill | 功能说明 |
-|------|-------|---------|
-| 🟢 | `lark-im` | 飞书即时消息：发消息/回复/搜索聊天记录/群管理/文件收发 |
+| 状态 | Skill | 功能说明 | 本项目引入状态 |
+|------|-------|---------|--------------|
+| 🟢 | `lark-im` | 飞书即时消息：发消息/回复/搜索聊天记录/群管理/文件收发 | ✅ 已引入：生产部署结果通知、告警推送 |
 | 🟢 | `lark-calendar` | 飞书日历：查看日程、创建会议、管理参会人、查忙闲、预定会议室 |
 | 🟢 | `lark-doc` | 飞书文档（docx）+ 知识库 Wiki：创建/读取/编辑/翻译文档，支持嵌入表格/画板 |
 | 🟢 | `lark-drive` | 飞书云空间：上传下载文件、管理文件夹、复制移动、权限管理、导入 Word/Excel |

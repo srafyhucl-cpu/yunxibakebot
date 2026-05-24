@@ -1,6 +1,29 @@
 # YunxiBakeBot 项目开发日志 (Logbook)
 
-> 本文档是项目演进的唯一真实编年史。AI（Claude Code）在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+> 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+
+______________________________________________________________________
+
+## [2026-05-24] - 全局 Skill 集成 + sync-skills 工作流完善
+
+- **操作人**: AI (Devin)
+- **关联任务**: 将项目外的全局 skill（brainstorming、defuddle、using-superpowers、skill-creator、lark-im）正式纳入项目治理
+- **核心变更文件说明**:
+  - `AGENTS.md`（修改）:
+    - 新增"零、Skill 触发原则"章节，引入 using-superpowers 的"1% 概率即调用"准则
+    - 新增"5.2 全局 Skill 按场景引入"速查表（5 个 Tier 1/2 skill + 触发场景）
+  - `.agents/SKILL_AUDIT.md`（修改）:
+    - 通用工具类表格升级：`using-superpowers`/`brainstorming`/`defuddle`/`skill-creator` 状态 ⚪→🟢，补充"本项目引入状态"列
+    - `json-canvas`/`playwright-skill` 明确标注 🔴 不引入
+    - 飞书工具类补充"本项目引入状态"列，`lark-im` 补充部署通知场景说明
+    - 审计日期更新为 2026-05-24
+  - `.windsurf/workflows/sync-skills.md`（修改）:
+    - Step 4 补充：现有 Skill 大改时也需调用 `skill-creator`（不只限于新建）
+    - Step 5 补充完整 LOGBOOK 模板格式（之前模板不完整，条目在第 94 行截断）
+    - 新增 Step 6：SKILL_AUDIT.md 月度审计流程
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: 纯文档/配置变更，不影响业务逻辑；`pytest -q` → 103 passed ✅
+- **潜伏风险/遗留未决事项说明**: 无
 
 ______________________________________________________________________
 
