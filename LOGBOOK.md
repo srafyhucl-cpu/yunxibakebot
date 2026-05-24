@@ -4,6 +4,33 @@
 
 ______________________________________________________________________
 
+## [2026-05-24] - 创建 AGENTS.md + 强化 Skill 触发机制
+
+- **操作人**: AI (Devin)
+- **关联任务**: 修复 Guard Skill 长期未被 AI agent 调用的问题
+- **核心变更文件说明**:
+  - `AGENTS.md`（新增）:
+    - 项目 AI agent 启动指令文件，自动被 Devin/Claude/Cascade 读取
+    - Step 1：按涉及代码范围的对应 Skill 调用表（强制）
+    - Step 2：读取 LOGBOOK 最新上下文
+    - Step 3：确认不跨越架构边界
+    - 提交收口 7 步顺序清单、关键路径速查、Skill/工作流速查、测试部署命令
+  - `.agents/skills/yunxi-architecture-guard/SKILL.md`（修改）:
+    - description 加入"【必须在动代码前调用】"前缀，触发语义从被动改为主动
+  - `.agents/skills/yunxi-llm-guard/SKILL.md`（修改）:
+    - 同上，明确 app/service/llm/ 任意文件修改前必须调用
+  - `.agents/skills/yunxi-file-size-guard/SKILL.md`（修改）:
+    - 同上，明确新增/修改任意 .py 文件前必须调用，并给出各层警戒线数值
+  - `.agents/skills/yunxi-clean-code-guard/SKILL.md`（修改）:
+    - description 改为"【代码 Review 和修复时调用】"，给出具体触发场景
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: `pytest -q` → 103 passed ✅
+- **潜伏风险/遗留未决事项说明**:
+  - AGENTS.md 依赖 agent 启动时自动读取，若 agent 不支持该机制则无效；
+    但 Devin 会读取 AGENTS.md，Claude Code 也会读取，覆盖主流 agent
+
+______________________________________________________________________
+
 ## [2026-05-24] - 补全项目进度文档 + 强化 pre-commit 双文档检查
 
 - **操作人**: AI (Devin)

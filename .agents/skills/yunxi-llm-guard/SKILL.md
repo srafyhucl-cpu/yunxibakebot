@@ -1,7 +1,7 @@
 ﻿---
 name: 芸熙LLM守卫
 version: 1.0.0
-description: "芸熙烘焙 AI 客服的 LLM 集成专项规范。当修改 DeepSeek 调用、Function Calling、意图识别、Query 改写、System Prompt、对话循环或兜底策略时使用。"
+description: "【必须在动代码前调用】芸熙烘焙 AI 客服 LLM 集成守卫。只要涉及 app/service/llm/ 下任意文件（Prompt、Function Calling、意图识别、Query 改写、对话循环、兜底策略），必须先调用本 Skill 读取规范约束，再开始实现或修改。"
 ---
 
 # 芸熙烘焙 LLM 守卫

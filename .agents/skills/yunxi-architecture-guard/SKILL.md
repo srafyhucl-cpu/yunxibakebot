@@ -1,7 +1,7 @@
 ---
 name: 芸熙架构守卫
 version: 1.0.0
-description: "芸熙烘焙 AI 客服项目的架构边界约束检查。当修改 api/、service/、repository/、models/ 任意一层，或涉及数据库操作、Webhook 处理、跨层调用时使用。"
+description: "【必须在动代码前调用】芸熙烘焙 AI 客服分层架构守卫。只要涉及 api/、service/、repository/、models/ 任意一层的新增或修改，或涉及数据库操作、Webhook 处理、跨层调用，必须先调用本 Skill 确认分层边界和约束，再开始实现。"
 ---
 
 # 芸熙烘焙架构守卫
