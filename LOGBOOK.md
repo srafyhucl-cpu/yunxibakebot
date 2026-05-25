@@ -5,6 +5,32 @@
 ______________________________________________________________________
 
 
+## [2026-05-25] - 新后台转人工页接通真实处理工作台
+- **操作人**: AI (Codex)
+- **关联任务**: 按后台前端重构既定顺序继续迁移 `转人工`，完成待处理队列、会话详情、人工回复、接单与关闭动作
+- **核心变更文件说明**:
+  - `web/admin/src/services/transfers.ts`（新增）:
+    - 封装待处理转人工列表、会话消息、接单、关闭和人工回复接口
+  - `web/admin/src/types/transfer.ts`（新增）:
+    - 抽离转人工队列与会话消息类型，统一前端字段命名
+  - `web/admin/src/pages/transfers/useTransfersPage.ts`（新增）:
+    - 管理转人工队列、抽屉状态、消息加载、人工回复和接单/关闭动作
+  - `web/admin/src/features/transfers/TransferDetailDrawer.vue`（新增）:
+    - 提供会话详情抽屉，展示原因、摘要、消息流与人工回复区
+  - `web/admin/src/pages/transfers/TransfersPage.vue`（修改）:
+    - 用真实工作台替换占位页，支持桌面表格和手机卡片双视图
+  - `app/service/embedding_search.py`（修改）:
+    - 将 `sentence_transformers` 调整为延迟导入，让质量门禁测试可以稳定走轻量编码器开关
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - `npm run build:staging`（`web/admin`）通过
+  - `python -m py_compile app/service/embedding_search.py` 通过
+  - `python scripts/check_project.py` 通过
+  - `http://127.0.0.1:7012/admin-v2/transfers` 返回 200
+- **潜伏风险/遗留未决事项说明**:
+  - 当前后端仍只有“待处理队列”接口，接单后的工单不会持久出现在列表里；新后台已做本页内状态保持，后续可补“已接单/历史工单”接口
+  - 人工回复当前直接写入会话流，尚未补人工处理备注、责任人和处理时长等工单字段
+
 ## [2026-05-25] - 新后台主推款页接通真实配置工作台
 - **操作人**: AI (Codex)
 - **关联任务**: 按后台前端重构既定顺序继续迁移 `主推款`，完成现有主推列表读取、候选商品搜索、顺序调整和保存回写

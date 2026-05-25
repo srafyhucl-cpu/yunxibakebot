@@ -1,24 +1,29 @@
+from __future__ import annotations
+
 """
 基于 Sentence-Transformers 的语义向量搜索引擎。
 
-使用 BAAI/bge-small-zh-v1.5 模型替代 TF-IDF，提升中文语义检索质量。
-为 KnowledgeRetriever 提供语义检索能力。
+使用 BAAI/bge-small-zh-v1.5 模型替代 TF-IDF，提升中文语义检索质量，
+为 KnowledgeRetriever 提供语义搜索能力。
 
 检索原理：
-1. build() 时批量编码所有知识条目为稠密向量，L2 归一化后缓存
-2. search() 时编码查询（附 BGE 检索指令前缀），与文档向量点积得 cosine 相似度
-3. 返回 Top-K 最相关条目，消除 TF-IDF 对同义词/指代词的盲区
+1. build() 时批量编码所有知识条目为稠密向量，并在内存中缓存
+2. search() 时编码查询文本，与文档向量做 cosine 相似度计算
+3. 返回 Top-K 最相关条目，减少 TF-IDF 对同义表达的遗漏
 """
 
 import asyncio
 import json
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 from app.logger import setup_logger
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 logger = setup_logger()
 
@@ -28,7 +33,7 @@ MIN_SIMILARITY_SCORE = 0.35
 
 
 class _FallbackSentenceTransformer:
-    """测试环境用的轻量编码器，避免特定解释器下真实模型加载崩溃。"""
+    """测试环境使用的轻量编码器，避免特定解释器下真实模型加载崩溃。"""
 
     def encode(
         self,
@@ -54,30 +59,32 @@ class _FallbackSentenceTransformer:
 
 
 class EmbeddingSearcher:
-    """Sentence-Transformers 语义向量搜索，为 KnowledgeRetriever 提供层。"""
+    """Sentence-Transformers 语义向量搜索实现。"""
 
     def __init__(self) -> None:
-        self._model: SentenceTransformer | None = None
+        self._model: SentenceTransformer | _FallbackSentenceTransformer | None = None
         self._embeddings: np.ndarray | None = None
         self._doc_keys: list[str] = []
-        self._ready: bool = False
-        self._dirty: bool = False
-        self._data_hash: str = ""
+        self._ready = False
+        self._dirty = False
+        self._data_hash = ""
         self._lock = asyncio.Lock()
         self._save_event = asyncio.Event()
 
-    def _get_model(self) -> SentenceTransformer:
-        """懒加载：首次调用时初始化模型（避免冷启动阻塞）。"""
+    def _get_model(self) -> SentenceTransformer | _FallbackSentenceTransformer:
+        """惰性初始化模型，避免模块导入阶段触发重型依赖加载。"""
         if self._model is None:
             if os.getenv("YUNXI_USE_FAKE_EMBEDDING", "0") == "1":
                 self._model = _FallbackSentenceTransformer()
                 logger.warning("Embedding 检索已切换到测试轻量编码器")
                 return self._model
+
             os.environ.setdefault("HF_HUB_OFFLINE", "1")
-            # 关闭 transformers 的异步权重物化，规避 Windows + Python 3.13 下偶发的访问冲突。
+            # 关闭 transformers 的异步权重物化，规避 Windows + Python 3.13 下的偶发崩溃。
             os.environ.setdefault("HF_DEACTIVATE_ASYNC_LOAD", "1")
-            # 关闭 transformers 的异步权重物化，规避 Windows + Python 3.13 下偶发的访问冲突。
-            os.environ.setdefault("HF_DEACTIVATE_ASYNC_LOAD", "1")
+
+            from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(EMBEDDING_MODEL, local_files_only=True)
             logger.info("Embedding 模型已加载: %s", EMBEDDING_MODEL)
         return self._model
@@ -86,9 +93,8 @@ class EmbeddingSearcher:
         """
         全量构建语义向量索引。
 
-        参数：
-            documents: [(doc_key, 标题, 内容), ...] — 与 KnowledgeRepo.get_all_titles_with_keys() 返回格式一致
-            current_db_md5: 当前数据库的 MD5 强特征版本锁
+        documents: [(doc_key, 标题, 内容), ...]
+        current_db_md5: 当前数据库的版本指纹
         """
         model = self._get_model()
         self._doc_keys = []
@@ -105,38 +111,29 @@ class EmbeddingSearcher:
         logger.info("Embedding 索引构建完成: %d 条", len(self._doc_keys))
 
     def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
-        """
-        语义相似度检索。
-
-        参数：
-            query: 用户查询文本
-            limit: 返回最大条数
-        返回：
-            [(文档 key, cosine_similarity), ...] 降序排列
-        """
+        """按语义相似度检索文档。"""
         if not self._ready or self._embeddings is None:
             return []
+
         model = self._get_model()
         prefixed = BGE_QUERY_PREFIX + query
         q_vec = model.encode([prefixed], normalize_embeddings=True)[0]
         scores: list[float] = (self._embeddings @ q_vec).tolist()
-        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
+        ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
         return [
-            (self._doc_keys[i], s)
-            for i, s in ranked[:limit]
-            if s > MIN_SIMILARITY_SCORE
+            (self._doc_keys[index], score)
+            for index, score in ranked[:limit]
+            if score > MIN_SIMILARITY_SCORE
         ]
 
     async def upsert_one(self, key: str, vector: list[float]) -> None:
-        """
-        单条追加或原地按索引替换向量。
-        """
+        """单条追加或原位替换向量。"""
         async with self._lock:
             new_vec = np.array(vector, dtype=np.float32)
             if key in self._doc_keys:
-                idx = self._doc_keys.index(key)
+                index = self._doc_keys.index(key)
                 if self._embeddings is not None:
-                    self._embeddings[idx] = new_vec
+                    self._embeddings[index] = new_vec
                 logger.info("已通过内存原子替换增量更新单条向量: %s", key)
             else:
                 self._doc_keys.append(key)
@@ -150,49 +147,46 @@ class EmbeddingSearcher:
             self._save_event.set()
 
     async def delete_one(self, key: str) -> None:
-        """
-        单条物理删除向量（NumPy 矩阵裁剪）。
-        """
+        """单条物理删除向量。"""
         async with self._lock:
             if key in self._doc_keys:
-                idx = self._doc_keys.index(key)
-                self._doc_keys.pop(idx)
+                index = self._doc_keys.index(key)
+                self._doc_keys.pop(index)
                 if self._embeddings is not None:
-                    self._embeddings = np.delete(self._embeddings, idx, axis=0)
-                logger.info("已增量从内存原子删除单条向量: %s", key)
+                    self._embeddings = np.delete(self._embeddings, index, axis=0)
+                logger.info("已从内存原子删除单条向量: %s", key)
                 self._dirty = True
                 self._save_event.set()
-                if len(self._doc_keys) == 0:
+                if not self._doc_keys:
                     self._ready = False
                     self._embeddings = None
 
     async def save(self, path: str | Path) -> None:
-        """持久化向量索引到磁盘（增量原子替换，带有 _dirty 写缓冲防线）。"""
+        """将向量索引安全持久化到磁盘。"""
         if not self._dirty:
             logger.debug("向量索引未发生变更，跳过磁盘写入")
             return
+
         async with self._lock:
             try:
                 path = Path(path)
                 npy_path = path.with_suffix(".npy")
                 json_path = path.with_suffix(".json")
-
                 tmp_npy = npy_path.with_suffix(".tmp.npy")
                 tmp_json = json_path.with_suffix(".json.tmp")
 
                 if self._embeddings is not None:
                     np.save(tmp_npy, self._embeddings)
                 else:
-                    # 写入空矩阵
                     np.save(tmp_npy, np.array([], dtype=np.float32))
 
                 meta = {
                     "doc_keys": self._doc_keys,
                     "ready": self._ready,
-                    "data_hash": getattr(self, "_data_hash", "")
+                    "data_hash": self._data_hash,
                 }
-                with open(tmp_json, "w", encoding="utf-8") as f:
-                    json.dump(meta, f, ensure_ascii=False, indent=2)
+                with open(tmp_json, "w", encoding="utf-8") as file_obj:
+                    json.dump(meta, file_obj, ensure_ascii=False, indent=2)
 
                 if tmp_npy.exists():
                     os.replace(str(tmp_npy), str(npy_path))
@@ -200,12 +194,12 @@ class EmbeddingSearcher:
                     os.replace(str(tmp_json), str(json_path))
 
                 self._dirty = False
-                logger.info("已通过原子写入安全持久化向量索引: %d 条", len(self._doc_keys))
+                logger.info("已安全持久化向量索引: %d 条", len(self._doc_keys))
             except Exception as exc:
-                logger.error("向量索引原子保存失败: %s", exc)
+                logger.error("向量索引保存失败: %s", exc)
 
     async def load(self, path: str | Path) -> None:
-        """从磁盘加载已缓存的向量索引（跳过模型推理）。"""
+        """从磁盘加载缓存的向量索引。"""
         async with self._lock:
             try:
                 path = Path(path)
@@ -217,13 +211,12 @@ class EmbeddingSearcher:
                     self._ready = False
                     return
 
-                with open(json_path, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
+                with open(json_path, "r", encoding="utf-8") as file_obj:
+                    meta = json.load(file_obj)
 
                 self._doc_keys = meta["doc_keys"]
                 self._ready = meta["ready"]
                 self._data_hash = meta.get("data_hash", "")
-
                 self._embeddings = np.load(npy_path)
                 if self._embeddings.size == 0:
                     self._embeddings = None
