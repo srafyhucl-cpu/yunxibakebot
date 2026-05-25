@@ -1,0 +1,96 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1>🔍 数据观察台</h1>
+  <p>{{ page_intro }}</p>
+</div>
+
+<section
+  id="obs-workspace"
+  class="obs-workspace"
+  data-current-url="{{ current_url }}"
+  data-partial-header="X-Observability-Partial"
+>
+  {% include panel_template %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const workspace = document.getElementById("obs-workspace");
+    if (!workspace) {
+      return;
+    }
+
+    let loading = false;
+
+    function setLoading(isLoading) {
+      loading = isLoading;
+      workspace.classList.toggle("is-loading", isLoading);
+    }
+
+    async function loadPanel(url, pushHistory) {
+      if (loading) {
+        return;
+      }
+      setLoading(true);
+      try {
+        const response = await fetch(url, {
+          headers: {
+            [workspace.dataset.partialHeader]: "1"
+          },
+          credentials: "same-origin"
+        });
+        if (!response.ok) {
+          window.location.href = url;
+          return;
+        }
+        const html = await response.text();
+        workspace.innerHTML = html;
+        workspace.dataset.currentUrl = url;
+        if (pushHistory) {
+          window.history.pushState({ url: url }, "", url);
+        }
+      } catch (error) {
+        window.location.href = url;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    workspace.addEventListener("click", function (event) {
+      const link = event.target.closest("a");
+      if (!link) {
+        return;
+      }
+      if (!workspace.contains(link)) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      loadPanel(link.href, true);
+    });
+
+    workspace.addEventListener("submit", function (event) {
+      const form = event.target.closest("form");
+      if (!form) {
+        return;
+      }
+      event.preventDefault();
+      const action = form.getAttribute("action") || window.location.pathname;
+      const params = new URLSearchParams(new FormData(form));
+      params.delete("page");
+      const url = params.toString() ? action + "?" + params.toString() : action;
+      loadPanel(url, true);
+    });
+
+    window.addEventListener("popstate", function () {
+      const url = window.location.pathname + window.location.search;
+      loadPanel(url, false);
+    });
+  })();
+</script>
+{% endblock %}

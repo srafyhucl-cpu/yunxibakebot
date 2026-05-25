@@ -1,0 +1,88 @@
+<div class="obs-tabs" aria-label="观察台子页">
+  <a href="/admin/observability/current" class="obs-tab active">当前内容</a>
+  <a href="/admin/observability/history" class="obs-tab">回写历史</a>
+  <a href="/admin/observability/webhooks" class="obs-tab">Webhook 审计</a>
+</div>
+
+<div class="card card-search obs-toolbar-card">
+  <form method="get" action="/admin/observability/current" class="obs-filter-form">
+    <div class="obs-filter-selects">
+      <label class="obs-field">
+        <span class="obs-field-label">视图</span>
+        <select name="view" class="input">
+          <option value="all" {% if view == 'all' %}selected{% endif %}>话术 / 规则</option>
+          <option value="products" {% if view == 'products' %}selected{% endif %}>商品</option>
+        </select>
+      </label>
+      <label class="obs-field">
+        <span class="obs-field-label">分类</span>
+        <select name="category" class="input">
+          <option value="">全部分类</option>
+          <option value="faq" {% if category == 'faq' %}selected{% endif %}>FAQ</option>
+          <option value="policy" {% if category == 'policy' %}selected{% endif %}>规则</option>
+          <option value="store_info" {% if category == 'store_info' %}selected{% endif %}>门店信息</option>
+          <option value="after_sales" {% if category == 'after_sales' %}selected{% endif %}>售后</option>
+          <option value="product" {% if category == 'product' %}selected{% endif %}>商品知识</option>
+        </select>
+      </label>
+      <label class="obs-field">
+        <span class="obs-field-label">商品状态</span>
+        <select name="product_status" class="input">
+          <option value="">全部</option>
+          <option value="1" {% if product_status == '1' %}selected{% endif %}>在售</option>
+          <option value="0" {% if product_status == '0' %}selected{% endif %}>下架</option>
+        </select>
+      </label>
+    </div>
+    <div class="obs-filter-actions">
+      <label class="obs-search-field">
+        <span class="obs-field-label">关键词</span>
+        <input
+          name="keyword"
+          value="{{ keyword }}"
+          class="input search-input"
+          placeholder="搜索标题、别名、标签、关键词"
+        >
+      </label>
+      <button type="submit" class="btn btn-primary">筛选</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">当前内容 <span class="total-count">共 {{ total }} 条</span></div>
+  <div class="obs-list">
+    {% for item in items %}
+    <details class="obs-item">
+      <summary class="obs-summary">
+        <div class="obs-main">
+          <div class="obs-title">{{ item.title }}</div>
+          <div class="obs-meta">{{ item.category }} · {{ item.status_text }} · {{ item.updated_at }}</div>
+          <div class="obs-meta">最后来源：{{ item.last_sync_source or '-' }}{% if item.last_sync_ref %} · {{ item.last_sync_ref }}{% endif %}</div>
+        </div>
+      </summary>
+      <div class="obs-body">
+        <div class="obs-chip-row">
+          {% for line in item.summary %}
+          <span class="obs-chip">{{ line }}</span>
+          {% endfor %}
+        </div>
+        <div class="obs-detail-grid">
+          {% for detail in item.details %}
+          <div class="obs-detail-card">
+            <div class="obs-detail-label">{{ detail.label }}</div>
+            <pre class="obs-pre">{{ detail.value }}</pre>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </details>
+    {% else %}
+    <div class="td-empty obs-empty-state">
+      <div class="obs-empty-title">当前没有匹配内容</div>
+      <div class="obs-empty-hint">换个分类或关键词试试，这里展示的是数据库里当前生效的内容。</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% include "admin/observability_pagination.html" %}
+</div>

@@ -5,6 +5,33 @@
 ______________________________________________________________________
 
 
+## [2026-05-25] - 数据观察台页面与服务链路正式入库
+- **操作人**: AI (Codex)
+- **关联任务**: 将已接入 `main.py` 的观察台半成品文件收齐为正式版本，避免仓库出现入口已引用但文件未入库的断裂状态
+- **核心变更文件说明**:
+  - `app/api/admin_observability.py`（新增）:
+    - 提供 `/admin/observability/current`、`/history`、`/webhooks` 三个后台页面入口
+    - 提供对应 `/api/v1/admin/observability/*` 只读接口与详情接口
+  - `app/service/observability.py`（新增）:
+    - 抽离观察台聚合服务，统一组装当前内容、回写历史与 webhook 审计数据
+    - 封装 `ContentChangeLogger`，供后台知识配置、商品实时刷新和有赞商品事件共用内容变更日志写入
+  - `app/templates/admin/observability_*.html` / `app/templates/admin/_observability_*_panel.html`（新增）:
+    - 提供观察台壳页、分页、三子页面板和局部刷新交互模板
+  - `tests/api/test_admin_observability.py` / `tests/service/test_observability.py`（新增）:
+    - 覆盖页面鉴权、只读接口返回和服务层聚合逻辑
+- **治理文档同步**:
+  - `AGENTS.md`：补充数据观察台后台关键路径
+  - `项目进度与配置清单.md`：补充数据观察台能力说明
+- **测试覆盖与验证结果**:
+  - `python -m py_compile app\\api\\admin_observability.py app\\service\\observability.py tests\\api\\test_admin_observability.py tests\\service\\test_observability.py`
+  - `python -m pytest tests\\api\\test_admin_observability.py tests\\service\\test_observability.py -q --tb=short` 通过
+  - `python -m pytest tests -q` 通过（116 passed）
+- **潜在风险/遗留未决事项说明**:
+  - 观察台模板中文字仍有历史编码噪声，后续宜单独做一次页面文本和样式清理
+
+______________________________________________________________________
+
+
 ## [2026-05-25] - 知识配置后台首版落地
 - **操作人**: AI (Codex)
 - **关联任务**: 将 FAQ / 规则 / 话术从固定 Markdown 入口升级为后台可维护知识配置，并显式展示 AI 向量可读状态

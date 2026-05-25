@@ -1,0 +1,93 @@
+<div class="obs-tabs" aria-label="观察台子页">
+  <a href="/admin/observability/current" class="obs-tab">当前内容</a>
+  <a href="/admin/observability/history" class="obs-tab active">回写历史</a>
+  <a href="/admin/observability/webhooks" class="obs-tab">Webhook 审计</a>
+</div>
+
+<div class="card card-search obs-toolbar-card">
+  <form method="get" action="/admin/observability/history" class="obs-filter-form">
+    <div class="obs-filter-selects">
+      <label class="obs-field">
+        <span class="obs-field-label">开始日期</span>
+        <input type="date" name="date_from" value="{{ date_from }}" class="input">
+      </label>
+      <label class="obs-field">
+        <span class="obs-field-label">结束日期</span>
+        <input type="date" name="date_to" value="{{ date_to }}" class="input">
+      </label>
+      <label class="obs-field">
+        <span class="obs-field-label">来源</span>
+        <select name="source" class="input">
+          <option value="">全部来源</option>
+          <option value="youzan_webhook" {% if source == 'youzan_webhook' %}selected{% endif %}>有赞 Webhook</option>
+          <option value="chat_live_refresh" {% if source == 'chat_live_refresh' %}selected{% endif %}>对话实时刷新</option>
+          <option value="seed_knowledge" {% if source == 'seed_knowledge' %}selected{% endif %}>种子导入</option>
+          <option value="admin_manual" {% if source == 'admin_manual' %}selected{% endif %}>后台人工</option>
+        </select>
+      </label>
+      <label class="obs-field">
+        <span class="obs-field-label">状态</span>
+        <select name="status" class="input">
+          <option value="">全部状态</option>
+          <option value="success" {% if status == 'success' %}selected{% endif %}>成功</option>
+          <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
+        </select>
+      </label>
+      <label class="obs-field">
+        <span class="obs-field-label">对象</span>
+        <select name="entity_type" class="input">
+          <option value="">全部对象</option>
+          <option value="product" {% if entity_type == 'product' %}selected{% endif %}>商品</option>
+          <option value="knowledge" {% if entity_type == 'knowledge' %}selected{% endif %}>知识</option>
+        </select>
+      </label>
+    </div>
+    <div class="obs-filter-actions">
+      <label class="obs-search-field">
+        <span class="obs-field-label">关键词</span>
+        <input name="keyword" value="{{ keyword }}" class="input search-input" placeholder="搜索标题、对象键、摘要">
+      </label>
+      <button type="submit" class="btn btn-primary">筛选</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">回写历史 <span class="total-count">共 {{ total }} 条</span></div>
+  <div class="obs-list">
+    {% for item in items %}
+    <details class="obs-item">
+      <summary class="obs-summary">
+        <div class="obs-main">
+          <div class="obs-title">{{ item.title }}</div>
+          <div class="obs-meta">{{ item.source }} · {{ item.action }} · {{ item.status }} · {{ item.occurred_at }}</div>
+          {% if item.error_message %}
+          <div class="obs-error">{{ item.error_message }}</div>
+          {% endif %}
+        </div>
+      </summary>
+      <div class="obs-body">
+        <div class="obs-chip-row">
+          {% for line in item.summary_lines %}
+          <span class="obs-chip">{{ line }}</span>
+          {% endfor %}
+        </div>
+        <div class="obs-detail-grid">
+          {% for key, value in item.details.items() %}
+          <div class="obs-detail-card">
+            <div class="obs-detail-label">{{ key }}</div>
+            <pre class="obs-pre">{{ value }}</pre>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </details>
+    {% else %}
+    <div class="td-empty obs-empty-state">
+      <div class="obs-empty-title">当前没有匹配的回写记录</div>
+      <div class="obs-empty-hint">这里只记录真正写库成功或失败的事件，未写库的查询不会出现在这里。</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% include "admin/observability_pagination.html" %}
+</div>
