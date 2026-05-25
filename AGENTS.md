@@ -99,6 +99,8 @@ ______________________________________________________________________
 | 有赞 Webhook 入口 | `app/api/webhook.py` |
 | 有赞事件分发 | `app/service/youzan/event_handler.py` |
 | 管理后台路由 | `app/api/admin.py` |
+| 新后台前端入口 | `app/api/admin_frontend.py` |
+| 新后台前端工程 | `web/admin/` |
 | 知识配置后台 | `app/api/admin_knowledge.py` |
 | 数据观察台后台 | `app/api/admin_observability.py` |
 | 数据库初始化 | `app/repository/database.py` |

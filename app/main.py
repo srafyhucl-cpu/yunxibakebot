@@ -169,6 +169,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 注册路由（通过工厂函数注入依赖）
     from app.api.admin import create_admin_router
     from app.api.admin_config import create_shop_config_router
+    from app.api.admin_frontend import create_admin_frontend_router
     from app.api.admin_knowledge import create_admin_knowledge_router
     from app.api.admin_observability import create_observability_router
     from app.api.webhook import create_webhook_router
@@ -190,6 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         admin_service=admin_service,
         transfer_mgr=transfer_mgr,
     ))
+    app.include_router(create_admin_frontend_router())
     app.include_router(create_shop_config_router(admin_service))
     app.include_router(create_admin_knowledge_router(knowledge_admin_service))
     app.include_router(create_observability_router(observability_service))

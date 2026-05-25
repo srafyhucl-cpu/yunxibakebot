@@ -1,0 +1,70 @@
+from pathlib import Path
+
+import pytest
+from fastapi import Request
+
+from app.api.admin import create_admin_router
+from app.api.admin_frontend import create_admin_frontend_router
+from app.config import settings
+
+
+def _get_route_endpoint(router, path: str, method: str):
+    for route in router.routes:
+        if getattr(route, "path", "") == path and method in getattr(route, "methods", set()):
+            return route.endpoint
+    raise AssertionError(f"Route not found: {method} {path}")
+
+
+def _build_request(path: str, cookies: dict | None = None) -> Request:
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": path,
+        "headers": [],
+        "query_string": b"",
+        "server": ("testserver", 80),
+        "client": ("testclient", 50000),
+        "scheme": "http",
+    }
+    request = Request(scope)
+    request._cookies = cookies or {}
+    return request
+
+
+@pytest.mark.asyncio
+async def test_admin_auth_me_returns_profile_with_cookie() -> None:
+    router = create_admin_router(
+        chat_service=object(),
+        admin_service=object(),
+        transfer_mgr=object(),
+    )
+    endpoint = _get_route_endpoint(router, "/api/v1/admin/auth/me", "GET")
+
+    payload = await endpoint(
+        request=_build_request(
+            "/api/v1/admin/auth/me",
+            cookies={"admin_token": settings.ADMIN_API_TOKEN},
+        ),
+    )
+
+    assert payload["ok"] is True
+    assert payload["data"]["role"] == "admin"
+    assert payload["data"]["name"] == "管理员"
+
+
+@pytest.mark.asyncio
+async def test_admin_v2_route_returns_notice_when_dist_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_dist = tmp_path / "missing-dist"
+    monkeypatch.setattr("app.api.admin_frontend.FRONTEND_DIST_DIR", missing_dist)
+    monkeypatch.setattr("app.api.admin_frontend.FRONTEND_INDEX_FILE", missing_dist / "index.html")
+
+    router = create_admin_frontend_router()
+    endpoint = _get_route_endpoint(router, "/admin-v2", "GET")
+
+    response = await endpoint()
+
+    assert response.status_code == 503
+    assert "admin-v2 尚未构建" in response.body.decode("utf-8")

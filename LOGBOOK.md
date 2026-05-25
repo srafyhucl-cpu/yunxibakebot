@@ -5,6 +5,36 @@
 ______________________________________________________________________
 
 
+## [2026-05-25] - 新后台前端重构阶段 A 正式启动
+- **操作人**: AI (Codex)
+- **关联任务**: 按 `admin-frontend-refactor-v1.md` 启动后台前端重构，先完成 `web/admin` 工程骨架、`/admin-v2` 入口和最小鉴权联通
+- **核心变更文件说明**:
+  - `web/admin/`（新增）:
+    - 初始化 `Vue 3 + Vite + TypeScript + Element Plus` 工程
+    - 落地路由、Pinia 状态、基础布局、三端壳子和占位页面
+    - 配置 `.env.development/.staging/.production`、`vite.config.ts` 和构建脚本
+  - `app/api/admin.py`（修改）:
+    - 新增 `/api/v1/admin/auth/me`，供新后台读取当前管理员状态
+  - `app/api/admin_frontend.py`（新增）:
+    - 提供 `/admin-v2` 的静态资源访问与 SPA fallback
+    - 在前端尚未构建时返回明确提示，避免误判为业务故障
+  - `app/main.py`（修改）:
+    - 注册新后台前端入口路由
+  - `tests/api/test_admin_frontend.py`（新增）:
+    - 覆盖 `auth/me` 与 `/admin-v2` 未构建提示场景
+  - `AGENTS.md` / `项目进度与配置清单.md`（修改）:
+    - 同步新后台前端关键路径与阶段 A 进展
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - `npm run build`（`web/admin`）通过
+  - `python -m py_compile app\\api\\admin.py app\\api\\admin_frontend.py app\\main.py tests\\api\\test_admin_frontend.py` 通过
+  - `python -m pytest tests\\api\\test_admin_frontend.py -q` 通过（2 passed）
+  - `python -m pytest tests -q` 通过（118 passed）
+  - 本地新实例 `http://127.0.0.1:7011/admin-v2` 返回 200，`/health` 正常
+- **潜伏风险/遗留未决事项说明**:
+  - 当前仅完成阶段 A 骨架，业务页面仍为占位页，后续需按 spec 逐页迁移
+  - `7001` 端口上仍是旧实例，已额外起 `7011` 做新入口验证，后续联调时需明确使用哪一台实例
+
 ## [2026-05-25] - 中文代码注释约束写入项目规范与提交流程
 - **操作人**: AI (Codex)
 - **关联任务**: 将“提交到仓库的代码注释统一使用中文”同步进项目级规范文档和提交流程，避免后续执行漂移

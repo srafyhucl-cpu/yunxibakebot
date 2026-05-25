@@ -1,0 +1,151 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--yx-text);
+  background: var(--yx-bg);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin-shell {
+  min-height: 100vh;
+  display: flex;
+}
+
+.admin-shell__main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-sidebar {
+  width: 240px;
+  border-right: 1px solid var(--yx-border);
+  background: var(--yx-panel);
+  padding: 24px 16px;
+}
+
+.app-sidebar__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.app-sidebar__title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.app-sidebar__subtitle {
+  color: var(--yx-text-muted);
+  font-size: 13px;
+}
+
+.app-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-sidebar__link {
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--yx-text-muted);
+}
+
+.app-sidebar__link--active {
+  background: var(--yx-brand-soft);
+  color: var(--yx-brand);
+  font-weight: 600;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--yx-border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+}
+
+.topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.topbar__subtitle,
+.topbar__user {
+  font-size: 13px;
+  color: var(--yx-text-muted);
+}
+
+.page-container {
+  flex: 1;
+  padding: 24px;
+}
+
+.placeholder-page {
+  display: grid;
+  gap: 16px;
+}
+
+.placeholder-page--centered {
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.placeholder-page__card {
+  width: min(460px, 100%);
+}
+
+.bottom-nav {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--yx-border);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.bottom-nav__item {
+  padding: 12px 8px calc(12px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 13px;
+  color: var(--yx-text-muted);
+}
+
+.bottom-nav__item--active {
+  color: var(--yx-brand);
+  font-weight: 600;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fff6f4 0%, #f6f7fb 100%);
+}

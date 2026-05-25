@@ -140,6 +140,18 @@ def create_admin_router(
         return HTMLResponse(html)
 
     # ── 对话管理 API ──
+    @api_router.get("/auth/me")
+    async def auth_me(request: Request) -> dict:
+        if not check_login(request):
+            raise HTTPException(status_code=401, detail="未登录或登录已过期")
+        return {
+            "ok": True,
+            "data": {
+                "name": "管理员",
+                "role": "admin",
+            },
+        }
+
     @api_router.get("/chat-test/sessions", dependencies=[Depends(verify_token)])
     async def list_saved_sessions() -> dict:
         """获取已保存（有名称）的对话列表。"""
