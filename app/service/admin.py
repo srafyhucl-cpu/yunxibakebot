@@ -2,16 +2,23 @@
 
 import json
 
+from app.models.content_change_history import (
+    ChangeAction,
+    ChangeEntityType,
+    SyncSource,
+)
 from app.models.config import FEATURED_PRODUCTS_KEY
 from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message
 from app.models.session import Session, SessionStatus
 from app.models.transfer import HumanTransfer
 from app.repository.config_repo import ConfigRepo
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
+from app.service.observability import ContentChangeLogger, build_knowledge_change_summary
 
 
 class AdminService:
@@ -115,7 +122,28 @@ class AdminService:
         if not entry:
             return None
         new_status = not bool(entry.is_active)
-        await self._knowledge_repo.update_active(product_id, new_status)
+        await self._knowledge_repo.update_active(
+            product_id,
+            new_status,
+            sync_source=SyncSource.ADMIN_MANUAL,
+            sync_ref=str(product_id),
+        )
+        category = entry.category.value if hasattr(entry.category, "value") else str(entry.category)
+        await ContentChangeLogger(ContentChangeHistoryRepo(self._knowledge_repo._db)).log_success(
+            entity_type=ChangeEntityType.KNOWLEDGE,
+            entity_key=str(product_id),
+            category=category,
+            title=entry.title,
+            source=SyncSource.ADMIN_MANUAL,
+            source_ref=str(product_id),
+            action=ChangeAction.ACTIVATE if new_status else ChangeAction.DEACTIVATE,
+            change_summary=build_knowledge_change_summary(
+                title=entry.title,
+                category=category,
+                priority=entry.priority,
+                is_active=new_status,
+            ),
+        )
         return new_status
 
     # ── 店铺配置（主推款等） ──

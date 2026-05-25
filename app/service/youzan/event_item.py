@@ -12,12 +12,23 @@ import json
 import re
 
 from app.logger import setup_logger
+from app.models.content_change_history import (
+    ChangeAction,
+    ChangeEntityType,
+    SyncSource,
+    WriteResult,
+)
 from app.models.youzan_webhook_event import (
     YouzanWebhookBusinessType,
     YouzanWebhookEventUpdate,
     YouzanWebhookStatus,
 )
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.service.observability import (
+    ContentChangeLogger,
+    build_product_change_summary,
+)
 
 logger = setup_logger()
 
@@ -117,29 +128,37 @@ async def _sync_rag_knowledge(
     db, knowledge_retriever,
     item_id: int, title: str, content_md: str,
     tags_str: str, updated_at_str: str, is_active: int,
-) -> None:
+) -> str:
     """根据商品在售状态增量更新或擦除 RAG 知识库条目。"""
     from app.repository.knowledge_repo import KnowledgeRepo
     knowledge_repo = KnowledgeRepo(db)
 
     if is_active == 1:
-        await knowledge_repo.upsert_product_knowledge(
+        result = await knowledge_repo.upsert_product_knowledge(
             youzan_item_id=str(item_id),
             title=title,
             content=content_md,
             keywords=f"商品, 价格, 推荐, 蛋糕, {title}, {tags_str}",
             priority=50,
             updated_at=updated_at_str,
+            sync_source=SyncSource.YOUZAN_WEBHOOK,
+            sync_ref=str(item_id),
         )
         vs = knowledge_retriever._vs
-        if vs:
+        if vs and result == WriteResult.APPLIED:
             vector = vs._get_model().encode([f"{title} {content_md}"], normalize_embeddings=True)[0].tolist()
             await vs.upsert_one(str(item_id), vector)
+        return result
     else:
-        await knowledge_repo.delete_product_knowledge(str(item_id))
+        result = await knowledge_repo.delete_product_knowledge(
+            str(item_id),
+            sync_source=SyncSource.YOUZAN_WEBHOOK,
+            sync_ref=str(item_id),
+        )
         vs = knowledge_retriever._vs
-        if vs:
+        if vs and result == WriteResult.APPLIED:
             await vs.delete_one(str(item_id))
+        return result
 
 
 async def handle_item_event(
@@ -149,6 +168,7 @@ async def handle_item_event(
     event_type: str,
     msg_obj: dict,
     updated_at_str: str,
+    msg_id: str = "",
     audit_repo: YouzanWebhookEventRepo | None = None,
     audit_id: int | None = None,
 ) -> None:
@@ -197,6 +217,7 @@ async def handle_item_event(
 
     product_repo = YouzanProductRepo(db)
     analytics_repo = AnalyticsRepo(db)
+    history_logger = ContentChangeLogger(ContentChangeHistoryRepo(db))
 
     try:
         old_price, old_stock = -1, -1
@@ -218,6 +239,18 @@ async def handle_item_event(
                 str(raw_product["gw_err_resp"]),
                 business_key=str(item_id),
             )
+            await history_logger.log_failed(
+                entity_type=ChangeEntityType.PRODUCT,
+                entity_key=str(item_id),
+                category="product",
+                title=f"商品 {item_id}",
+                source=SyncSource.YOUZAN_WEBHOOK,
+                source_ref=str(item_id),
+                webhook_msg_id=msg_id,
+                action=ChangeAction.UPSERT,
+                error_type="gw_err_resp",
+                error_message=str(raw_product["gw_err_resp"]),
+            )
             return
         outer_data = raw_product.get("data") or raw_product.get("response") if isinstance(raw_product, dict) else None
         if not isinstance(outer_data, dict) or "item" not in outer_data:
@@ -229,6 +262,18 @@ async def handle_item_event(
                 "item_api_bad_response",
                 "missing_item",
                 business_key=str(item_id),
+            )
+            await history_logger.log_failed(
+                entity_type=ChangeEntityType.PRODUCT,
+                entity_key=str(item_id),
+                category="product",
+                title=f"商品 {item_id}",
+                source=SyncSource.YOUZAN_WEBHOOK,
+                source_ref=str(item_id),
+                webhook_msg_id=msg_id,
+                action=ChangeAction.UPSERT,
+                error_type="missing_item",
+                error_message="商品接口响应缺少 item",
             )
             return
 
@@ -251,7 +296,7 @@ async def handle_item_event(
         status_lbl = "在售" if is_active == 1 else "下架"
         tags_str = ", ".join([status_lbl] + list(set(spec_names)) + list(set(prop_names)) + list(set(found_ingredients)))
 
-        await product_repo.upsert_product(
+        product_result = await product_repo.upsert_product(
             item_id=item_id,
             title=title,
             alias=alias,
@@ -264,10 +309,21 @@ async def handle_item_event(
             item_props_json=json.dumps(item_props, ensure_ascii=False),
             desc=desc_clean,
             tags=tags_str,
+            sync_source=SyncSource.YOUZAN_WEBHOOK,
+            sync_ref=str(item_id),
         )
 
         content_md = _build_rag_content(title, alias, status_lbl, skus, item_props, price_fen, stock, desc_clean, tags_str, item_id=item_id, image=image)
-        await _sync_rag_knowledge(db, knowledge_retriever, item_id, title, content_md, tags_str, updated_at_str, is_active)
+        knowledge_result = await _sync_rag_knowledge(
+            db,
+            knowledge_retriever,
+            item_id,
+            title,
+            content_md,
+            tags_str,
+            updated_at_str,
+            is_active,
+        )
 
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if old_price != -1 and old_price != price_fen:
@@ -287,6 +343,30 @@ async def handle_item_event(
                 created_at=now_str,
             )
             logger.info("已成功记录商品库存预警审计埋点: title=%s, old_stock=%d, new_stock=%d", title, old_stock, stock)
+        if product_result == WriteResult.APPLIED or knowledge_result == WriteResult.APPLIED:
+            await history_logger.log_success(
+                entity_type=ChangeEntityType.PRODUCT,
+                entity_key=str(item_id),
+                category="product",
+                title=title,
+                source=SyncSource.YOUZAN_WEBHOOK,
+                source_ref=str(item_id),
+                webhook_msg_id=msg_id,
+                action=ChangeAction.UPSERT if is_active == 1 else ChangeAction.DEACTIVATE,
+                change_summary=build_product_change_summary(
+                    item_id=item_id,
+                    title=title,
+                    alias=alias,
+                    price_fen=price_fen,
+                    stock=stock,
+                    is_active=is_active,
+                    tags=tags_str,
+                    updated_at=updated_at_str,
+                    product_result=product_result,
+                    knowledge_result=knowledge_result,
+                ),
+                occurred_at=updated_at_str,
+            )
         await _mark_item_audit(
             audit_repo,
             audit_id,
@@ -297,6 +377,18 @@ async def handle_item_event(
 
     except Exception as exc:
         logger.error("处理有赞商品系统事件失败: item_id=%s err=%s", item_id, exc)
+        await history_logger.log_failed(
+            entity_type=ChangeEntityType.PRODUCT,
+            entity_key=str(item_id),
+            category="product",
+            title=f"商品 {item_id}",
+            source=SyncSource.YOUZAN_WEBHOOK,
+            source_ref=str(item_id),
+            webhook_msg_id=msg_id,
+            action=ChangeAction.UPSERT,
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
         await _mark_item_audit(
             audit_repo,
             audit_id,

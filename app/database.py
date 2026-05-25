@@ -50,11 +50,23 @@ SCHEMA_STATEMENTS: list[str] = [
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category TEXT NOT NULL
             CHECK(category IN ('store_info','product','policy','faq','after_sales')),
+        content_type TEXT NOT NULL DEFAULT 'faq',
         title TEXT NOT NULL,
         content TEXT NOT NULL,
         keywords TEXT DEFAULT '',
         priority INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
+        last_sync_source TEXT DEFAULT 'legacy_unknown',
+        last_sync_ref TEXT DEFAULT '',
+        content_origin TEXT DEFAULT 'legacy_unknown',
+        created_by TEXT DEFAULT '',
+        updated_by TEXT DEFAULT '',
+        suggested_category TEXT DEFAULT '',
+        suggest_reason TEXT DEFAULT '',
+        vector_sync_status TEXT DEFAULT 'pending',
+        vector_synced_at TEXT DEFAULT '',
+        vector_sync_error TEXT DEFAULT '',
+        vector_sync_retry_count INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
     )""",
@@ -110,6 +122,8 @@ SCHEMA_STATEMENTS: list[str] = [
         item_props_json TEXT DEFAULT '[]',
         desc TEXT DEFAULT '',
         tags TEXT DEFAULT '',
+        last_sync_source TEXT DEFAULT 'legacy_unknown',
+        last_sync_ref TEXT DEFAULT '',
         updated_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_yp_title ON youzan_products(title)",
@@ -186,6 +200,30 @@ SCHEMA_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_ywe_status ON youzan_webhook_events(status)",
     "CREATE INDEX IF NOT EXISTS idx_ywe_event_type ON youzan_webhook_events(event_type)",
     "CREATE INDEX IF NOT EXISTS idx_ywe_business_key ON youzan_webhook_events(business_key)",
+    # content_change_history（内容变更历史）
+    """CREATE TABLE IF NOT EXISTS content_change_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL
+            CHECK(entity_type IN ('product','knowledge')),
+        entity_key TEXT NOT NULL,
+        category TEXT DEFAULT '',
+        title TEXT DEFAULT '',
+        source TEXT NOT NULL,
+        source_ref TEXT DEFAULT '',
+        session_id TEXT DEFAULT '',
+        webhook_msg_id TEXT DEFAULT '',
+        action TEXT DEFAULT '',
+        status TEXT NOT NULL
+            CHECK(status IN ('success','failed')),
+        change_summary_json TEXT DEFAULT '{}',
+        error_type TEXT DEFAULT '',
+        error_message TEXT DEFAULT '',
+        occurred_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cch_occurred ON content_change_history(occurred_at)",
+    "CREATE INDEX IF NOT EXISTS idx_cch_source ON content_change_history(source)",
+    "CREATE INDEX IF NOT EXISTS idx_cch_status ON content_change_history(status)",
+    "CREATE INDEX IF NOT EXISTS idx_cch_entity ON content_change_history(entity_type, entity_key)",
 ]
 
 PRAGMA_STATEMENTS: list[str] = [
@@ -214,6 +252,79 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_youzan_item_id ON knowledge_base(youzan_item_id)")
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 youzan_item_id 唯一约束列")
+        if "last_sync_source" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN last_sync_source TEXT DEFAULT 'legacy_unknown'")
+            await conn.execute(
+                "UPDATE knowledge_base SET last_sync_source = 'legacy_unknown' "
+                "WHERE last_sync_source IS NULL OR last_sync_source = ''"
+            )
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 last_sync_source 列")
+        if "last_sync_ref" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN last_sync_ref TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 last_sync_ref 列")
+        if "content_type" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN content_type TEXT DEFAULT 'faq'")
+            await conn.execute(
+                "UPDATE knowledge_base SET content_type = CASE "
+                "WHEN category = 'product' THEN 'product' "
+                "WHEN category = 'faq' THEN 'faq' "
+                "ELSE 'rule' END "
+                "WHERE content_type IS NULL OR content_type = ''"
+            )
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 content_type 列")
+        if "content_origin" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN content_origin TEXT DEFAULT 'legacy_unknown'")
+            await conn.execute(
+                "UPDATE knowledge_base SET content_origin = 'legacy_unknown' "
+                "WHERE content_origin IS NULL OR content_origin = ''"
+            )
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 content_origin 列")
+        if "created_by" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN created_by TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 created_by 列")
+        if "updated_by" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN updated_by TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 updated_by 列")
+        if "suggested_category" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN suggested_category TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 suggested_category 列")
+        if "suggest_reason" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN suggest_reason TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 suggest_reason 列")
+        if "vector_sync_status" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN vector_sync_status TEXT DEFAULT 'pending'")
+            await conn.execute(
+                "UPDATE knowledge_base SET vector_sync_status = CASE "
+                "WHEN is_active = 1 THEN 'success' "
+                "ELSE 'pending' END "
+                "WHERE vector_sync_status IS NULL OR vector_sync_status = ''"
+            )
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 vector_sync_status 列")
+        if "vector_synced_at" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN vector_synced_at TEXT DEFAULT ''")
+            await conn.execute(
+                "UPDATE knowledge_base SET vector_synced_at = updated_at "
+                "WHERE is_active = 1 AND (vector_synced_at IS NULL OR vector_synced_at = '')"
+            )
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 vector_synced_at 列")
+        if "vector_sync_error" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN vector_sync_error TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 vector_sync_error 列")
+        if "vector_sync_retry_count" not in columns:
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN vector_sync_retry_count INTEGER DEFAULT 0")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 vector_sync_retry_count 列")
     except Exception as exc:
         logger.warning("动态校准 RAG 知识库表字段发生异常（可能已被成功迁移或表尚为空）：%s", exc)
 
@@ -237,6 +348,18 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.execute("ALTER TABLE youzan_products ADD COLUMN item_props_json TEXT DEFAULT '[]'")
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 item_props_json 列")
+        if "last_sync_source" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN last_sync_source TEXT DEFAULT 'legacy_unknown'")
+            await conn.execute(
+                "UPDATE youzan_products SET last_sync_source = 'legacy_unknown' "
+                "WHERE last_sync_source IS NULL OR last_sync_source = ''"
+            )
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 last_sync_source 列")
+        if "last_sync_ref" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN last_sync_ref TEXT DEFAULT ''")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 last_sync_ref 列")
     except Exception as exc:
         logger.warning("动态校准 youzan_products 表字段发生异常：%s", exc)
 

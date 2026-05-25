@@ -4,6 +4,9 @@ description: 知识库更新工作流，用于将烘焙业务文档（Word/PDF/E
 
 # 知识库更新工作流
 
+> 2026-05-25 起：**FAQ / 规则 / 话术优先通过后台 `知识配置` 页面维护**。  
+> `knowledge/` 目录下的 Markdown 与 `scripts/seed_knowledge.py` 仅作为历史种子和外部资料导入兜底，不再是日常首选入口。
+
 ## 触发场景
 
 - 新增 / 修改产品信息、价格、规格
@@ -30,26 +33,32 @@ description: 知识库更新工作流，用于将烘焙业务文档（Word/PDF/E
 
 **任何口径冲突必须先确认，不得自动覆盖。**
 
-### 3. 更新 Markdown 知识文件
+### 3. 选择更新入口
 
-按类别更新对应文件，保持现有结构。
+- **日常运营修改 FAQ / 规则 / 话术**：优先走后台 `知识配置` 页面
+- **从外部文档批量整理资料**：先落到 `knowledge/` Markdown，再决定是否导入后台
+- **商品信息**：禁止写入 Markdown，统一依赖有赞 Webhook 与运行时实时刷新
 
-### 4. 重新生成向量索引
+### 4. 如使用 Markdown 导入，再重新生成向量索引
 
 ```powershell
 # 删除旧的嵌入缓存，触发重建
 Remove-Item "data/embeddings.pkl" -ErrorAction SilentlyContinue
 
-# 重新导入知识库（本地）
+# 重新导入非商品知识库（本地）
 python scripts/seed_knowledge.py
 ```
 
-### 5. 验证导入结果
+### 5. 验证结果
 
 ```powershell
 # 检查知识条目数量
 python scripts/validate_products.py
 ```
+
+如通过后台 `知识配置` 页面维护，则应额外确认：
+- 列表页状态是否已变为“已入向量”
+- 抽屉中的“最近同步时间 / 失败原因 / 最近 5 条历史”是否正常显示
 
 ### 6. 更新 LOGBOOK.md
 

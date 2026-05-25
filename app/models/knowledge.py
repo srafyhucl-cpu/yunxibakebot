@@ -1,16 +1,10 @@
-"""
-知识库数据模型。
-
-存储店铺信息、产品介绍、政策、常见问题等。
-LLM 对话时自动检索相关内容注入到 System Prompt 中。
-"""
+"""知识库数据模型。"""
 
 from dataclasses import dataclass
 from enum import Enum
 
 
 class KnowledgeCategory(str, Enum):
-    """知识分类：门店信息 / 产品 / 政策 / 常见问题 / 售后"""
     STORE_INFO = "store_info"
     PRODUCT = "product"
     POLICY = "policy"
@@ -18,16 +12,41 @@ class KnowledgeCategory(str, Enum):
     AFTER_SALES = "after_sales"
 
 
+class KnowledgeContentType(str, Enum):
+    PRODUCT = "product"
+    FAQ = "faq"
+    RULE = "rule"
+    SCRIPT = "script"
+
+
+class VectorSyncStatus(str, Enum):
+    PENDING = "pending"
+    SYNCING = "syncing"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
 @dataclass
 class KnowledgeEntry:
-    """一条知识记录，含标题、正文、关键词和优先级。"""
     id: int = 0
     category: KnowledgeCategory = KnowledgeCategory.FAQ
+    content_type: str = KnowledgeContentType.FAQ
     title: str = ""
-    content: str = ""      # Markdown 格式
-    keywords: str = ""      # 逗号分隔，用于模糊匹配
+    content: str = ""
+    keywords: str = ""
     priority: int = 0
     is_active: bool = True
-    youzan_item_id: str | None = None  # 关联的有赞商品唯一 ID，默认为 None
+    youzan_item_id: str | None = None
+    last_sync_source: str = ""
+    last_sync_ref: str = ""
+    content_origin: str = "legacy_unknown"
+    created_by: str = ""
+    updated_by: str = ""
+    suggested_category: str = ""
+    suggest_reason: str = ""
+    vector_sync_status: str = VectorSyncStatus.PENDING
+    vector_synced_at: str = ""
+    vector_sync_error: str = ""
+    vector_sync_retry_count: int = 0
     created_at: str = ""
     updated_at: str = ""

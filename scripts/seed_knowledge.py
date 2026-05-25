@@ -18,6 +18,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import PRAGMA_STATEMENTS, SCHEMA_STATEMENTS
 from app.logger import setup_logger
+from app.models.content_change_history import (
+    ChangeAction,
+    ChangeEntityType,
+    SyncSource,
+)
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_repo import KnowledgeRepo
+from app.service.observability import ContentChangeLogger, build_knowledge_change_summary
 
 logger = setup_logger()
 
@@ -241,6 +249,8 @@ async def seed() -> None:
     conn = await init_db()
     await conn.execute("DELETE FROM knowledge_base")
     await conn.commit()
+    knowledge_repo = KnowledgeRepo(conn)
+    history_logger = ContentChangeLogger(ContentChangeHistoryRepo(conn))
 
     faq_files = _read_enabled_files(FAQ_DIR, ACTIVE_FAQ_FILES)
     faqs = _parse_text_files(faq_files, parse_faq)
@@ -253,19 +263,29 @@ async def seed() -> None:
 
     all_entries = [*faqs, *rules, *scripts]
     for entry in all_entries:
-        await conn.execute(
-            "INSERT INTO knowledge_base (category, title, content, keywords, priority) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (
-                entry["category"],
-                entry["title"],
-                entry["content"],
-                entry["keywords"],
-                entry["priority"],
+        entry_id = await knowledge_repo.insert_entry(
+            category=entry["category"],
+            title=entry["title"],
+            content=entry["content"],
+            keywords=entry["keywords"],
+            priority=entry["priority"],
+            sync_source=SyncSource.SEED_KNOWLEDGE,
+        )
+        await history_logger.log_success(
+            entity_type=ChangeEntityType.KNOWLEDGE,
+            entity_key=str(entry_id),
+            category=entry["category"],
+            title=entry["title"],
+            source=SyncSource.SEED_KNOWLEDGE,
+            source_ref=str(entry_id),
+            action=ChangeAction.SEED,
+            change_summary=build_knowledge_change_summary(
+                title=entry["title"],
+                category=entry["category"],
+                priority=entry["priority"],
+                is_active=True,
             ),
         )
-
-    await conn.commit()
     await conn.close()
     logger.info(
         "Seed completed: total=%d faq=%d rules=%d scripts=%d",

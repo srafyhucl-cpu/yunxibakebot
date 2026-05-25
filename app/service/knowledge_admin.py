@@ -1,0 +1,274 @@
+"""知识配置后台服务。"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from app.models.content_change_history import ChangeAction, ChangeEntityType, SyncSource, WriteResult
+from app.models.knowledge import KnowledgeContentType, KnowledgeEntry
+from app.models.knowledge_admin import KnowledgeAdminDraft, KnowledgeCategorySuggestion
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_repo import KnowledgeRepo
+from app.service.knowledge_sync import KnowledgeSyncService
+
+DEFAULT_PRIORITY = 50
+MAX_KEYWORDS_LENGTH = 200
+MIN_PRIORITY = 0
+MAX_PRIORITY = 100
+
+_FAQ_HINTS = ("吗", "怎么", "如何", "能否", "可以", "是否", "多久", "几点", "多少", "什么时候")
+_RULE_HINTS = ("规则", "退款", "售后", "改期", "配送", "预订", "定制", "发票", "补差", "需提前", "不支持")
+_SCRIPT_HINTS = ("您好", "亲", "抱歉", "建议您", "请您", "欢迎", "推荐您", "麻烦您", "辛苦您", "可以这样回复")
+
+
+class KnowledgeAdminService:
+    """负责后台知识条目的查询、编辑和分类建议。"""
+
+    def __init__(
+        self,
+        knowledge_repo: KnowledgeRepo,
+        history_repo: ContentChangeHistoryRepo,
+        sync_service: KnowledgeSyncService,
+    ) -> None:
+        self._knowledge_repo = knowledge_repo
+        self._history_repo = history_repo
+        self._sync_service = sync_service
+
+    async def list_entries(
+        self,
+        *,
+        content_type: str = "",
+        is_active: str = "",
+        vector_status: str = "",
+        keyword: str = "",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[KnowledgeEntry]:
+        return await self._knowledge_repo.list_admin_entries(
+            content_type=content_type,
+            is_active=is_active,
+            vector_status=vector_status,
+            keyword=keyword,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def count_entries(
+        self,
+        *,
+        content_type: str = "",
+        is_active: str = "",
+        vector_status: str = "",
+        keyword: str = "",
+    ) -> int:
+        return await self._knowledge_repo.count_admin_entries(
+            content_type=content_type,
+            is_active=is_active,
+            vector_status=vector_status,
+            keyword=keyword,
+        )
+
+    async def get_entry_detail(self, entry_id: int) -> dict | None:
+        entry = await self._knowledge_repo.get_by_id(entry_id)
+        if entry is None or entry.content_type == KnowledgeContentType.PRODUCT:
+            return None
+        history = await self._history_repo.list_for_entity(
+            entity_type=ChangeEntityType.KNOWLEDGE,
+            entity_key=f"kb_{entry.id}",
+            limit=5,
+        )
+        return {
+            "entry": entry,
+            "history": [
+                {
+                    "id": item.id,
+                    "action": item.action,
+                    "status": item.status,
+                    "occurred_at": item.occurred_at,
+                    "error_message": item.error_message,
+                    "summary": self._loads_json(item.change_summary_json),
+                }
+                for item in history
+            ],
+        }
+
+    async def create_entry(self, draft: KnowledgeAdminDraft, *, operator: str) -> KnowledgeEntry:
+        normalized = self._normalize_draft(draft)
+        suggestion = self.suggest_category(title=normalized.title, content=normalized.content)
+        entry_id = await self._knowledge_repo.create_admin_entry(
+            category=self._map_category(normalized.content_type),
+            content_type=normalized.content_type,
+            title=normalized.title,
+            content=normalized.content,
+            keywords=normalized.keywords,
+            priority=normalized.priority,
+            is_active=normalized.is_active,
+            content_origin="admin_console",
+            created_by=operator,
+            updated_by=operator,
+            suggested_category=suggestion.content_type,
+            suggest_reason=suggestion.reason,
+            sync_source=SyncSource.ADMIN_MANUAL,
+            vector_sync_status="pending",
+        )
+        entry = await self._require_entry(entry_id)
+        return await self._sync_service.sync_admin_entry(
+            entry,
+            action=ChangeAction.CREATE,
+            operator=operator,
+        )
+
+    async def update_entry(
+        self,
+        entry_id: int,
+        draft: KnowledgeAdminDraft,
+        *,
+        operator: str,
+    ) -> KnowledgeEntry:
+        existing = await self._require_entry(entry_id)
+        normalized = self._normalize_draft(draft)
+        suggestion = self.suggest_category(title=normalized.title, content=normalized.content)
+        result = await self._knowledge_repo.update_admin_entry(
+            entry_id,
+            category=self._map_category(normalized.content_type),
+            content_type=normalized.content_type,
+            title=normalized.title,
+            content=normalized.content,
+            keywords=normalized.keywords,
+            priority=normalized.priority,
+            is_active=normalized.is_active,
+            updated_by=operator,
+            suggested_category=suggestion.content_type,
+            suggest_reason=suggestion.reason,
+            sync_source=SyncSource.ADMIN_MANUAL,
+            sync_ref=str(existing.id),
+            vector_sync_status="pending",
+        )
+        if result == WriteResult.SKIPPED:
+            return await self._require_entry(entry_id)
+        entry = await self._require_entry(entry_id)
+        return await self._sync_service.sync_admin_entry(
+            entry,
+            action=ChangeAction.UPDATE,
+            operator=operator,
+        )
+
+    async def toggle_active(self, entry_id: int, *, operator: str) -> KnowledgeEntry:
+        entry = await self._require_entry(entry_id)
+        await self._knowledge_repo.update_active(
+            entry_id,
+            not entry.is_active,
+            sync_source=SyncSource.ADMIN_MANUAL,
+            sync_ref=str(entry_id),
+        )
+        toggled = await self._require_entry(entry_id)
+        action = ChangeAction.ACTIVATE if toggled.is_active else ChangeAction.DEACTIVATE
+        return await self._sync_service.sync_admin_entry(
+            toggled,
+            action=action,
+            operator=operator,
+        )
+
+    async def retry_sync(self, entry_id: int, *, operator: str) -> KnowledgeEntry:
+        entry = await self._require_entry(entry_id)
+        return await self._sync_service.sync_admin_entry(
+            entry,
+            action=ChangeAction.SYNC_RETRY,
+            operator=operator,
+            retry_increment=True,
+        )
+
+    def suggest_category(self, *, title: str, content: str) -> KnowledgeCategorySuggestion:
+        merged = f"{title}\n{content}".strip()
+        if self._matches_any(merged, _RULE_HINTS):
+            return KnowledgeCategorySuggestion(
+                content_type=KnowledgeContentType.RULE,
+                label="门店规则",
+                reason="检测到退款、配送、预订或限制类关键词，更像稳定规则说明。",
+            )
+        if self._matches_any(merged, _SCRIPT_HINTS):
+            return KnowledgeCategorySuggestion(
+                content_type=KnowledgeContentType.SCRIPT,
+                label="回复话术",
+                reason="检测到安抚、引导、推荐等表达，更像给 AI 的回复说法。",
+            )
+        if "？" in merged or "?" in merged or self._matches_any(merged, _FAQ_HINTS):
+            return KnowledgeCategorySuggestion(
+                content_type=KnowledgeContentType.FAQ,
+                label="常见问答",
+                reason="内容更接近用户提问和标准回答，适合放入常见问答。",
+            )
+        return KnowledgeCategorySuggestion(
+            content_type=KnowledgeContentType.FAQ,
+            label="常见问答",
+            reason="未命中明显规则或话术特征，默认建议按常见问答管理。",
+        )
+
+    async def _require_entry(self, entry_id: int) -> KnowledgeEntry:
+        entry = await self._knowledge_repo.get_by_id(entry_id)
+        if entry is None or entry.content_type == KnowledgeContentType.PRODUCT:
+            raise ValueError(f"知识条目不存在: {entry_id}")
+        return entry
+
+    def _normalize_draft(self, draft: KnowledgeAdminDraft) -> KnowledgeAdminDraft:
+        title = draft.title.strip()
+        content = draft.content.strip()
+        keywords = self._normalize_keywords(draft.keywords, title, content)
+        content_type = (draft.content_type or "").strip()
+        if not title:
+            raise ValueError("标题不能为空")
+        if not content:
+            raise ValueError("正文不能为空")
+        if content_type not in {
+            KnowledgeContentType.FAQ,
+            KnowledgeContentType.RULE,
+            KnowledgeContentType.SCRIPT,
+        }:
+            raise ValueError("分类不能为空")
+        if len(keywords) > MAX_KEYWORDS_LENGTH:
+            raise ValueError("关键词过长，请控制在 200 字以内")
+        if draft.priority < MIN_PRIORITY or draft.priority > MAX_PRIORITY:
+            raise ValueError("优先级必须在 0 到 100 之间")
+        return KnowledgeAdminDraft(
+            title=title,
+            content=content,
+            content_type=content_type,
+            keywords=keywords,
+            priority=draft.priority if draft.priority is not None else DEFAULT_PRIORITY,
+            is_active=draft.is_active,
+        )
+
+    @staticmethod
+    def _normalize_keywords(keywords: str, title: str, content: str) -> str:
+        raw = keywords.strip()
+        if raw:
+            return raw
+        base_words = [title]
+        tokens = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]{2,}", content[:80])
+        base_words.extend(tokens[:5])
+        deduped: list[str] = []
+        for item in base_words:
+            clean = item.strip()
+            if clean and clean not in deduped:
+                deduped.append(clean)
+        return " ".join(deduped)
+
+    @staticmethod
+    def _map_category(content_type: str) -> str:
+        if content_type == KnowledgeContentType.RULE:
+            return "policy"
+        if content_type == KnowledgeContentType.SCRIPT:
+            return "store_info"
+        return "faq"
+
+    @staticmethod
+    def _matches_any(text: str, keywords: tuple[str, ...]) -> bool:
+        return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _loads_json(raw: str) -> dict:
+        try:
+            return json.loads(raw or "{}")
+        except json.JSONDecodeError:
+            return {}

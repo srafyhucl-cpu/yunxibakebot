@@ -97,8 +97,9 @@ ______________________________________________________________________
 | 有赞 Webhook 入口 | `app/api/webhook.py` |
 | 有赞事件分发 | `app/service/youzan/event_handler.py` |
 | 管理后台路由 | `app/api/admin.py` |
+| 知识配置后台 | `app/api/admin_knowledge.py` |
 | 数据库初始化 | `app/repository/database.py` |
-| 全量商品同步 | `scripts/reset_and_sync.py` |
+| 商品实时刷新 | `app/service/llm/function_tool_product.py` |
 
 ______________________________________________________________________
 
@@ -146,8 +147,8 @@ uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
 # 健康检查
 curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.1.0"}
 
-# 全量商品同步（生产慎用）
-python scripts/reset_and_sync.py
+# 知识种子导入（仅 FAQ / 规则 / 话术）
+python scripts/seed_knowledge.py
 
 # 远程重启
 ssh root@47.94.102.250 "systemctl restart yunxibakebot && systemctl is-active yunxibakebot"

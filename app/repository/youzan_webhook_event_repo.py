@@ -110,9 +110,97 @@ class YouzanWebhookEventRepo:
         rows = await self._db.execute_fetchall(
             "SELECT id, msg_id, trace_id, event_type, business_type, business_key, "
             "status, http_status, process_stage, error_type, error_message, "
-            "received_at, process_started_at, process_finished_at, duration_ms "
+            "payload_summary_json, received_at, process_started_at, process_finished_at, duration_ms "
             "FROM youzan_webhook_events WHERE msg_id = ?",
             (msg_id,),
+        )
+        return dict(rows[0]) if rows else None
+
+    async def list_events(
+        self,
+        *,
+        status: str = "",
+        event_type: str = "",
+        keyword: str = "",
+        date_from: str = "",
+        date_to: str = "",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        clauses = ["1 = 1"]
+        params: list[object] = []
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if event_type:
+            clauses.append("event_type = ?")
+            params.append(event_type)
+        if date_from:
+            clauses.append("received_at >= ?")
+            params.append(f"{date_from} 00:00:00")
+        if date_to:
+            clauses.append("received_at <= ?")
+            params.append(f"{date_to} 23:59:59")
+        if keyword:
+            like = f"%{keyword}%"
+            clauses.append(
+                "(msg_id LIKE ? OR business_key LIKE ? OR error_message LIKE ? OR payload_summary_json LIKE ?)"
+            )
+            params.extend([like, like, like, like])
+        rows = await self._db.execute_fetchall(
+            "SELECT id, msg_id, trace_id, event_type, business_type, business_key, "
+            "status, http_status, process_stage, error_type, error_message, payload_summary_json, "
+            "received_at, process_started_at, process_finished_at, duration_ms "
+            "FROM youzan_webhook_events "
+            f"WHERE {' AND '.join(clauses)} "
+            "ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset),
+        )
+        return [dict(row) for row in rows]
+
+    async def count_events(
+        self,
+        *,
+        status: str = "",
+        event_type: str = "",
+        keyword: str = "",
+        date_from: str = "",
+        date_to: str = "",
+    ) -> int:
+        clauses = ["1 = 1"]
+        params: list[object] = []
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if event_type:
+            clauses.append("event_type = ?")
+            params.append(event_type)
+        if date_from:
+            clauses.append("received_at >= ?")
+            params.append(f"{date_from} 00:00:00")
+        if date_to:
+            clauses.append("received_at <= ?")
+            params.append(f"{date_to} 23:59:59")
+        if keyword:
+            like = f"%{keyword}%"
+            clauses.append(
+                "(msg_id LIKE ? OR business_key LIKE ? OR error_message LIKE ? OR payload_summary_json LIKE ?)"
+            )
+            params.extend([like, like, like, like])
+        rows = await self._db.execute_fetchall(
+            "SELECT COUNT(*) AS c FROM youzan_webhook_events "
+            f"WHERE {' AND '.join(clauses)}",
+            tuple(params),
+        )
+        return int(rows[0]["c"]) if rows else 0
+
+    async def get_by_id(self, event_id: int) -> dict | None:
+        rows = await self._db.execute_fetchall(
+            "SELECT id, msg_id, trace_id, event_type, business_type, business_key, "
+            "status, http_status, process_stage, error_type, error_message, payload_summary_json, "
+            "received_at, process_started_at, process_finished_at, duration_ms "
+            "FROM youzan_webhook_events WHERE id = ?",
+            (event_id,),
         )
         return dict(rows[0]) if rows else None
 

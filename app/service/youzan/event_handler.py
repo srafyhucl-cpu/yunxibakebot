@@ -114,6 +114,7 @@ class YouzanEventHandler:
                 event_type=event_type,
                 msg_obj=msg_obj,
                 updated_at_str=updated_at_str,
+                msg_id=msg_id,
                 audit_repo=self._audit_repo,
                 audit_id=audit_id,
             )
@@ -127,6 +128,7 @@ class YouzanEventHandler:
                     event_type=event_type,
                     msg_obj={"item_id": item_id},
                     updated_at_str=updated_at_str,
+                    msg_id=msg_id,
                     audit_repo=self._audit_repo,
                     audit_id=audit_id,
                 )

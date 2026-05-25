@@ -21,10 +21,13 @@ from app.database import init_db, close_db
 from app.exceptions import AppError
 from app.logger import setup_logger
 from app.repository.config_repo import ConfigRepo
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
+from app.repository.youzan_repo import YouzanProductRepo
+from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat import ChatService
 from app.service.knowledge_retriever import KnowledgeRetriever
 
@@ -51,6 +54,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     knowledge_repo = KnowledgeRepo(db)
     transfer_repo = TransferRepo(db)
     config_repo = ConfigRepo(db)
+    history_repo = ContentChangeHistoryRepo(db)
+    youzan_product_repo = YouzanProductRepo(db)
+    webhook_event_repo = YouzanWebhookEventRepo(db)
 
     # 语义向量搜索服务（启动优化：首选极速缓存载入并进行一致性指纹对比，对齐时 100% 豁免 CPU 全量重算）
     from app.service.embedding_search import EmbeddingSearcher
@@ -74,7 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         db_keys = {str(d[0]) for d in docs}
         if cached_keys == db_keys and vs._data_hash == current_db_md5:
             need_rebuild = False
-            logger.info("🎉 完美对齐！向量缓存指纹与文本特征 MD5 100%% 一致，直接载入启动，共有 %d 条向量", vs.doc_count)
+            logger.info("向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量", vs.doc_count)
 
     if need_rebuild:
         if docs:
@@ -123,6 +129,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Service 层
     knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
     from app.service.admin import AdminService
+    from app.service.knowledge_admin import KnowledgeAdminService
+    from app.service.knowledge_sync import KnowledgeSyncService
+    from app.service.observability import ObservabilityService
     from app.service.transfer_manager import TransferManager
 
     admin_service = AdminService(
@@ -131,6 +140,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         transfer_repo=transfer_repo,
         knowledge_repo=knowledge_repo,
         config_repo=config_repo,
+    )
+    observability_service = ObservabilityService(
+        knowledge_repo=knowledge_repo,
+        product_repo=youzan_product_repo,
+        history_repo=history_repo,
+        webhook_repo=webhook_event_repo,
+    )
+    knowledge_sync_service = KnowledgeSyncService(
+        knowledge_repo=knowledge_repo,
+        history_repo=history_repo,
+        embedding_searcher=vs,
+    )
+    knowledge_admin_service = KnowledgeAdminService(
+        knowledge_repo=knowledge_repo,
+        history_repo=history_repo,
+        sync_service=knowledge_sync_service,
     )
     transfer_mgr = TransferManager(transfer_repo)
 
@@ -144,6 +169,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 注册路由（通过工厂函数注入依赖）
     from app.api.admin import create_admin_router
     from app.api.admin_config import create_shop_config_router
+    from app.api.admin_knowledge import create_admin_knowledge_router
+    from app.api.admin_observability import create_observability_router
     from app.api.webhook import create_webhook_router
     from app.api.wecom import router as wecom_router, register_handler
 
@@ -164,6 +191,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         transfer_mgr=transfer_mgr,
     ))
     app.include_router(create_shop_config_router(admin_service))
+    app.include_router(create_admin_knowledge_router(knowledge_admin_service))
+    app.include_router(create_observability_router(observability_service))
     app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)

@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>芸熙烘焙 AI 客服 - 管理后台</title>
   <link rel="stylesheet" href="/static/admin/style.css">
+  {% block extra_head %}{% endblock %}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍰</text></svg>">
 </head>
 <body>
   {% if request.cookies.get("admin_token") %}
-  <!-- 移动端顶栏 -->
   <div class="topbar">
     <button class="hamburger" id="hamburger" onclick="toggleSidebar()">☰</button>
     <span class="topbar-title">🍰 芸熙烘焙</span>
   </div>
-  <!-- 遮罩 -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
   <div class="layout">
@@ -31,7 +30,9 @@
         <a href="/admin/chat-test" class="{{ 'active' if active == 'chat_test' }}">💬 AI 测试</a>
         <a href="/admin/featured-products" class="{{ 'active' if active == 'featured_products' }}">⭐ 主推款</a>
         <a href="/admin/products" class="{{ 'active' if active == 'products' }}">📦 商品管理</a>
-        <a href="/admin/transfers" class="nav-disabled">🔔 转人工 <span class="nav-tag">待上线</span></a>
+        <a href="/admin/knowledge-config" class="{{ 'active' if active == 'knowledge_config' }}">📝 知识配置</a>
+        <a href="/admin/observability/current" class="{{ 'active' if active == 'observability' }}">📳 数据观察台</a>
+        <a href="/admin/transfers" class="nav-disabled">🔂 转人工<span class="nav-tag">待上线</span></a>
       </nav>
       <div class="sidebar-bottom">
         <a href="/admin/logout">🚪 退出登录</a>
@@ -42,7 +43,6 @@
     </main>
   </div>
 
-  <!-- 底部导航栏（手机端） -->
   <nav class="bottom-nav" id="bottom-nav">
     <a href="/admin/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">
       <span class="bnav-icon">📊</span>
@@ -50,15 +50,19 @@
     </a>
     <a href="/admin/chat-test" class="{{ 'active' if active == 'chat_test' else '' }}">
       <span class="bnav-icon">💬</span>
-      <span class="bnav-label">AI 测试</span>
-    </a>
-    <a href="/admin/featured-products" class="{{ 'active' if active == 'featured_products' else '' }}">
-      <span class="bnav-icon">⭐</span>
-      <span class="bnav-label">主推款</span>
+      <span class="bnav-label">测试</span>
     </a>
     <a href="/admin/products" class="{{ 'active' if active == 'products' else '' }}">
       <span class="bnav-icon">📦</span>
       <span class="bnav-label">商品</span>
+    </a>
+    <a href="/admin/knowledge-config" class="{{ 'active' if active == 'knowledge_config' else '' }}">
+      <span class="bnav-icon">📝</span>
+      <span class="bnav-label">知识</span>
+    </a>
+    <a href="/admin/observability/current" class="{{ 'active' if active == 'observability' else '' }}">
+      <span class="bnav-icon">📳</span>
+      <span class="bnav-label">观察台</span>
     </a>
   </nav>
 
