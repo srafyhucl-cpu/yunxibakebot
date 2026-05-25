@@ -65,6 +65,7 @@ ______________________________________________________________________
 | 禁止静默吞异常（`except: pass`） | 至少记录 `logger.error` |
 | 禁止 `print()` 调试 | 使用 `logger.debug()` |
 | 禁止硬编码密钥/Token | 通过 `app/config.py` 的 `get_settings()` 获取 |
+| 提交到仓库的代码注释禁止使用英文注释 | Python / JS / TS / HTML / CSS 注释统一使用中文；仅保留必要注释，避免无意义注释 |
 
 ______________________________________________________________________
 
@@ -75,10 +76,11 @@ ______________________________________________________________________
 1. **调用相关 Guard Skill** 确认代码符合规范
 2. **更新 `LOGBOOK.md`**（在顶部追加本轮条目，格式见 `.windsurf/workflows/commit.md` 第 4.1 步）
 3. **更新 `项目进度与配置清单.md`**（修改"最后更新"日期 + 已完成功能 + 已知问题状态，详见第 4.2 步）
-4. **运行测试**：`python -m pytest tests/ -q`
-5. **git add + commit**（pre-commit 会自动检查 LOGBOOK 和进度文档是否已暂存）
-6. **推送到两个远端**：`git push origin master && git push server master`
-7. **重启服务器**：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
+4. **检查代码注释语言**：凡本轮新增或修改的代码注释，必须统一为中文注释；英文注释需改写后再提交
+5. **运行测试**：`python -m pytest tests/ -q`
+6. **git add + commit**（pre-commit 会自动检查 LOGBOOK 和进度文档是否已暂存）
+7. **推送到两个远端**：`git push origin master && git push server master`
+8. **重启服务器**：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
 
 > 📄 完整格式参见 `.windsurf/workflows/commit.md`
 
