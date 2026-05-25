@@ -5,6 +5,28 @@
 ______________________________________________________________________
 
 
+## [2026-05-25] - 新后台主推款页接通真实配置工作台
+- **操作人**: AI (Codex)
+- **关联任务**: 按后台前端重构既定顺序继续迁移 `主推款`，完成现有主推列表读取、候选商品搜索、顺序调整和保存回写
+- **核心变更文件说明**:
+  - `web/admin/src/services/featuredProducts.ts`（新增）:
+    - 封装主推款读取、保存和候选商品搜索接口
+  - `web/admin/src/pages/products/useFeaturedProductsPage.ts`（新增）:
+    - 管理主推款列表、搜索结果、顺序调整和保存状态
+  - `web/admin/src/pages/products/FeaturedProductsPage.vue`（修改）:
+    - 用“候选商品 + 当前主推款”工作台替换占位页
+    - 支持商品搜索、加入主推款、上移/下移、移除和保存
+  - `web/admin/package.json`（修改）:
+    - 补充 `build:staging` 和 `build:production`，明确 `/admin-v2` 与 `/admin` 的构建入口
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - `npm run build:staging`（`web/admin`）通过
+  - `YUNXI_USE_FAKE_EMBEDDING=1 python -m pytest tests -q` 通过（118 passed）
+  - `http://127.0.0.1:7012/admin-v2/products/featured` 返回 200
+- **潜伏风险/遗留未决事项说明**:
+  - 当前主推款仍按商品标题保存，后续可考虑升级为按稳定商品 ID 存储，降低重命名带来的维护成本
+  - 候选商品搜索暂时复用商品列表第一页，后续可按 spec 补更适合配置页的搜索接口
+
 ## [2026-05-25] - 新后台商品管理页接通真实列表与启停操作
 - **操作人**: AI (Codex)
 - **关联任务**: 按后台前端重构既定顺序继续迁移 `商品管理`，完成 Bearer 兼容、商品列表、详情抽屉和上下架操作
