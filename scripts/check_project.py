@@ -76,6 +76,8 @@ def scan_rule(rule: ScanRule) -> CheckResult:
 def run_command(command: tuple[str, ...]) -> CheckResult:
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
+    if "pytest" in command:
+        env.setdefault("YUNXI_USE_FAKE_EMBEDDING", "1")
     completed = subprocess.run(
         command,
         cwd=ROOT_DIR,

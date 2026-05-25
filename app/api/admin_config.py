@@ -100,13 +100,20 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             {
                 "id": e.id,
                 "category": e.category,
+                "content_type": e.content_type,
                 "title": e.title,
                 "content": e.content,
+                "keywords": e.keywords,
                 "priority": e.priority,
                 "is_active": e.is_active,
+                "youzan_item_id": e.youzan_item_id,
+                "last_sync_source": e.last_sync_source,
+                "last_sync_ref": e.last_sync_ref,
+                "vector_sync_status": e.vector_sync_status,
+                "updated_at": e.updated_at,
             }
             for e in entries
-        ]}
+        ], "page": page, "page_size": limit}
 
     @_api_router.post("/products/{product_id}/toggle-active")
     async def toggle_product_active(

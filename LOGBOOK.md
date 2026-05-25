@@ -5,6 +5,37 @@
 ______________________________________________________________________
 
 
+## [2026-05-25] - 新后台商品管理页接通真实列表与启停操作
+- **操作人**: AI (Codex)
+- **关联任务**: 按后台前端重构既定顺序继续迁移 `商品管理`，完成 Bearer 兼容、商品列表、详情抽屉和上下架操作
+- **核心变更文件说明**:
+  - `web/admin/src/services/http.ts`（修改）:
+    - 自动读取 `admin_token` Cookie 并补齐 `Authorization: Bearer ...` 请求头
+    - 让旧后台依赖 Bearer 的商品、主推款等 API 可以直接被新后台复用
+  - `web/admin/src/services/products.ts`（新增）:
+    - 封装商品列表查询与上下架切换接口
+  - `web/admin/src/types/product.ts`（新增）:
+    - 抽离商品列表页所需的条目与分页类型
+  - `web/admin/src/pages/products/useProductsPage.ts`（新增）:
+    - 管理查询参数、列表加载、详情抽屉和上下架操作状态
+  - `web/admin/src/pages/products/ProductsPage.vue`（修改）:
+    - 用真实商品列表替换占位页
+    - 支持搜索、分页、桌面表格/手机卡片双视图、详情抽屉和上下架操作
+  - `web/admin/src/features/products/ProductDetailDrawer.vue`（新增）:
+    - 将商品详情抽屉独立成特性组件，避免页面文件继续膨胀
+  - `app/api/admin_config.py`（修改）:
+    - 商品列表接口补充 `content_type`、关键词、有赞商品 ID、同步来源、向量状态、更新时间等字段
+  - `app/service/embedding_search.py` / `scripts/check_project.py`（修改）:
+    - 为质量门禁测试补充轻量编码器兜底，规避 Windows + Python 3.13 下 `torch/transformers` 加载模型时的访问冲突
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - `npm run build`（`web/admin`）通过
+  - `python -m py_compile app\\api\\admin_config.py` 通过
+  - `YUNXI_USE_FAKE_EMBEDDING=1 python -m pytest tests -q` 通过（118 passed）
+- **潜伏风险/遗留未决事项说明**:
+  - 当前商品页仍基于旧后台 API 形态做前端适配，后续可按 spec 补标准化列表结构与来源状态聚合接口
+  - `主推款` 页面仍是占位态，下一步应按既定顺序继续迁移
+
 ## [2026-05-25] - 新后台 AI 测试工作台接通首个真实页面
 - **操作人**: AI (Codex)
 - **关联任务**: 按后台前端重构顺序优先迁移 `AI 测试`，把占位页替换成可发送消息、查看会话和保存会话的工作台

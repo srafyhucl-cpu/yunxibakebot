@@ -27,6 +27,32 @@ BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
 MIN_SIMILARITY_SCORE = 0.35
 
 
+class _FallbackSentenceTransformer:
+    """测试环境用的轻量编码器，避免特定解释器下真实模型加载崩溃。"""
+
+    def encode(
+        self,
+        texts: list[str],
+        normalize_embeddings: bool = True,
+        show_progress_bar: bool = False,
+    ) -> np.ndarray:
+        del show_progress_bar
+        rows: list[np.ndarray] = []
+        for text in texts:
+            vector = np.zeros(256, dtype=np.float32)
+            for index, char in enumerate(text):
+                bucket = (ord(char) + index * 131) % 256
+                vector[bucket] += 1.0
+            if normalize_embeddings:
+                norm = np.linalg.norm(vector)
+                if norm > 0:
+                    vector = vector / norm
+            rows.append(vector)
+        if not rows:
+            return np.zeros((0, 256), dtype=np.float32)
+        return np.vstack(rows)
+
+
 class EmbeddingSearcher:
     """Sentence-Transformers 语义向量搜索，为 KnowledgeRetriever 提供层。"""
 
@@ -43,7 +69,15 @@ class EmbeddingSearcher:
     def _get_model(self) -> SentenceTransformer:
         """懒加载：首次调用时初始化模型（避免冷启动阻塞）。"""
         if self._model is None:
+            if os.getenv("YUNXI_USE_FAKE_EMBEDDING", "0") == "1":
+                self._model = _FallbackSentenceTransformer()
+                logger.warning("Embedding 检索已切换到测试轻量编码器")
+                return self._model
             os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            # 关闭 transformers 的异步权重物化，规避 Windows + Python 3.13 下偶发的访问冲突。
+            os.environ.setdefault("HF_DEACTIVATE_ASYNC_LOAD", "1")
+            # 关闭 transformers 的异步权重物化，规避 Windows + Python 3.13 下偶发的访问冲突。
+            os.environ.setdefault("HF_DEACTIVATE_ASYNC_LOAD", "1")
             self._model = SentenceTransformer(EMBEDDING_MODEL, local_files_only=True)
             logger.info("Embedding 模型已加载: %s", EMBEDDING_MODEL)
         return self._model
