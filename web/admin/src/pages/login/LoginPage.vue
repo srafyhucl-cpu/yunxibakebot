@@ -20,7 +20,11 @@ async function submitLogin() {
 
   try {
     await authStore.login(trimmedToken);
-    const redirectPath = typeof route.query.redirect === "string" ? route.query.redirect : "/chat-test";
+    const rawRedirect = typeof route.query.redirect === "string" ? route.query.redirect : "/chat-test";
+    const routerBase = import.meta.env.VITE_ROUTER_BASE;
+    const redirectPath = rawRedirect.startsWith(routerBase)
+      ? rawRedirect.slice(routerBase.length - 1)
+      : rawRedirect;
     await router.replace(redirectPath);
     ElMessage.success("登录成功");
   } catch {

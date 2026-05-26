@@ -4,6 +4,34 @@
 
 ______________________________________________________________________
 
+## [2026-05-26] - 新后台数据观察台接入与登录跳转回归修复
+- **操作人**: AI (Codex)
+- **关联任务**: 继续按顺序开发新后台数据观察台，并修复本地预览中的空白页、加载转圈和登录页循环跳转问题
+- **核心变更文件说明**:
+  - `web/admin/src/features/observability/`（新增）:
+    - 新增数据观察台通用工作台、详情抽屉和组合式状态逻辑
+    - 支持当前内容、回写历史、Webhook 审计三类数据的筛选、分页、桌面表格、手机卡片和详情查看
+    - 补齐列表接口失败提示与重试入口，详情接口失败时在抽屉内展示错误原因
+  - `web/admin/src/services/observability.ts`、`web/admin/src/types/observability.ts`（新增）:
+    - 封装新后台数据观察台接口调用与前端类型
+    - 统一把后台下划线字段规范化为页面使用的驼峰字段
+  - `web/admin/src/pages/observability/ObservabilitySessionsPage.vue`、`ObservabilityFailuresPage.vue`（修改）:
+    - 用真实数据观察台工作台替换占位页面
+    - 增加失败排查入口，默认聚焦失败回写与失败 Webhook
+  - `web/admin/src/services/http.ts`、`web/admin/src/pages/login/LoginPage.vue`（修改）:
+    - 修复 `/auth/me` 401 与路由守卫互相抢跳导致的登录页循环跳转
+    - 登录成功后兼容 `/admin-v2` 前缀下的 redirect 参数
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - 已通过：`npm run build:staging`
+  - 已验证：`GET /health` 返回 `{"status":"ok","version":"0.1.0"}`
+  - 已验证：`GET /admin-v2/observability/sessions` 返回 200
+  - 已通过：`YUNXI_USE_FAKE_EMBEDDING=1 python -m pytest tests/ -q`
+  - 首次直接运行 `python -m pytest tests/ -q` 时，Windows + Python 3.13 加载真实 `sentence_transformers` 模型触发 access violation，随后按项目既有轻量编码器开关重跑通过
+- **潜伏风险/遗留未决事项说明**:
+  - 本轮只接入前端观察台，未调整后台观测接口与数据库结构
+  - Vite 构建仍提示主 chunk 超过 500 kB，属于既有前端打包优化项，不影响本轮功能提交
+
 
 ## [2026-05-26] - 提交流程补充工作区临时产物清理规则
 - **操作人**: AI (Codex)
