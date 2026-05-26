@@ -12,6 +12,7 @@ from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message
 from app.models.session import Session, SessionStatus
 from app.models.transfer import HumanTransfer
+from app.config import settings
 from app.repository.config_repo import ConfigRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_repo import KnowledgeRepo
@@ -152,3 +153,46 @@ class AdminService:
 
     async def set_featured_products(self, products: list[str]) -> None:
         await self._config_repo.set_list(FEATURED_PRODUCTS_KEY, products)
+
+    async def get_settings_summary(self) -> dict:
+        featured_products = await self.get_featured_products()
+        product_total = await self.count_products()
+        return {
+            "shop": {
+                "server_host": settings.SERVER_HOST,
+                "server_port": settings.SERVER_PORT,
+                "database_path": settings.DB_PATH,
+                "embedding_path": settings.EMBEDDING_PATH,
+                "featured_product_count": len(featured_products),
+                "product_total": product_total,
+            },
+            "channels": {
+                "youzan": {
+                    "client_id_configured": _is_configured(settings.YOUZAN_CLIENT_ID),
+                    "client_secret_configured": _is_configured(settings.YOUZAN_CLIENT_SECRET),
+                    "kdt_id_configured": _is_configured(settings.YOUZAN_KDT_ID),
+                    "webhook_token_configured": _is_configured(settings.YOUZAN_WEBHOOK_TOKEN),
+                    "mock_mode": settings.YOUZAN_MOCK_MODE,
+                },
+                "wecom": {
+                    "corp_id_configured": _is_configured(settings.WECOM_CORP_ID),
+                    "agent_id_configured": _is_configured(settings.WECOM_AGENT_ID),
+                    "secret_configured": _is_configured(settings.WECOM_SECRET),
+                    "token_configured": _is_configured(settings.WECOM_TOKEN),
+                    "encoding_aes_key_configured": _is_configured(settings.WECOM_ENCODING_AES_KEY),
+                    "staff_id_configured": _is_configured(settings.WECOM_STAFF_ID),
+                    "robot_webhook_configured": _is_configured(settings.WECOM_ROBOT_WEBHOOK),
+                },
+            },
+            "api": {
+                "admin_token_configured": _is_configured(settings.ADMIN_API_TOKEN),
+                "deepseek_api_key_configured": _is_configured(settings.DEEPSEEK_API_KEY),
+                "deepseek_base_url": settings.DEEPSEEK_BASE_URL,
+                "deepseek_model": settings.DEEPSEEK_MODEL,
+                "deepseek_timeout_seconds": settings.DEEPSEEK_TIMEOUT_SECONDS,
+            },
+        }
+
+
+def _is_configured(value: object) -> bool:
+    return bool(str(value or "").strip())

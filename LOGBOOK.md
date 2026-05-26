@@ -4,6 +4,34 @@
 
 ______________________________________________________________________
 
+## [2026-05-26] - 新后台系统配置巡检台接入
+- **操作人**: AI (Codex)
+- **关联任务**: 继续按菜单顺序开发新后台，接入系统配置页的真实状态展示
+- **核心变更文件说明**:
+  - `app/service/admin.py`（修改）:
+    - 新增系统配置汇总方法，统一从服务层组装店铺、渠道和 API 配置状态
+    - 敏感配置仅返回是否已配置，不回传密钥明文
+  - `app/api/admin_config.py`（修改）:
+    - 新增 `/api/v1/admin/settings/summary` 配置状态接口
+    - 修正配置相关 API 不再挂到 `/admin/api/v1/admin/...`，恢复到 `/api/v1/admin/...`，让新后台商品与系统配置接口路径一致
+  - `web/admin/src/features/settings/SettingsStatusPanel.vue`（新增）:
+    - 新增系统配置状态面板，支持店铺配置、渠道配置、API 配置三种视图
+    - 支持刷新、加载态、错误态和移动端自适应
+  - `web/admin/src/services/settings.ts`、`web/admin/src/types/settings.ts`（新增）:
+    - 封装配置状态接口与前端类型归一化
+  - `web/admin/src/pages/settings/*.vue`（修改）:
+    - 用真实配置状态面板替换三张占位页
+  - `tests/api/test_admin_config.py`（新增）:
+    - 覆盖配置状态接口鉴权与数据返回
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - 已通过：`npm run build:staging`
+  - 已通过：`YUNXI_USE_FAKE_EMBEDDING=1 python -m pytest tests/ -q`
+  - 已通过：分层守卫检查，`app/api` 无直接导入 repository，`app/service` 无直接 `aiosqlite` 查询，`app/models` 无上层依赖
+- **潜伏风险/遗留未决事项说明**:
+  - 本轮系统配置为只读巡检台，暂不支持在线编辑 `.env` 或密钥，避免误操作和敏感值泄露
+  - Vite 主 chunk 仍有超过 500 kB 的既有提示，后续可独立做前端分包优化
+
 ## [2026-05-26] - 新后台数据观察台接入与登录跳转回归修复
 - **操作人**: AI (Codex)
 - **关联任务**: 继续按顺序开发新后台数据观察台，并修复本地预览中的空白页、加载转圈和登录页循环跳转问题

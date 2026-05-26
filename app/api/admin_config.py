@@ -17,7 +17,7 @@ from app.service.admin import AdminService
 
 _jinja_env = Jinja2Templates(directory="app/templates")
 
-router = APIRouter(prefix="/admin", tags=["admin-config"])
+router = APIRouter(tags=["admin-config"])
 _api_router = APIRouter(prefix="/api/v1/admin")
 
 
@@ -36,7 +36,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
 
     # ────────────── 页面路由 ──────────────
 
-    @router.get("/featured-products", response_class=HTMLResponse)
+    @router.get("/admin/featured-products", response_class=HTMLResponse)
     async def featured_products_page(request: Request):
         if not _check_login(request):
             return RedirectResponse(url="/admin/login", status_code=302)
@@ -46,7 +46,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         )
         return HTMLResponse(content=html)
 
-    @router.get("/products", response_class=HTMLResponse)
+    @router.get("/admin/products", response_class=HTMLResponse)
     async def products_page(request: Request, page: int = 1, search: str = ""):
         if not _check_login(request):
             return RedirectResponse(url="/admin/login", status_code=302)
@@ -126,6 +126,13 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             raise HTTPException(status_code=404, detail="条目不存在")
         new_status = await admin_service.toggle_product_active(product_id)
         return {"code": 0, "is_active": new_status, "title": entry.title}
+
+    @_api_router.get("/settings/summary")
+    async def get_settings_summary(
+        authorization: str | None = Header(default=None),
+    ) -> dict:
+        _verify_token(authorization)
+        return {"code": 0, "data": await admin_service.get_settings_summary()}
 
     router.include_router(_api_router)
     return router
