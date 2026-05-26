@@ -4,6 +4,26 @@
 
 ______________________________________________________________________
 
+## [2026-05-26] - 新后台知识配置工作台接入
+- **操作人**: AI (Codex)
+- **关联任务**: 继续按菜单顺序开发新后台，把知识配置页从占位页替换为真实工作台
+- **核心变更文件说明**:
+  - `web/admin/src/pages/knowledge/KnowledgePage.vue`（修改）:
+    - 新增知识条目列表、筛选、分页、桌面表格、手机卡片和右侧抽屉
+    - 支持新增、编辑、启停、同步失败重试、AI 分类建议和最近变更查看
+  - `web/admin/src/pages/knowledge/useKnowledgePage.ts`（新增）:
+    - 封装知识配置页状态、路由筛选、保存动作和列表刷新逻辑
+  - `web/admin/src/services/knowledge.ts`、`web/admin/src/types/knowledge.ts`（新增）:
+    - 封装 `/api/v1/admin/knowledge-config/*` 既有接口与前端类型归一化
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - 已通过：`npm run build:staging`
+  - 已通过：`YUNXI_USE_FAKE_EMBEDDING=1 python -m pytest tests/ -q`
+- **潜伏风险/遗留未决事项说明**:
+  - 本轮只接入已有知识配置 API，未调整后台知识服务和数据库结构
+  - 抽屉内变更历史当前先以 JSON 快照展示，后续可独立优化为更友好的变更时间线
+  - Vite 主 chunk 仍有超过 500 kB 的既有提示，后续可独立做前端分包优化
+
 ## [2026-05-26] - 新后台概览驾驶舱接入
 - **操作人**: AI (Codex)
 - **关联任务**: 继续按菜单顺序开发新后台，把概览页从占位页替换为真实总览入口

@@ -1,0 +1,44 @@
+export interface KnowledgeEntry {
+  id: number;
+  category: string;
+  contentType: string;
+  title: string;
+  content: string;
+  keywords: string;
+  priority: number;
+  isActive: boolean;
+  contentOrigin: string;
+  createdBy: string;
+  updatedBy: string;
+  suggestedCategory: string;
+  suggestReason: string;
+  lastSyncSource: string;
+  lastSyncRef: string;
+  vectorSyncStatus: string;
+  vectorSyncedAt: string;
+  vectorSyncError: string;
+  vectorSyncRetryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeDraft {
+  title: string;
+  content: string;
+  contentType: string;
+  keywords: string;
+  priority: number;
+  isActive: boolean;
+}
+
+export interface KnowledgeListPayload {
+  items: KnowledgeEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface KnowledgeDetailPayload {
+  entry: KnowledgeEntry;
+  history: Array<Record<string, unknown>>;
+}
