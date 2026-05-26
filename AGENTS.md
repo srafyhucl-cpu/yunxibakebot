@@ -77,10 +77,11 @@ ______________________________________________________________________
 2. **更新 `LOGBOOK.md`**（在顶部追加本轮条目，格式见 `.windsurf/workflows/commit.md` 第 4.1 步）
 3. **更新 `项目进度与配置清单.md`**（修改"最后更新"日期 + 已完成功能 + 已知问题状态，详见第 4.2 步）
 4. **检查代码注释语言**：凡本轮新增或修改的代码注释，必须统一为中文注释；英文注释需改写后再提交
-5. **运行测试**：`python -m pytest tests/ -q`
-6. **git add + commit**（pre-commit 会自动检查 LOGBOOK 和进度文档是否已暂存）
-7. **推送到两个远端**：`git push origin master && git push server master`
-8. **重启服务器**：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
+5. **检查工作区临时产物**：先执行 `git status --short`，确认不存在 `.tmp-*.log`、`.codex-server*.log`、`.superpowers/` 等本地临时文件；如存在，必须先清理，若文件被占用则先定位并停止残留本地预览/测试进程，再继续提交
+6. **运行测试**：`python -m pytest tests/ -q`
+7. **git add + commit**（pre-commit 会自动检查 LOGBOOK 和进度文档是否已暂存）
+8. **推送到两个远端**：`git push origin master && git push server master`
+9. **重启服务器**：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
 
 > 📄 完整格式参见 `.windsurf/workflows/commit.md`
 

@@ -52,6 +52,24 @@ python scripts/validate_products.py
   - 若 CI 使用 `scripts/check_project.py`，本地同步运行 `python scripts/check_project.py`。
   - 若本地通过但 CI 失败，记录失败 job、失败命令和差异原因，再提交修复；不要只依赖局部测试。
 
+### 2.5 工作区整洁检查
+
+提交前必须先确认工作区没有混入本地临时产物：
+
+```powershell
+# 查看工作区未跟踪文件与残留修改
+git status --short
+
+# 重点确认以下模式不会进入提交
+# .tmp-*.log
+# .codex-server*.log
+# .superpowers/
+```
+
+- 若发现上述临时产物，先清理后再 `git add`
+- 若临时日志文件无法删除，先定位并停止残留的本地 `uvicorn` / `pytest` / 预览进程，再重试删除
+- 只有在 `git status --short` 不再出现无关临时文件时，才允许进入暂存与提交步骤
+
 ### 3. 服务启动验证
 
 确认服务能正常启动：
@@ -132,6 +150,7 @@ bug | `fix(wecom): 修复企微消息解密失败问题` | | `docs` | 文档更�
 - [ ] 代码红线自查通过（Optional/Union/TODO 零输出）
 - [ ] 本轮新增或修改的代码注释已统一为中文
 - [ ] 相关测试通过
+- [ ] `git status --short` 已确认无无关临时产物（如 `.tmp-*.log`、`.codex-server*.log`、`.superpowers/`）
 - [ ] 服务健康检查通过
 - [ ] `LOGBOOK.md` 已更新
 - [ ] 项目进度与配置清单等相关文档已同步更新
