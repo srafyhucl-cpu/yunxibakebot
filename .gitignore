@@ -26,6 +26,9 @@ server.bundle
 ngrok.exe
 middle_region.png
 task.md
+.codex-server*.log
+.tmp-*.log
+.superpowers/
 scripts/_db_verify.sh
 scripts/_debug_items.py
 scripts/_kb_content.sh

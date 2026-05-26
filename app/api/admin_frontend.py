@@ -16,6 +16,11 @@ from fastapi.responses import FileResponse, HTMLResponse
 BASE_DIR = Path(__file__).resolve().parents[2]
 FRONTEND_DIST_DIR = BASE_DIR / "web" / "admin" / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
+INDEX_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 def create_admin_frontend_router() -> APIRouter:
@@ -32,6 +37,7 @@ def create_admin_frontend_router() -> APIRouter:
                     "或直接启动 Vite 开发服务。</p>"
                 ),
                 status_code=503,
+                headers=INDEX_CACHE_HEADERS,
             )
 
         requested_path = (FRONTEND_DIST_DIR / asset_path).resolve()
@@ -44,6 +50,6 @@ def create_admin_frontend_router() -> APIRouter:
             if requested_path.exists() and requested_path.is_file():
                 return FileResponse(str(requested_path))
 
-        return FileResponse(str(FRONTEND_INDEX_FILE))
+        return FileResponse(str(FRONTEND_INDEX_FILE), headers=INDEX_CACHE_HEADERS)
 
     return router

@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.config import settings
@@ -37,18 +37,31 @@ ADMIN_CHAT_TEST_TIMEOUT_SECONDS = 35.0
 api_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
+def is_valid_admin_token(token: str | None) -> bool:
+    return bool(token and settings.ADMIN_API_TOKEN and token == settings.ADMIN_API_TOKEN)
+
+
 def verify_token(authorization: str | None = Header(default=None)) -> None:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="未授权")
     token = authorization.removeprefix("Bearer ")
-    if not settings.ADMIN_API_TOKEN or token != settings.ADMIN_API_TOKEN:
+    if not is_valid_admin_token(token):
         raise HTTPException(status_code=403, detail="Token 无效")
 
 
 # ── 页面鉴权 ──
 def check_login(request: Request) -> bool:
     token = request.cookies.get("admin_token")
-    return bool(token and settings.ADMIN_API_TOKEN and token == settings.ADMIN_API_TOKEN)
+    return is_valid_admin_token(token)
+
+
+def has_admin_api_access(request: Request, authorization: str | None) -> bool:
+    """新后台初始化阶段同时兼容 Cookie 与 Bearer，避免登录态判断口径不一致。"""
+    if check_login(request):
+        return True
+    if authorization and authorization.startswith("Bearer "):
+        return is_valid_admin_token(authorization.removeprefix("Bearer "))
+    return False
 
 
 def create_admin_router(
@@ -141,8 +154,11 @@ def create_admin_router(
 
     # ── 对话管理 API ──
     @api_router.get("/auth/me")
-    async def auth_me(request: Request) -> dict:
-        if not check_login(request):
+    async def auth_me(
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> dict:
+        if not has_admin_api_access(request, authorization):
             raise HTTPException(status_code=401, detail="未登录或登录已过期")
         return {
             "ok": True,
@@ -151,6 +167,38 @@ def create_admin_router(
                 "role": "admin",
             },
         }
+
+    @api_router.post("/auth/login")
+    async def auth_login(request: Request) -> JSONResponse:
+        body = await request.json()
+        token = str(body.get("token", "")).strip()
+        if not is_valid_admin_token(token):
+            raise HTTPException(status_code=401, detail="Token 无效")
+
+        response = JSONResponse(
+            {
+                "ok": True,
+                "message": "登录成功",
+                "data": {
+                    "name": "管理员",
+                    "role": "admin",
+                },
+            },
+        )
+        response.set_cookie(
+            key="admin_token",
+            value=settings.ADMIN_API_TOKEN,
+            max_age=86400,
+            httponly=False,
+            samesite="strict",
+        )
+        return response
+
+    @api_router.post("/auth/logout")
+    async def auth_logout() -> JSONResponse:
+        response = JSONResponse({"ok": True, "message": "已退出登录"})
+        response.delete_cookie("admin_token")
+        return response
 
     @api_router.get("/chat-test/sessions", dependencies=[Depends(verify_token)])
     async def list_saved_sessions() -> dict:

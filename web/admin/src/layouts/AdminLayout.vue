@@ -13,7 +13,11 @@ const appStore = useAppStore();
 
 onMounted(async () => {
   if (!authStore.initialized) {
-    await authStore.fetchProfile();
+    try {
+      await authStore.fetchProfile();
+    } catch {
+      authStore.clearProfile();
+    }
   }
 });
 </script>

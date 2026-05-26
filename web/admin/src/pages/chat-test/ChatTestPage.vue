@@ -3,9 +3,26 @@ import { computed } from "vue";
 
 import { useChatTestPage } from "./useChatTestPage";
 
-const page = useChatTestPage();
+const {
+  sessions,
+  messages,
+  currentSessionId,
+  draftInput,
+  lastIntent,
+  loadingSessions,
+  loadingMessages,
+  sending,
+  messageViewport,
+  hasSession,
+  headerDescription,
+  selectSession,
+  startNewSession,
+  sendMessage,
+  saveCurrentSession,
+  discardCurrentSession,
+} = useChatTestPage();
 
-const sessionCountText = computed(() => `${page.sessions.value.length} 个已保存会话`);
+const sessionCountText = computed(() => `${sessions.value.length} 个已保存会话`);
 
 function formatTime(value: string) {
   if (!value) {
@@ -34,20 +51,20 @@ function formatTime(value: string) {
               <div class="chat-test-panel__title">会话列表</div>
               <div class="chat-test-panel__meta">{{ sessionCountText }}</div>
             </div>
-            <el-button type="primary" plain @click="page.startNewSession">
+            <el-button type="primary" plain @click="startNewSession">
               新建会话
             </el-button>
           </div>
         </template>
 
-        <div v-loading="page.loadingSessions" class="chat-session-list">
+        <div v-loading="loadingSessions" class="chat-session-list">
           <button
-            v-for="session in page.sessions"
+            v-for="session in sessions"
             :key="session.id"
             type="button"
             class="chat-session-item"
-            :class="{ 'chat-session-item--active': session.id === page.currentSessionId }"
-            @click="page.selectSession(session)"
+            :class="{ 'chat-session-item--active': session.id === currentSessionId }"
+            @click="selectSession(session)"
           >
             <div class="chat-session-item__title">{{ session.name }}</div>
             <div class="chat-session-item__meta">
@@ -57,7 +74,7 @@ function formatTime(value: string) {
           </button>
 
           <el-empty
-            v-if="!page.loadingSessions && page.sessions.length === 0"
+            v-if="!loadingSessions && sessions.length === 0"
             description="还没有已保存的测试会话"
           />
         </div>
@@ -69,17 +86,17 @@ function formatTime(value: string) {
         <template #header>
           <div class="chat-test-panel__header chat-test-panel__header--conversation">
             <div>
-              <div class="chat-test-panel__title">{{ page.headerDescription }}</div>
+              <div class="chat-test-panel__title">{{ headerDescription }}</div>
               <div class="chat-test-panel__meta">
-                <span v-if="page.lastIntent">意图：{{ page.lastIntent }}</span>
+                <span v-if="lastIntent">意图：{{ lastIntent }}</span>
                 <span v-else>发送一条消息后会显示识别意图</span>
               </div>
             </div>
             <div class="chat-test-panel__actions">
-              <el-button :disabled="!page.hasSession" @click="page.saveCurrentSession">
+              <el-button :disabled="!hasSession" @click="saveCurrentSession">
                 保存会话
               </el-button>
-              <el-button danger plain @click="page.discardCurrentSession">
+              <el-button danger plain @click="discardCurrentSession">
                 丢弃会话
               </el-button>
             </div>
@@ -87,12 +104,12 @@ function formatTime(value: string) {
         </template>
 
         <div
-          ref="page.messageViewport"
-          v-loading="page.loadingMessages"
+          ref="messageViewport"
+          v-loading="loadingMessages"
           class="chat-message-list"
         >
           <div
-            v-for="(message, index) in page.messages"
+            v-for="(message, index) in messages"
             :key="`${message.createdAt}-${index}`"
             class="chat-message"
             :class="{
@@ -110,19 +127,19 @@ function formatTime(value: string) {
           </div>
 
           <el-empty
-            v-if="!page.loadingMessages && page.messages.length === 0"
+            v-if="!loadingMessages && messages.length === 0"
             description="开始一段新的测试对话吧"
           />
         </div>
 
         <div class="chat-composer">
           <el-input
-            v-model="page.draftInput"
+            v-model="draftInput"
             type="textarea"
             :autosize="{ minRows: 3, maxRows: 6 }"
             resize="none"
             placeholder="输入一条测试消息，例如：今天下单最快什么时候能送到？"
-            @keydown.enter.exact.prevent="page.sendMessage"
+            @keydown.enter.exact.prevent="sendMessage"
           />
           <div class="chat-composer__footer">
             <span class="chat-composer__hint">
@@ -130,8 +147,8 @@ function formatTime(value: string) {
             </span>
             <el-button
               type="primary"
-              :loading="page.sending"
-              @click="page.sendMessage"
+              :loading="sending"
+              @click="sendMessage"
             >
               发送消息
             </el-button>

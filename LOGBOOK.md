@@ -5,6 +5,34 @@
 ______________________________________________________________________
 
 
+## [2026-05-26] - 新后台登录鉴权打通与工作区临时产物收口
+- **操作人**: AI (Codex)
+- **关联任务**: 直接收口当前未提交改动，补齐新后台登录闭环，并把本地临时日志清理经验沉淀到仓库规则中
+- **核心变更文件说明**:
+  - `app/api/admin.py`（修改）:
+    - 抽取管理员 Token 校验函数
+    - 为新后台补充 `/api/v1/admin/auth/login`、`/auth/logout`、`/auth/me`
+    - 让 `auth/me` 在迁移阶段同时兼容 Cookie 与 Bearer 鉴权
+  - `app/api/admin_frontend.py`（修改）:
+    - 为 `/admin-v2` 入口与未构建提示补充禁缓存响应头，避免旧构建缓存干扰联调
+  - `tests/api/test_admin_frontend.py`（修改）:
+    - 补充 Bearer 访问 `auth/me` 与 `auth/login` 写 Cookie 的测试
+  - `web/admin/src/router/index.ts`、`web/admin/src/main.ts`、`web/admin/src/stores/auth.ts`、`web/admin/src/services/auth.ts`（修改）:
+    - 打通新后台 Pinia 初始化、路由守卫、登录态获取、登录与退出动作
+  - `web/admin/src/pages/login/LoginPage.vue`、`web/admin/src/layouts/AdminLayout.vue`（修改）:
+    - 用真实登录页替换占位页，并在布局初始化时兜底清理失效登录态
+  - `web/admin/src/pages/chat-test/ChatTestPage.vue`（修改）:
+    - 仅做模板状态引用整理，便于后续独立提交
+  - `.gitignore`（修改）:
+    - 新增 `.codex-server*.log`、`.tmp-*.log`、`.superpowers/` 忽略规则，避免本地预览与诊断残留再次污染工作区
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**:
+  - 清理并停止残留的本地 `uvicorn` / `pytest` 进程后，工作区未跟踪临时文件已清空
+  - 待执行：`python -m pytest tests/ -q`
+- **潜伏风险/遗留未决事项说明**:
+  - `ChatTestPage.vue` 属于模板整理，不属于登录鉴权主链路，提交时应与登录功能分组区分
+
+
 ## [2026-05-25] - 新后台转人工页接通真实处理工作台
 - **操作人**: AI (Codex)
 - **关联任务**: 按后台前端重构既定顺序继续迁移 `转人工`，完成待处理队列、会话详情、人工回复、接单与关闭动作
