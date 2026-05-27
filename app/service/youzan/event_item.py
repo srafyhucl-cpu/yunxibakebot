@@ -25,6 +25,8 @@ from app.models.youzan_webhook_event import (
 )
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.service.knowledge_admin import DEFAULT_PRIORITY
+from app.service.youzan.client import YOUZAN_GOODS_H5_BASE_URL
 from app.service.observability import (
     ContentChangeLogger,
     build_product_change_summary,
@@ -101,7 +103,7 @@ def _build_rag_content(
     props_text = "\n".join(prop_lines) if prop_lines else "- 定制加料选项：暂无特殊定制属性"
 
     from urllib.parse import quote as _q
-    detail_url = f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
+    detail_url = f"{YOUZAN_GOODS_H5_BASE_URL}?alias={alias}"
     fallback_desc = "精品烘焙推荐，新西兰进口动物奶油调配，不含防腐剂。建议0-4℃冷藏并于3天内食用完毕。"
     ump_line = ""
     if item_id and image and alias:
@@ -139,7 +141,7 @@ async def _sync_rag_knowledge(
             title=title,
             content=content_md,
             keywords=f"商品, 价格, 推荐, 蛋糕, {title}, {tags_str}",
-            priority=50,
+            priority=DEFAULT_PRIORITY,
             updated_at=updated_at_str,
             sync_source=SyncSource.YOUZAN_WEBHOOK,
             sync_ref=str(item_id),

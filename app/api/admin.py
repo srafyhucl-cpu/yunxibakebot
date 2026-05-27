@@ -32,6 +32,8 @@ _jinja_env = Environment(
 
 logger = setup_logger()
 ADMIN_CHAT_TEST_TIMEOUT_SECONDS = 35.0
+# 管理后台登录 Cookie 有效期（24 小时）
+ADMIN_SESSION_MAX_AGE_SECONDS = 86400
 
 # ── API 路由 ──
 api_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -95,7 +97,7 @@ def create_admin_router(
             )
             return HTMLResponse(html)
         resp = RedirectResponse(url="/admin/dashboard", status_code=302)
-        resp.set_cookie(key="admin_token", value=settings.ADMIN_API_TOKEN, max_age=86400, httponly=False, samesite="strict")
+        resp.set_cookie(key="admin_token", value=settings.ADMIN_API_TOKEN, max_age=ADMIN_SESSION_MAX_AGE_SECONDS, httponly=False, samesite="strict")
         return resp
 
     @router.get("/admin/logout")
@@ -188,7 +190,7 @@ def create_admin_router(
         response.set_cookie(
             key="admin_token",
             value=settings.ADMIN_API_TOKEN,
-            max_age=86400,
+            max_age=ADMIN_SESSION_MAX_AGE_SECONDS,
             httponly=False,
             samesite="strict",
         )

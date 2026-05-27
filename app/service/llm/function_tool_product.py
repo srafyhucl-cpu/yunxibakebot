@@ -21,6 +21,7 @@ from app.models.content_change_history import (
 from app.models.session import Session
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.service.llm.function_defs import KNOWLEDGE_SEARCH_LIMIT, PRODUCT_SEARCH_LIMIT
+from app.service.knowledge_admin import DEFAULT_PRIORITY
 from app.service.observability import ContentChangeLogger, build_product_change_summary
 from app.service.youzan.event_item import _build_rag_content, _extract_item_tags
 
@@ -29,6 +30,38 @@ if TYPE_CHECKING:
     from app.service.youzan.client import YouzanClient
 
 logger = setup_logger()
+
+PRODUCT_CACHE_TTL_SECONDS = 300
+
+
+async def _get_cached_product_if_fresh(item_id: int, db) -> dict | None:
+    """
+    检查 youzan_products 表中商品是否在 TTL 内仍然新鲜。
+    若 updated_at 距现在不超过 PRODUCT_CACHE_TTL_SECONDS，返回基本信息字典；
+    否则返回 None，触发实时刷新。
+    """
+    from app.repository.youzan_repo import YouzanProductRepo
+    product = await YouzanProductRepo(db).get_by_id(item_id)
+    if not product or not product.get("updated_at"):
+        return None
+    try:
+        updated_dt = datetime.datetime.strptime(product["updated_at"], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    age_seconds = (datetime.datetime.now() - updated_dt).total_seconds()
+    if age_seconds > PRODUCT_CACHE_TTL_SECONDS:
+        return None
+    logger.debug("商品 TTL 缓存命中: item_id=%s age_seconds=%.1f", item_id, age_seconds)
+    return {
+        "item_id": item_id,
+        "title": product["title"],
+        "price_fen": product["price_fen"],
+        "stock": product["stock"],
+        "tags": product.get("tags", ""),
+        "updated_at": product["updated_at"],
+        "desc": product.get("desc", ""),
+        "skus": json.loads(product.get("skus_json") or "[]"),
+    }
 
 
 async def _refresh_product_live(
@@ -103,7 +136,7 @@ async def _refresh_product_live(
         knowledge_result = await KnowledgeRepo(db).upsert_product_knowledge(
             youzan_item_id=str(item_id), title=title, content=content_md,
             keywords=f"\u5546\u54c1, \u4ef7\u683c, \u63a8\u8350, \u86cb\u7cd5, {title}, {tags_str}",
-            priority=50, updated_at=updated_at,
+            priority=DEFAULT_PRIORITY, updated_at=updated_at,
             sync_source=SyncSource.CHAT_LIVE_REFRESH,
             sync_ref=str(item_id),
         )
@@ -164,6 +197,9 @@ async def get_product_info(
     否则按名称走 RAG 检索，并静默注入 AI 导购推荐埋点。"""
     if product_id and product_id.isdigit() and youzan_client is not None:
         db = knowledge_retriever._repo._db
+        cached = await _get_cached_product_if_fresh(int(product_id), db)
+        if cached is not None:
+            return json.dumps({"source": "db_cache", "product": cached}, ensure_ascii=False)
         live = await _refresh_product_live(int(product_id), youzan_client, db, knowledge_retriever)
         if live:
             return json.dumps({"source": "live_api", "product": live}, ensure_ascii=False)

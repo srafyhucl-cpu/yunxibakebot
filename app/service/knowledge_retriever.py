@@ -18,11 +18,14 @@ from app.models.knowledge import KnowledgeEntry
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.service.embedding_search import EmbeddingSearcher
+from app.service.youzan.client import YOUZAN_GOODS_H5_BASE_URL
 
 logger = setup_logger()
 
 RECOMMENDABLE_PRODUCT_ACTIVE = 1
 MIN_RECOMMENDABLE_STOCK = 1
+# 虚拟高库存阈值（生日/定制蛋糕类设置为 >= 此值表示常态化可下单）
+VIRTUAL_HIGH_STOCK_THRESHOLD = 200
 
 
 class KnowledgeRetriever:
@@ -95,7 +98,7 @@ class KnowledgeRetriever:
                             live_prefix = "【芸熙烘焙小程序实时官方数据 — ⚠️商品当前已下架或暂停预定】\n\n"
                         elif stock <= 0:
                             live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
-                        elif stock >= 200:
+                        elif stock >= VIRTUAL_HIGH_STOCK_THRESHOLD:
                             # 🎂 生日/选配蛋糕类（虚拟高库存 >= 200）
                             live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：充足（常态化现做预定制商品，只要买家下单即可新鲜现做，请告知买家随时可放心下单，无需向其透露具体数字）】\n\n"
                         else:
@@ -117,7 +120,7 @@ class KnowledgeRetriever:
                                 "title": entry.title,
                                 "price": f"{price_yuan:.2f}",
                                 "src": product["image"] or "",
-                                "url": f"https://h5.youzan.com/v2/showcase/goods?alias={alias}"
+                                "url": f"{YOUZAN_GOODS_H5_BASE_URL}?alias={alias}"
                             }, quote_via=urllib.parse.quote)
                             entry.content += f"\n[UMP: {img_params}]"
                             entry.content += f"\n[UMP: {card_params}]"

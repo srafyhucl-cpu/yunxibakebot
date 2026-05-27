@@ -1,6 +1,7 @@
 """项目质量门禁统一入口。"""
 
 import argparse
+import ast
 import os
 import re
 import subprocess
@@ -47,6 +48,93 @@ RED_LINE_RULES: tuple[ScanRule, ...] = (
 TEST_COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "-m", "pytest", "-q", "--tb=short"),
 )
+
+# ── 洁净代码检查常量 ────────────────────────────────────────────────────────
+# 函数体行数上限（超出此值记录警告，暂不阻断；待存量修复后升级为 BLOCK）
+FUNC_MAX_LINES = 50
+
+# 禁止在函数体内直接硬编码的平台域名（必须通过模块级常量引用）
+HARDCODED_DOMAINS: tuple[str, ...] = (
+    "h5.youzan.com",
+    "qyapi.weixin.qq.com",
+    "open.youzanyun.com",
+)
+
+# 必须命名为常量的已知业务魔法整数
+KNOWN_MAGIC_INTEGERS: frozenset[int] = frozenset({
+    172800, 86400, 43200, 604800,  # 秒级时间常量
+})
+
+
+def _parse_ast(file_path: Path) -> ast.Module | None:
+    """安全解析 Python 文件为 AST，语法错误时返回 None。"""
+    try:
+        return ast.parse(file_path.read_text(encoding=TEXT_ENCODING), filename=str(file_path))
+    except SyntaxError:
+        return None
+
+
+def check_hardcoded_urls_in_functions(app_dir: Path) -> CheckResult:
+    """检查函数体内是否存在硬编码平台域名 URL（应通过模块级常量引用）。"""
+    violations: list[str] = []
+    for file_path in iter_python_files((app_dir,)):
+        tree = _parse_ast(file_path)
+        if tree is None:
+            continue
+        for func_node in ast.walk(tree):
+            if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for child in ast.walk(func_node):
+                if child is func_node:
+                    continue
+                if not (isinstance(child, ast.Constant) and isinstance(child.value, str)):
+                    continue
+                if any(domain in child.value for domain in HARDCODED_DOMAINS):
+                    rel = file_path.relative_to(ROOT_DIR)
+                    violations.append(f"{rel}:{child.lineno}: {child.value[:80]!r}")
+    return CheckResult("函数体内禁止硬编码平台 URL", not violations, violations)
+
+
+def check_known_magic_integers(app_dir: Path) -> CheckResult:
+    """检查函数体内是否存在已知业务魔法整数（应提取为命名常量）。"""
+    violations: list[str] = []
+    for file_path in iter_python_files((app_dir,)):
+        tree = _parse_ast(file_path)
+        if tree is None:
+            continue
+        for func_node in ast.walk(tree):
+            if not isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for child in ast.walk(func_node):
+                if child is func_node:
+                    continue
+                if isinstance(child, ast.Constant) and child.value in KNOWN_MAGIC_INTEGERS:
+                    rel = file_path.relative_to(ROOT_DIR)
+                    violations.append(
+                        f"{rel}:{child.lineno}: 魔法整数 {child.value!r}（请提取为命名常量）"
+                    )
+    return CheckResult("函数体内禁止已知业务魔法整数", not violations, violations)
+
+
+def check_function_lengths(app_dir: Path) -> list[str]:
+    """扫描超过 FUNC_MAX_LINES 行的函数，返回警告列表（不阻断）。"""
+    warnings: list[str] = []
+    for file_path in iter_python_files((app_dir,)):
+        tree = _parse_ast(file_path)
+        if tree is None:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not (hasattr(node, "end_lineno") and node.end_lineno):
+                continue
+            func_lines = node.end_lineno - node.lineno
+            if func_lines > FUNC_MAX_LINES:
+                rel = file_path.relative_to(ROOT_DIR)
+                warnings.append(
+                    f"{rel}:{node.lineno}: `{node.name}()` {func_lines} 行（上限 {FUNC_MAX_LINES}）"
+                )
+    return warnings
 
 
 def iter_python_files(paths: tuple[Path, ...]) -> list[Path]:
@@ -101,6 +189,14 @@ def run_red_line_checks() -> list[CheckResult]:
     return [scan_rule(rule) for rule in RED_LINE_RULES]
 
 
+def run_clean_code_checks() -> list[CheckResult]:
+    """运行洁净代码阻断检查（硬编码 URL、魔法整数）。"""
+    return [
+        check_hardcoded_urls_in_functions(APP_DIR),
+        check_known_magic_integers(APP_DIR),
+    ]
+
+
 def run_tests() -> list[CheckResult]:
     return [run_command(command) for command in TEST_COMMANDS]
 
@@ -125,12 +221,21 @@ def main() -> int:
     red_line_results = run_red_line_checks()
     print_results("红线检查", red_line_results)
 
+    clean_code_results = run_clean_code_checks()
+    print_results("洁净代码检查", clean_code_results)
+
+    func_length_warnings = check_function_lengths(APP_DIR)
+    if func_length_warnings:
+        print(f"\n[函数行数警告（{len(func_length_warnings)} 处，暂不阻断）]")
+        for warning in func_length_warnings:
+            print(f"WARN {warning}")
+
     test_results: list[CheckResult] = []
     if not args.skip_tests:
         test_results = run_tests()
         print_results("测试验证", test_results)
 
-    all_results = red_line_results + test_results
+    all_results = red_line_results + clean_code_results + test_results
     failed_results = [result for result in all_results if not result.passed]
     if failed_results:
         print(f"\n质量门禁失败: {len(failed_results)} 项")

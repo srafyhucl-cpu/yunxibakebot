@@ -44,13 +44,13 @@ class WeComClient:
                 "corpsecret": settings.WECOM_SECRET,
             },
         )
-        data = resp.json()
-        if data.get("errcode") != 0:
+        response_data = resp.json()
+        if response_data.get("errcode") != 0:
             raise RuntimeError(
-                f"获取 access_token 失败: {data.get('errmsg', 'unknown')}"
+                f"获取 access_token 失败: {response_data.get('errmsg', 'unknown')}"
             )
-        token: str = data["access_token"]
-        expires_in: int = data.get("expires_in", 7200)
+        token: str = response_data["access_token"]
+        expires_in: int = response_data.get("expires_in", 7200)
         self._token = token
         self._token_expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
         logger.info("WeCom access_token 刷新成功，有效期 %ds", expires_in)
@@ -89,17 +89,17 @@ class WeComClient:
                 "agent_id": int(agent_id or settings.WECOM_AGENT_ID),
             },
         )
-        data = resp.json()
-        if data.get("errcode") == 0:
+        response_data = resp.json()
+        if response_data.get("errcode") == 0:
             logger.info(
                 "消息已发送 to=%s len=%d", external_user_id, len(content)
             )
         else:
             logger.error(
                 "消息发送失败 to=%s err=%s",
-                external_user_id, data.get("errmsg"),
+                external_user_id, response_data.get("errmsg"),
             )
-        return data
+        return response_data
 
     async def send_markdown(
         self,
@@ -119,10 +119,10 @@ class WeComClient:
                 "agent_id": int(agent_id or settings.WECOM_AGENT_ID),
             },
         )
-        data = resp.json()
-        if data.get("errcode") != 0:
-            logger.error("Markdown 发送失败 err=%s", data.get("errmsg"))
-        return data
+        response_data = resp.json()
+        if response_data.get("errcode") != 0:
+            logger.error("Markdown 发送失败 err=%s", response_data.get("errmsg"))
+        return response_data
 
     async def close(self) -> None:
         """关闭 HTTP 客户端。"""

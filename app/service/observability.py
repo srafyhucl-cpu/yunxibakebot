@@ -313,13 +313,13 @@ class ObservabilityService:
         }
 
     def _json_to_lines(self, raw: str) -> str:
-        data = self._loads_json(raw)
-        if isinstance(data, list):
-            lines = [self._compact_value(item) for item in data]
+        parsed_data = self._loads_json(raw)
+        if isinstance(parsed_data, list):
+            lines = [self._compact_value(item) for item in parsed_data]
             return "\n".join(lines) if lines else "-"
-        if isinstance(data, dict):
-            return "\n".join(f"{key}: {self._compact_value(value)}" for key, value in data.items())
-        return self._compact_value(data)
+        if isinstance(parsed_data, dict):
+            return "\n".join(f"{key}: {self._compact_value(value)}" for key, value in parsed_data.items())
+        return self._compact_value(parsed_data)
 
     def _summary_lines(self, data: dict) -> list[str]:
         return [f"{key}: {self._compact_value(value)}" for key, value in data.items()]

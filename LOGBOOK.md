@@ -4,6 +4,30 @@
 
 ______________________________________________________________________
 
+## [2026-05-27] - 全局代码洁净扫描修复 + 洁净代码门禁加固
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 基于 `yunxi-clean-code-guard` Skill 全局扫描并逐项修复洁净代码问题；增补自动化门禁防止问题回流
+- **核心变更文件说明**:
+  - `app/service/llm/intent.py`（修改）: 裸整数 5/6/7/1~8 全部替换为 `IntentType` 枚举成员；新增 `SMALL_TALK_MAX_QUERY_LEN`、`INTENT_LLM_MAX_TOKENS` 常量；`data` → `intent_response` 消歧变量名
+  - `app/service/youzan/event_item.py`（修改）: 导入 `DEFAULT_PRIORITY` 替换 `priority=50`；导入 `YOUZAN_GOODS_H5_BASE_URL` 替换硬编码 URL
+  - `app/service/llm/function_tool_product.py`（修改）: 同上，导入 `DEFAULT_PRIORITY` 替换 `priority=50`
+  - `app/service/youzan/client.py`（修改）: 新增 `YOUZAN_GOODS_H5_BASE_URL`、`DEFAULT_TOKEN_EXPIRES_SECONDS`、`MOCK_TOKEN_EXPIRES_SECONDS` 常量，消灭 `172800` / `86400` 魔法数字
+  - `app/service/knowledge_retriever.py`（修改）: 新增 `VIRTUAL_HIGH_STOCK_THRESHOLD = 200` 常量；导入 `YOUZAN_GOODS_H5_BASE_URL` 消灭重复 URL
+  - `app/service/transfer_manager.py`（修改）: 新增 `NOTIFY_HTTP_TIMEOUT_SECONDS = 10.0` 常量；导入 `WECOM_API_BASE` 替换企微消息发送硬编码 URL
+  - `app/service/wecom/client.py`（修改）: 三处 `data = resp.json()` 改为 `response_data` 消歧
+  - `app/service/observability.py`（修改）: `data` → `parsed_data` 消歧
+  - `app/service/llm/query_rewriter.py`（修改）: 新增 `QUERY_REWRITER_MAX_TOKENS = 128` 常量
+  - `app/service/llm/client.py`（修改）: 新增 `DEFAULT_CHAT_MAX_TOKENS = 2048` 常量
+  - `app/api/admin.py`（修改）: 新增 `ADMIN_SESSION_MAX_AGE_SECONDS = 86400` 常量，替换两处 `max_age=86400`
+  - `scripts/check_project.py`（修改）: 新增 `check_hardcoded_urls_in_functions`（BLOCK）、`check_known_magic_integers`（BLOCK）、`check_function_lengths`（WARN）三项 AST 洁净代码检查
+  - `.gitignore`（修改）: `scripts/_*` 通配符替换六条独立临时脚本条目
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: `pytest -q` → 121 passed ✅；`check_project.py --skip-tests` 全部 PASS ✅
+- **潜伏风险/遗留未决事项**: 函数行数警告 25 处（路由工厂 + 事件处理器为主），暂为 WARN 不阻断，待存量拆分后升级为 BLOCK
+
+______________________________________________________________________
+
 ## [2026-05-27] - 有赞 ITEM_INFO Webhook 处理失败根因修复
 - **操作人**: AI (Cascade)
 - **关联任务**: 排查并修复 ITEM_INFO 事件 `int("20260527091748314JAM")` 异常

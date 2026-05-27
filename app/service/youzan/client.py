@@ -23,7 +23,10 @@ logger = setup_logger()
 # ── 有赞云常量 ────────────────────────────────────────────────────────────
 YOUZAN_AUTH_URL = "https://open.youzanyun.com/auth/token"
 YOUZAN_API_BASE = "https://open.youzanyun.com/api"
+YOUZAN_GOODS_H5_BASE_URL = "https://h5.youzan.com/v2/showcase/goods"
 TOKEN_REFRESH_MARGIN = 300  # 提前 5 分钟刷新（秒）
+DEFAULT_TOKEN_EXPIRES_SECONDS = 172_800  # 有赞 token 默认有效期（48 小时）
+MOCK_TOKEN_EXPIRES_SECONDS = 86_400     # Mock 模式 token 有效期（24 小时）
 
 
 class YouzanClient:
@@ -46,7 +49,7 @@ class YouzanClient:
         """通过 OAuth2 silent grant 向有赞云申请 access_token。"""
         if settings.YOUZAN_MOCK_MODE:
             self._access_token = "mock_access_token_123456"
-            self._token_expires_at = time.time() + 86400
+            self._token_expires_at = time.time() + MOCK_TOKEN_EXPIRES_SECONDS
             logger.info("有赞 access_token 已通过 Mock 仿真刷新")
             await self._save_token_to_db(self._access_token)
             return self._access_token
@@ -67,7 +70,7 @@ class YouzanClient:
 
         auth_data = data.get("data") if isinstance(data, dict) else None
         token = ""
-        expires_in = 172800
+        expires_in = DEFAULT_TOKEN_EXPIRES_SECONDS
 
         if isinstance(auth_data, dict):
             token = auth_data.get("access_token", "")
@@ -76,7 +79,7 @@ class YouzanClient:
                 expires_in = max(60, int((expires_ms / 1000.0) - time.time()))
         else:
             token = data.get("access_token", "")
-            expires_in = data.get("expires_in", 172800)
+            expires_in = data.get("expires_in", DEFAULT_TOKEN_EXPIRES_SECONDS)
 
         if not token:
             raise APIError(f"有赞 token 响应异常: {data}")

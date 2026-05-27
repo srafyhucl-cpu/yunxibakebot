@@ -9,7 +9,9 @@
 5. 循环最多 3 轮 tool call
 """
 
+import datetime
 import json
+import time
 
 from app.exceptions import LLMError
 from app.logger import setup_logger
@@ -20,6 +22,7 @@ from app.models.youzan_webhook_event import YouzanWebhookEventCreate, YouzanWebh
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
+from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.client import chat_completion as llm_chat
@@ -138,13 +141,16 @@ class ChatService:
             return None
 
         # 5. 意图识别（决定走售后、知识搜索还是闲聊）
+        t0 = time.monotonic()
         history = await self._session_mgr.build_context(session.id)
         history_text = "\n".join(
             f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
             for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
         )
         intent = await detect_intent(content, history=history_text)
-        logger.info("会话 %s 意图: %s", session.id, intent.name)
+        t1 = time.monotonic()
+        intent_ms = round((t1 - t0) * 1000)
+        logger.info("会话 %s 意图: %s intent_ms=%d", session.id, intent.name, intent_ms)
 
         # 转人工 → 自动创建转人工工单
         if is_transfer_intent(intent):
@@ -165,7 +171,11 @@ class ChatService:
             return TRANSFER_REPLY
 
         # 7. 进入 AI 对话循环
-        reply = await self._ai_conversation_loop(session, user_query=content, intent=intent)
+        timing: dict = {}
+        reply = await self._ai_conversation_loop(session, user_query=content, intent=intent, timing=timing)
+        t2 = time.monotonic()
+        loop_ms = round((t2 - t1) * 1000)
+        total_ms = round((t2 - t0) * 1000)
 
         # 清理 Markdown 符号（LLM 偶尔会输出 ** 加粗）
         if reply:
@@ -182,6 +192,30 @@ class ChatService:
                 content=reply,
             )
             await self._message_repo.save(assistant_msg)
+
+        # 9. 回复链路延迟埋点
+        try:
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            await AnalyticsRepo(self._session_repo._db).add_event(
+                session_id=session.id,
+                buyer_id=user_id,
+                event_type="reply_latency",
+                event_source="chat_pipeline",
+                ref_id=session.id,
+                meta_data=json.dumps({
+                    "intent": intent.name,
+                    "intent_ms": intent_ms,
+                    "rag_ms": timing.get("rag_ms"),
+                    "llm_ms": timing.get("llm_ms"),
+                    "tool_rounds": timing.get("tool_rounds", 0),
+                    "loop_ms": loop_ms,
+                    "total_ms": total_ms,
+                    "channel": channel,
+                }),
+                created_at=now_str,
+            )
+        except Exception as exc:
+            logger.warning("回复延迟埋点失败: %s", exc)
 
         return reply
 
@@ -203,7 +237,9 @@ class ChatService:
             return []
 
     async def _ai_conversation_loop(
-        self, session: Session, user_query: str = "", intent: IntentType = IntentType.PRODUCT_CONSULTATION,
+        self, session: Session, user_query: str = "",
+        intent: IntentType = IntentType.PRODUCT_CONSULTATION,
+        timing: dict | None = None,
     ) -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
@@ -222,7 +258,10 @@ class ChatService:
             f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:INTENT_CONTENT_PREVIEW]}"
             for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
         )
+        _t_rag = time.monotonic()
         knowledge_entries = await self._load_knowledge_entries(user_query, history_text, intent)
+        if timing is not None:
+            timing["rag_ms"] = round((time.monotonic() - _t_rag) * 1000)
 
         messages: list[dict] = [
             {"role": "system", "content": build_system_prompt(knowledge_entries)},
@@ -232,10 +271,15 @@ class ChatService:
         messages.extend(history)
 
         tool_round = 0
+        _t_llm_first: float | None = None
 
         while tool_round <= MAX_TOOL_ROUNDS:
             try:
+                if _t_llm_first is None:
+                    _t_llm_first = time.monotonic()
                 raw = await llm_chat(messages, tools=FUNCTION_DEFINITIONS)
+                if timing is not None and "llm_ms" not in timing and _t_llm_first is not None:
+                    timing["llm_ms"] = round((time.monotonic() - _t_llm_first) * 1000)
                 response = json.loads(raw)
                 choice = response["choices"][0]
                 msg = choice["message"]
@@ -250,6 +294,8 @@ class ChatService:
 
             if finish_reason == "stop":
                 # LLM 返回纯文本，直接回复
+                if timing is not None:
+                    timing["tool_rounds"] = tool_round
                 return msg.get("content", "")
 
             if finish_reason == "tool_calls" and tool_round < MAX_TOOL_ROUNDS:
@@ -303,6 +349,8 @@ class ChatService:
             # 超限或未知 finish_reason
             break
 
+        if timing is not None:
+            timing["tool_rounds"] = tool_round
         return QUERY_TIMEOUT_REPLY
 
     async def handle_human_reply(self, session_id: str, content: str) -> None:

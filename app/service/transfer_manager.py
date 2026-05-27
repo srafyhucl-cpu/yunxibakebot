@@ -16,6 +16,8 @@ logger = setup_logger()
 
 # 转人工工单超时时间（超过此时间无人接单则自动关闭）
 TRANSFER_TIMEOUT_MINUTES = 30
+# 通知推送的 HTTP 请求超时（秒）
+NOTIFY_HTTP_TIMEOUT_SECONDS = 10.0
 
 
 class TransferManager:
@@ -38,7 +40,7 @@ class TransferManager:
         # 1. 异步推送群机器人 (如果配置了 WECOM_ROBOT_WEBHOOK)
         if settings.WECOM_ROBOT_WEBHOOK:
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(timeout=NOTIFY_HTTP_TIMEOUT_SECONDS) as client:
                     resp = await client.post(
                         settings.WECOM_ROBOT_WEBHOOK,
                         json={
@@ -55,13 +57,13 @@ class TransferManager:
         # 2. 异步推送应用消息 (给特定值班客服 WECOM_STAFF_ID)
         if settings.WECOM_CORP_ID and settings.WECOM_SECRET and settings.WECOM_STAFF_ID:
             try:
-                from app.service.wecom.client import get_wecom_client
+                from app.service.wecom.client import get_wecom_client, WECOM_API_BASE
                 wecom_client = get_wecom_client()
                 token = await wecom_client.get_token()
 
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(timeout=NOTIFY_HTTP_TIMEOUT_SECONDS) as client:
                     resp = await client.post(
-                        "https://qyapi.weixin.qq.com/cgi-bin/message/send",
+                        f"{WECOM_API_BASE}/message/send",
                         params={"access_token": token},
                         json={
                             "touser": settings.WECOM_STAFF_ID,

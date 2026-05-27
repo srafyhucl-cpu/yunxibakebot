@@ -11,6 +11,9 @@ from app.logger import setup_logger
 
 logger = setup_logger()
 
+# 查询改写 LLM 调用的 max_tokens 上限（改写结果通常较短，严格限制避免浪费）
+QUERY_REWRITER_MAX_TOKENS = 128
+
 REWRITE_PROMPT = """### 角色
 你是一个专门服务于「芸熙烘焙」AI 客服系统的顾客问题理解与改写专家。你的任务是结合对话历史上下文，充分理解顾客当前简短或指代不清的输入，并将其扩充、改写为一个完整、独立且表意清晰的查询语句，以便下游系统（如意图识别、知识库检索）能准确执行。
 
@@ -81,7 +84,7 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
             model=settings.DEEPSEEK_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=128,
+            max_tokens=QUERY_REWRITER_MAX_TOKENS,
         )
         rewritten = (response.choices[0].message.content or "").strip()
         # 清理可能的引用标记

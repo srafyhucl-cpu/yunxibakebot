@@ -15,6 +15,9 @@ from app.logger import setup_logger
 
 logger = setup_logger()
 
+# 聊天补全接口的默认 token 上限
+DEFAULT_CHAT_MAX_TOKENS = 2048
+
 # 全局单例客户端，避免重复创建连接
 _client: AsyncOpenAI | None = None
 
@@ -35,7 +38,7 @@ async def chat_completion(
     messages: Sequence[dict],
     tools: list | None = None,
     temperature: float = 0.7,
-    max_tokens: int = 2048,
+    max_tokens: int = DEFAULT_CHAT_MAX_TOKENS,
 ) -> str:
     """
     调用 DeepSeek 聊天补全接口。

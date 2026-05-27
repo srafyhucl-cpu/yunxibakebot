@@ -26,6 +26,11 @@ from app.service.llm.intent_types import IntentType
 
 logger = setup_logger()
 
+# 闲聊拦截的最大查询字符数（超出此长度则放行到后续意图流程）
+SMALL_TALK_MAX_QUERY_LEN = 12
+# 意图识别 LLM 调用的 max_tokens（输出仅为小数字或简短 JSON，严格限制）
+INTENT_LLM_MAX_TOKENS = 32
+
 
 def _contains_any(user_query: str, keywords: tuple[str, ...]) -> bool:
     return any(keyword in user_query for keyword in keywords)
@@ -46,7 +51,7 @@ def _match_clear_intent(user_query: str) -> IntentType | None:
     has_order_topic = _contains_any(user_query, ORDER_SERVICE_TOPIC_KEYWORDS)
     if has_order_topic and (has_order_action or (has_order_context and not has_question_signal)):
         return IntentType.ORDER_SERVICE
-    if _contains_any(user_query, SMALL_TALK_KEYWORDS) and len(user_query) <= 12 and not has_question_signal:
+    if _contains_any(user_query, SMALL_TALK_KEYWORDS) and len(user_query) <= SMALL_TALK_MAX_QUERY_LEN and not has_question_signal:
         return IntentType.SMALL_TALK
     if not has_question_signal:
         return None
@@ -71,28 +76,35 @@ def _extract_intent(raw_content: str) -> IntentType:
             cleaned_content = cleaned_content.removesuffix("```")
         cleaned_content = cleaned_content.strip()
 
-        data = json.loads(cleaned_content)
-        if isinstance(data, int):
-            primary = data
+        intent_response = json.loads(cleaned_content)
+        if isinstance(intent_response, int):
+            primary = intent_response
             secondaries = []
-        elif isinstance(data, dict):
-            primary = int(data.get("primary_intent", 1))
-            secondaries = [int(i) for i in data.get("secondary_intents", [])]
+        elif isinstance(intent_response, dict):
+            primary = int(intent_response.get("primary_intent", 1))
+            secondaries = [int(i) for i in intent_response.get("secondary_intents", [])]
         else:
             raise TypeError("Expected dict or int")
 
         all_intents = [primary] + secondaries
 
         # 优先级晋升：人工服务 (7) > 售后异常 (6) > 订单办理 (5)
-        if 7 in all_intents:
+        if IntentType.HUMAN_ASSISTANCE in all_intents:
             return IntentType.HUMAN_ASSISTANCE
-        if 6 in all_intents:
+        if IntentType.AFTER_SALES_ISSUE in all_intents:
             return IntentType.AFTER_SALES_ISSUE
-        if 5 in all_intents:
+        if IntentType.ORDER_SERVICE in all_intents:
             return IntentType.ORDER_SERVICE
 
         # 兜底返回主意图
-        if primary in (1, 2, 3, 4, 8):
+        _safe_intents = (
+            IntentType.PRODUCT_CONSULTATION,
+            IntentType.STORE_POLICY,
+            IntentType.SHIPPING_FEE,
+            IntentType.DELIVERY_SCHEDULE,
+            IntentType.SMALL_TALK,
+        )
+        if primary in _safe_intents:
             return IntentType(primary)
         return IntentType.PRODUCT_CONSULTATION
     except (json.JSONDecodeError, ValueError, TypeError, KeyError):
@@ -101,10 +113,10 @@ def _extract_intent(raw_content: str) -> IntentType:
             if character in INTENT_ID_CHARACTERS:
                 val = int(character)
                 # 优先级判定
-                if val in (5, 6, 7):
-                    if val == 7:
+                if val in (IntentType.ORDER_SERVICE, IntentType.AFTER_SALES_ISSUE, IntentType.HUMAN_ASSISTANCE):
+                    if val == IntentType.HUMAN_ASSISTANCE:
                         return IntentType.HUMAN_ASSISTANCE
-                    if val == 6:
+                    if val == IntentType.AFTER_SALES_ISSUE:
                         return IntentType.AFTER_SALES_ISSUE
                     return IntentType.ORDER_SERVICE
                 return IntentType(val)
@@ -134,7 +146,7 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
         raw_response = await llm_chat(
             [{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=32,  # 放宽 Token 约束到 32
+            max_tokens=INTENT_LLM_MAX_TOKENS,
         )
         response = json.loads(raw_response)
         raw_content = response["choices"][0]["message"].get("content", "1").strip()
