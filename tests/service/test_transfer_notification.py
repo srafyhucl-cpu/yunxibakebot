@@ -45,23 +45,28 @@ async def test_transfer_manager_emergency_notification_triggers_correctly(monkey
     monkeypatch.setattr(WeComClient, "get_token", fake_get_token)
 
     # 2. 拦截并收集 httpx 发送的所有请求
-    captured_requests = []
+    captured_requests: list[dict] = []
 
     class FakeResponse:
         def __init__(self) -> None:
             self.text = "{\"errcode\": 0, \"errmsg\": \"ok\"}"
 
-    async def fake_post(self, url: str, *args: object, **kwargs: object) -> FakeResponse:
-        json_data = kwargs.get("json", {})
+    import httpx
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def capture_post(url: str, *args: object, **kwargs: object) -> FakeResponse:
         captured_requests.append({
             "url": url,
-            "json": json_data,
-            "params": kwargs.get("params", {})
+            "json": kwargs.get("json", {}),
+            "params": kwargs.get("params", {}),
         })
         return FakeResponse()
 
-    import httpx
-    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    # 整体替换 httpx.AsyncClient 工厂，避免真实连接池 __aenter__ 读取环境代理配置
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.post = AsyncMock(side_effect=capture_post)
+    monkeypatch.setattr(httpx, "AsyncClient", MagicMock(return_value=mock_client))
 
     # 3. 执行转人工创建
     repo = MockTransferRepo()

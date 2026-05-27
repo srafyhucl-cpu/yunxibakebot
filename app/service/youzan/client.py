@@ -174,7 +174,10 @@ class YouzanClient:
         logger.info("有赞单品查询: item_id=%s, alias=%s", item_id, alias)
         params: dict = {"kdt_id": settings.YOUZAN_KDT_ID}
         if item_id:
-            params["item_id"] = int(item_id)
+            try:
+                params["item_id"] = int(item_id)
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"商品ID格式非法，期望纯数字，实际值: {item_id!r}") from exc
         if alias:
             params["alias"] = alias
         return await self._call(

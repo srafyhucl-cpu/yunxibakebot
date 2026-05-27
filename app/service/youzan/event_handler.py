@@ -92,14 +92,22 @@ class YouzanEventHandler:
             )
         elif event_type_lower.startswith("item_"):
             msg_data = msg_obj.get("data", {})
+            if isinstance(msg_data, str):
+                try:
+                    msg_data = json.loads(msg_data)
+                except Exception:
+                    msg_data = {}
             if not isinstance(msg_data, dict):
                 msg_data = {}
             payload_data = payload.get("data", {})
             if not isinstance(payload_data, dict):
                 payload_data = {}
             if not msg_obj.get("item_id") and not msg_data.get("item_id"):
-                # ITEM_INFO/ITEM_SKU_INFO 顶层 id 就是商品 id（官方文档 MSG/277 确认）
-                payload_id_as_item = payload.get("id") if event_type_lower in ("item_info", "item_sku_info") else None
+                # ITEM_INFO/ITEM_SKU_INFO 顶层 id 理论上是商品ID，但生产实测发现该字段
+                # 有时为含字母的消息标识（如 20260527091748314JAM），需过滤非纯数字值
+                _raw_payload_id = payload.get("id") if event_type_lower in ("item_info", "item_sku_info") else None
+                _payload_id_str = str(_raw_payload_id) if _raw_payload_id is not None else ""
+                payload_id_as_item = _raw_payload_id if _payload_id_str.isdigit() else None
                 item_id_from_payload = (
                     payload_data.get("item_id")
                     or payload.get("item_id")

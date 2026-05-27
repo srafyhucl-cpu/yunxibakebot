@@ -81,7 +81,9 @@ def _extract_business_fields(payload: dict, event_type: str, buyer_id: str) -> t
             or payload.get("item_id")
         )
         if not item_id and event_type_lower in ("item_info", "item_sku_info"):
-            item_id = payload.get("id")
+            _raw_id = payload.get("id")
+            _raw_id_str = str(_raw_id) if _raw_id is not None else ""
+            item_id = _raw_id if _raw_id_str.isdigit() else None
         return YouzanWebhookBusinessType.ITEM, str(item_id or "")
     if buyer_id:
         return YouzanWebhookBusinessType.CHAT, buyer_id

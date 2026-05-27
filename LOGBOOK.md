@@ -4,6 +4,26 @@
 
 ______________________________________________________________________
 
+## [2026-05-27] - 有赞 ITEM_INFO Webhook 处理失败根因修复
+- **操作人**: AI (Cascade)
+- **关联任务**: 排查并修复 ITEM_INFO 事件 `int("20260527091748314JAM")` 异常
+- **根本原因**:
+  - `event_handler.py` 解析 `msg_obj.data` 时未做字符串 → JSON 二次解析，导致 `msg.data.item_id` 丢失
+  - 丢失后 fallback 到 `payload.id`（消息流水号，含字母），传入 `int()` 崩溃
+  - `webhook.py._extract_business_fields` 早已有 `json.loads(msg_data)` 步骤，两处逻辑不一致
+- **核心变更文件说明**:
+  - `app/service/youzan/event_handler.py`（修改）:
+    - `msg_data` 补加 `isinstance(str) → json.loads` 二次解析，与 `webhook.py` 保持一致
+    - `payload.id` 兜底增加 `.isdigit()` 过滤，非纯数字不当商品ID
+  - `app/api/webhook.py`（修改）:
+    - `business_key` 兜底取 `payload.id` 时增加 `.isdigit()` 过滤
+  - `app/service/youzan/client.py`（修改）:
+    - `get_product()` 的 `int(item_id)` 加 `try/except ValueError`，防御性兜底
+- **验证方式**: 本地模拟三场景（含字母id/纯数字id/msg.data嵌套结构），DB 结果符合预期
+- **影响范围**: ITEM_INFO / ITEM_SKU_INFO 事件处理路径
+
+______________________________________________________________________
+
 ## [2026-05-26] - 新后台知识配置工作台接入
 - **操作人**: AI (Codex)
 - **关联任务**: 继续按菜单顺序开发新后台，把知识配置页从占位页替换为真实工作台
