@@ -32,7 +32,7 @@ const {
 } = useOverviewPage();
 
 const quickLinks = [
-  { title: "AI 测试", desc: "验证回复、意图和工具调用", to: "/chat-test", icon: ChatDotRound },
+  { title: "AI 对话", desc: "验证回复、意图和工具调用", to: "/ai-dialog", icon: ChatDotRound },
   { title: "商品管理", desc: "检查商品和 AI 可读同步", to: "/products", icon: Goods },
   { title: "数据观察台", desc: "追踪内容、回写和 Webhook", to: "/observability/sessions", icon: Histogram },
   { title: "系统配置", desc: "巡检渠道和 API 配置状态", to: "/settings/shop", icon: Setting },

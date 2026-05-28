@@ -10,9 +10,8 @@ const route = useRoute();
 
 const navItems = [
   { label: "概览", to: "/overview", key: "overview" },
-  { label: "AI 测试", to: "/chat-test", key: "chat-test" },
+  { label: "AI 对话", to: "/ai-dialog", key: "ai-dialog" },
   { label: "商品管理", to: "/products", key: "products" },
-  { label: "主推款", to: "/products/featured", key: "products-featured" },
   { label: "知识配置", to: "/knowledge", key: "knowledge" },
   { label: "数据观察台", to: "/observability/sessions", key: "observability" },
   { label: "转人工", to: "/transfers", key: "transfers" },

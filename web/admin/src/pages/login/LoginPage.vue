@@ -20,7 +20,7 @@ async function submitLogin() {
 
   try {
     await authStore.login(trimmedToken);
-    const rawRedirect = typeof route.query.redirect === "string" ? route.query.redirect : "/chat-test";
+    const rawRedirect = typeof route.query.redirect === "string" ? route.query.redirect : "/ai-dialog";
     const routerBase = import.meta.env.VITE_ROUTER_BASE;
     const redirectPath = rawRedirect.startsWith(routerBase)
       ? rawRedirect.slice(routerBase.length - 1)

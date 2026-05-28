@@ -31,7 +31,7 @@ _jinja_env = Environment(
 )
 
 logger = setup_logger()
-ADMIN_CHAT_TEST_TIMEOUT_SECONDS = 35.0
+AI_DIALOG_TIMEOUT_SECONDS = 35.0
 # 管理后台登录 Cookie 有效期（24 小时）
 ADMIN_SESSION_MAX_AGE_SECONDS = 86400
 
@@ -78,7 +78,7 @@ def create_admin_router(
 
     @router.get("/admin", response_class=HTMLResponse)
     async def admin_index(request: Request):
-        return RedirectResponse(url="/admin/chat-test")
+        return RedirectResponse(url="/admin/ai-dialog")
 
     @router.get("/admin/login", response_class=HTMLResponse)
     async def login_page(request: Request, error: str = ""):
@@ -144,13 +144,13 @@ def create_admin_router(
         )
         return HTMLResponse(html)
 
-    # ── 对话测试页 ──
-    @router.get("/admin/chat-test", response_class=HTMLResponse)
-    async def chat_test_page(request: Request):
+    # ── AI 对话调试页 ──
+    @router.get("/admin/ai-dialog", response_class=HTMLResponse)
+    async def ai_dialog_page(request: Request):
         if not check_login(request):
             return RedirectResponse(url="/admin/login", status_code=302)
-        html = _jinja_env.get_template("admin/chat_test.html").render(
-            request=request, active="chat_test",
+        html = _jinja_env.get_template("admin/ai_dialog.html").render(
+            request=request, active="ai_dialog",
         )
         return HTMLResponse(html)
 
@@ -202,29 +202,33 @@ def create_admin_router(
         response.delete_cookie("admin_token")
         return response
 
-    @api_router.get("/chat-test/sessions", dependencies=[Depends(verify_token)])
-    async def list_saved_sessions() -> dict:
-        """获取已保存（有名称）的对话列表。"""
-        sessions = await admin_service.get_named(channel="admin_test")
-        return {"code": 0, "data": [
-            {
+    @api_router.get("/ai-dialog/sessions", dependencies=[Depends(verify_token)])
+    async def list_ai_dialog_sessions() -> dict:
+        """获取所有 AI 对话列表（含置顶状态），置顶优先、再按更新时间降序。"""
+        sessions = await admin_service.get_all_by_channel(channel="admin_test")
+        items = []
+        for s in sessions:
+            extra = json.loads(s.extra_info or "{}")
+            items.append({
                 "id": s.id,
-                "name": json.loads(s.extra_info).get("name", "未命名"),
+                "name": extra.get("name", ""),
                 "user_id": s.user_id,
-                "msg_count": 0,
+                "pinned": bool(extra.get("pinned", False)),
+                "user_display": extra.get("user_display", ""),
+                "last_msg": extra.get("last_msg", ""),
                 "created_at": s.created_at,
-            }
-            for s in sessions
-        ]}
+                "updated_at": s.updated_at,
+            })
+        items.sort(key=lambda x: (x["pinned"], x["updated_at"]), reverse=True)
+        return {"code": 0, "data": items}
 
-    @api_router.post("/chat-test/save", dependencies=[Depends(verify_token)])
-    async def save_session(request: Request) -> dict:
-        """保存/命名一个对话。"""
-        import json
-        raw = await request.body()
-        body = json.loads(raw.decode("utf-8"))
+    @api_router.post("/ai-dialog/save", dependencies=[Depends(verify_token)])
+    async def save_ai_dialog(request: Request) -> dict:
+        """命名并保存 AI 对话（新建对话后首条消息自动调用）。"""
+        body = json.loads((await request.body()).decode("utf-8"))
         session_id = body.get("session_id", "")
         name = body.get("name", "").strip()
+        user_display = body.get("user_display", "").strip()
         if not session_id or not name:
             return {"code": 422, "message": "参数不完整"}
         session = await admin_service.get(session_id)
@@ -232,22 +236,35 @@ def create_admin_router(
             return {"code": 404, "message": "会话不存在"}
         extra = json.loads(session.extra_info or "{}")
         extra["name"] = name
+        if user_display:
+            extra["user_display"] = user_display
         await admin_service.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
         return {"code": 0, "message": "已保存"}
 
-    @api_router.delete("/chat-test/session/{session_id}", dependencies=[Depends(verify_token)])
-    async def discard_session(session_id: str) -> dict:
-        """丢弃一个对话。"""
+    @api_router.post("/ai-dialog/session/{session_id}/pin", dependencies=[Depends(verify_token)])
+    async def pin_ai_dialog_session(session_id: str) -> dict:
+        """切换 AI 对话置顶状态。"""
+        session = await admin_service.get(session_id)
+        if not session:
+            return {"code": 404, "message": "会话不存在"}
+        extra = json.loads(session.extra_info or "{}")
+        extra["pinned"] = not bool(extra.get("pinned", False))
+        await admin_service.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
+        return {"code": 0, "pinned": extra["pinned"]}
+
+    @api_router.delete("/ai-dialog/session/{session_id}", dependencies=[Depends(verify_token)])
+    async def delete_ai_dialog_session(session_id: str) -> dict:
+        """删除一条 AI 对话记录。"""
         session = await admin_service.get(session_id)
         if not session:
             return {"code": 404, "message": "会话不存在"}
         await admin_service.update_status(session_id, "closed")
         return {"code": 0, "message": "已丢弃"}
 
-    # ── 对话测试 API ──
-    @api_router.get("/chat-test/messages", dependencies=[Depends(verify_token)])
-    async def chat_test_history(user_id: str = "admin_tester") -> dict:
-        """获取对话测试的历史消息。"""
+    # ── AI 对话 API ──
+    @api_router.get("/ai-dialog/messages", dependencies=[Depends(verify_token)])
+    async def ai_dialog_history(user_id: str = "admin_tester") -> dict:
+        """获取 AI 对话的历史消息（按 user_id 查最近活跃会话）。"""
         session = await admin_service.get_active(user_id, "admin_test")
         if not session:
             return {"code": 0, "data": []}
@@ -261,8 +278,8 @@ def create_admin_router(
             for m in msgs
         ]}
 
-    @api_router.post("/chat-test", dependencies=[Depends(verify_token)])
-    async def chat_test_api(request: Request) -> dict:
+    @api_router.post("/ai-dialog", dependencies=[Depends(verify_token)])
+    async def ai_dialog_api(request: Request) -> dict:
         import json
         raw = await request.body()
         try:
@@ -287,10 +304,10 @@ def create_admin_router(
                     channel_msg_id=str(uuid.uuid4()),
                     content=content,
                 ),
-                timeout=ADMIN_CHAT_TEST_TIMEOUT_SECONDS,
+                timeout=AI_DIALOG_TIMEOUT_SECONDS,
             )
         except TimeoutError:
-            logger.error("后台 AI 测试接口超时: user=%s content=%s", test_user, content[:80])
+            logger.error("后台 AI 对话接口超时: user=%s content=%s", test_user, content[:80])
             return {
                 "code": 0,
                 "reply": "查询超时了，当前大模型服务响应较慢。请稍后重试，或直接联系人工确认订单配送时间。",
@@ -302,6 +319,13 @@ def create_admin_router(
         session_id = session.id if session else ""
         # 清理 Markdown 星号
         clean = (reply or "(无回复)").replace("**", "").replace("*", "")
+        if session_id:
+            s2 = await admin_service.get(session_id)
+            if s2:
+                extra2 = json.loads(s2.extra_info or "{}")
+                if extra2.get("name"):
+                    extra2["last_msg"] = clean[:60]
+                    await admin_service.update_extra(session_id, json.dumps(extra2, ensure_ascii=False))
         return {"code": 0, "reply": clean, "intent": intent, "session_id": session_id}
 
     # ────────────────────────────── API 路由 ──────────────────────────────

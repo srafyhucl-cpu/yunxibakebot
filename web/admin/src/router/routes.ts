@@ -24,12 +24,12 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
-    path: "/chat-test",
-    name: "chat-test",
-    component: () => import("@/pages/chat-test/ChatTestPage.vue"),
+    path: "/ai-dialog",
+    name: "ai-dialog",
+    component: () => import("@/pages/ai-dialog/AiDialogPage.vue"),
     meta: {
-      title: "AI 测试",
-      navKey: "chat-test",
+      title: "AI 对话",
+      navKey: "ai-dialog",
     },
   },
   {

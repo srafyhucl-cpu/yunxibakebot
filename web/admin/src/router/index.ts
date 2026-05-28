@@ -27,7 +27,7 @@ router.beforeEach(async (to) => {
   }
 
   if (isLoginPage && authStore.isLoggedIn) {
-    return "/chat-test";
+    return "/ai-dialog";
   }
 
   if (!isLoginPage && !authStore.isLoggedIn) {

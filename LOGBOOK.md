@@ -4,6 +4,29 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - AI 对话页面重写：微信风格 UI + 全面改名 chat-test→ai-dialog
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 打磨 AI 测试页面、更名为"AI 对话"、彻底重命名相关变量/文件/路由
+- **核心变更文件说明**:
+  - `app/api/admin.py`（修改）: 常量 `AI_DIALOG_TIMEOUT_SECONDS`、路由 `/ai-dialog/*`、函数名全面从 `chat_test_*` 改为 `ai_dialog_*`；`/admin` 重定向目标更新
+  - `app/templates/admin/chat_test.html` → `ai_dialog.html`（重命名）
+  - `web/admin/src/types/aiDialog.ts`（新增替换 chatTest.ts）: 接口改名 `AiDialogSession/Message/SendResult`
+  - `web/admin/src/services/aiDialog.ts`（新增替换 chatTest.ts）: 服务改名 `aiDialogService`，所有 API 路径同步为 `/ai-dialog/…`
+  - `web/admin/src/pages/ai-dialog/useAiDialogPage.ts`（新增替换 useChatTestPage.ts）: 组合函数改名 `useAiDialogPage`
+  - `web/admin/src/pages/ai-dialog/AiDialogPage.vue`（新增替换 ChatTestPage.vue）: 全新微信风格聊天 UI
+  - `web/admin/src/router/routes.ts`（修改）: 路由路径/名称/title → `/ai-dialog`、`"AI 对话"`
+  - `web/admin/src/router/index.ts`（修改）: 登录后默认跳转 `/ai-dialog`
+  - `web/admin/src/components/layout/AppSidebar.vue`（修改）: 导航项改名
+  - `web/admin/src/components/layout/BottomNav.vue`（修改）: 底部导航改名
+  - `web/admin/src/pages/overview/OverviewPage.vue`（修改）: 快捷入口改名
+  - `web/admin/src/pages/login/LoginPage.vue`（修改）: 默认跳转改名
+- **数据库状态变更**: 无（channel 值 `"admin_test"` 保持不变，避免历史对话记录失效）
+- **测试覆盖与验证结果**: `pytest -q` → 121 passed ✅；`npm run build` → ✓ built in 16.13s ✅
+- **潜伏风险/遗留未决事项说明**: DB 中 `channel="admin_test"` 是内部标识符保持不变；Jinja2 旧模板已改名（旧书签 `/admin/chat-test` 跳转地址已更新为 `/admin/ai-dialog`）
+
+______________________________________________________________________
+
 ## [2026-05-29] - 紧急修复 502：admin_products / knowledge_sync 未提交变更补齐
 
 - **操作人**: AI (Cascade)
