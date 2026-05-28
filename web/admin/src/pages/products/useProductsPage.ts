@@ -35,11 +35,13 @@ export function useProductsPage() {
   const searchDraft = ref(normalizeKeyword(route.query.keyword));
   const filterActive = ref(String(route.query.is_active ?? ""));
   const filterSource = ref(String(route.query.sync_source ?? ""));
+  const filterSyncStatus = ref(String(route.query.vector_sync_status ?? ""));
 
   const currentPage = computed(() => parsePage(route.query.page));
   const currentKeyword = computed(() => normalizeKeyword(route.query.keyword));
   const currentActive = computed(() => String(route.query.is_active ?? ""));
   const currentSource = computed(() => String(route.query.sync_source ?? ""));
+  const currentSyncStatus = computed(() => String(route.query.vector_sync_status ?? ""));
   const activeCount = computed(() => products.value.filter((item) => item.isActive).length);
 
   const tableRows = computed(() =>
@@ -56,7 +58,7 @@ export function useProductsPage() {
     try {
       const payload = await productsService.listProducts(
         currentPage.value, currentKeyword.value,
-        currentActive.value, currentSource.value,
+        currentActive.value, currentSource.value, currentSyncStatus.value,
       );
       products.value = payload.items;
       total.value = payload.total;
@@ -83,7 +85,7 @@ export function useProductsPage() {
 
   async function submitSearch() {
     await router.replace({
-      query: buildQuery(1, searchDraft.value.trim(), filterActive.value, filterSource.value),
+      query: buildQuery(1, searchDraft.value.trim(), filterActive.value, filterSource.value, filterSyncStatus.value),
     });
   }
 
@@ -91,12 +93,13 @@ export function useProductsPage() {
     searchDraft.value = "";
     filterActive.value = "";
     filterSource.value = "";
+    filterSyncStatus.value = "";
     await router.replace({ query: {} });
   }
 
   async function changePage(page: number) {
     await router.replace({
-      query: buildQuery(page, currentKeyword.value, currentActive.value, currentSource.value),
+      query: buildQuery(page, currentKeyword.value, currentActive.value, currentSource.value, currentSyncStatus.value),
     });
   }
 
@@ -135,12 +138,14 @@ export function useProductsPage() {
     keyword: string,
     isActive: string = "",
     syncSource: string = "",
+    syncStatus: string = "",
   ): Record<string, string> {
     const query: Record<string, string> = {};
     if (page > 1) query.page = String(page);
     if (keyword) query.keyword = keyword;
     if (isActive) query.is_active = isActive;
     if (syncSource) query.sync_source = syncSource;
+    if (syncStatus) query.vector_sync_status = syncStatus;
     return query;
   }
 
@@ -150,6 +155,7 @@ export function useProductsPage() {
       searchDraft.value = currentKeyword.value;
       filterActive.value = currentActive.value;
       filterSource.value = currentSource.value;
+      filterSyncStatus.value = currentSyncStatus.value;
       await loadProducts();
     },
     { immediate: true },
@@ -166,6 +172,7 @@ export function useProductsPage() {
     searchDraft,
     filterActive,
     filterSource,
+    filterSyncStatus,
     currentPage,
     currentKeyword,
     activeCount,

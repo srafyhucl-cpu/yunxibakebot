@@ -124,8 +124,9 @@ class KnowledgeRepo:
         offset: int = 0,
         is_active: int | None = None,
         sync_source: str = "",
+        vector_sync_status: str = "",
     ) -> list[KnowledgeEntry]:
-        """分页获取商品类知识条目（仅 category=product），支持关键词、状态、来源筛选。"""
+        """分页获取商品类知识条目（仅 category=product），支持关键词、状态、来源、AI同步状态筛选。"""
         keyword = f"%{search}%"
         clauses = [
             "category = 'product'",
@@ -138,6 +139,9 @@ class KnowledgeRepo:
         if sync_source:
             clauses.append("last_sync_source = ?")
             params.append(sync_source)
+        if vector_sync_status:
+            clauses.append("vector_sync_status = ?")
+            params.append(vector_sync_status)
         where = " AND ".join(clauses)
         params.extend([limit, offset])
         rows = await self._db.execute_fetchall(
@@ -151,6 +155,7 @@ class KnowledgeRepo:
         search: str = "",
         is_active: int | None = None,
         sync_source: str = "",
+        vector_sync_status: str = "",
     ) -> int:
         """返回商品类知识条目总数（仅 category=product），支持筛选。"""
         keyword = f"%{search}%"
@@ -165,6 +170,9 @@ class KnowledgeRepo:
         if sync_source:
             clauses.append("last_sync_source = ?")
             params.append(sync_source)
+        if vector_sync_status:
+            clauses.append("vector_sync_status = ?")
+            params.append(vector_sync_status)
         where = " AND ".join(clauses)
         rows = await self._db.execute_fetchall(
             "SELECT COUNT(*) AS c FROM knowledge_base WHERE " + where,
@@ -556,3 +564,13 @@ class KnowledgeRepo:
         )
         await self._db.commit()
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
+
+    async def get_pending_sync_entries(self, limit: int = 500) -> list[KnowledgeEntry]:
+        """获取所有待同步（pending/failed）的知识条目，跨所有分类和类型。"""
+        rows = await self._db.execute_fetchall(
+            ENTRY_SELECT_SQL
+            + "WHERE vector_sync_status IN ('pending', 'failed') "
+            "ORDER BY updated_at ASC LIMIT ?",
+            (limit,),
+        )
+        return [KnowledgeEntry(**dict(row)) for row in rows]

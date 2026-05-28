@@ -4,6 +4,26 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - 商品列表 UI 深度优化：展开字段、无滚动布局、单价库存、AI状态筛选
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 商品管理页面 UI/UX 迭代（字段展开 / 布局重构 / 价格库存 / 筛选增强）
+- **核心变更文件说明**:
+  - `web/admin/src/pages/products/ProductsPage.vue`（修改）: 拆分商品名/有赞ID列；ResizeObserver 动态高度无页面滚动条；调整列顺序（状态→来源→AI可读→单价→库存）；新增 AI状态筛选下拉；全量对账按钮移入筛选区；库存数值不换行
+  - `web/admin/src/pages/products/useProductsPage.ts`（修改）: 新增 filterSyncStatus 状态，联动 loadProducts/submitSearch/resetFilters/buildQuery/changePage
+  - `web/admin/src/services/products.ts`（修改）: listProducts 增加 syncStatus 参数，透传 vector_sync_status 给后端
+  - `web/admin/src/types/product.ts`（修改）: ProductListItem 新增 priceFen / stock 字段
+  - `app/repository/knowledge_repo.py`（修改）: get_all_products / count_products 增加 vector_sync_status 筛选条件
+  - `app/repository/youzan_repo.py`（修改）: YouzanProductRepo 新增 get_prices_and_stocks 批量查询方法
+  - `app/service/admin.py`（修改）: 注入 YouzanProductRepo，暴露 get_prices_and_stocks 代理方法；get_all_products / count_products 透传 vector_sync_status
+  - `app/api/admin_config.py`（修改）: 接受 vector_sync_status 查询参数；调用 service 层获取价格库存（修复 api 层直接导入 repository 的架构违规）
+  - `app/main.py`（修改）: AdminService 注入 youzan_product_repo
+- **数据库状态变更**: 无
+- **测试覆盖与验证结果**: `pytest -q` → 121 passed ✅
+- **潜伏风险/遗留未决事项说明**: 无
+
+______________________________________________________________________
+
 ## [2026-05-28] - AI 测试页修复、商品管理多维筛选、数据来源清洗
 
 - **操作人**: AI (Cascade)

@@ -91,6 +91,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         search: str = "",
         is_active: str = "",
         sync_source: str = "",
+        vector_sync_status: str = "",
         authorization: str | None = Header(default=None),
     ) -> dict:
         _verify_token(authorization)
@@ -104,10 +105,14 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         entries = await admin_service.get_all_products(
             search=search, limit=limit, offset=offset,
             is_active=active_filter, sync_source=sync_source,
+            vector_sync_status=vector_sync_status,
         )
         total = await admin_service.count_products(
             search=search, is_active=active_filter, sync_source=sync_source,
+            vector_sync_status=vector_sync_status,
         )
+        youzan_ids = [e.youzan_item_id for e in entries if e.youzan_item_id]
+        price_stock_map = await admin_service.get_prices_and_stocks(youzan_ids)
         return {"code": 0, "total": total, "data": [
             {
                 "id": e.id,
@@ -123,6 +128,8 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
                 "last_sync_ref": e.last_sync_ref,
                 "vector_sync_status": e.vector_sync_status,
                 "updated_at": e.updated_at,
+                "price_fen": price_stock_map.get(e.youzan_item_id or "", {}).get("price_fen"),
+                "stock": price_stock_map.get(e.youzan_item_id or "", {}).get("stock"),
             }
             for e in entries
         ], "page": page, "page_size": limit}

@@ -142,6 +142,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         transfer_repo=transfer_repo,
         knowledge_repo=knowledge_repo,
         config_repo=config_repo,
+        youzan_product_repo=youzan_product_repo,
     )
     observability_service = ObservabilityService(
         knowledge_repo=knowledge_repo,
@@ -205,10 +206,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.include_router(create_shop_config_router(admin_service))
     app.include_router(create_admin_knowledge_router(knowledge_admin_service))
     app.include_router(create_observability_router(observability_service))
-    app.include_router(create_admin_products_router(reconcile_service))
+    app.include_router(create_admin_products_router(reconcile_service, knowledge_sync_service))
     app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)
+
+    async def _startup_sync_task() -> None:
+        """服务启动完成后批量同步所有 pending 向量条目。"""
+        try:
+            result = await knowledge_sync_service.sync_all_pending()
+            logger.info("启动向量自愈同步完成: %s", result)
+        except Exception as exc:
+            logger.error("启动向量自愈同步失败: %s", exc)
+
+    asyncio.create_task(_startup_sync_task())
     yield
     # ── shutdown ──
     save_task.cancel()

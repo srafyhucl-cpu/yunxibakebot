@@ -166,6 +166,22 @@ class YouzanProductRepo:
         await self._db.commit()
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
 
+    async def get_prices_and_stocks(self, item_ids: list[str]) -> dict[str, dict]:
+        """批量查询商品单价（分）和库存，返回 {item_id_str: {price_fen, stock}}。"""
+        valid_ids = [int(i) for i in item_ids if i and i.isdigit()]
+        if not valid_ids:
+            return {}
+        placeholders = ",".join("?" * len(valid_ids))
+        rows = await self._db.execute_fetchall(
+            "SELECT item_id, price_fen, stock FROM youzan_products WHERE item_id IN ("
+            + placeholders + ")",
+            tuple(valid_ids),
+        )
+        return {
+            str(row["item_id"]): {"price_fen": row["price_fen"], "stock": row["stock"]}
+            for row in rows
+        }
+
 
 class YouzanOrderRepo:
     """有赞订单交易大宽表仓库。"""

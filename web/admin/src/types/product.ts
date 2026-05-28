@@ -8,6 +8,8 @@ export interface ProductListItem {
   priority: number;
   isActive: boolean;
   youzanItemId: string;
+  priceFen: number | null;
+  stock: number | null;
   lastSyncSource: string;
   lastSyncRef: string;
   vectorSyncStatus: string;

@@ -19,6 +19,7 @@ from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
+from app.repository.youzan_repo import YouzanProductRepo
 from app.service.observability import ContentChangeLogger, build_knowledge_change_summary
 
 
@@ -32,12 +33,14 @@ class AdminService:
         transfer_repo: TransferRepo,
         knowledge_repo: KnowledgeRepo,
         config_repo: ConfigRepo,
+        youzan_product_repo: YouzanProductRepo | None = None,
     ) -> None:
         self._session_repo = session_repo
         self._message_repo = message_repo
         self._transfer_repo = transfer_repo
         self._knowledge_repo = knowledge_repo
         self._config_repo = config_repo
+        self._youzan_product_repo = youzan_product_repo
 
     # ── 会话与转人工 ──
     async def get_pending_transfers(self) -> list[HumanTransfer]:
@@ -108,6 +111,12 @@ class AdminService:
     async def count_knowledge(self) -> int:
         return await self._knowledge_repo.count_all()
 
+    async def get_prices_and_stocks(self, youzan_ids: list[str]) -> dict[str, dict]:
+        """批量获取商品单价和库存，委托有赞商品仓库查询。"""
+        if self._youzan_product_repo is None:
+            return {}
+        return await self._youzan_product_repo.get_prices_and_stocks(youzan_ids)
+
     async def get_all_products(
         self,
         search: str = "",
@@ -115,10 +124,12 @@ class AdminService:
         offset: int = 0,
         is_active: int | None = None,
         sync_source: str = "",
+        vector_sync_status: str = "",
     ) -> list[KnowledgeEntry]:
         return await self._knowledge_repo.get_all_products(
             search=search, limit=limit, offset=offset,
             is_active=is_active, sync_source=sync_source,
+            vector_sync_status=vector_sync_status,
         )
 
     async def count_products(
@@ -126,9 +137,11 @@ class AdminService:
         search: str = "",
         is_active: int | None = None,
         sync_source: str = "",
+        vector_sync_status: str = "",
     ) -> int:
         return await self._knowledge_repo.count_products(
             search=search, is_active=is_active, sync_source=sync_source,
+            vector_sync_status=vector_sync_status,
         )
 
     async def get_product(self, product_id: int) -> KnowledgeEntry | None:
