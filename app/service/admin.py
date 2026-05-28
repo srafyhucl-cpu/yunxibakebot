@@ -15,6 +15,8 @@ from app.models.transfer import HumanTransfer
 from app.config import settings
 from app.repository.config_repo import ConfigRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
@@ -133,7 +135,7 @@ class AdminService:
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
     ) -> list[KnowledgeEntry]:
-        return await self._knowledge_repo.get_all_products(
+        return await KnowledgeProductRepo(self._knowledge_repo._db).get_all_products(
             search=search, limit=limit, offset=offset,
             is_active=is_active, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
@@ -152,7 +154,7 @@ class AdminService:
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
     ) -> int:
-        return await self._knowledge_repo.count_products(
+        return await KnowledgeProductRepo(self._knowledge_repo._db).count_products(
             search=search, is_active=is_active, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
             featured_titles=featured_titles,
@@ -169,7 +171,7 @@ class AdminService:
         if not entry:
             return None
         new_status = not bool(entry.is_active)
-        await self._knowledge_repo.update_active(
+        await KnowledgeAdminRepo(self._knowledge_repo._db).update_active(
             product_id,
             new_status,
             sync_source=SyncSource.ADMIN_MANUAL,

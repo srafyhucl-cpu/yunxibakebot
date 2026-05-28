@@ -54,7 +54,7 @@ def main() -> int:
 
     print("\n[doc-check] 检测到代码文件变更，但以下文档未在暂存区：\n")
     for doc in missing:
-        print(f"  ❌ {doc}")
+        print(f"  [MISS] {doc}")
 
     print(
         "\n  请更新后 git add，格式参见 .windsurf/workflows/commit.md 第 4、5 步。"

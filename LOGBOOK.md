@@ -4,6 +4,16 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - hotfix: AdminService 漏更新导致商品管理页 500
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 修复知识库拆分后 AdminService 遗漏调用路径
+- **根因**: knowledge_repo.py 拆分时，get_all_products / count_products 移至 KnowledgeProductRepo，update_active 移至 KnowledgeAdminRepo，但 app/service/admin.py 未同步更新，仍调用旧方法导致 500
+- **修复**: admin.py 补充导入，3 处调用改为按需构造 KnowledgeProductRepo/KnowledgeAdminRepo（复用 _knowledge_repo._db）；同步修复 check_logbook.py emoji GBK 编码问题
+- **测试**: pytest -q → 109 passed ✅
+
+______________________________________________________________________
+
 ## [2026-05-28] - 销量同步修复 + 文件体量治理（知识库/admin 拆分 + pre-commit 门禁）
 
 - **操作人**: AI (Cascade)
