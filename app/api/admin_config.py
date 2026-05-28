@@ -111,9 +111,11 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             search=search, is_active=active_filter, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
         )
+        total_active = await admin_service.count_products(is_active=1)
+        total_inactive = await admin_service.count_products(is_active=0)
         youzan_ids = [e.youzan_item_id for e in entries if e.youzan_item_id]
         price_stock_map = await admin_service.get_prices_and_stocks(youzan_ids)
-        return {"code": 0, "total": total, "data": [
+        return {"code": 0, "total": total, "total_active": total_active, "total_inactive": total_inactive, "data": [
             {
                 "id": e.id,
                 "category": e.category,

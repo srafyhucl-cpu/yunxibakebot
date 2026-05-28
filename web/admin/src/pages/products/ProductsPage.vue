@@ -17,6 +17,8 @@ const {
   filterSyncStatus,
   currentPage,
   total,
+  totalActive,
+  totalInactive,
   pageSize,
   activeCount,
   tableRows,
@@ -30,7 +32,7 @@ const {
   runReconcile,
 } = useProductsPage();
 
-const inactiveCount = computed(() => Math.max(total.value - activeCount.value, 0));
+const inactiveCount = computed(() => tableRows.value.filter((row) => !row.isActive).length);
 
 const tableWrapper = ref<HTMLElement | null>(null);
 const tableHeight = ref(400);
@@ -53,25 +55,9 @@ onUnmounted(() => {
 
 <template>
   <section class="products-page">
-    <div class="products-page__summary">
-      <span class="products-page__stat">
-        <span class="products-page__stat-label">当前页</span>
-        <strong class="products-page__stat-value">{{ tableRows.length }}</strong>
-      </span>
-      <span class="products-page__stat-divider" />
-      <span class="products-page__stat">
-        <span class="products-page__stat-label">在售</span>
-        <strong class="products-page__stat-value products-page__stat-value--active">{{ activeCount }}</strong>
-      </span>
-      <span class="products-page__stat-divider" />
-      <span class="products-page__stat">
-        <span class="products-page__stat-label">下架</span>
-        <strong class="products-page__stat-value">{{ inactiveCount }}</strong>
-      </span>
-    </div>
-
     <el-card shadow="never" class="products-page__filters">
-      <el-form class="products-page__filter-form" @submit.prevent="submitSearch">
+      <div class="products-page__filter-header">
+        <el-form class="products-page__filter-form" @submit.prevent="submitSearch">
         <el-input
           v-model="searchDraft"
           placeholder="搜索商品标题、关键词"
@@ -102,15 +88,32 @@ onUnmounted(() => {
           <el-option label="同步中" value="syncing" />
         </el-select>
 
-        <el-button type="primary" :icon="Search" @click="submitSearch">筛选</el-button>
-        <el-button @click="resetFilters">重置</el-button>
-        <el-button
-          type="warning"
-          :loading="reconciling"
-          :icon="Refresh"
-          @click="runReconcile"
-        >全量对账</el-button>
-      </el-form>
+          <el-button type="primary" :icon="Search" @click="submitSearch">筛选</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+          <el-button
+            type="warning"
+            :loading="reconciling"
+            :icon="Refresh"
+            @click="runReconcile"
+          >全量对账</el-button>
+        </el-form>
+        <div class="products-page__global-stats">
+          <span class="products-page__stat">
+            <span class="products-page__stat-label">全部</span>
+            <strong class="products-page__stat-value">{{ totalActive + totalInactive }}</strong>
+          </span>
+          <span class="products-page__stat-divider" />
+          <span class="products-page__stat">
+            <span class="products-page__stat-label">在售</span>
+            <strong class="products-page__stat-value products-page__stat-value--active">{{ totalActive }}</strong>
+          </span>
+          <span class="products-page__stat-divider" />
+          <span class="products-page__stat">
+            <span class="products-page__stat-label">下架</span>
+            <strong class="products-page__stat-value">{{ totalInactive }}</strong>
+          </span>
+        </div>
+      </div>
     </el-card>
 
     <el-card shadow="never" class="products-page__table-card">
@@ -126,19 +129,19 @@ onUnmounted(() => {
           <el-table-column prop="title" label="商品名" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="products-page__title-button" type="button" @click="openDetail(row)">
-                <strong class="products-page__title-text">{{ row.title }}</strong>
+                <strong class="products-page__title-text">{{ row.title || '（无标题）' }}</strong>
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="activeLabel" label="状态" width="80">
+          <el-table-column prop="activeLabel" label="状态" width="80" align="center">
             <template #default="{ row }">
               <el-tag :type="row.isActive ? 'success' : 'info'" effect="light" size="small">
                 {{ row.activeLabel }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="syncSourceLabel" label="来源" min-width="120" />
-          <el-table-column prop="syncStatusLabel" label="AI 可读" width="90" />
+          <el-table-column prop="syncSourceLabel" label="来源" min-width="120" align="center" />
+          <el-table-column prop="syncStatusLabel" label="AI 可读" width="90" align="center" />
           <el-table-column prop="priceFen" label="单价" width="90" align="right">
             <template #default="{ row }">
               <span v-if="row.priceFen != null" class="products-page__price">
@@ -147,18 +150,18 @@ onUnmounted(() => {
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="stock" label="库存" width="80" align="right">
+          <el-table-column prop="stock" label="库存" width="110" align="right">
             <template #default="{ row }">
-              <span v-if="row.stock != null" class="products-page__stock">{{ row.stock }}</span>
+              <span v-if="row.stock != null" class="products-page__stock">{{ row.stock.toLocaleString() }}</span>
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="updatedAt" label="最近更新" min-width="170">
+          <el-table-column prop="updatedAt" label="最近更新" min-width="170" align="center">
             <template #default="{ row }">
               {{ row.updatedAt ? row.updatedAt.replace("T", " ").slice(0, 19) : "未记录" }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="190" fixed="right">
+          <el-table-column label="操作" width="190" fixed="right" align="center">
             <template #default="{ row }">
               <div class="products-page__actions">
                 <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
@@ -204,6 +207,13 @@ onUnmounted(() => {
       </div>
 
       <div class="products-page__pagination">
+        <div class="products-page__page-stats">
+          <span>当前页 <strong>{{ tableRows.length }}</strong> 条</span>
+          <span class="products-page__stat-divider" />
+          <span>在售 <strong class="products-page__stat-value--active">{{ activeCount }}</strong></span>
+          <span class="products-page__stat-divider" />
+          <span>下架 <strong>{{ inactiveCount }}</strong></span>
+        </div>
         <el-pagination
           background
           layout="prev, pager, next"
@@ -251,14 +261,29 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.products-page__summary {
+.products-page__filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.products-page__global-stats {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.products-page__page-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--yx-text-muted);
+  white-space: nowrap;
 }
 
 .products-page__stat {
@@ -318,6 +343,10 @@ onUnmounted(() => {
 
 .products-page__table :deep(.el-scrollbar__bar.is-vertical) {
   display: none;
+}
+
+.products-page__table :deep(.el-table__header th) {
+  text-align: center;
 }
 
 .products-page__desktop {
@@ -395,7 +424,8 @@ onUnmounted(() => {
   bottom: 0;
   z-index: 10;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 0 4px;
   background: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color-lighter);
@@ -403,8 +433,9 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
-  .products-page__summary {
-    flex-wrap: wrap;
+  .products-page__filter-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .products-page__filter-form {

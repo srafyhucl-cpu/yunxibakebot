@@ -5,6 +5,8 @@ import type { ProductListItem, ProductListPayload } from "@/types/product";
 interface ProductListResponse {
   code: number;
   total: number;
+  total_active: number;
+  total_inactive: number;
   page?: number;
   page_size?: number;
   data: Array<{
@@ -81,6 +83,8 @@ export const productsService = {
     return {
       items: response.data.data.map(normalizeProduct),
       total: response.data.total,
+      totalActive: response.data.total_active ?? 0,
+      totalInactive: response.data.total_inactive ?? 0,
       page: response.data.page || page,
       pageSize: response.data.page_size || 30,
     };

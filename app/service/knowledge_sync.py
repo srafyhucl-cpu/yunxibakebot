@@ -7,6 +7,7 @@ import time
 
 from app.logger import setup_logger
 from app.models.content_change_history import (
+    ChangeAction,
     ChangeEntityType,
     ChangeStatus,
     ContentChangeHistoryCreate,
@@ -111,6 +112,38 @@ class KnowledgeSyncService:
         if latest_entry is None:
             raise RuntimeError(f"知识条目不存在: {entry.id}")
         return latest_entry
+
+    async def sync_all_pending(self) -> dict:
+        """批量同步所有 pending/failed 状态的知识条目，返回 {total, success, failed}。"""
+        entries = await self._knowledge_repo.get_pending_sync_entries()
+        total = len(entries)
+        if not total:
+            logger.info("批量向量同步：无待同步条目，跳过")
+            return {"total": 0, "success": 0, "failed": 0}
+
+        success_count = 0
+        failed_count = 0
+        logger.info("批量向量同步开始，共 %d 条待同步条目", total)
+        for entry in entries:
+            try:
+                updated = await self.sync_admin_entry(
+                    entry,
+                    action=ChangeAction.SYNC_RETRY,
+                    operator="system",
+                )
+                if updated.vector_sync_status == VectorSyncStatus.SUCCESS:
+                    success_count += 1
+                else:
+                    failed_count += 1
+            except Exception as exc:
+                failed_count += 1
+                logger.error("批量同步条目异常: id=%s err=%s", entry.id, exc)
+
+        logger.info(
+            "批量向量同步完成：成功 %d，失败 %d，共 %d 条",
+            success_count, failed_count, total,
+        )
+        return {"total": total, "success": success_count, "failed": failed_count}
 
     @staticmethod
     def _doc_key(entry: KnowledgeEntry) -> str:

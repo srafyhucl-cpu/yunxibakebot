@@ -4,6 +4,19 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - 紧急修复 502：admin_products / knowledge_sync 未提交变更补齐
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 修复 502 — `create_admin_products_router` 签名 1 参数 vs `main.py` 传 2 参数导致 lifespan 启动失败
+- **根因**: 上一批商品 UI 优化中 `admin_products.py`（增加 knowledge_sync_service 参数）和 `knowledge_sync.py`（新增 `sync_all_pending()`）本地未 commit，但 `main.py` 已 commit 了 2 参数调用，导致服务器启动崩溃
+- **修复内容**:
+  - `app/api/admin_products.py`：`create_admin_products_router` 新增 `knowledge_sync_service` 参数，触发对账后自动批量同步 pending 向量
+  - `app/service/knowledge_sync.py`：新增 `sync_all_pending()` 批量向量同步方法
+  - `app/api/admin_config.py`：商品列表 API 返回 `total_active` / `total_inactive` 统计字段
+  - `web/admin/src/`：商品管理页 AI状态筛选、字段展示等前端增强（随本批提交）
+
+______________________________________________________________________
+
 ## [2026-05-29] - 代码重复消除重构：mark_audit / FOI 解析器 / now_str 公共化
 
 - **操作人**: AI (Cascade)

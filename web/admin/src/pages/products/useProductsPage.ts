@@ -30,6 +30,8 @@ export function useProductsPage() {
   const drawerVisible = ref(false);
   const products = ref<ProductListItem[]>([]);
   const total = ref(0);
+  const totalActive = ref(0);
+  const totalInactive = ref(0);
   const pageSize = ref(30);
   const selectedProduct = ref<ProductListItem | null>(null);
   const searchDraft = ref(normalizeKeyword(route.query.keyword));
@@ -62,6 +64,8 @@ export function useProductsPage() {
       );
       products.value = payload.items;
       total.value = payload.total;
+      totalActive.value = payload.totalActive;
+      totalInactive.value = payload.totalInactive;
       pageSize.value = payload.pageSize;
       if (selectedProduct.value) {
         const nextSelected = payload.items.find((item) => item.id === selectedProduct.value?.id) || null;
@@ -167,6 +171,8 @@ export function useProductsPage() {
     drawerVisible,
     products,
     total,
+    totalActive,
+    totalInactive,
     pageSize,
     selectedProduct,
     searchDraft,

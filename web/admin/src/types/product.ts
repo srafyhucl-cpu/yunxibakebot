@@ -19,6 +19,8 @@ export interface ProductListItem {
 export interface ProductListPayload {
   items: ProductListItem[];
   total: number;
+  totalActive: number;
+  totalInactive: number;
   page: number;
   pageSize: number;
 }
