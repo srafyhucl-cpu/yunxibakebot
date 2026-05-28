@@ -9,7 +9,6 @@
 5. 循环最多 3 轮 tool call
 """
 
-import datetime
 import json
 import time
 
@@ -32,6 +31,7 @@ from app.service.llm.intent_types import is_transfer_intent
 from app.service.llm.prompt import build_system_prompt
 from app.service.llm.query_rewriter import rewrite_query
 from app.service.llm.soothe import apply_soothe, needs_soothe
+from app.utils import now_str
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 from app.repository.config_repo import ConfigRepo
@@ -195,7 +195,7 @@ class ChatService:
 
         # 9. 回复链路延迟埋点
         try:
-            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            event_time = now_str()
             await AnalyticsRepo(self._session_repo._db).add_event(
                 session_id=session.id,
                 buyer_id=user_id,
@@ -212,7 +212,7 @@ class ChatService:
                     "total_ms": total_ms,
                     "channel": channel,
                 }),
-                created_at=now_str,
+                created_at=event_time,
             )
         except Exception as exc:
             logger.warning("回复延迟埋点失败: %s", exc)

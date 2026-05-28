@@ -34,15 +34,23 @@ description: "【必须在动代码前调用】芸熙烘焙 AI 客服文件体�
 
 ## ⚠️ 当前存量警戒文件
 
+> 最后更新：2026-05-29（重复代码消除重构后）
+
 | 文件 | 实测行数 | 阈值 | 状态 |
 |------|---------|------|------|
-| `app/api/admin.py` | 284 行 | 250 warning / 350 blocking | ⚠️ 超警戒线 |
-| `app/service/chat.py` | 291 行 | 220 warning / 320 blocking | ✅ 已回归绿区（拆分完成） |
-| `app/service/llm/functions.py` | 72 行 | 120 warning / 180 blocking | ✅ 已回归绿区（拆分完成） |
-| `app/service/llm/function_tool_order.py` | 143 行 | 120 warning / 180 blocking | ⚠️ 超警戒线，关注 |
-| `app/service/youzan/event_item.py` | 215 行 | 150 warning / 250 blocking | ⚠️ 超警戒线，关注 |
+| `app/repository/knowledge_repo.py` | 576 行 | 150 warning / 250 blocking | 🚨 严重超线，禁止追加 |
+| `app/service/youzan/event_item.py` | 410 行 | 150 warning / 250 blocking | 🚨 严重超线，禁止追加 |
+| `app/database.py` | 411 行 | （初始化脚本，单职责豁免评估中） | ⚠️ 关注 |
+| `app/service/observability.py` | 383 行 | 220 warning / 320 blocking | 🚨 超硬上限 |
+| `app/service/chat.py` | 381 行 | 220 warning / 320 blocking | 🚨 超硬上限 |
+| `app/api/admin.py` | 360 行 | 250 warning / 350 blocking | 🚨 超硬上限 |
+| `app/api/webhook.py` | 332 行 | 250 warning / 350 blocking | ⚠️ 超警戒线 |
+| `app/service/youzan/event_trade.py` | 193 行 | 150 warning / 250 blocking | ⚠️ 超警戒线（已从 257 降至 193） |
+| `app/service/llm/function_tool_order.py` | 175 行 | 120 warning / 180 blocking | ⚠️ 超警戒线（已从 219 降至 175） |
+| `app/service/llm/function_tool_product.py` | 265 行 | 120 warning / 180 blocking | 🚨 严重超线 |
+| `app/service/llm/functions.py` | 72 行 | 120 warning / 180 blocking | ✅ 绿区 |
 
-**`admin.py` 修改时必须先走 `large-file-refactor-review` 工作流，且不得追加新职责。**
+**修改以上任何文件前，必须先走 `large-file-refactor-review` 工作流，且不得追加新职责。**
 
 ## 🧭 拆分方向指引
 

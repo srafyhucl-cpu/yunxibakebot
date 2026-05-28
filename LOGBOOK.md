@@ -4,6 +4,25 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - 代码重复消除重构：mark_audit / FOI 解析器 / now_str 公共化
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 去重造轮子专项 — 消除 event_item / event_trade 重复审计函数、有赞订单 FOI 解析逻辑、_now_str 私有函数
+- **变更内容**:
+  - 新增 `app/utils.py`：公共 `now_str()` 函数（`%Y-%m-%d %H:%M:%S` 格式化），替代各文件散落的 `datetime.datetime.now().strftime(...)` 和 `_now_str()` 私有函数
+  - 新增 `app/service/youzan/audit_helper.py`：`mark_audit()` 公共函数，合并 `_mark_item_audit` + `_mark_trade_audit` 两个完全相同的私有函数（仅 business_type 不同），新函数接收 `business_type` 参数统一调用
+  - 新增 `app/service/youzan/order_parser.py`：`ParsedOrderData` 数据类 + `parse_youzan_order_response()` 解析函数，消除 `event_trade.py` 与 `function_tool_order.py` 中约 40 行完全相同的 `full_order_info` 解析逻辑
+  - 更新 `event_item.py`：移除 `_mark_item_audit`，改用 `mark_audit`；`import datetime` 移除；本地变量 `now_str` 重命名为 `event_time` 避免命名遮蔽
+  - 更新 `event_trade.py`：移除 `_mark_trade_audit`；FOI 解析块替换为 `parse_youzan_order_response`；`import datetime` 移除；所有 `buyer_id/status` 引用改为 `parsed.*`
+  - 更新 `function_tool_order.py`：FOI 解析块替换为 `parse_youzan_order_response`
+  - 更新 `function_tool_product.py`：移除函数内部违规 `import datetime`（已在模块顶部导入）；埋点时间戳改用 `now_str()`
+  - 更新 `chat.py`：移除 `import datetime`；本地变量 `now_str` 重命名为 `event_time`
+  - 更新 `youzan_webhook_event_repo.py`：导入 `now_str`，删除私有 `_now_str()` 函数，所有调用处替换
+- **行数变化**: event_trade.py 257→193 (-64)，function_tool_order.py 219→175 (-44)，event_item.py 435→410 (-25)
+- **测试**: `python -m pytest tests/ -q` — **121 passed**，零失败
+
+______________________________________________________________________
+
 ## [2026-05-28] - 商品列表 UI 深度优化：展开字段、无滚动布局、单价库存、AI状态筛选
 
 - **操作人**: AI (Cascade)

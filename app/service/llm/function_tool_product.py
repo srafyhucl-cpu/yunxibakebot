@@ -12,6 +12,7 @@ import re
 from typing import TYPE_CHECKING
 
 from app.logger import setup_logger
+from app.utils import now_str
 from app.models.content_change_history import (
     ChangeAction,
     ChangeEntityType,
@@ -218,7 +219,6 @@ async def get_product_info(
 
     # 触点三：AI 会话导购推荐埋点（内置 1 小时排他防刷滑动窗口去重）
     if session:
-        import datetime
         from app.repository.analytics_repo import AnalyticsRepo
         db = knowledge_retriever._repo._db
         analytics_repo = AnalyticsRepo(db)
@@ -240,7 +240,7 @@ async def get_product_info(
                                 event_source="ai_bot",
                                 ref_id=alias,
                                 meta_data=json.dumps({"title": entry.title}, ensure_ascii=False),
-                                created_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                created_at=now_str(),
                             )
                             logger.info("已成功记录 AI 推荐埋点触点 (1小时防刷校验通过): session=%s, alias=%s", session.id, alias)
                         else:

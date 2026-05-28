@@ -9,6 +9,7 @@ from app.models.youzan_webhook_event import (
     YouzanWebhookEventUpdate,
     YouzanWebhookStatus,
 )
+from app.utils import now_str
 
 
 class YouzanWebhookEventRepo:
@@ -18,7 +19,7 @@ class YouzanWebhookEventRepo:
         self._db = db
 
     async def create_received(self, event: YouzanWebhookEventCreate) -> int:
-        now = _now_str()
+        now = now_str()
         await self._db.execute(
             "INSERT INTO youzan_webhook_events ("
             "msg_id, trace_id, event_type, business_type, business_key, status, "
@@ -64,7 +65,7 @@ class YouzanWebhookEventRepo:
         business_type: str | None = None,
         business_key: str = "",
     ) -> None:
-        now = _now_str()
+        now = now_str()
         await self._db.execute(
             "UPDATE youzan_webhook_events SET status = ?, process_stage = ?, "
             "business_type = COALESCE(?, business_type), "
@@ -76,7 +77,7 @@ class YouzanWebhookEventRepo:
         await self._db.commit()
 
     async def mark_result(self, event_id: int, update: YouzanWebhookEventUpdate) -> None:
-        now = _now_str()
+        now = now_str()
         rows = await self._db.execute_fetchall(
             "SELECT process_started_at FROM youzan_webhook_events WHERE id = ?",
             (event_id,),
@@ -203,10 +204,6 @@ class YouzanWebhookEventRepo:
             (event_id,),
         )
         return dict(rows[0]) if rows else None
-
-
-def _now_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _duration_ms(started_at: str, finished_at: str) -> int:
