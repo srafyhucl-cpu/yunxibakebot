@@ -92,6 +92,9 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         is_active: str = "",
         sync_source: str = "",
         vector_sync_status: str = "",
+        featured_only: bool = False,
+        youzan_item_id: str = "",
+        keyword_filter: str = "",
         authorization: str | None = Header(default=None),
     ) -> dict:
         _verify_token(authorization)
@@ -102,14 +105,23 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             active_filter = 1
         elif is_active == "0":
             active_filter = 0
+        featured_filter: list[str] | None = None
+        if featured_only:
+            featured_filter = await admin_service.get_featured_products()
         entries = await admin_service.get_all_products(
             search=search, limit=limit, offset=offset,
             is_active=active_filter, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
+            featured_titles=featured_filter,
+            youzan_item_id_filter=youzan_item_id,
+            keyword_filter=keyword_filter,
         )
         total = await admin_service.count_products(
             search=search, is_active=active_filter, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
+            featured_titles=featured_filter,
+            youzan_item_id_filter=youzan_item_id,
+            keyword_filter=keyword_filter,
         )
         total_active = await admin_service.count_products(is_active=1)
         total_inactive = await admin_service.count_products(is_active=0)
@@ -132,6 +144,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
                 "updated_at": e.updated_at,
                 "price_fen": price_stock_map.get(e.youzan_item_id or "", {}).get("price_fen"),
                 "stock": price_stock_map.get(e.youzan_item_id or "", {}).get("stock"),
+                "sold_num": price_stock_map.get(e.youzan_item_id or "", {}).get("sold_num", 0),
             }
             for e in entries
         ], "page": page, "page_size": limit}

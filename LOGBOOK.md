@@ -4,6 +4,36 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - 销量同步修复 + 文件体量治理（知识库/admin 拆分 + pre-commit 门禁）
+
+- **操作人**: AI (Cascade)
+- **关联任务**: sold_num 链路诊断与修复、knowledge_repo/admin.py 拆分、pre-commit 文件体量门禁
+- **核心变更文件说明**:
+  - `app/repository/youzan_order_repo.py`（新增）: 从 youzan_repo.py 拆出 YouzanOrderRepo
+  - `app/repository/youzan_repo.py`（修改）: 新增 `bulk_update_sold_num` 方法，移除 YouzanOrderRepo 定义改为 re-export
+  - `app/repository/knowledge_product_repo.py`（新增）: 商品知识 upsert/delete/查询（从 knowledge_repo.py 拆出）
+  - `app/repository/knowledge_admin_repo.py`（新增）: 后台 FAQ/rule/script CRUD（从 knowledge_repo.py 拆出）
+  - `app/repository/knowledge_repo.py`（修改）: 607行 → 254行，保留 RAG 检索/通用查询/向量同步
+  - `app/api/admin.py`（修改）: 385行 → 151行，保留页面路由 + 鉴权工具，汇总子路由
+  - `app/api/admin_dialog.py`（新增）: AI 对话调试 + auth API（175行）
+  - `app/api/admin_transfer.py`（新增）: 转人工 + 会话消息 API（68行）
+  - `app/service/knowledge_admin.py`（修改）: 注入 KnowledgeAdminRepo，CRUD 改走 admin_repo
+  - `app/service/youzan/client.py`（修改）: 新增 `list_onsale_items` 方法返回完整商品列表
+  - `app/service/youzan/product_reconciler.py`（修改）: 新增 `_fetch_sold_nums` 方法，并发 10 路调用 `youzan.item.get` 获取真实 sold_num 并批量回写，解决销量显示为"-"的问题
+  - `app/service/youzan/mock_emulator.py`（修改）: mock 商品数据补充 sold_num 字段
+  - `app/service/youzan/event_item.py`（修改）: 改用 KnowledgeProductRepo
+  - `app/service/llm/function_tool_product.py`（修改）: 改用 KnowledgeProductRepo
+  - `app/main.py`（修改）: 实例化 KnowledgeAdminRepo 并注入 KnowledgeAdminService
+  - `scripts/check_file_sizes.py`（新增）: 文件体量门禁脚本，扫描 app/ 各层 blocking 阈值
+  - `.pre-commit-config.yaml`（修改）: 注册 check-file-sizes hook
+  - 5个测试文件同步更新导入路径
+- **根因修复说明**: sold_num 显示"-"的根因是从未从有赞 API 拉取该字段；`youzan.items.onsale.get` 批量接口不保证有 sold_num，改为逐个调用 `youzan.item.get`（并发10路，300商品约30-60秒），只写入 sold_num>0 的条目防误清零
+- **数据库状态变更**: 无新建表/列（sold_num 列已存在）
+- **测试覆盖与验证结果**: `pytest -q` → 109 passed ✅
+- **潜伏风险/遗留未决事项说明**: 存量超线文件（chat.py/observability.py/event_item.py 等）已加入 KNOWN_OVERSIZE 白名单，后续需陆续拆分并从白名单移除
+
+______________________________________________________________________
+
 ## [2026-05-28] - AI 对话页面重写：微信风格 UI + 全面改名 chat-test→ai-dialog
 
 - **操作人**: AI (Cascade)

@@ -9,6 +9,7 @@ from app.models.content_change_history import ChangeAction, ChangeEntityType, Sy
 from app.models.knowledge import KnowledgeContentType, KnowledgeEntry
 from app.models.knowledge_admin import KnowledgeAdminDraft, KnowledgeCategorySuggestion
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.service.knowledge_sync import KnowledgeSyncService
 
@@ -28,10 +29,12 @@ class KnowledgeAdminService:
     def __init__(
         self,
         knowledge_repo: KnowledgeRepo,
+        admin_repo: KnowledgeAdminRepo,
         history_repo: ContentChangeHistoryRepo,
         sync_service: KnowledgeSyncService,
     ) -> None:
         self._knowledge_repo = knowledge_repo
+        self._admin_repo = admin_repo
         self._history_repo = history_repo
         self._sync_service = sync_service
 
@@ -45,7 +48,7 @@ class KnowledgeAdminService:
         limit: int = 20,
         offset: int = 0,
     ) -> list[KnowledgeEntry]:
-        return await self._knowledge_repo.list_admin_entries(
+        return await self._admin_repo.list_admin_entries(
             content_type=content_type,
             is_active=is_active,
             vector_status=vector_status,
@@ -62,7 +65,7 @@ class KnowledgeAdminService:
         vector_status: str = "",
         keyword: str = "",
     ) -> int:
-        return await self._knowledge_repo.count_admin_entries(
+        return await self._admin_repo.count_admin_entries(
             content_type=content_type,
             is_active=is_active,
             vector_status=vector_status,
@@ -96,7 +99,7 @@ class KnowledgeAdminService:
     async def create_entry(self, draft: KnowledgeAdminDraft, *, operator: str) -> KnowledgeEntry:
         normalized = self._normalize_draft(draft)
         suggestion = self.suggest_category(title=normalized.title, content=normalized.content)
-        entry_id = await self._knowledge_repo.create_admin_entry(
+        entry_id = await self._admin_repo.create_admin_entry(
             category=self._map_category(normalized.content_type),
             content_type=normalized.content_type,
             title=normalized.title,
@@ -129,7 +132,7 @@ class KnowledgeAdminService:
         existing = await self._require_entry(entry_id)
         normalized = self._normalize_draft(draft)
         suggestion = self.suggest_category(title=normalized.title, content=normalized.content)
-        result = await self._knowledge_repo.update_admin_entry(
+        result = await self._admin_repo.update_admin_entry(
             entry_id,
             category=self._map_category(normalized.content_type),
             content_type=normalized.content_type,
@@ -156,7 +159,7 @@ class KnowledgeAdminService:
 
     async def toggle_active(self, entry_id: int, *, operator: str) -> KnowledgeEntry:
         entry = await self._require_entry(entry_id)
-        await self._knowledge_repo.update_active(
+        await self._admin_repo.update_active(
             entry_id,
             not entry.is_active,
             sync_source=SyncSource.ADMIN_MANUAL,

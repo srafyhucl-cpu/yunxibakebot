@@ -8,6 +8,7 @@ get_by_youzan_item_ids 混合 key 路由。
 import aiosqlite
 import pytest
 
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 
 _TS_OLD = "2026-01-01 00:00:00"
@@ -22,7 +23,8 @@ def repo(db: aiosqlite.Connection) -> KnowledgeRepo:
 async def _seed(repo: KnowledgeRepo, youzan_item_id: str, title: str, content: str,
                 keywords: str = "", priority: int = 0, updated_at: str = _TS_NEW) -> None:
     """辅助：插入一条商品知识条目。"""
-    await repo.upsert_product_knowledge(
+    prod_repo = KnowledgeProductRepo(repo._db)
+    await prod_repo.upsert_product_knowledge(
         youzan_item_id=youzan_item_id, title=title, content=content,
         keywords=keywords, priority=priority, updated_at=updated_at,
     )
@@ -80,7 +82,7 @@ async def test_upsert_older_timestamp_does_not_overwrite(repo: KnowledgeRepo) ->
 async def test_delete_product_knowledge_soft_deactivates(repo: KnowledgeRepo) -> None:
     """delete_product_knowledge 应软下架，search 不再返回该条目。"""
     await _seed(repo, "yz-006", "待下架商品", "下架内容")
-    await repo.delete_product_knowledge("yz-006")
+    await KnowledgeProductRepo(repo._db).delete_product_knowledge("yz-006")
 
     results = await repo.search("待下架商品")
     assert not any(r.title == "待下架商品" for r in results)

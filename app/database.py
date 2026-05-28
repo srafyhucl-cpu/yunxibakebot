@@ -360,6 +360,10 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.execute("ALTER TABLE youzan_products ADD COLUMN last_sync_ref TEXT DEFAULT ''")
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 last_sync_ref 列")
+        if "sold_num" not in yp_columns:
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN sold_num INTEGER DEFAULT 0")
+            await conn.commit()
+            logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 sold_num 列")
     except Exception as exc:
         logger.warning("动态校准 youzan_products 表字段发生异常：%s", exc)
 

@@ -189,15 +189,15 @@ class YouzanClient:
             params,
         )
 
-    async def list_onsale_item_ids(self) -> set[int]:
-        """分页拉取有赞店铺所有在售商品的 item_id 集合。"""
+    async def list_onsale_items(self) -> list[dict]:
+        """分页拉取有赞在售商品完整列表（含 sold_num）。"""
         if settings.YOUZAN_MOCK_MODE:
-            logger.info("有赞在售商品列表仿真拦截，返回空集合")
-            return set()
+            logger.info("有赞在售商品列表仿真拦截，返回空列表")
+            return []
 
         page_no = 1
         page_size = 100
-        item_ids: set[int] = set()
+        all_items: list[dict] = []
         while True:
             result = await self._call(
                 "youzan.items.onsale.get", "3.0.1",
@@ -209,16 +209,23 @@ class YouzanClient:
             )
             response = result.get("response") or {}
             items: list[dict] = response.get("items") or []
-            for item in items:
-                try:
-                    item_ids.add(int(item["item_id"]))
-                except (KeyError, ValueError, TypeError):
-                    continue
+            all_items.extend(items)
             total_results = int(response.get("total_results") or 0)
             if page_no * page_size >= total_results or not items:
                 break
             page_no += 1
-        logger.info("有赞在售商品全量拉取完成，共 %d 条", len(item_ids))
+        logger.info("有赞在售商品全量拉取完成，共 %d 条", len(all_items))
+        return all_items
+
+    async def list_onsale_item_ids(self) -> set[int]:
+        """分页拉取有赞店铺所有在售商品的 item_id 集合。"""
+        items = await self.list_onsale_items()
+        item_ids: set[int] = set()
+        for item in items:
+            try:
+                item_ids.add(int(item["item_id"]))
+            except (KeyError, ValueError, TypeError):
+                continue
         return item_ids
 
     async def close(self) -> None:

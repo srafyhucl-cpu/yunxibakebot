@@ -10,6 +10,7 @@ export interface ProductListItem {
   youzanItemId: string;
   priceFen: number | null;
   stock: number | null;
+  soldNum: number;
   lastSyncSource: string;
   lastSyncRef: string;
   vectorSyncStatus: string;

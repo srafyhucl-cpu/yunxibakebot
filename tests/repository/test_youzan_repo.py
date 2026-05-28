@@ -8,7 +8,8 @@ import aiosqlite
 import pytest
 
 from app.models.order import YouzanOrderData
-from app.repository.youzan_repo import YouzanOrderRepo, YouzanProductRepo
+from app.repository.youzan_order_repo import YouzanOrderRepo
+from app.repository.youzan_repo import YouzanProductRepo
 
 _TS_OLD = "2026-01-01 00:00:00"
 _TS_NEW = "2026-06-01 00:00:00"

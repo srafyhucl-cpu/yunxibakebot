@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Refresh, Search } from "@element-plus/icons-vue";
+import { QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 
 import ProductDetailDrawer from "@/features/products/ProductDetailDrawer.vue";
@@ -13,26 +13,30 @@ const {
   selectedProduct,
   searchDraft,
   filterActive,
-  filterSource,
   filterSyncStatus,
+  filterFeatured,
+  filterYouzanId,
+  filterStockLevel,
   currentPage,
   total,
   totalActive,
   totalInactive,
   pageSize,
   activeCount,
-  tableRows,
+  displayedTableRows,
+  togglingFeaturedId,
   openDetail,
   closeDetail,
   submitSearch,
   resetFilters,
   changePage,
   toggleProduct,
+  toggleFeatured,
   reconciling,
   runReconcile,
 } = useProductsPage();
 
-const inactiveCount = computed(() => tableRows.value.filter((row) => !row.isActive).length);
+const inactiveCount = computed(() => displayedTableRows.value.filter((row) => !row.isActive).length);
 
 const tableWrapper = ref<HTMLElement | null>(null);
 const tableHeight = ref(400);
@@ -73,19 +77,28 @@ onUnmounted(() => {
           <el-option label="已下架" value="0" />
         </el-select>
 
-        <el-select v-model="filterSource" placeholder="数据来源" clearable style="width:140px">
-          <el-option label="全部来源" value="" />
-          <el-option label="有赞推送" value="youzan_webhook" />
-          <el-option label="有赞对账同步" value="product_reconcile" />
-          <el-option label="人工录入" value="admin_manual" />
-        </el-select>
-
         <el-select v-model="filterSyncStatus" placeholder="AI 可读状态" clearable style="width:140px">
           <el-option label="全部状态" value="" />
           <el-option label="已入向量" value="success" />
           <el-option label="待同步" value="pending" />
           <el-option label="同步失败" value="failed" />
           <el-option label="同步中" value="syncing" />
+        </el-select>
+
+        <el-checkbox v-model="filterFeatured" border style="height:32px">仅看主推款</el-checkbox>
+
+        <el-input
+          v-model="filterYouzanId"
+          placeholder="有赞ID"
+          clearable
+          style="width:140px"
+        />
+
+        <el-select v-model="filterStockLevel" placeholder="库存状态" clearable style="width:120px">
+          <el-option label="全部" value="" />
+          <el-option label="充足（>200）" value="sufficient" />
+          <el-option label="靠近告磄（≤200）" value="low" />
+          <el-option label="无库存" value="zero" />
         </el-select>
 
           <el-button type="primary" :icon="Search" @click="submitSearch">筛选</el-button>
@@ -125,7 +138,8 @@ onUnmounted(() => {
       </template>
 
       <div class="products-page__desktop" ref="tableWrapper">
-        <el-table :data="tableRows" v-loading="loading" stripe :height="tableHeight" class="products-page__table">
+        <el-table :data="displayedTableRows" v-loading="loading" stripe border :height="tableHeight" class="products-page__table" :default-sort="{ prop: 'updatedAt', order: 'descending' }">
+          <el-table-column type="index" label="#" width="50" align="center" />
           <el-table-column prop="title" label="商品名" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="products-page__title-button" type="button" @click="openDetail(row)">
@@ -140,9 +154,20 @@ onUnmounted(() => {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="syncSourceLabel" label="来源" min-width="120" align="center" />
           <el-table-column prop="syncStatusLabel" label="AI 可读" width="90" align="center" />
-          <el-table-column prop="priceFen" label="单价" width="90" align="right">
+          <el-table-column prop="keywords" label="关键词" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.keywords" class="products-page__keywords">{{ row.keywords }}</span>
+              <span v-else class="products-page__empty">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="youzanItemId" label="有赞ID" width="110" align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.youzanItemId" class="products-page__youzan-id">{{ row.youzanItemId }}</span>
+              <span v-else class="products-page__empty">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="priceFen" label="单价" width="90" align="right" sortable>
             <template #default="{ row }">
               <span v-if="row.priceFen != null" class="products-page__price">
                 ¥{{ (row.priceFen / 100).toFixed(2) }}
@@ -150,21 +175,45 @@ onUnmounted(() => {
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="stock" label="库存" width="110" align="right">
+          <el-table-column prop="stock" width="100" align="center" sortable>
+            <template #header>
+              <el-tooltip content="库存 > 200 显示「充足」" placement="top">
+                <el-icon style="margin-right:3px;vertical-align:middle;cursor:help;color:var(--el-color-info);"><QuestionFilled /></el-icon>
+              </el-tooltip>
+              <span>库存</span>
+            </template>
             <template #default="{ row }">
-              <span v-if="row.stock != null" class="products-page__stock">{{ row.stock.toLocaleString() }}</span>
+              <span v-if="row.stock == null" class="products-page__empty">—</span>
+              <el-tooltip v-else-if="row.stock > 200" :content="`实际库存：${row.stock.toLocaleString()} 件`" placement="top">
+                <span class="products-page__stock-sufficient">充足</span>
+              </el-tooltip>
+              <span v-else class="products-page__stock">{{ row.stock.toLocaleString() }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="soldNum" label="销量" width="80" align="center" sortable>
+            <template #default="{ row }">
+              <span v-if="row.soldNum" class="products-page__sold-num">{{ row.soldNum.toLocaleString() }}</span>
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="updatedAt" label="最近更新" min-width="170" align="center">
+          <el-table-column prop="updatedAt" label="最近更新" min-width="170" align="center" sortable>
             <template #default="{ row }">
               {{ row.updatedAt ? row.updatedAt.replace("T", " ").slice(0, 19) : "未记录" }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="190" fixed="right" align="center">
+          <el-table-column label="操作" width="220" fixed="right" align="center">
             <template #default="{ row }">
               <div class="products-page__actions">
-                <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
+                <el-tooltip :content="row.isFeatured ? '着移出主推款' : '加入主推款'" placement="top">
+                  <el-switch
+                    :model-value="row.isFeatured"
+                    :loading="togglingFeaturedId === row.id"
+                    size="small"
+                    active-color="#f59e0b"
+                    @change="toggleFeatured(row)"
+                  />
+                </el-tooltip>
+                <el-button link type="primary" @click="openDetail(row)">查看</el-button>
                 <el-button
                   :loading="togglingId === row.id"
                   :type="row.isActive ? 'warning' : 'success'"
@@ -184,7 +233,7 @@ onUnmounted(() => {
         <el-skeleton :rows="4" animated v-if="loading" />
         <div v-else class="products-page__cards">
           <button
-            v-for="row in tableRows"
+            v-for="row in displayedTableRows"
             :key="row.id"
             class="products-page__card"
             type="button"
@@ -208,7 +257,7 @@ onUnmounted(() => {
 
       <div class="products-page__pagination">
         <div class="products-page__page-stats">
-          <span>当前页 <strong>{{ tableRows.length }}</strong> 条</span>
+          <span>当前页 <strong>{{ displayedTableRows.length }}</strong> 条</span>
           <span class="products-page__stat-divider" />
           <span>在售 <strong class="products-page__stat-value--active">{{ activeCount }}</strong></span>
           <span class="products-page__stat-divider" />
@@ -347,6 +396,11 @@ onUnmounted(() => {
 
 .products-page__table :deep(.el-table__header th) {
   text-align: center;
+  padding: 10px 0;
+}
+
+.products-page__table :deep(.el-table__header th .cell) {
+  white-space: nowrap;
 }
 
 .products-page__desktop {
@@ -412,11 +466,47 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.products-page__youzan-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--yx-text-muted);
+}
+
+.products-page__sold-num {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--el-color-primary);
+}
+
+.products-page__stock-sufficient {
+  color: var(--el-color-success);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.products-page__keywords {
+  font-size: 12px;
+  color: var(--yx-text-muted);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .products-page__actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
+  flex-wrap: nowrap;
   gap: 8px;
+}
+
+.products-page__table :deep(.el-table__cell) {
+  vertical-align: middle;
+}
+
+.products-page__table :deep(.el-table__row td) {
+  padding: 8px 0;
 }
 
 .products-page__pagination {

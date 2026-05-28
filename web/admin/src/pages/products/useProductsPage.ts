@@ -3,6 +3,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 
 import { productsService, type ReconcileResult } from "@/services/products";
+import { featuredProductsService } from "@/services/featuredProducts";
 import type { ProductListItem } from "@/types/product";
 import { formatSyncSource } from "@/utils/syncSourceLabel";
 
@@ -36,14 +37,21 @@ export function useProductsPage() {
   const selectedProduct = ref<ProductListItem | null>(null);
   const searchDraft = ref(normalizeKeyword(route.query.keyword));
   const filterActive = ref(String(route.query.is_active ?? ""));
-  const filterSource = ref(String(route.query.sync_source ?? ""));
   const filterSyncStatus = ref(String(route.query.vector_sync_status ?? ""));
+  const filterFeatured = ref(route.query.featured === "1");
+  const filterYouzanId = ref(String(route.query.youzan_id ?? ""));
+  const filterStockLevel = ref(String(route.query.stock_level ?? ""));
+
+  const featuredTitles = ref<string[]>([]);
+  const togglingFeaturedId = ref(0);
 
   const currentPage = computed(() => parsePage(route.query.page));
   const currentKeyword = computed(() => normalizeKeyword(route.query.keyword));
   const currentActive = computed(() => String(route.query.is_active ?? ""));
-  const currentSource = computed(() => String(route.query.sync_source ?? ""));
   const currentSyncStatus = computed(() => String(route.query.vector_sync_status ?? ""));
+  const currentFeatured = computed(() => route.query.featured === "1");
+  const currentYouzanId = computed(() => String(route.query.youzan_id ?? ""));
+  const currentStockLevel = computed(() => String(route.query.stock_level ?? ""));
   const activeCount = computed(() => products.value.filter((item) => item.isActive).length);
 
   const tableRows = computed(() =>
@@ -52,15 +60,53 @@ export function useProductsPage() {
       syncSourceLabel: formatSyncSource(item.lastSyncSource),
       syncStatusLabel: formatSyncStatus(item.vectorSyncStatus),
       activeLabel: item.isActive ? "在售" : "下架",
+      isFeatured: featuredTitles.value.includes(item.title),
     })),
   );
+
+  const displayedTableRows = computed(() => {
+    const level = filterStockLevel.value;
+    if (!level) return tableRows.value;
+    return tableRows.value.filter((row) => {
+      const s = row.stock;
+      if (level === "sufficient") return s != null && s > 200;
+      if (level === "low") return s != null && s > 0 && s <= 200;
+      if (level === "zero") return s == null || s === 0;
+      return true;
+    });
+  });
+
+  async function loadFeaturedTitles() {
+    featuredTitles.value = await featuredProductsService.getFeaturedProducts();
+  }
+
+  async function toggleFeatured(product: ProductListItem) {
+    togglingFeaturedId.value = product.id;
+    try {
+      const titles = [...featuredTitles.value];
+      const idx = titles.indexOf(product.title);
+      if (idx >= 0) {
+        titles.splice(idx, 1);
+        await featuredProductsService.saveFeaturedProducts(titles);
+        ElMessage.success(`已从主推款移除：${product.title}`);
+      } else {
+        titles.push(product.title);
+        await featuredProductsService.saveFeaturedProducts(titles);
+        ElMessage.success(`已加入主推款：${product.title}`);
+      }
+      featuredTitles.value = titles;
+    } finally {
+      togglingFeaturedId.value = 0;
+    }
+  }
 
   async function loadProducts() {
     loading.value = true;
     try {
       const payload = await productsService.listProducts(
         currentPage.value, currentKeyword.value,
-        currentActive.value, currentSource.value, currentSyncStatus.value,
+        currentActive.value, "", currentSyncStatus.value,
+        currentFeatured.value, currentYouzanId.value, "",
       );
       products.value = payload.items;
       total.value = payload.total;
@@ -89,21 +135,31 @@ export function useProductsPage() {
 
   async function submitSearch() {
     await router.replace({
-      query: buildQuery(1, searchDraft.value.trim(), filterActive.value, filterSource.value, filterSyncStatus.value),
+      query: buildQuery(
+        1, searchDraft.value.trim(), filterActive.value,
+        filterSyncStatus.value, filterFeatured.value,
+        filterYouzanId.value.trim(), "", filterStockLevel.value,
+      ),
     });
   }
 
   async function resetFilters() {
     searchDraft.value = "";
     filterActive.value = "";
-    filterSource.value = "";
     filterSyncStatus.value = "";
+    filterFeatured.value = false;
+    filterYouzanId.value = "";
+    filterStockLevel.value = "";
     await router.replace({ query: {} });
   }
 
   async function changePage(page: number) {
     await router.replace({
-      query: buildQuery(page, currentKeyword.value, currentActive.value, currentSource.value, currentSyncStatus.value),
+      query: buildQuery(
+        page, currentKeyword.value, currentActive.value,
+        currentSyncStatus.value, currentFeatured.value,
+        currentYouzanId.value, "", currentStockLevel.value,
+      ),
     });
   }
 
@@ -141,15 +197,21 @@ export function useProductsPage() {
     page: number,
     keyword: string,
     isActive: string = "",
-    syncSource: string = "",
     syncStatus: string = "",
+    featuredOnly: boolean = false,
+    youzanId: string = "",
+    kw: string = "",
+    stockLevel: string = "",
   ): Record<string, string> {
     const query: Record<string, string> = {};
     if (page > 1) query.page = String(page);
     if (keyword) query.keyword = keyword;
     if (isActive) query.is_active = isActive;
-    if (syncSource) query.sync_source = syncSource;
     if (syncStatus) query.vector_sync_status = syncStatus;
+    if (featuredOnly) query.featured = "1";
+    if (youzanId) query.youzan_id = youzanId;
+    if (kw) query.kw = kw;
+    if (stockLevel) query.stock_level = stockLevel;
     return query;
   }
 
@@ -158,9 +220,11 @@ export function useProductsPage() {
     async () => {
       searchDraft.value = currentKeyword.value;
       filterActive.value = currentActive.value;
-      filterSource.value = currentSource.value;
       filterSyncStatus.value = currentSyncStatus.value;
-      await loadProducts();
+      filterFeatured.value = currentFeatured.value;
+      filterYouzanId.value = currentYouzanId.value;
+      filterStockLevel.value = currentStockLevel.value;
+      await Promise.all([loadFeaturedTitles(), loadProducts()]);
     },
     { immediate: true },
   );
@@ -177,18 +241,23 @@ export function useProductsPage() {
     selectedProduct,
     searchDraft,
     filterActive,
-    filterSource,
     filterSyncStatus,
+    filterFeatured,
+    filterYouzanId,
+    filterStockLevel,
     currentPage,
-    currentKeyword,
     activeCount,
     tableRows,
+    displayedTableRows,
+    featuredTitles,
+    togglingFeaturedId,
     openDetail,
     closeDetail,
     submitSearch,
     resetFilters,
     changePage,
     toggleProduct,
+    toggleFeatured,
     runReconcile,
   };
 }

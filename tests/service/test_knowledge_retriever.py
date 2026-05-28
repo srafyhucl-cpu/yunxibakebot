@@ -2,13 +2,15 @@ import aiosqlite
 
 from app.models.config import FEATURED_PRODUCTS_KEY
 from app.repository.config_repo import ConfigRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.knowledge_retriever import KnowledgeRetriever
 
 
 async def _seed_product(repo: KnowledgeRepo, item_id: str, title: str, content: str) -> None:
-    await repo.upsert_product_knowledge(
+    prod_repo = KnowledgeProductRepo(repo._db)
+    await prod_repo.upsert_product_knowledge(
         youzan_item_id=item_id,
         title=title,
         content=content,

@@ -1,0 +1,89 @@
+"""文件体量门禁脚本。
+
+在 pre-commit 阶段检查本项目所有 .py 文件是否超过 blocking 阈值。
+超线时打印详情并以非零退出码阻断提交。
+"""
+
+import sys
+from pathlib import Path
+
+# blocking 阈值（行数）：各层模块上限
+BLOCKING_RULES: list[tuple[str, int]] = [
+    ("app/repository/", 250),
+    ("app/service/llm/", 180),
+    ("app/service/youzan/", 250),
+    ("app/service/", 320),
+    ("app/api/", 350),
+    ("app/", 400),
+]
+
+# 忽略目录（不参与检查）
+IGNORE_DIRS = {"__pycache__", ".git", "venv", "node_modules", "migrations"}
+
+# 已知超线但尚未完成拆分的存量文件（仅发出警告，不阻断提交）
+# 完成拆分后请从此名单移除
+KNOWN_OVERSIZE = {
+    "app/repository/knowledge_repo.py",    # 254行，超出4行，待微调
+    "app/service/chat.py",                 # 381行，核心链路，待拆 tool_executor
+    "app/service/observability.py",        # 383行，待拆分页查询与报表
+    "app/service/llm/function_tool_order.py",   # 181行，超出1行
+    "app/service/llm/function_tool_product.py", # 266行，待拆 product_rag_helper
+    "app/service/youzan/event_item.py",    # 412行，待拆 item_builder
+    "app/database.py",                     # 415行，建表语句集中，待分模块
+}
+
+
+def get_limit(rel: str) -> int:
+    """按最精确路径前缀返回 blocking 阈值。"""
+    for prefix, limit in BLOCKING_RULES:
+        if rel.replace("\\", "/").startswith(prefix):
+            return limit
+    return 400
+
+
+def count_lines(path: Path) -> int:
+    try:
+        return len(path.read_text(encoding="utf-8").splitlines())
+    except Exception:
+        return 0
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parent.parent
+    violations: list[str] = []
+
+    app_root = root / "app"
+    warnings: list[str] = []
+    for py_file in sorted(app_root.rglob("*.py")):
+        parts = py_file.relative_to(root).parts
+        if any(d in IGNORE_DIRS for d in parts):
+            continue
+        rel = str(py_file.relative_to(root))
+        rel_unix = rel.replace("\\", "/")
+        limit = get_limit(rel_unix)
+        lines = count_lines(py_file)
+        if lines > limit:
+            msg = f"  {rel_unix}: {lines} 行（上限 {limit} 行，超出 {lines - limit} 行）"
+            if rel_unix in KNOWN_OVERSIZE:
+                warnings.append(msg)
+            else:
+                violations.append(msg)
+
+    if warnings:
+        print("\n[WARN] 已知存量超线文件（不阻断提交，完成拆分后请从 KNOWN_OVERSIZE 移除）：")
+        for w in warnings:
+            print(w)
+
+    if violations:
+        print("\n[ERROR] 文件体量超线，提交被阻断：")
+        for v in violations:
+            print(v)
+        print("\n请先拆分超线文件，再重新提交。")
+        return 1
+
+    print(f"[OK] 文件体量检查通过（共检查 {sum(1 for _ in app_root.rglob('*.py'))} 个文件）")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -5,6 +5,7 @@ from app.api.admin_knowledge import create_admin_knowledge_router
 from app.config import settings
 from app.database import close_db, init_db
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.service.knowledge_admin import KnowledgeAdminService
 from app.service.knowledge_sync import KnowledgeSyncService
@@ -58,6 +59,7 @@ async def test_admin_knowledge_page_redirects_without_login() -> None:
     router = create_admin_knowledge_router(
         KnowledgeAdminService(
             knowledge_repo=KnowledgeRepo(db),
+            admin_repo=KnowledgeAdminRepo(db),
             history_repo=ContentChangeHistoryRepo(db),
             sync_service=KnowledgeSyncService(KnowledgeRepo(db), ContentChangeHistoryRepo(db), _FakeEmbeddingSearcher()),
         )
@@ -79,6 +81,7 @@ async def test_admin_knowledge_api_create_and_detail() -> None:
     router = create_admin_knowledge_router(
         KnowledgeAdminService(
             knowledge_repo=repo,
+            admin_repo=KnowledgeAdminRepo(db),
             history_repo=history_repo,
             sync_service=KnowledgeSyncService(repo, history_repo, _FakeEmbeddingSearcher()),
         )

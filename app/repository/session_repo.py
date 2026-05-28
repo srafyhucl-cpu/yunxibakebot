@@ -104,6 +104,16 @@ class SessionRepo:
         )
         await self._db.commit()
 
+    async def get_all_by_channel(self, channel: str, limit: int = 100) -> list[Session]:
+        """获取指定渠道所有未关闭的会话，按更新时间降序排列。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, channel, user_id, staff_id, status, extra_info, created_at, updated_at "
+            "FROM sessions WHERE channel = ? AND status != 'closed' "
+            "ORDER BY updated_at DESC LIMIT ?",
+            (channel, limit),
+        )
+        return [Session(**dict(r)) for r in rows]
+
     async def get_named(self, channel: str = "", limit: int = 50) -> list[Session]:
         """获取有自定义名称的活跃会话（用于列表展示，已丢弃的不显示）。"""
         rows = await self._db.execute_fetchall(

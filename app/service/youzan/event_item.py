@@ -132,8 +132,8 @@ async def _sync_rag_knowledge(
     tags_str: str, updated_at_str: str, is_active: int,
 ) -> str:
     """根据商品在售状态增量更新或擦除 RAG 知识库条目。"""
-    from app.repository.knowledge_repo import KnowledgeRepo
-    knowledge_repo = KnowledgeRepo(db)
+    from app.repository.knowledge_product_repo import KnowledgeProductRepo
+    knowledge_repo = KnowledgeProductRepo(db)
 
     if is_active == 1:
         result = await knowledge_repo.upsert_product_knowledge(
@@ -294,6 +294,7 @@ async def handle_item_event(
             is_active = 1 if _inner_data.get("is_display") else 0
         skus = item_data.get("skus", [])
         item_props = item_data.get("item_props", [])
+        sold_num = int(item_data.get("sold_num", 0) or 0)
 
         raw_desc = item_data.get("desc", "") or item_data.get("summary", "") or ""
         desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
@@ -315,6 +316,7 @@ async def handle_item_event(
             item_props_json=json.dumps(item_props, ensure_ascii=False),
             desc=desc_clean,
             tags=tags_str,
+            sold_num=sold_num,
             sync_source=SyncSource.YOUZAN_WEBHOOK,
             sync_ref=str(item_id),
         )

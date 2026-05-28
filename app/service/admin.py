@@ -70,6 +70,10 @@ class AdminService:
     async def get_active(self, user_id: str, channel: str) -> Session | None:
         return await self.get_active_session(user_id, channel)
 
+    async def get_all_by_channel(self, channel: str, limit: int = 100) -> list[Session]:
+        """获取指定渠道所有未关闭会话。"""
+        return await self._session_repo.get_all_by_channel(channel, limit)
+
     async def get_named_sessions(self, channel: str) -> list[Session]:
         return await self._session_repo.get_named(channel=channel)
 
@@ -125,11 +129,17 @@ class AdminService:
         is_active: int | None = None,
         sync_source: str = "",
         vector_sync_status: str = "",
+        featured_titles: list[str] | None = None,
+        youzan_item_id_filter: str = "",
+        keyword_filter: str = "",
     ) -> list[KnowledgeEntry]:
         return await self._knowledge_repo.get_all_products(
             search=search, limit=limit, offset=offset,
             is_active=is_active, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
+            featured_titles=featured_titles,
+            youzan_item_id_filter=youzan_item_id_filter,
+            keyword_filter=keyword_filter,
         )
 
     async def count_products(
@@ -138,10 +148,16 @@ class AdminService:
         is_active: int | None = None,
         sync_source: str = "",
         vector_sync_status: str = "",
+        featured_titles: list[str] | None = None,
+        youzan_item_id_filter: str = "",
+        keyword_filter: str = "",
     ) -> int:
         return await self._knowledge_repo.count_products(
             search=search, is_active=is_active, sync_source=sync_source,
             vector_sync_status=vector_sync_status,
+            featured_titles=featured_titles,
+            youzan_item_id_filter=youzan_item_id_filter,
+            keyword_filter=keyword_filter,
         )
 
     async def get_product(self, product_id: int) -> KnowledgeEntry | None:

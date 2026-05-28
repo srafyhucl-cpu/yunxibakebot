@@ -22,6 +22,7 @@ from app.exceptions import AppError
 from app.logger import setup_logger
 from app.repository.config_repo import ConfigRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
@@ -54,6 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
     knowledge_repo = KnowledgeRepo(db)
+    knowledge_admin_repo = KnowledgeAdminRepo(db)
     transfer_repo = TransferRepo(db)
     config_repo = ConfigRepo(db)
     history_repo = ContentChangeHistoryRepo(db)
@@ -157,6 +159,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     knowledge_admin_service = KnowledgeAdminService(
         knowledge_repo=knowledge_repo,
+        admin_repo=knowledge_admin_repo,
         history_repo=history_repo,
         sync_service=knowledge_sync_service,
     )

@@ -76,7 +76,7 @@ async def _refresh_product_live(
     返回商品基本信息字典，失败时返回 None。
     """
     from app.repository.youzan_repo import YouzanProductRepo
-    from app.repository.knowledge_repo import KnowledgeRepo
+    from app.repository.knowledge_product_repo import KnowledgeProductRepo
     history_logger = ContentChangeLogger(ContentChangeHistoryRepo(db))
 
     try:
@@ -118,6 +118,7 @@ async def _refresh_product_live(
         image = item.get("pic_url") or item.get("image") or ""
         skus = item.get("skus", [])
         item_props = item.get("item_props", [])
+        sold_num = int(item.get("sold_num", 0) or 0)
         raw_desc = item.get("desc", "") or item.get("summary", "") or ""
         desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
         spec_names, prop_names, ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
@@ -129,12 +130,12 @@ async def _refresh_product_live(
             stock=stock, image=image, is_active=1, updated_at=updated_at,
             skus_json=json.dumps(skus, ensure_ascii=False),
             item_props_json=json.dumps(item_props, ensure_ascii=False),
-            desc=desc_clean, tags=tags_str,
+            desc=desc_clean, tags=tags_str, sold_num=sold_num,
             sync_source=SyncSource.CHAT_LIVE_REFRESH,
             sync_ref=str(item_id),
         )
         content_md = _build_rag_content(title, alias, "\u5728\u552e", skus, item_props, price_fen, stock, desc_clean, tags_str, item_id=item_id, image=image)
-        knowledge_result = await KnowledgeRepo(db).upsert_product_knowledge(
+        knowledge_result = await KnowledgeProductRepo(db).upsert_product_knowledge(
             youzan_item_id=str(item_id), title=title, content=content_md,
             keywords=f"\u5546\u54c1, \u4ef7\u683c, \u63a8\u8350, \u86cb\u7cd5, {title}, {tags_str}",
             priority=DEFAULT_PRIORITY, updated_at=updated_at,

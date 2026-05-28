@@ -2,6 +2,7 @@ import pytest
 
 from app.models.content_change_history import ChangeStatus
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.service.knowledge_admin import KnowledgeAdminService
 from app.service.knowledge_sync import KnowledgeSyncService
@@ -40,6 +41,7 @@ async def test_create_entry_syncs_vector_and_writes_history(db) -> None:
     embedding = _FakeEmbeddingSearcher()
     service = KnowledgeAdminService(
         knowledge_repo=repo,
+        admin_repo=KnowledgeAdminRepo(db),
         history_repo=history_repo,
         sync_service=KnowledgeSyncService(repo, history_repo, embedding),
     )
@@ -70,6 +72,7 @@ async def test_create_entry_marks_failed_when_vector_sync_errors(db) -> None:
     embedding = _FakeEmbeddingSearcher(should_fail=True)
     service = KnowledgeAdminService(
         knowledge_repo=repo,
+        admin_repo=KnowledgeAdminRepo(db),
         history_repo=history_repo,
         sync_service=KnowledgeSyncService(repo, history_repo, embedding),
     )

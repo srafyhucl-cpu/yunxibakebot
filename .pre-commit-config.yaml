@@ -15,6 +15,14 @@ repos:
         always_run: true
         description: 有代码变更时要求同步更新 LOGBOOK.md；可用 SKIP_LOGBOOK_CHECK=1 临时跳过
 
+      - id: check-file-sizes
+        name: 文件体量门禁
+        entry: python scripts/check_file_sizes.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 检查各层 .py 文件是否超过 blocking 阈值，超线时阻断提交
+
       - id: check-project
         name: YunxiBakeBot Quality Gate
         entry: python scripts/check_project.py

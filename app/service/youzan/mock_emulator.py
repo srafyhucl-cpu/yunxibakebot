@@ -126,6 +126,7 @@ class YouzanMockEmulator:
                     "alias": actual_alias,
                     "price": 28800,
                     "quantity": 150,
+                    "sold_num": 88,
                     "image": "https://img.yzcdn.cn/upload_files/2026/05/14/FqQM5g15ANOfnStSH3eNgGmTc0Mw.jpg",
                     "desc": "<p>选用京都宇治若竹抹茶粉，层层细腻手作千层皮，搭配手熬软糯蜜红豆夹心。进口安佳淡奶油调配，抹茶微苦奶油清甜，绝妙交融。建议0-4℃冷藏，保质期3天，四寸、六寸均可现场预定制作。</p>",
                     "tags": "抹茶千层, 蜜红豆夹心, 下午茶爆款",

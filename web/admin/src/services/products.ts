@@ -21,6 +21,7 @@ interface ProductListResponse {
     youzan_item_id?: string | null;
     price_fen?: number | null;
     stock?: number | null;
+    sold_num?: number;
     last_sync_source?: string;
     last_sync_ref?: string;
     vector_sync_status?: string;
@@ -56,6 +57,7 @@ function normalizeProduct(item: ProductListResponse["data"][number]): ProductLis
     youzanItemId: item.youzan_item_id || "",
     priceFen: item.price_fen ?? null,
     stock: item.stock ?? null,
+    soldNum: item.sold_num ?? 0,
     lastSyncSource: item.last_sync_source || "",
     lastSyncRef: item.last_sync_ref || "",
     vectorSyncStatus: item.vector_sync_status || "",
@@ -70,6 +72,9 @@ export const productsService = {
     isActive: string = "",
     syncSource: string = "",
     syncStatus: string = "",
+    featuredOnly: boolean = false,
+    youzanItemId: string = "",
+    keywordFilter: string = "",
   ): Promise<ProductListPayload> {
     const response = await http.get<ProductListResponse>("/products", {
       params: {
@@ -78,6 +83,9 @@ export const productsService = {
         is_active: isActive,
         sync_source: syncSource,
         vector_sync_status: syncStatus,
+        featured_only: featuredOnly || undefined,
+        youzan_item_id: youzanItemId || undefined,
+        keyword_filter: keywordFilter || undefined,
       },
     });
     return {
