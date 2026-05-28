@@ -95,7 +95,7 @@ class ProductReconcileService:
             async with sem:
                 try:
                     raw = await self._client.get_product(iid)
-                    item = (raw.get("response") or {}).get("item") or {}
+                    item = (raw.get("data") or raw.get("response") or {}).get("item") or {}
                     sold_num = int(item.get("sold_num", 0) or 0)
                     if sold_num > 0:
                         result[iid] = sold_num

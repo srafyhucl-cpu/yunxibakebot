@@ -207,10 +207,10 @@ class YouzanClient:
                     "page_size": page_size,
                 },
             )
-            response = result.get("response") or {}
+            response = result.get("data") or result.get("response") or {}
             items: list[dict] = response.get("items") or []
             all_items.extend(items)
-            total_results = int(response.get("total_results") or 0)
+            total_results = int(response.get("count") or response.get("total_results") or 0)
             if page_no * page_size >= total_results or not items:
                 break
             page_no += 1

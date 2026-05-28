@@ -4,6 +4,15 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - hotfix2: 修复有赞 API 响应解析路径（data vs response）
+
+- **操作人**: AI (Cascade)
+- **根因**: 有赞 `youzan.items.onsale.get` 实际返回顶层键为 `data`（含 `count`/`items`），但代码中一直用 `response`/`total_results` 解析，导致在售商品列表始终拿到空集合，reconciler 从不进入 sold_num 同步阶段
+- **修复**: `client.py` `list_onsale_items` 改用 `data or response` 双路兼容；`product_reconciler.py` `_fetch_sold_nums` 同步改为 `data or response` 兼容 mock
+- **测试**: pytest -q → 109 passed
+
+______________________________________________________________________
+
 ## [2026-05-28] - hotfix: AdminService 漏更新导致商品管理页 500
 
 - **操作人**: AI (Cascade)
