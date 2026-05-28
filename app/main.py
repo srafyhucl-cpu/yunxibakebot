@@ -23,6 +23,7 @@ from app.logger import setup_logger
 from app.repository.config_repo import ConfigRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     message_repo = MessageRepo(db)
     knowledge_repo = KnowledgeRepo(db)
     knowledge_admin_repo = KnowledgeAdminRepo(db)
+    knowledge_product_repo = KnowledgeProductRepo(db)
     transfer_repo = TransferRepo(db)
     config_repo = ConfigRepo(db)
     history_repo = ContentChangeHistoryRepo(db)
@@ -170,6 +172,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         youzan_client=youzan_client,
         product_repo=youzan_product_repo,
         history_repo=history_repo,
+        knowledge_product_repo=knowledge_product_repo,
     )
 
     chat_service = ChatService(

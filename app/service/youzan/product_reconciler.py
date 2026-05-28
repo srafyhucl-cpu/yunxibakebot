@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from app.logger import setup_logger
 from app.models.content_change_history import ContentChangeHistoryCreate
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.youzan.client import YouzanClient
 
@@ -34,10 +35,12 @@ class ProductReconcileService:
         youzan_client: YouzanClient,
         product_repo: YouzanProductRepo,
         history_repo: ContentChangeHistoryRepo,
+        knowledge_product_repo: KnowledgeProductRepo | None = None,
     ) -> None:
         self._client = youzan_client
         self._product_repo = product_repo
         self._history_repo = history_repo
+        self._knowledge_product_repo = knowledge_product_repo
 
     async def run(self) -> dict:
         """
@@ -134,6 +137,13 @@ class ProductReconcileService:
                 change_summary_json=f'{{"item_id": {item_id}, "result": "{result}", "reason": "youzan_not_onsale"}}',
                 occurred_at=now_str,
             ))
+            if self._knowledge_product_repo is not None:
+                kb_result = await self._knowledge_product_repo.delete_product_knowledge(
+                    str(item_id),
+                    sync_source=RECONCILE_SOURCE,
+                    sync_ref="daily_reconcile",
+                )
+                logger.info("对账联动下架知识条目: item_id=%d result=%s", item_id, kb_result)
             deactivated.append(item_id)
             logger.info("对账下架商品: item_id=%d result=%s", item_id, result)
         except Exception as exc:

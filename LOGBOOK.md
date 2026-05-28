@@ -4,6 +4,15 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - fix: 对账下架时联动同步 knowledge_base is_active
+
+- **操作人**: AI (Cascade)
+- **根因**: reconciler `_deactivate_one` 只更新 `youzan_products.is_active`，未联动更新 `knowledge_base.is_active`，导致旧/重建商品（如招牌牛奶吐司旧 ID 2792744963）在商品管理页仍显示为活跃
+- **修复**: `product_reconciler.py` 注入 `KnowledgeProductRepo`，`_deactivate_one` 下架后调用 `delete_product_knowledge(str(item_id))`；`main.py` 补实例化和传参
+- **测试**: pytest -q → 109 passed
+
+______________________________________________________________________
+
 ## [2026-05-28] - feat: 下架商品也同步历史销量
 
 - **操作人**: AI (Cascade)
