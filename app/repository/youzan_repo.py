@@ -150,6 +150,13 @@ class YouzanProductRepo:
         )
         return [int(row["item_id"]) for row in rows]
 
+    async def list_all_item_ids(self) -> list[int]:
+        """返回 youzan_products 全量 item_id（含下架），用于历史销量全量同步。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT item_id FROM youzan_products"
+        )
+        return [int(row["item_id"]) for row in rows]
+
     async def delete_product(
         self,
         item_id: int,

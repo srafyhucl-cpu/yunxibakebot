@@ -58,8 +58,9 @@ class ProductReconcileService:
                 await self._deactivate_one(item_id, deactivated, errors)
 
         sold_updated = 0
-        if onsale_ids:
-            sold_num_map = await self._fetch_sold_nums(list(onsale_ids))
+        all_local_ids = await self._product_repo.list_all_item_ids()
+        if all_local_ids:
+            sold_num_map = await self._fetch_sold_nums(all_local_ids)
             if sold_num_map:
                 try:
                     sold_updated = await self._product_repo.bulk_update_sold_num(sold_num_map)
@@ -69,8 +70,8 @@ class ProductReconcileService:
 
         duration_ms = int((datetime.now(tz=timezone.utc) - start_ts).total_seconds() * 1000)
         logger.info(
-            "商品全量对账完成：检查 %d 条，下架 %d 条，销量同步 %d 条，错误 %d 条，耗时 %d ms",
-            len(local_ids), len(deactivated), sold_updated, len(errors), duration_ms,
+            "商品全量对账完成：检查 %d 条，下架 %d 条，销量同步 %d 条（全量 %d 条），错误 %d 条，耗时 %d ms",
+            len(local_ids), len(deactivated), sold_updated, len(all_local_ids), len(errors), duration_ms,
         )
         return {
             "checked": len(local_ids),
