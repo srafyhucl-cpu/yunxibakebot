@@ -4,6 +4,32 @@
 
 ______________________________________________________________________
 
+## [2026-05-28] - AI 测试页修复、商品管理多维筛选、数据来源清洗
+
+- **操作人**: AI (Cascade)
+- **关联任务**: 多项 Bug 修复 + 商品管理增强 + 数据来源治理
+- **核心变更文件说明**:
+  - `app/service/llm/client.py`（修改）: AsyncOpenAI 加 `trust_env=False`，修复系统代理导致的 InvalidURL
+  - `app/service/llm/query_rewriter.py`（修改）: 改用 `get_client()` 单例，消除每次调用新建客户端的代理问题
+  - `app/repository/knowledge_repo.py`（修改）: `get_all_products` / `count_products` 加 `category='product'` 强制过滤 + `is_active` / `sync_source` 多维筛选
+  - `app/service/admin.py`（修改）: 透传新筛选参数
+  - `app/api/admin_config.py`（修改）: `/products` 路由加 `is_active` / `sync_source` 查询参数
+  - `app/database.py`（修改）: DDL 与迁移 SQL 默认来源值从 `legacy_unknown` 改为真实值
+  - `app/models/knowledge.py`（修改）: `content_origin` 默认值改为 `admin_manual`
+  - `web/admin/src/styles/global.css`（修改）: body/shell 锁定高度，修复侧边栏随内容滚动问题
+  - `web/admin/src/pages/chat-test/ChatTestPage.vue`（修改）: 微信高保真 UI 重构 + UMP 卡片渲染 + 固定布局
+  - `web/admin/src/utils/umpParser.ts`（新增）: UMP 富媒体标记解析工具
+  - `web/admin/src/utils/syncSourceLabel.ts`（新增）: 数据来源中文标签映射
+  - `web/admin/src/pages/products/ProductsPage.vue`（修改）: 多维筛选栏（状态 + 来源 + 关键词 + 重置）
+  - `web/admin/src/pages/products/useProductsPage.ts`（修改）: 筛选状态管理 + URL 同步
+  - `web/admin/src/services/products.ts`（修改）: `listProducts` 透传筛选参数
+  - `web/admin/src/services/http.ts`（修改）: Axios 超时从 15s 提升至 60s
+- **数据库状态变更**: 存量 `legacy_unknown` 来源全部修正；有赞商品 378 条 content_origin 刷为 `youzan_webhook`
+- **测试覆盖与验证结果**: `pytest` → 121 passed ✅；前端 typecheck + build ✅
+- **潜伏风险/遗留未决事项说明**: Windows CRLF 导致 edit 工具多次匹配失败，已改用 Python 脚本完成并清理
+
+______________________________________________________________________
+
 ## [2026-05-27] - 全局代码洁净扫描修复 + 洁净代码门禁加固
 
 - **操作人**: AI (Cascade)

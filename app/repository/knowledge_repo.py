@@ -122,27 +122,55 @@ class KnowledgeRepo:
         search: str = "",
         limit: int = 50,
         offset: int = 0,
+        is_active: int | None = None,
+        sync_source: str = "",
     ) -> list[KnowledgeEntry]:
-        """分页获取全部知识条目，供旧商品管理页使用。"""
+        """分页获取商品类知识条目（仅 category=product），支持关键词、状态、来源筛选。"""
         keyword = f"%{search}%"
+        clauses = [
+            "category = 'product'",
+            "(title LIKE ? OR content LIKE ? OR keywords LIKE ?)",
+        ]
+        params: list = [keyword, keyword, keyword]
+        if is_active is not None:
+            clauses.append("is_active = ?")
+            params.append(is_active)
+        if sync_source:
+            clauses.append("last_sync_source = ?")
+            params.append(sync_source)
+        where = " AND ".join(clauses)
+        params.extend([limit, offset])
         rows = await self._db.execute_fetchall(
-            ENTRY_SELECT_SQL
-            + "WHERE title LIKE ? OR content LIKE ? OR keywords LIKE ? "
-            + "ORDER BY category, priority DESC, title LIMIT ? OFFSET ?",
-            (keyword, keyword, keyword, limit, offset),
+            ENTRY_SELECT_SQL + f"WHERE {where} ORDER BY priority DESC, title LIMIT ? OFFSET ?",
+            tuple(params),
         )
         return [KnowledgeEntry(**dict(row)) for row in rows]
 
-    async def count_products(self, search: str = "") -> int:
-        """返回旧商品管理列表总数。"""
+    async def count_products(
+        self,
+        search: str = "",
+        is_active: int | None = None,
+        sync_source: str = "",
+    ) -> int:
+        """返回商品类知识条目总数（仅 category=product），支持筛选。"""
         keyword = f"%{search}%"
+        clauses = [
+            "category = 'product'",
+            "(title LIKE ? OR content LIKE ? OR keywords LIKE ?)",
+        ]
+        params: list = [keyword, keyword, keyword]
+        if is_active is not None:
+            clauses.append("is_active = ?")
+            params.append(is_active)
+        if sync_source:
+            clauses.append("last_sync_source = ?")
+            params.append(sync_source)
+        where = " AND ".join(clauses)
         rows = await self._db.execute_fetchall(
-            "SELECT COUNT(*) AS c FROM knowledge_base "
-            "WHERE title LIKE ? OR content LIKE ? OR keywords LIKE ?",
-            (keyword, keyword, keyword),
+            "SELECT COUNT(*) AS c FROM knowledge_base WHERE " + where,
+            tuple(params),
         )
         return int(rows[0]["c"]) if rows else 0
-
     async def list_current_entries(
         self,
         *,

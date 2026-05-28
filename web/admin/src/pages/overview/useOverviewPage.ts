@@ -17,6 +17,7 @@ const FIRST_PAGE = 1;
 export function useOverviewPage() {
   const loading = ref(false);
   const errorMessage = ref("");
+  const lastRefreshedAt = ref("");
   const productTotal = ref(0);
   const currentContentTotal = ref(0);
   const pendingTransferCount = ref(0);
@@ -106,6 +107,11 @@ export function useOverviewPage() {
     if (failedRequests > 0) {
       errorMessage.value = `${failedRequests} 个概览指标加载失败，请刷新重试`;
     }
+    lastRefreshedAt.value = new Date().toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
     loading.value = false;
   }
 
@@ -149,6 +155,7 @@ export function useOverviewPage() {
   return {
     loading,
     errorMessage,
+    lastRefreshedAt,
     productTotal,
     currentContentTotal,
     pendingTransferCount,

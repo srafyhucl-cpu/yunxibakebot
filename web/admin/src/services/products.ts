@@ -30,6 +30,15 @@ interface ToggleProductResponse {
   title: string;
 }
 
+export interface ReconcileResult {
+  checked: number;
+  onsale_from_youzan: number;
+  deactivated: number;
+  deactivated_ids: number[];
+  errors: string[];
+  duration_ms: number;
+}
+
 function normalizeProduct(item: ProductListResponse["data"][number]): ProductListItem {
   return {
     id: item.id,
@@ -49,11 +58,18 @@ function normalizeProduct(item: ProductListResponse["data"][number]): ProductLis
 }
 
 export const productsService = {
-  async listProducts(page: number, keyword: string): Promise<ProductListPayload> {
+  async listProducts(
+    page: number,
+    keyword: string,
+    isActive: string = "",
+    syncSource: string = "",
+  ): Promise<ProductListPayload> {
     const response = await http.get<ProductListResponse>("/products", {
       params: {
         page,
         search: keyword,
+        is_active: isActive,
+        sync_source: syncSource,
       },
     });
     return {
@@ -67,5 +83,10 @@ export const productsService = {
   async toggleProductActive(productId: number): Promise<ToggleProductResponse> {
     const response = await http.post<ToggleProductResponse>(`/products/${productId}/toggle-active`);
     return response.data;
+  },
+
+  async reconcileProducts(): Promise<ReconcileResult> {
+    const response = await http.post<{ code: number; data: ReconcileResult }>("/products/reconcile");
+    return response.data.data;
   },
 };

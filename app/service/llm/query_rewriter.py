@@ -4,10 +4,9 @@
 把用户口语/指代不清的查询改写为独立完整的搜索语句。
 """
 
-from openai import AsyncOpenAI
-
 from app.config import settings
 from app.logger import setup_logger
+from app.service.llm.client import get_client
 
 logger = setup_logger()
 
@@ -69,10 +68,7 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
     if len(user_query) < 2:
         return user_query
 
-    client = AsyncOpenAI(
-        api_key=settings.DEEPSEEK_API_KEY,
-        base_url=settings.DEEPSEEK_BASE_URL,
-    )
+    client = get_client()
 
     prompt = REWRITE_PROMPT.format(
         history=history or "无",
@@ -85,7 +81,7 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=QUERY_REWRITER_MAX_TOKENS,
-        )
+        )  # type: ignore[union-attr]
         rewritten = (response.choices[0].message.content or "").strip()
         # 清理可能的引用标记
         for ch in ["\"", "'", "“", "”", "‘", "’"]:

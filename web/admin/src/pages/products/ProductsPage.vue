@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search } from "@element-plus/icons-vue";
+import { Refresh, Search } from "@element-plus/icons-vue";
 import { computed } from "vue";
 
 import ProductDetailDrawer from "@/features/products/ProductDetailDrawer.vue";
@@ -12,6 +12,8 @@ const {
   drawerVisible,
   selectedProduct,
   searchDraft,
+  filterActive,
+  filterSource,
   currentPage,
   total,
   pageSize,
@@ -20,8 +22,11 @@ const {
   openDetail,
   closeDetail,
   submitSearch,
+  resetFilters,
   changePage,
   toggleProduct,
+  reconciling,
+  runReconcile,
 } = useProductsPage();
 
 const inactiveCount = computed(() => Math.max(total.value - activeCount.value, 0));
@@ -58,11 +63,24 @@ const inactiveCount = computed(() => Math.max(total.value - activeCount.value, 0
           clearable
           @keyup.enter="submitSearch"
         >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
+          <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
-        <el-button type="primary" @click="submitSearch">筛选</el-button>
+
+        <el-select v-model="filterActive" placeholder="上下架状态" clearable style="width:130px">
+          <el-option label="全部状态" value="" />
+          <el-option label="在售" value="1" />
+          <el-option label="已下架" value="0" />
+        </el-select>
+
+        <el-select v-model="filterSource" placeholder="数据来源" clearable style="width:150px">
+          <el-option label="全部来源" value="" />
+          <el-option label="有赞推送" value="youzan_webhook" />
+          <el-option label="有赞对账同步" value="product_reconcile" />
+          <el-option label="人工录入" value="admin_manual" />
+        </el-select>
+
+        <el-button type="primary" :icon="Search" @click="submitSearch">筛选</el-button>
+        <el-button @click="resetFilters">重置</el-button>
       </el-form>
     </el-card>
 
@@ -73,7 +91,15 @@ const inactiveCount = computed(() => Math.max(total.value - activeCount.value, 0
             <strong>商品列表</strong>
             <p>优先展示当前页商品状态、同步来源和最近更新时间。</p>
           </div>
-          <span class="products-page__header-total">共 {{ total }} 条</span>
+          <div class="products-page__header-actions">
+            <el-button
+              type="warning"
+              :loading="reconciling"
+              :icon="Refresh"
+              @click="runReconcile"
+            >全量对账</el-button>
+            <span class="products-page__header-total">共 {{ total }} 条</span>
+          </div>
         </div>
       </template>
 
@@ -195,9 +221,14 @@ const inactiveCount = computed(() => Math.max(total.value - activeCount.value, 0
 }
 
 .products-page__filter-form {
-  display: grid;
-  grid-template-columns: minmax(0, 320px) auto;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.products-page__filter-form .el-input {
+  width: 220px;
 }
 
 .products-page__header {
@@ -211,6 +242,12 @@ const inactiveCount = computed(() => Math.max(total.value - activeCount.value, 0
   margin: 6px 0 0;
   color: var(--yx-text-muted);
   font-size: 13px;
+}
+
+.products-page__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .products-page__header-total {

@@ -30,6 +30,8 @@ from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat import ChatService
 from app.service.knowledge_retriever import KnowledgeRetriever
+from app.service.youzan.client import YouzanClient
+from app.service.youzan.product_reconciler import ProductReconcileService
 
 logger = setup_logger()
 
@@ -159,6 +161,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     transfer_mgr = TransferManager(transfer_repo)
 
+    youzan_client = YouzanClient(config_repo=config_repo)
+    reconcile_service = ProductReconcileService(
+        youzan_client=youzan_client,
+        product_repo=youzan_product_repo,
+        history_repo=history_repo,
+    )
+
     chat_service = ChatService(
         session_repo=session_repo,
         message_repo=message_repo,
@@ -172,6 +181,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.api.admin_frontend import create_admin_frontend_router
     from app.api.admin_knowledge import create_admin_knowledge_router
     from app.api.admin_observability import create_observability_router
+    from app.api.admin_products import create_admin_products_router
     from app.api.webhook import create_webhook_router
     from app.api.wecom import router as wecom_router, register_handler
 
@@ -195,6 +205,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.include_router(create_shop_config_router(admin_service))
     app.include_router(create_admin_knowledge_router(knowledge_admin_service))
     app.include_router(create_observability_router(observability_service))
+    app.include_router(create_admin_products_router(reconcile_service))
     app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)

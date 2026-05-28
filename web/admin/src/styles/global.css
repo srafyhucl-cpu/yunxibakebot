@@ -5,8 +5,9 @@
 html,
 body,
 #app {
-  min-height: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -21,8 +22,9 @@ a {
 }
 
 .admin-shell {
-  min-height: 100vh;
+  height: 100%;
   display: flex;
+  overflow: hidden;
 }
 
 .admin-shell__main {
@@ -30,6 +32,8 @@ a {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .app-sidebar {
@@ -106,6 +110,8 @@ a {
 
 .page-container {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 24px;
 }
 

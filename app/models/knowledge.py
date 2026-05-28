@@ -39,7 +39,7 @@ class KnowledgeEntry:
     youzan_item_id: str | None = None
     last_sync_source: str = ""
     last_sync_ref: str = ""
-    content_origin: str = "legacy_unknown"
+    content_origin: str = "admin_manual"
     created_by: str = ""
     updated_by: str = ""
     suggested_category: str = ""

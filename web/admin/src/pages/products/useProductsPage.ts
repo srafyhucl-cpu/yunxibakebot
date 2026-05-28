@@ -2,8 +2,9 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 
-import { productsService } from "@/services/products";
+import { productsService, type ReconcileResult } from "@/services/products";
 import type { ProductListItem } from "@/types/product";
+import { formatSyncSource } from "@/utils/syncSourceLabel";
 
 const DEFAULT_PAGE = 1;
 
@@ -25,21 +26,26 @@ export function useProductsPage() {
 
   const loading = ref(false);
   const togglingId = ref(0);
+  const reconciling = ref(false);
   const drawerVisible = ref(false);
   const products = ref<ProductListItem[]>([]);
   const total = ref(0);
   const pageSize = ref(30);
   const selectedProduct = ref<ProductListItem | null>(null);
   const searchDraft = ref(normalizeKeyword(route.query.keyword));
+  const filterActive = ref(String(route.query.is_active ?? ""));
+  const filterSource = ref(String(route.query.sync_source ?? ""));
 
   const currentPage = computed(() => parsePage(route.query.page));
   const currentKeyword = computed(() => normalizeKeyword(route.query.keyword));
+  const currentActive = computed(() => String(route.query.is_active ?? ""));
+  const currentSource = computed(() => String(route.query.sync_source ?? ""));
   const activeCount = computed(() => products.value.filter((item) => item.isActive).length);
 
   const tableRows = computed(() =>
     products.value.map((item) => ({
       ...item,
-      syncSourceLabel: item.lastSyncSource || "未记录",
+      syncSourceLabel: formatSyncSource(item.lastSyncSource),
       syncStatusLabel: formatSyncStatus(item.vectorSyncStatus),
       activeLabel: item.isActive ? "在售" : "下架",
     })),
@@ -48,7 +54,10 @@ export function useProductsPage() {
   async function loadProducts() {
     loading.value = true;
     try {
-      const payload = await productsService.listProducts(currentPage.value, currentKeyword.value);
+      const payload = await productsService.listProducts(
+        currentPage.value, currentKeyword.value,
+        currentActive.value, currentSource.value,
+      );
       products.value = payload.items;
       total.value = payload.total;
       pageSize.value = payload.pageSize;
@@ -73,15 +82,21 @@ export function useProductsPage() {
   }
 
   async function submitSearch() {
-    const nextKeyword = searchDraft.value.trim();
     await router.replace({
-      query: buildQuery(1, nextKeyword),
+      query: buildQuery(1, searchDraft.value.trim(), filterActive.value, filterSource.value),
     });
+  }
+
+  async function resetFilters() {
+    searchDraft.value = "";
+    filterActive.value = "";
+    filterSource.value = "";
+    await router.replace({ query: {} });
   }
 
   async function changePage(page: number) {
     await router.replace({
-      query: buildQuery(page, currentKeyword.value),
+      query: buildQuery(page, currentKeyword.value, currentActive.value, currentSource.value),
     });
   }
 
@@ -96,14 +111,36 @@ export function useProductsPage() {
     }
   }
 
-  function buildQuery(page: number, keyword: string): Record<string, string> {
+  async function runReconcile(): Promise<ReconcileResult | null> {
+    reconciling.value = true;
+    try {
+      const result = await productsService.reconcileProducts();
+      if (result.deactivated > 0) {
+        ElMessage.warning(`对账完成：下架 ${result.deactivated} 条商品`);
+      } else {
+        ElMessage.success(`对账完成：全部对齐，无需下架`);
+      }
+      await loadProducts();
+      return result;
+    } catch (err) {
+      ElMessage.error("对账失败，请检查网络或后台日志");
+      return null;
+    } finally {
+      reconciling.value = false;
+    }
+  }
+
+  function buildQuery(
+    page: number,
+    keyword: string,
+    isActive: string = "",
+    syncSource: string = "",
+  ): Record<string, string> {
     const query: Record<string, string> = {};
-    if (page > 1) {
-      query.page = String(page);
-    }
-    if (keyword) {
-      query.keyword = keyword;
-    }
+    if (page > 1) query.page = String(page);
+    if (keyword) query.keyword = keyword;
+    if (isActive) query.is_active = isActive;
+    if (syncSource) query.sync_source = syncSource;
     return query;
   }
 
@@ -111,6 +148,8 @@ export function useProductsPage() {
     () => route.query,
     async () => {
       searchDraft.value = currentKeyword.value;
+      filterActive.value = currentActive.value;
+      filterSource.value = currentSource.value;
       await loadProducts();
     },
     { immediate: true },
@@ -118,12 +157,15 @@ export function useProductsPage() {
   return {
     loading,
     togglingId,
+    reconciling,
     drawerVisible,
     products,
     total,
     pageSize,
     selectedProduct,
     searchDraft,
+    filterActive,
+    filterSource,
     currentPage,
     currentKeyword,
     activeCount,
@@ -131,8 +173,10 @@ export function useProductsPage() {
     openDetail,
     closeDetail,
     submitSearch,
+    resetFilters,
     changePage,
     toggleProduct,
+    runReconcile,
   };
 }
 

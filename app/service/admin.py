@@ -108,11 +108,28 @@ class AdminService:
     async def count_knowledge(self) -> int:
         return await self._knowledge_repo.count_all()
 
-    async def get_all_products(self, search: str = "", limit: int = 30, offset: int = 0) -> list[KnowledgeEntry]:
-        return await self._knowledge_repo.get_all_products(search=search, limit=limit, offset=offset)
+    async def get_all_products(
+        self,
+        search: str = "",
+        limit: int = 30,
+        offset: int = 0,
+        is_active: int | None = None,
+        sync_source: str = "",
+    ) -> list[KnowledgeEntry]:
+        return await self._knowledge_repo.get_all_products(
+            search=search, limit=limit, offset=offset,
+            is_active=is_active, sync_source=sync_source,
+        )
 
-    async def count_products(self, search: str = "") -> int:
-        return await self._knowledge_repo.count_products(search=search)
+    async def count_products(
+        self,
+        search: str = "",
+        is_active: int | None = None,
+        sync_source: str = "",
+    ) -> int:
+        return await self._knowledge_repo.count_products(
+            search=search, is_active=is_active, sync_source=sync_source,
+        )
 
     async def get_product(self, product_id: int) -> KnowledgeEntry | None:
         return await self._knowledge_repo.get_by_id(product_id)

@@ -89,13 +89,25 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
     async def get_products(
         page: int = 1,
         search: str = "",
+        is_active: str = "",
+        sync_source: str = "",
         authorization: str | None = Header(default=None),
     ) -> dict:
         _verify_token(authorization)
         limit = 30
         offset = (page - 1) * limit
-        entries = await admin_service.get_all_products(search=search, limit=limit, offset=offset)
-        total = await admin_service.count_products(search=search)
+        active_filter: int | None = None
+        if is_active == "1":
+            active_filter = 1
+        elif is_active == "0":
+            active_filter = 0
+        entries = await admin_service.get_all_products(
+            search=search, limit=limit, offset=offset,
+            is_active=active_filter, sync_source=sync_source,
+        )
+        total = await admin_service.count_products(
+            search=search, is_active=active_filter, sync_source=sync_source,
+        )
         return {"code": 0, "total": total, "data": [
             {
                 "id": e.id,

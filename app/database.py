@@ -56,9 +56,9 @@ SCHEMA_STATEMENTS: list[str] = [
         keywords TEXT DEFAULT '',
         priority INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
-        last_sync_source TEXT DEFAULT 'legacy_unknown',
+        last_sync_source TEXT DEFAULT 'admin_manual',
         last_sync_ref TEXT DEFAULT '',
-        content_origin TEXT DEFAULT 'legacy_unknown',
+        content_origin TEXT DEFAULT 'admin_manual',
         created_by TEXT DEFAULT '',
         updated_by TEXT DEFAULT '',
         suggested_category TEXT DEFAULT '',
@@ -122,7 +122,7 @@ SCHEMA_STATEMENTS: list[str] = [
         item_props_json TEXT DEFAULT '[]',
         desc TEXT DEFAULT '',
         tags TEXT DEFAULT '',
-        last_sync_source TEXT DEFAULT 'legacy_unknown',
+        last_sync_source TEXT DEFAULT 'product_reconcile',
         last_sync_ref TEXT DEFAULT '',
         updated_at TEXT NOT NULL
     )""",
@@ -253,9 +253,9 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 youzan_item_id 唯一约束列")
         if "last_sync_source" not in columns:
-            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN last_sync_source TEXT DEFAULT 'legacy_unknown'")
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN last_sync_source TEXT DEFAULT 'admin_manual'")
             await conn.execute(
-                "UPDATE knowledge_base SET last_sync_source = 'legacy_unknown' "
+                "UPDATE knowledge_base SET last_sync_source = 'admin_manual' "
                 "WHERE last_sync_source IS NULL OR last_sync_source = ''"
             )
             await conn.commit()
@@ -276,9 +276,9 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 knowledge_base 新增 content_type 列")
         if "content_origin" not in columns:
-            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN content_origin TEXT DEFAULT 'legacy_unknown'")
+            await conn.execute("ALTER TABLE knowledge_base ADD COLUMN content_origin TEXT DEFAULT 'admin_manual'")
             await conn.execute(
-                "UPDATE knowledge_base SET content_origin = 'legacy_unknown' "
+                "UPDATE knowledge_base SET content_origin = 'admin_manual' "
                 "WHERE content_origin IS NULL OR content_origin = ''"
             )
             await conn.commit()
@@ -349,9 +349,9 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
             await conn.commit()
             logger.info("已完成 SQLite 微创迁移：成功为 youzan_products 表新增 item_props_json 列")
         if "last_sync_source" not in yp_columns:
-            await conn.execute("ALTER TABLE youzan_products ADD COLUMN last_sync_source TEXT DEFAULT 'legacy_unknown'")
+            await conn.execute("ALTER TABLE youzan_products ADD COLUMN last_sync_source TEXT DEFAULT 'product_reconcile'")
             await conn.execute(
-                "UPDATE youzan_products SET last_sync_source = 'legacy_unknown' "
+                "UPDATE youzan_products SET last_sync_source = 'product_reconcile' "
                 "WHERE last_sync_source IS NULL OR last_sync_source = ''"
             )
             await conn.commit()

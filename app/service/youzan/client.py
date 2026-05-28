@@ -42,7 +42,8 @@ class YouzanClient:
     @property
     def _client(self) -> httpx.AsyncClient:
         if self._http is None:
-            self._http = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
+            # trust_env=False 禁止从环境变量读取代理，避免无效端口错误
+            self._http = httpx.AsyncClient(timeout=httpx.Timeout(10.0), trust_env=False)
         return self._http
 
     async def _refresh_token(self) -> str:
@@ -187,6 +188,38 @@ class YouzanClient:
             "youzan.item.get", "3.0.0",
             params,
         )
+
+    async def list_onsale_item_ids(self) -> set[int]:
+        """分页拉取有赞店铺所有在售商品的 item_id 集合。"""
+        if settings.YOUZAN_MOCK_MODE:
+            logger.info("有赞在售商品列表仿真拦截，返回空集合")
+            return set()
+
+        page_no = 1
+        page_size = 100
+        item_ids: set[int] = set()
+        while True:
+            result = await self._call(
+                "youzan.items.onsale.get", "3.0.1",
+                {
+                    "kdt_id": settings.YOUZAN_KDT_ID,
+                    "page_no": page_no,
+                    "page_size": page_size,
+                },
+            )
+            response = result.get("response") or {}
+            items: list[dict] = response.get("items") or []
+            for item in items:
+                try:
+                    item_ids.add(int(item["item_id"]))
+                except (KeyError, ValueError, TypeError):
+                    continue
+            total_results = int(response.get("total_results") or 0)
+            if page_no * page_size >= total_results or not items:
+                break
+            page_no += 1
+        logger.info("有赞在售商品全量拉取完成，共 %d 条", len(item_ids))
+        return item_ids
 
     async def close(self) -> None:
         """关闭 HTTP 连接池。"""

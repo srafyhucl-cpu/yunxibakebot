@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import { parseMessageSegments } from "@/utils/umpParser";
 import { useChatTestPage } from "./useChatTestPage";
 
 const {
@@ -43,308 +44,456 @@ function formatTime(value: string) {
 
 <template>
   <section class="chat-test-page">
-    <aside class="chat-test-page__sidebar">
-      <el-card shadow="never" class="chat-test-panel">
-        <template #header>
-          <div class="chat-test-panel__header">
-            <div>
-              <div class="chat-test-panel__title">会话列表</div>
-              <div class="chat-test-panel__meta">{{ sessionCountText }}</div>
-            </div>
-            <el-button type="primary" plain @click="startNewSession">
-              新建会话
-            </el-button>
+
+    <!-- 左侧会话列表 -->
+    <aside class="ct-sidebar">
+      <div class="ct-sidebar__head">
+        <span class="ct-sidebar__title">历史会话</span>
+        <el-button size="small" type="primary" plain @click="startNewSession">新建</el-button>
+      </div>
+      <div v-loading="loadingSessions" class="ct-sidebar__list">
+        <el-empty
+          v-if="!loadingSessions && sessions.length === 0"
+          :image-size="60"
+          description="暂无历史会话"
+        />
+        <button
+          v-for="session in sessions"
+          :key="session.id"
+          type="button"
+          class="ct-session"
+          :class="{ 'ct-session--active': session.id === currentSessionId }"
+          @click="selectSession(session)"
+        >
+          <div class="ct-session__name">{{ session.name }}</div>
+          <div class="ct-session__meta">
+            <span>{{ formatTime(session.createdAt) }}</span>
+            <span>{{ session.msgCount }} 条</span>
           </div>
-        </template>
-
-        <div v-loading="loadingSessions" class="chat-session-list">
-          <button
-            v-for="session in sessions"
-            :key="session.id"
-            type="button"
-            class="chat-session-item"
-            :class="{ 'chat-session-item--active': session.id === currentSessionId }"
-            @click="selectSession(session)"
-          >
-            <div class="chat-session-item__title">{{ session.name }}</div>
-            <div class="chat-session-item__meta">
-              <span>{{ formatTime(session.createdAt) }}</span>
-              <span>{{ session.msgCount }} 条</span>
-            </div>
-          </button>
-
-          <el-empty
-            v-if="!loadingSessions && sessions.length === 0"
-            description="还没有已保存的测试会话"
-          />
-        </div>
-      </el-card>
+        </button>
+      </div>
     </aside>
 
-    <div class="chat-test-page__main">
-      <el-card shadow="never" class="chat-test-panel chat-test-panel--conversation">
-        <template #header>
-          <div class="chat-test-panel__header chat-test-panel__header--conversation">
-            <div>
-              <div class="chat-test-panel__title">{{ headerDescription }}</div>
-              <div class="chat-test-panel__meta">
-                <span v-if="lastIntent">意图：{{ lastIntent }}</span>
-                <span v-else>发送一条消息后会显示识别意图</span>
-              </div>
-            </div>
-            <div class="chat-test-panel__actions">
-              <el-button :disabled="!hasSession" @click="saveCurrentSession">
-                保存会话
-              </el-button>
-              <el-button danger plain @click="discardCurrentSession">
-                丢弃会话
-              </el-button>
-            </div>
-          </div>
-        </template>
+    <!-- 右侧主对话区 -->
+    <div class="ct-main">
+      <!-- 顶部标题栏（微信风格） -->
+      <div class="ct-header">
+        <div class="ct-header__center">
+          <span class="ct-header__name">{{ headerDescription }}</span>
+          <span v-if="lastIntent" class="ct-header__badge">意图：{{ lastIntent }}</span>
+        </div>
+        <div class="ct-header__actions">
+          <el-button size="small" :disabled="!hasSession" @click="saveCurrentSession">保存</el-button>
+          <el-button size="small" type="danger" plain @click="discardCurrentSession">丢弃</el-button>
+        </div>
+      </div>
+
+      <!-- 消息流（固定高度，可滚动） -->
+      <div ref="messageViewport" v-loading="loadingMessages" class="ct-messages">
+        <el-empty
+          v-if="!loadingMessages && messages.length === 0"
+          :image-size="80"
+          description="开始一段新的测试对话吧"
+        />
 
         <div
-          ref="messageViewport"
-          v-loading="loadingMessages"
-          class="chat-message-list"
+          v-for="(message, index) in messages"
+          :key="`${message.createdAt}-${index}`"
+          class="ct-msg"
+          :class="message.role === 'user' ? 'ct-msg--user' : 'ct-msg--ai'"
         >
-          <div
-            v-for="(message, index) in messages"
-            :key="`${message.createdAt}-${index}`"
-            class="chat-message"
-            :class="{
-              'chat-message--user': message.role === 'user',
-              'chat-message--assistant': message.role !== 'user',
-            }"
-          >
-            <div class="chat-message__role">
-              {{ message.role === "user" ? "你" : "AI" }}
-            </div>
-            <div class="chat-message__bubble">
-              <div class="chat-message__content">{{ message.content }}</div>
-              <div class="chat-message__time">{{ formatTime(message.createdAt) }}</div>
-            </div>
+          <div class="ct-msg__avatar">
+            <span v-if="message.role === 'user'" class="avatar avatar--user">你</span>
+            <span v-else class="avatar avatar--ai">芸</span>
           </div>
-
-          <el-empty
-            v-if="!loadingMessages && messages.length === 0"
-            description="开始一段新的测试对话吧"
-          />
-        </div>
-
-        <div class="chat-composer">
-          <el-input
-            v-model="draftInput"
-            type="textarea"
-            :autosize="{ minRows: 3, maxRows: 6 }"
-            resize="none"
-            placeholder="输入一条测试消息，例如：今天下单最快什么时候能送到？"
-            @keydown.enter.exact.prevent="sendMessage"
-          />
-          <div class="chat-composer__footer">
-            <span class="chat-composer__hint">
-              Enter 发送，Shift + Enter 换行
-            </span>
-            <el-button
-              type="primary"
-              :loading="sending"
-              @click="sendMessage"
-            >
-              发送消息
-            </el-button>
+          <div class="ct-msg__body">
+            <div class="ct-msg__bubble">
+              <template v-for="(seg, si) in parseMessageSegments(message.content)" :key="si">
+                <span v-if="seg.type === 'text'" class="ct-msg__text">{{ seg.value }}</span>
+                <a
+                  v-else-if="seg.type === 'card'"
+                  :href="seg.url"
+                  target="_blank"
+                  rel="noopener"
+                  class="ump-card"
+                >
+                  <img v-if="seg.src" :src="seg.src" :alt="seg.title" class="ump-card__img" />
+                  <div class="ump-card__info">
+                    <div class="ump-card__title">{{ seg.title }}</div>
+                    <div class="ump-card__price">¥{{ seg.price }}</div>
+                  </div>
+                </a>
+              </template>
+            </div>
+            <div v-if="message.createdAt" class="ct-msg__time">{{ formatTime(message.createdAt) }}</div>
           </div>
         </div>
-      </el-card>
+
+        <!-- 打字中动画 -->
+        <div v-if="sending" class="ct-msg ct-msg--ai ct-msg--typing">
+          <div class="ct-msg__avatar"><span class="avatar avatar--ai">芸</span></div>
+          <div class="ct-msg__body">
+            <div class="ct-msg__bubble">
+              <span class="typing-dot" /><span class="typing-dot" /><span class="typing-dot" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部输入栏（微信风格） -->
+      <div class="ct-composer">
+        <el-input
+          v-model="draftInput"
+          type="textarea"
+          :autosize="{ minRows: 2, maxRows: 5 }"
+          resize="none"
+          placeholder="输入消息…  Enter 发送，Shift+Enter 换行"
+          class="ct-composer__input"
+          @keydown.enter.exact.prevent="sendMessage"
+        />
+        <el-button
+          type="primary"
+          :loading="sending"
+          class="ct-composer__btn"
+          @click="sendMessage"
+        >
+          发送
+        </el-button>
+      </div>
     </div>
+
   </section>
 </template>
 
 <style scoped>
+/* ── 页面容器：固定高度，绝不随内容撑开 ── */
 .chat-test-page {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 16px;
-  min-height: calc(100vh - 140px);
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--yx-border);
+  border-radius: 12px;
+  background: #fff;
 }
 
-.chat-test-page__sidebar,
-.chat-test-page__main,
-.chat-test-panel,
-.chat-test-panel--conversation {
-  min-height: 0;
-}
-
-.chat-test-panel {
-  border-radius: 16px;
-}
-
-.chat-test-panel--conversation {
+/* ── 左侧会话列表 ── */
+.ct-sidebar {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
+  border-right: 1px solid var(--yx-border);
+  background: #f5f5f5;
 }
 
-.chat-test-panel__header {
+.ct-sidebar__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--yx-border);
+  flex-shrink: 0;
+  background: #ededed;
 }
 
-.chat-test-panel__header--conversation {
-  align-items: flex-start;
+.ct-sidebar__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
 }
 
-.chat-test-panel__title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--yx-text);
+.ct-sidebar__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
 }
 
-.chat-test-panel__meta {
-  margin-top: 6px;
-  font-size: 13px;
-  color: var(--yx-text-muted);
-}
-
-.chat-test-panel__actions {
+/* 会话列表项 — 统一高度 */
+.ct-session {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.chat-session-list {
-  display: grid;
-  gap: 10px;
-}
-
-.chat-session-item {
+  flex-direction: column;
+  justify-content: center;
   width: 100%;
-  border: 1px solid var(--yx-border);
-  border-radius: 12px;
-  padding: 12px;
-  background: #fff;
+  height: 64px;
+  padding: 0 14px;
+  border: none;
+  border-bottom: 1px solid #e8e8e8;
+  background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: background 0.15s;
+  flex-shrink: 0;
 }
 
-.chat-session-item:hover {
-  border-color: rgba(236, 111, 94, 0.4);
-  box-shadow: var(--yx-shadow);
-  transform: translateY(-1px);
+.ct-session:hover { background: #ebebeb; }
+.ct-session--active { background: #d6f0e0; }
+
+.ct-session__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.chat-session-item--active {
-  border-color: var(--yx-brand);
-  background: var(--yx-brand-soft);
-}
-
-.chat-session-item__title {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.chat-session-item__meta {
-  margin-top: 6px;
+.ct-session__meta {
+  margin-top: 3px;
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--yx-text-muted);
+  font-size: 11px;
+  color: #999;
 }
 
-.chat-message-list {
-  flex: 1;
-  overflow: auto;
-  padding: 4px 2px 8px;
-  display: grid;
-  gap: 14px;
-}
-
-.chat-message {
+/* ── 右侧主对话区 ── */
+.ct-main {
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-.chat-message--user {
-  justify-content: flex-end;
-}
-
-.chat-message__role {
-  min-width: 32px;
-  padding-top: 8px;
-  font-size: 12px;
-  color: var(--yx-text-muted);
-}
-
-.chat-message__bubble {
-  max-width: min(720px, 100%);
-  border-radius: 16px;
-  padding: 14px 16px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-}
-
-.chat-message--assistant .chat-message__bubble {
-  background: #fff;
-  border: 1px solid var(--yx-border);
-}
-
-.chat-message--user .chat-message__bubble {
-  background: var(--yx-brand);
-  color: #fff;
-}
-
-.chat-message__content {
-  white-space: pre-wrap;
-  line-height: 1.7;
-}
-
-.chat-message__time {
-  margin-top: 10px;
-  font-size: 12px;
-  opacity: 0.72;
-}
-
-.chat-composer {
-  margin-top: 16px;
-  border-top: 1px solid var(--yx-border);
-  padding-top: 16px;
-}
-
-.chat-composer__footer {
+/* 顶部标题栏 */
+.ct-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--yx-border);
+  background: #ededed;
+  flex-shrink: 0;
+  min-height: 48px;
 }
 
-.chat-composer__hint {
+.ct-header__center {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ct-header__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.ct-header__badge {
+  font-size: 11px;
+  color: #888;
+}
+
+.ct-header__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 消息流 — flex:1 撑满剩余高度，overflow:auto 独立滚动 */
+.ct-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #ededed;
+}
+
+/* 单条消息 */
+.ct-msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 78%;
+}
+
+.ct-msg--user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.ct-msg--ai {
+  align-self: flex-start;
+}
+
+.ct-msg__avatar { flex-shrink: 0; }
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+.avatar--user { background: #576b95; }
+.avatar--ai   { background: #07c160; }
+
+.ct-msg__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ct-msg--user .ct-msg__body { align-items: flex-end; }
+
+.ct-msg__bubble {
+  position: relative;
+  display: inline-block;
+  padding: 9px 13px;
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: break-word;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+
+/* AI 气泡 */
+.ct-msg--ai .ct-msg__bubble {
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 0 8px 8px 8px;
+}
+.ct-msg--ai .ct-msg__bubble::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: -6px;
+  border: 6px solid transparent;
+  border-right-color: #fff;
+  border-left: 0;
+}
+
+/* 用户气泡 */
+.ct-msg--user .ct-msg__bubble {
+  background: #95ec69;
+  color: #1a1a1a;
+  border-radius: 8px 0 8px 8px;
+}
+.ct-msg--user .ct-msg__bubble::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: -6px;
+  border: 6px solid transparent;
+  border-left-color: #95ec69;
+  border-right: 0;
+}
+
+.ct-msg__text { white-space: pre-wrap; }
+
+.ct-msg__time {
+  font-size: 11px;
+  color: #aaa;
+  padding: 0 2px;
+}
+
+/* 打字动画气泡 */
+.ct-msg--typing .ct-msg__bubble {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 13px 16px;
+}
+
+.typing-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #aaa;
+  animation: typing-bounce 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: .5; }
+  40% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── 底部输入栏 ── */
+.ct-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid #d0d0d0;
+  background: #f5f5f5;
+  flex-shrink: 0;
+}
+
+.ct-composer__input {
+  flex: 1;
+}
+
+.ct-composer__btn {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 18px;
+}
+
+/* ── 商品卡片 ── */
+.ump-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+  max-width: 240px;
+}
+.ump-card:hover { background: #e8e8e8; }
+.ump-card + .ump-card { margin-top: 6px; }
+
+.ump-card__img {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.ump-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ump-card__title {
   font-size: 12px;
-  color: var(--yx-text-muted);
+  font-weight: 600;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-@media (max-width: 1199px) {
+.ump-card__price {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e6333a;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 900px) {
   .chat-test-page {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-
-@media (max-width: 767px) {
-  .chat-test-page {
-    min-height: auto;
-  }
-
-  .chat-test-panel__header,
-  .chat-composer__footer {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .chat-message__bubble {
-    max-width: 100%;
+  .ct-sidebar {
+    display: none;
   }
 }
 </style>

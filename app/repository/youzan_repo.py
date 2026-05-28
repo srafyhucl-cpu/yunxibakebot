@@ -140,6 +140,13 @@ class YouzanProductRepo:
         except Exception:
             return WriteResult.FAILED
 
+    async def list_active_item_ids(self) -> list[int]:
+        """返回所有本地标记为在售（is_active=1）的商品 item_id 列表。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT item_id FROM youzan_products WHERE is_active = 1"
+        )
+        return [int(row["item_id"]) for row in rows]
+
     async def delete_product(
         self,
         item_id: int,

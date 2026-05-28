@@ -10,7 +10,7 @@ function readCookie(name: string): string {
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE,
   withCredentials: true,
-  timeout: 15000,
+  timeout: 60000,
 });
 
 http.interceptors.request.use((config) => {

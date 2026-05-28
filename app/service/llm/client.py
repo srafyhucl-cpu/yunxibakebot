@@ -7,6 +7,7 @@ DeepSeek API 调用层。
 
 from collections.abc import Sequence
 
+import httpx
 from openai import AsyncOpenAI
 
 from app.config import settings
@@ -26,10 +27,12 @@ def get_client() -> AsyncOpenAI:
     """获取或初始化 DeepSeek 异步客户端（单例模式）。"""
     global _client
     if _client is None:
+        # trust_env=False 禁止读取系统代理环境变量，避免无效端口导致请求失败
         _client = AsyncOpenAI(
             api_key=settings.DEEPSEEK_API_KEY,
             base_url=settings.DEEPSEEK_BASE_URL,
             timeout=settings.DEEPSEEK_TIMEOUT_SECONDS,
+            http_client=httpx.AsyncClient(trust_env=False),
         )
     return _client
 

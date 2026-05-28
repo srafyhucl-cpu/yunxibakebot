@@ -2,6 +2,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { observabilityService } from "@/services/observability";
+import { formatSyncSource } from "@/utils/syncSourceLabel";
 import type {
   ObservabilityCurrentItem,
   ObservabilityDetailField,
@@ -140,7 +141,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     currentItems.value.map((item) => ({
       ...item,
       updatedAtLabel: formatTime(item.updatedAt),
-      syncSourceLabel: item.lastSyncSource || "未记录",
+      syncSourceLabel: formatSyncSource(item.lastSyncSource),
       statusType: item.isActive ? "success" : "info",
     })),
   );
