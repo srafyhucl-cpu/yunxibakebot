@@ -93,6 +93,7 @@ class YouzanProductRepo:
         desc: str = "",
         tags: str = "",
         sold_num: int = 0,
+        item_no: str = "",
         *,
         sync_source: str = "",
         sync_ref: str = "",
@@ -102,8 +103,9 @@ class YouzanProductRepo:
             cursor = await self._db.execute(
                 "INSERT INTO youzan_products ("
                 "item_id, title, alias, price_fen, stock, image, is_active, "
-                "skus_json, item_props_json, desc, tags, sold_num, last_sync_source, last_sync_ref, updated_at"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "skus_json, item_props_json, desc, tags, sold_num, item_no, "
+                "last_sync_source, last_sync_ref, updated_at"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(item_id) DO UPDATE SET "
                 "title = excluded.title, "
                 "alias = excluded.alias, "
@@ -116,6 +118,7 @@ class YouzanProductRepo:
                 "desc = excluded.desc, "
                 "tags = excluded.tags, "
                 "sold_num = excluded.sold_num, "
+                "item_no = excluded.item_no, "
                 "last_sync_source = excluded.last_sync_source, "
                 "last_sync_ref = excluded.last_sync_ref, "
                 "updated_at = excluded.updated_at "
@@ -133,6 +136,7 @@ class YouzanProductRepo:
                     desc,
                     tags,
                     sold_num,
+                    item_no,
                     sync_source,
                     sync_ref,
                     updated_at,
@@ -177,14 +181,22 @@ class YouzanProductRepo:
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
 
     async def get_prices_and_stocks(self, item_ids: list[str]) -> dict[str, dict]:
-        """批量查询商品单价（分）和库存，返回 {item_id_str: {price_fen, stock}}。"""
+        """批量查询商品单价（分）、库存和销量（按 item_no 聚合同款总销量）。"""
         valid_ids = [int(i) for i in item_ids if i and i.isdigit()]
         if not valid_ids:
             return {}
         placeholders = ",".join("?" * len(valid_ids))
         rows = await self._db.execute_fetchall(
-            "SELECT item_id, price_fen, stock, sold_num FROM youzan_products WHERE item_id IN ("
-            + placeholders + ")",
+            "SELECT yp.item_id, yp.price_fen, yp.stock, "
+            "COALESCE(agg.total_sold, yp.sold_num) AS sold_num "
+            "FROM youzan_products yp "
+            "LEFT JOIN ("
+            "SELECT item_no, SUM(sold_num) AS total_sold "
+            "FROM youzan_products "
+            "WHERE item_no IS NOT NULL AND item_no != '' "
+            "GROUP BY item_no"
+            ") agg ON yp.item_no = agg.item_no AND yp.item_no != '' "
+            "WHERE yp.item_id IN (" + placeholders + ")",
             tuple(valid_ids),
         )
         return {
@@ -205,6 +217,22 @@ class YouzanProductRepo:
             cursor = await self._db.execute(
                 "UPDATE youzan_products SET sold_num = ? WHERE item_id = ?",
                 (sold_num, item_id),
+            )
+            count += cursor.rowcount
+        await self._db.commit()
+        return count
+
+    async def bulk_update_sold_and_no(
+        self, update_map: dict[int, tuple[int, str]]
+    ) -> int:
+        """批量更新商品销量与 item_no，返回实际更新行数。"""
+        if not update_map:
+            return 0
+        count = 0
+        for item_id, (sold_num, item_no) in update_map.items():
+            cursor = await self._db.execute(
+                "UPDATE youzan_products SET sold_num = ?, item_no = ? WHERE item_id = ?",
+                (sold_num, item_no, item_id),
             )
             count += cursor.rowcount
         await self._db.commit()

@@ -4,6 +4,22 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - feat: 商品 item_no 数据链路 + 查询时销量聚合
+
+- **操作人**: AI (Cascade)
+- **需求**: 同款商品因有赞删除重建导致销量分裂到多个 item_id，前端需展示合并总销量
+- **方案**: 后端保持 item_id 粒度独立，查询时按 item_no JOIN 聚合 SUM(sold_num)，避免持久化合并的双重计数风险
+- **改动**:
+  - `database.py`: SCHEMA + 动态迁移新增 `item_no TEXT DEFAULT ''`
+  - `youzan_repo.py`: `upsert_product` 加 `item_no` 参数；`get_prices_and_stocks` 改 LEFT JOIN 聚合查询；新增 `bulk_update_sold_and_no`
+  - `event_item.py`: Webhook 提取 `item_no` 传入 upsert
+  - `function_tool_product.py`: AI 实时刷新提取 `item_no` 传入 upsert
+  - `product_reconciler.py`: `_fetch_sold_nums` 提取 `item_no`，改用 `bulk_update_sold_and_no` 批量回写
+- **测试**: pytest -q → 127 passed
+- **验证**: 生产对账后招牌牛奶吐司 sold_num = 1293（506+787）
+
+______________________________________________________________________
+
 ## [2026-05-28] - fix: 对账下架时联动同步 knowledge_base is_active
 
 - **操作人**: AI (Cascade)

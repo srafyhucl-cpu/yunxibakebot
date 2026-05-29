@@ -295,6 +295,7 @@ async def handle_item_event(
         skus = item_data.get("skus", [])
         item_props = item_data.get("item_props", [])
         sold_num = int(item_data.get("sold_num", 0) or 0)
+        item_no = item_data.get("item_no", "") or ""
 
         raw_desc = item_data.get("desc", "") or item_data.get("summary", "") or ""
         desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
@@ -317,6 +318,7 @@ async def handle_item_event(
             desc=desc_clean,
             tags=tags_str,
             sold_num=sold_num,
+            item_no=item_no,
             sync_source=SyncSource.YOUZAN_WEBHOOK,
             sync_ref=str(item_id),
         )

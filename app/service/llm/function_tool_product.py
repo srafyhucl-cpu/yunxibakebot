@@ -119,6 +119,7 @@ async def _refresh_product_live(
         skus = item.get("skus", [])
         item_props = item.get("item_props", [])
         sold_num = int(item.get("sold_num", 0) or 0)
+        item_no = item.get("item_no", "") or ""
         raw_desc = item.get("desc", "") or item.get("summary", "") or ""
         desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
         spec_names, prop_names, ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
@@ -131,6 +132,7 @@ async def _refresh_product_live(
             skus_json=json.dumps(skus, ensure_ascii=False),
             item_props_json=json.dumps(item_props, ensure_ascii=False),
             desc=desc_clean, tags=tags_str, sold_num=sold_num,
+            item_no=item_no,
             sync_source=SyncSource.CHAT_LIVE_REFRESH,
             sync_ref=str(item_id),
         )

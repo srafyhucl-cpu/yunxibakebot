@@ -66,8 +66,8 @@ class ProductReconcileService:
             sold_num_map = await self._fetch_sold_nums(all_local_ids)
             if sold_num_map:
                 try:
-                    sold_updated = await self._product_repo.bulk_update_sold_num(sold_num_map)
-                    logger.info("对账同步商品销量：更新 %d 条", sold_updated)
+                    sold_updated = await self._product_repo.bulk_update_sold_and_no(sold_num_map)
+                    logger.info("对账同步商品销量与 item_no：更新 %d 条", sold_updated)
                 except Exception as exc:
                     logger.error("对账同步销量失败: %s", exc)
 
@@ -86,14 +86,14 @@ class ProductReconcileService:
             "duration_ms": duration_ms,
         }
 
-    async def _fetch_sold_nums(self, item_ids: list[int]) -> dict[int, int]:
+    async def _fetch_sold_nums(self, item_ids: list[int]) -> dict[int, tuple[int, str]]:
         """
-        并发调用 youzan.item.get 获取每个商品的真实 sold_num。
+        并发调用 youzan.item.get 获取每个商品的真实 sold_num 和 item_no。
         使用 Semaphore 控制并发数，避免触发有赞频率限制。
         只返回 sold_num > 0 的条目，防止因接口异常误将有销量商品清零。
         """
         sem = asyncio.Semaphore(_SOLD_NUM_CONCURRENCY)
-        result: dict[int, int] = {}
+        result: dict[int, tuple[int, str]] = {}
 
         async def _fetch_one(iid: int) -> None:
             async with sem:
@@ -101,8 +101,9 @@ class ProductReconcileService:
                     raw = await self._client.get_product(iid)
                     item = (raw.get("data") or raw.get("response") or {}).get("item") or {}
                     sold_num = int(item.get("sold_num", 0) or 0)
+                    item_no = item.get("item_no", "") or ""
                     if sold_num > 0:
-                        result[iid] = sold_num
+                        result[iid] = (sold_num, item_no)
                 except Exception as exc:
                     logger.warning("获取商品 sold_num 失败 item_id=%d: %s", iid, exc)
 
