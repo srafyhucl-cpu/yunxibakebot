@@ -134,6 +134,7 @@ class AdminService:
         featured_titles: list[str] | None = None,
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
+        item_no_filter: str = "",
     ) -> list[KnowledgeEntry]:
         return await KnowledgeProductRepo(self._knowledge_repo._db).get_all_products(
             search=search, limit=limit, offset=offset,
@@ -142,6 +143,7 @@ class AdminService:
             featured_titles=featured_titles,
             youzan_item_id_filter=youzan_item_id_filter,
             keyword_filter=keyword_filter,
+            item_no_filter=item_no_filter,
         )
 
     async def count_products(
@@ -153,6 +155,7 @@ class AdminService:
         featured_titles: list[str] | None = None,
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
+        item_no_filter: str = "",
     ) -> int:
         return await KnowledgeProductRepo(self._knowledge_repo._db).count_products(
             search=search, is_active=is_active, sync_source=sync_source,
@@ -160,6 +163,7 @@ class AdminService:
             featured_titles=featured_titles,
             youzan_item_id_filter=youzan_item_id_filter,
             keyword_filter=keyword_filter,
+            item_no_filter=item_no_filter,
         )
 
     async def get_product(self, product_id: int) -> KnowledgeEntry | None:

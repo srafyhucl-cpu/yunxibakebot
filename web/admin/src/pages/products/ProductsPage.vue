@@ -117,10 +117,10 @@ onUnmounted(() => {
           <el-checkbox v-model="filterFeatured" border style="height:32px">仅看主推款</el-checkbox>
 
           <el-input
-            v-model="filterYouzanId"
-            placeholder="有赞ID"
+            v-model="filterItemNo"
+            placeholder="商品编码"
             clearable
-            style="width:140px"
+            style="width:170px"
           />
 
           <el-select v-model="filterStockLevel" placeholder="库存状态" clearable style="width:120px">

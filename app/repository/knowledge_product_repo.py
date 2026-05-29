@@ -26,6 +26,7 @@ class KnowledgeProductRepo:
         featured_titles: list[str] | None,
         youzan_item_id_filter: str,
         keyword_filter: str,
+        item_no_filter: str = "",
     ) -> tuple[list[str], list] | None:
         """构建商品筛选 WHERE 子句与参数列表；featured_titles 为空列表时返回 None 表示结果必为空。"""
         keyword = f"%{search}%"
@@ -52,6 +53,11 @@ class KnowledgeProductRepo:
         if youzan_item_id_filter:
             clauses.append("youzan_item_id = ?")
             params.append(youzan_item_id_filter)
+        if item_no_filter:
+            clauses.append(
+                "youzan_item_id IN (SELECT CAST(item_id AS TEXT) FROM youzan_products WHERE item_no LIKE ?)"
+            )
+            params.append(f"%{item_no_filter}%")
         if keyword_filter:
             clauses.append("keywords LIKE ?")
             params.append(f"%{keyword_filter}%")
@@ -68,12 +74,14 @@ class KnowledgeProductRepo:
         featured_titles: list[str] | None = None,
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
+        item_no_filter: str = "",
     ) -> list:
-        """分页获取商品类知识条目（仅 category=product），支持关键词、状态、来源、AI同步状态筛选。"""
+        """分页获取商品类知识条目（仅 category=product），支持关键词、状态、来源、AI同步状态、编码筛选。"""
         from app.models.knowledge import KnowledgeEntry
         result = self._build_product_where(
             search, is_active, sync_source, vector_sync_status,
             featured_titles, youzan_item_id_filter, keyword_filter,
+            item_no_filter,
         )
         if result is None:
             return []
@@ -95,11 +103,13 @@ class KnowledgeProductRepo:
         featured_titles: list[str] | None = None,
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
+        item_no_filter: str = "",
     ) -> int:
         """返回商品类知识条目总数（仅 category=product），支持筛选。"""
         result = self._build_product_where(
             search, is_active, sync_source, vector_sync_status,
             featured_titles, youzan_item_id_filter, keyword_filter,
+            item_no_filter,
         )
         if result is None:
             return 0

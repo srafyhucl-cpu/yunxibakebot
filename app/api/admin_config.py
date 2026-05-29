@@ -94,6 +94,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         vector_sync_status: str = "",
         featured_only: bool = False,
         youzan_item_id: str = "",
+        item_no: str = "",
         keyword_filter: str = "",
         authorization: str | None = Header(default=None),
     ) -> dict:
@@ -115,6 +116,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             featured_titles=featured_filter,
             youzan_item_id_filter=youzan_item_id,
             keyword_filter=keyword_filter,
+            item_no_filter=item_no,
         )
         total = await admin_service.count_products(
             search=search, is_active=active_filter, sync_source=sync_source,
@@ -122,6 +124,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             featured_titles=featured_filter,
             youzan_item_id_filter=youzan_item_id,
             keyword_filter=keyword_filter,
+            item_no_filter=item_no,
         )
         total_active = await admin_service.count_products(is_active=1)
         total_inactive = await admin_service.count_products(is_active=0)

@@ -4,6 +4,21 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - feat: 商品管理页筛选框由有赞 ID 替换为商品编码
+
+- **操作人**: AI (Antigravity)
+- **需求**: 将商品管理页面顶部的筛选条件中的“有赞ID”输入框改为“商品编码 (item_no)”输入框，实现支持按商品编码进行模糊筛选。
+- **改动**:
+  - `knowledge_product_repo.py`: 为 `_build_product_where`、`get_all_products` 和 `count_products` 加上 `item_no_filter` 参数，在 WHERE 子句中以子查询 `IN (SELECT CAST(item_id AS TEXT) FROM youzan_products WHERE item_no LIKE ?)` 实现对商品编码的模糊过滤。
+  - `admin.py`: `get_all_products` 和 `count_products` 代理方法新增并透传 `item_no_filter` 参数。
+  - `admin_config.py`: `/products` 路由增加 `item_no` 参数并透传给 Service 层。
+  - `products.ts` (前端服务): `listProducts` 方法参数 `youzanItemId` 改为 `itemNo`，并将 `params` 里的 `youzan_item_id` 改为 `item_no` 发送给后端。
+  - `useProductsPage.ts` (前端状态): 将 `filterYouzanId` 和 `currentYouzanId` 改写为 `filterItemNo` 和 `currentItemNo`；在 URL 路由参数中将 `youzan_id` 全面改写为 `item_no`；调整 `loadProducts` 和 `buildQuery` 逻辑。
+  - `ProductsPage.vue` (前端 UI): 顶部筛选表单中原有的 “有赞ID” 过滤 input 框，改写为绑定 `filterItemNo` 且 placeholder 为 “商品编码” 的 input 框。
+- **测试**: Python pytest 127/127 Passed；Frontend `npm run build` 成功
+
+______________________________________________________________________
+
 ## [2026-05-29] - feat: 商品管理页前端展示将有赞 ID 替换为商品编码
 
 - **操作人**: AI (Antigravity)

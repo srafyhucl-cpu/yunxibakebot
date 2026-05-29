@@ -39,7 +39,7 @@ export function useProductsPage() {
   const filterActive = ref(route.query.is_active !== undefined ? String(route.query.is_active) : "1");
   const filterSyncStatus = ref(String(route.query.vector_sync_status ?? ""));
   const filterFeatured = ref(route.query.featured === "1");
-  const filterYouzanId = ref(String(route.query.youzan_id ?? ""));
+  const filterItemNo = ref(String(route.query.item_no ?? ""));
   const filterStockLevel = ref(String(route.query.stock_level ?? ""));
 
   const featuredTitles = ref<string[]>([]);
@@ -55,7 +55,7 @@ export function useProductsPage() {
   });
   const currentSyncStatus = computed(() => String(route.query.vector_sync_status ?? ""));
   const currentFeatured = computed(() => route.query.featured === "1");
-  const currentYouzanId = computed(() => String(route.query.youzan_id ?? ""));
+  const currentItemNo = computed(() => String(route.query.item_no ?? ""));
   const currentStockLevel = computed(() => String(route.query.stock_level ?? ""));
   const activeCount = computed(() => products.value.filter((item) => item.isActive).length);
 
@@ -111,7 +111,7 @@ export function useProductsPage() {
       const payload = await productsService.listProducts(
         currentPage.value, currentKeyword.value,
         currentActive.value, "", currentSyncStatus.value,
-        currentFeatured.value, currentYouzanId.value, "",
+        currentFeatured.value, currentItemNo.value, "",
       );
       products.value = payload.items;
       total.value = payload.total;
@@ -143,7 +143,7 @@ export function useProductsPage() {
       query: buildQuery(
         1, searchDraft.value.trim(), filterActive.value,
         filterSyncStatus.value, filterFeatured.value,
-        filterYouzanId.value.trim(), "", filterStockLevel.value,
+        filterItemNo.value.trim(), "", filterStockLevel.value,
       ),
     });
   }
@@ -153,7 +153,7 @@ export function useProductsPage() {
     filterActive.value = "1";
     filterSyncStatus.value = "";
     filterFeatured.value = false;
-    filterYouzanId.value = "";
+    filterItemNo.value = "";
     filterStockLevel.value = "";
     await router.replace({ query: { is_active: "1" } });
   }
@@ -163,7 +163,7 @@ export function useProductsPage() {
       query: buildQuery(
         page, currentKeyword.value, route.query.is_active !== undefined ? String(route.query.is_active) : "1",
         currentSyncStatus.value, currentFeatured.value,
-        currentYouzanId.value, "", currentStockLevel.value,
+        currentItemNo.value, "", currentStockLevel.value,
       ),
     });
   }
@@ -204,7 +204,7 @@ export function useProductsPage() {
     isActive: string = "",
     syncStatus: string = "",
     featuredOnly: boolean = false,
-    youzanId: string = "",
+    itemNo: string = "",
     kw: string = "",
     stockLevel: string = "",
   ): Record<string, string> {
@@ -214,7 +214,7 @@ export function useProductsPage() {
     if (isActive) query.is_active = isActive;
     if (syncStatus) query.vector_sync_status = syncStatus;
     if (featuredOnly) query.featured = "1";
-    if (youzanId) query.youzan_id = youzanId;
+    if (itemNo) query.item_no = itemNo;
     if (kw) query.kw = kw;
     if (stockLevel) query.stock_level = stockLevel;
     return query;
@@ -227,7 +227,7 @@ export function useProductsPage() {
       filterActive.value = route.query.is_active !== undefined ? String(route.query.is_active) : "1";
       filterSyncStatus.value = currentSyncStatus.value;
       filterFeatured.value = currentFeatured.value;
-      filterYouzanId.value = currentYouzanId.value;
+      filterItemNo.value = currentItemNo.value;
       filterStockLevel.value = currentStockLevel.value;
       await Promise.all([loadFeaturedTitles(), loadProducts()]);
     },
@@ -248,7 +248,7 @@ export function useProductsPage() {
     filterActive,
     filterSyncStatus,
     filterFeatured,
-    filterYouzanId,
+    filterItemNo,
     filterStockLevel,
     currentPage,
     activeCount,

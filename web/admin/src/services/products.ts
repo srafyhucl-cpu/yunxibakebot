@@ -75,7 +75,7 @@ export const productsService = {
     syncSource: string = "",
     syncStatus: string = "",
     featuredOnly: boolean = false,
-    youzanItemId: string = "",
+    itemNo: string = "",
     keywordFilter: string = "",
   ): Promise<ProductListPayload> {
     const response = await http.get<ProductListResponse>("/products", {
@@ -86,7 +86,7 @@ export const productsService = {
         sync_source: syncSource,
         vector_sync_status: syncStatus,
         featured_only: featuredOnly || undefined,
-        youzan_item_id: youzanItemId || undefined,
+        item_no: itemNo || undefined,
         keyword_filter: keywordFilter || undefined,
       },
     });
