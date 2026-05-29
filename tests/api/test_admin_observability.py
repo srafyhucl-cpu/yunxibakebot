@@ -35,32 +35,6 @@ def _build_request(path: str, cookies: dict | None = None) -> Request:
     return request
 
 
-@pytest.mark.asyncio
-async def test_admin_observability_page_redirects_without_login() -> None:
-    db = await init_db(":memory:")
-    await KnowledgeRepo(db).insert_entry(
-        category="faq",
-        title="配送说明",
-        content="当天配送",
-        keywords="配送",
-        priority=5,
-        sync_source=SyncSource.SEED_KNOWLEDGE,
-    )
-    router = create_observability_router(
-        ObservabilityService(
-            knowledge_repo=KnowledgeRepo(db),
-            product_repo=YouzanProductRepo(db),
-            history_repo=ContentChangeHistoryRepo(db),
-            webhook_repo=YouzanWebhookEventRepo(db),
-        )
-    )
-    endpoint = _get_route_endpoint(router, "/admin/observability/current", "GET")
-
-    response = await endpoint(request=_build_request("/admin/observability/current"))
-
-    assert response.status_code == 302
-    assert response.headers["location"] == "/admin/login"
-    await close_db(db)
 
 
 @pytest.mark.asyncio

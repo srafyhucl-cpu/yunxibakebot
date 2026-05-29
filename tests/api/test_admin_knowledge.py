@@ -53,24 +53,6 @@ def _build_request(path: str, method: str = "GET", cookies: dict | None = None, 
     return request
 
 
-@pytest.mark.asyncio
-async def test_admin_knowledge_page_redirects_without_login() -> None:
-    db = await init_db(":memory:")
-    router = create_admin_knowledge_router(
-        KnowledgeAdminService(
-            knowledge_repo=KnowledgeRepo(db),
-            admin_repo=KnowledgeAdminRepo(db),
-            history_repo=ContentChangeHistoryRepo(db),
-            sync_service=KnowledgeSyncService(KnowledgeRepo(db), ContentChangeHistoryRepo(db), _FakeEmbeddingSearcher()),
-        )
-    )
-    endpoint = _get_route_endpoint(router, "/admin/knowledge-config", "GET")
-
-    response = await endpoint(request=_build_request("/admin/knowledge-config"))
-
-    assert response.status_code == 302
-    assert response.headers["location"] == "/admin/login"
-    await close_db(db)
 
 
 @pytest.mark.asyncio

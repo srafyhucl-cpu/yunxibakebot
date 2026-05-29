@@ -9,13 +9,11 @@
 import json
 
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.service.admin import AdminService
 
-_jinja_env = Jinja2Templates(directory="app/templates")
+
 
 router = APIRouter(tags=["admin-config"])
 _api_router = APIRouter(prefix="/api/v1/admin")
@@ -24,42 +22,13 @@ _api_router = APIRouter(prefix="/api/v1/admin")
 def create_shop_config_router(admin_service: AdminService) -> APIRouter:
     """创建店铺配置相关路由。"""
 
-    def _check_login(request: Request) -> bool:
-        token = request.cookies.get("admin_token")
-        return bool(token and token == settings.ADMIN_API_TOKEN)
-
     def _verify_token(token: str | None) -> None:
         if not token:
             raise HTTPException(status_code=401, detail="Missing Token")
         if token.replace("Bearer ", "") != settings.ADMIN_API_TOKEN:
             raise HTTPException(status_code=403, detail="Invalid Token")
 
-    # ────────────── 页面路由 ──────────────
 
-    @router.get("/admin/featured-products", response_class=HTMLResponse)
-    async def featured_products_page(request: Request):
-        if not _check_login(request):
-            return RedirectResponse(url="/admin/login", status_code=302)
-        products = await admin_service.get_featured_products()
-        html = _jinja_env.get_template("admin/featured_products.html").render(
-            request=request, active="featured_products", products=products,
-        )
-        return HTMLResponse(content=html)
-
-    @router.get("/admin/products", response_class=HTMLResponse)
-    async def products_page(request: Request, page: int = 1, search: str = ""):
-        if not _check_login(request):
-            return RedirectResponse(url="/admin/login", status_code=302)
-        limit = 30
-        offset = (page - 1) * limit
-        entries = await admin_service.get_all_products(search=search, limit=limit, offset=offset)
-        total = await admin_service.count_products(search=search)
-        html = _jinja_env.get_template("admin/products.html").render(
-            request=request, active="products",
-            entries=entries, search=search,
-            page=page, total_pages=(total + limit - 1) // limit,
-        )
-        return HTMLResponse(content=html)
 
     # ────────────── 主推款配置 API ──────────────
 

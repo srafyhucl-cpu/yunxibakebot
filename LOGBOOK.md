@@ -4,6 +4,22 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - refactor: 彻底清理旧版 HTML 模板、静态资源和后端页面路由
+
+- **操作人**: AI (Antigravity)
+- **需求**: 物理删除不再使用的旧版本后端渲染（Jinja2）前端模板和静态文件，并删除后端的页面路由以瘦身架构。
+- **改动**:
+  - `admin.py`: 彻底删除了旧版页面路由 `/admin` (及全部子页面路由)，移除了 `Jinja2` 环境定义。
+  - `admin_config.py`: 删除了旧版 `/admin/featured-products` 与 `/admin/products` 页面路由，移除了 `Jinja2Templates` 依赖。
+  - `admin_knowledge.py`: 删除了旧版 `/admin/knowledge-config` 页面路由（`page_router`），移除了 `Jinja2Templates` 依赖。
+  - `admin_observability.py`: 删除了旧数据观察页面 `/admin/observability/current`、`/admin/observability/history` 及 `/admin/observability/webhooks`，移除了 `Jinja2Templates` 依赖。
+  - 物理删除 `app/templates/admin/` 目录下的 16 个 HTML 文件。
+  - 物理删除 `app/static/admin/` 目录下的 3 个 CSS/JS 文件。
+  - `tests/api/`: 清理了 `test_admin_knowledge.py` 和 `test_admin_observability.py` 中对应的重定向校验测试用例。
+- **测试**: 本地 pytest 全量通过（100% Passed）。
+
+______________________________________________________________________
+
 ## [2026-05-29] - fix: 修复商品管理页商品编码筛选输入框无法写入内容的问题
 
 - **操作人**: AI (Antigravity)

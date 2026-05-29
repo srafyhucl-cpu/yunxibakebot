@@ -1,27 +1,20 @@
 """知识配置后台页面与 API。"""
 
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.models.knowledge_admin import KnowledgeAdminDraft
 from app.service.knowledge_admin import KnowledgeAdminService
 
-_jinja_env = Jinja2Templates(directory="app/templates")
+
 _DEFAULT_OPERATOR = "admin"
 
 
 def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
     """创建知识配置后台路由。"""
 
-    page_router = APIRouter(prefix="/admin/knowledge-config", tags=["admin-knowledge"])
     api_router = APIRouter(prefix="/api/v1/admin/knowledge-config", tags=["admin-knowledge-api"])
     root_router = APIRouter()
-
-    def _check_login(request: Request) -> bool:
-        token = request.cookies.get("admin_token")
-        return bool(token and token == settings.ADMIN_API_TOKEN)
 
     def _verify_token(token: str | None) -> None:
         if not token:
@@ -68,15 +61,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
             "updated_at": entry.updated_at,
         }
 
-    @page_router.get("", response_class=HTMLResponse)
-    async def knowledge_page(request: Request):
-        if not _check_login(request):
-            return RedirectResponse(url="/admin/login", status_code=302)
-        html = _jinja_env.get_template("admin/knowledge_config.html").render(
-            request=request,
-            active="knowledge_config",
-        )
-        return HTMLResponse(content=html)
+
 
     @api_router.get("/entries")
     async def list_entries(
@@ -204,6 +189,6 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
             },
         }
 
-    root_router.include_router(page_router)
+
     root_router.include_router(api_router)
     return root_router
