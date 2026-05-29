@@ -15,7 +15,7 @@ const {
   filterActive,
   filterSyncStatus,
   filterFeatured,
-  filterYouzanId,
+  filterItemNo,
   filterStockLevel,
   currentPage,
   total,
