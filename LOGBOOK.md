@@ -4,6 +4,18 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - refactor: 将新版后台从 /admin-v2 迁移回原 /admin 入口
+
+- **操作人**: AI (Antigravity)
+- **需求**: 将独立打包的新版后台系统（Vue3 SPA）的挂载路径及路由基准由原 `/admin-v2` 改为原生的 `/admin`，实现访问旧后台路由能直接加载新版后台前端。
+- **改动**:
+  - `admin_frontend.py`: 挂载端点与资源 fallback 指向路由从 `/admin-v2` 改为 `/admin`，提示 HTML 从 “admin-v2 尚未构建” 改为 “admin 尚未构建”。
+  - `web/admin/.env.development` / `.env.production` / `.env.staging`: 将 `VITE_ROUTER_BASE` 变量由 `/admin-v2/` 统一修改为 `/admin/`。
+  - `tests/api/test_admin_frontend.py`: 更新测试用例 `test_admin_route_returns_notice_when_dist_missing`，断言新 `/admin` 路径。
+- **测试**: 本地前端 Vite 重新打包成功；后端全量 pytest 126/126 通过；静态文件已同步至生产目录，并重启服务成功。
+
+______________________________________________________________________
+
 ## [2026-05-29] - refactor: 彻底清理旧版 HTML 模板、静态资源和后端页面路由
 
 - **操作人**: AI (Antigravity)

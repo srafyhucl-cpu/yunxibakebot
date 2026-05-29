@@ -26,13 +26,13 @@ INDEX_CACHE_HEADERS = {
 def create_admin_frontend_router() -> APIRouter:
     router = APIRouter(tags=["admin-frontend"])
 
-    @router.get("/admin-v2", response_class=HTMLResponse)
-    @router.get("/admin-v2/{asset_path:path}", response_class=HTMLResponse)
-    async def admin_v2_entry(asset_path: str = ""):
+    @router.get("/admin", response_class=HTMLResponse)
+    @router.get("/admin/{asset_path:path}", response_class=HTMLResponse)
+    async def admin_entry(asset_path: str = ""):
         if not FRONTEND_INDEX_FILE.exists():
             return HTMLResponse(
                 content=(
-                    "<h1>admin-v2 尚未构建</h1>"
+                    "<h1>admin 尚未构建</h1>"
                     "<p>请先在 web/admin 下执行 npm install 与 npm run build，"
                     "或直接启动 Vite 开发服务。</p>"
                 ),

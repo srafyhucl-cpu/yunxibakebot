@@ -107,7 +107,7 @@ async def test_admin_auth_login_sets_cookie() -> None:
 
 
 @pytest.mark.asyncio
-async def test_admin_v2_route_returns_notice_when_dist_missing(
+async def test_admin_route_returns_notice_when_dist_missing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -116,9 +116,9 @@ async def test_admin_v2_route_returns_notice_when_dist_missing(
     monkeypatch.setattr("app.api.admin_frontend.FRONTEND_INDEX_FILE", missing_dist / "index.html")
 
     router = create_admin_frontend_router()
-    endpoint = _get_route_endpoint(router, "/admin-v2", "GET")
+    endpoint = _get_route_endpoint(router, "/admin", "GET")
 
     response = await endpoint()
 
     assert response.status_code == 503
-    assert "admin-v2 尚未构建" in response.body.decode("utf-8")
+    assert "admin 尚未构建" in response.body.decode("utf-8")
