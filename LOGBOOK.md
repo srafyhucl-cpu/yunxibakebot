@@ -4,6 +4,21 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - feat: 商品管理上下架状态默认值与全局字体标准统一
+
+- **操作人**: AI (Cascade)
+- **需求**:
+  1. 商品管理页默认仅显示上架商品（在售），支持显式筛选"全部状态"与"已下架"
+  2. 统一全局后台 UI 字体族，制定行业标准的字体模板
+- **改动**:
+  - `variables.css`: 新增行业标准的 `--yx-font-sans` 和 `--yx-font-mono` 字体族系统变量
+  - `global.css`: 统一 `body` 字体为 `var(--yx-font-sans)`；强迫 `input, button, select, textarea` 等表单控件继承字体，杜绝各类字体混杂；并在 `topbar` 中添加 `-webkit-backdrop-filter` 增强 Safari 兼容性
+  - `ProductsPage.vue`: 更改 monospace 字体使用全局定义的 `--yx-font-mono` 变量；调整上下架状态下拉框中“全部状态”的 option 值为 `"all"`
+  - `useProductsPage.ts`: 调整 `filterActive` 默认值为 `"1"`；当 `route.query.is_active` 为 undefined 时，将 `currentActive` 默认为 `"1"`，显式 `"all"` 时转换为 `""` 传给后端；重置和切换分页时均对齐 `"1"` 的默认逻辑
+- **测试**: Python pytest 127/127 Passed；Frontend `npm run build` 成功
+
+______________________________________________________________________
+
 ## [2026-05-29] - feat: 商品 item_no 数据链路 + 查询时销量聚合
 
 - **操作人**: AI (Cascade)

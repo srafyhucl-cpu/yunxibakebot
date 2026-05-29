@@ -36,7 +36,7 @@ export function useProductsPage() {
   const pageSize = ref(30);
   const selectedProduct = ref<ProductListItem | null>(null);
   const searchDraft = ref(normalizeKeyword(route.query.keyword));
-  const filterActive = ref(String(route.query.is_active ?? ""));
+  const filterActive = ref(route.query.is_active !== undefined ? String(route.query.is_active) : "1");
   const filterSyncStatus = ref(String(route.query.vector_sync_status ?? ""));
   const filterFeatured = ref(route.query.featured === "1");
   const filterYouzanId = ref(String(route.query.youzan_id ?? ""));
@@ -47,7 +47,12 @@ export function useProductsPage() {
 
   const currentPage = computed(() => parsePage(route.query.page));
   const currentKeyword = computed(() => normalizeKeyword(route.query.keyword));
-  const currentActive = computed(() => String(route.query.is_active ?? ""));
+  const currentActive = computed(() => {
+    const act = route.query.is_active;
+    if (act === undefined) return "1";
+    if (act === "all") return "";
+    return String(act);
+  });
   const currentSyncStatus = computed(() => String(route.query.vector_sync_status ?? ""));
   const currentFeatured = computed(() => route.query.featured === "1");
   const currentYouzanId = computed(() => String(route.query.youzan_id ?? ""));
@@ -145,18 +150,18 @@ export function useProductsPage() {
 
   async function resetFilters() {
     searchDraft.value = "";
-    filterActive.value = "";
+    filterActive.value = "1";
     filterSyncStatus.value = "";
     filterFeatured.value = false;
     filterYouzanId.value = "";
     filterStockLevel.value = "";
-    await router.replace({ query: {} });
+    await router.replace({ query: { is_active: "1" } });
   }
 
   async function changePage(page: number) {
     await router.replace({
       query: buildQuery(
-        page, currentKeyword.value, currentActive.value,
+        page, currentKeyword.value, route.query.is_active !== undefined ? String(route.query.is_active) : "1",
         currentSyncStatus.value, currentFeatured.value,
         currentYouzanId.value, "", currentStockLevel.value,
       ),
@@ -219,7 +224,7 @@ export function useProductsPage() {
     () => route.query,
     async () => {
       searchDraft.value = currentKeyword.value;
-      filterActive.value = currentActive.value;
+      filterActive.value = route.query.is_active !== undefined ? String(route.query.is_active) : "1";
       filterSyncStatus.value = currentSyncStatus.value;
       filterFeatured.value = currentFeatured.value;
       filterYouzanId.value = currentYouzanId.value;

@@ -72,7 +72,7 @@ onUnmounted(() => {
         </el-input>
 
         <el-select v-model="filterActive" placeholder="上下架状态" clearable style="width:130px">
-          <el-option label="全部状态" value="" />
+          <el-option label="全部状态" value="all" />
           <el-option label="在售" value="1" />
           <el-option label="已下架" value="0" />
         </el-select>
@@ -456,7 +456,7 @@ onUnmounted(() => {
 }
 
 .products-page__mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--yx-font-mono);
   font-size: 12px;
   color: var(--yx-text-muted);
 }
@@ -467,7 +467,7 @@ onUnmounted(() => {
 }
 
 .products-page__youzan-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--yx-font-mono);
   font-size: 12px;
   color: var(--yx-text-muted);
 }

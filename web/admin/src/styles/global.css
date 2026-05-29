@@ -11,9 +11,17 @@ body,
 }
 
 body {
-  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--yx-font-sans);
   color: var(--yx-text);
   background: var(--yx-bg);
+}
+
+/* 确保输入框、按钮、下拉菜单和文本区域统一继承行业标准字体 */
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
 }
 
 a {
@@ -88,6 +96,7 @@ a {
   padding: 16px 24px;
   border-bottom: 1px solid var(--yx-border);
   background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 
