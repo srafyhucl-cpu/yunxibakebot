@@ -60,46 +60,75 @@ onUnmounted(() => {
 <template>
   <section class="products-page">
     <el-card shadow="never" class="products-page__filters">
-      <div class="products-page__filter-header">
+      <div class="products-page__header-container">
+        <!-- 核心统计与快速切换 Tab 卡片 (Global Quick-Filter Stats) -->
+        <div class="products-page__global-stats">
+          <div 
+            class="products-page__stat-card" 
+            :class="{ 'products-page__stat-card--active': filterActive === 'all' }"
+            @click="filterActive = 'all'; submitSearch()"
+          >
+            <span class="products-page__stat-label">全部商品</span>
+            <strong class="products-page__stat-value">{{ totalActive + totalInactive }}</strong>
+          </div>
+          <div 
+            class="products-page__stat-card products-page__stat-card--success" 
+            :class="{ 'products-page__stat-card--active': filterActive === '1' }"
+            @click="filterActive = '1'; submitSearch()"
+          >
+            <span class="products-page__stat-label">在售中</span>
+            <strong class="products-page__stat-value">{{ totalActive }}</strong>
+          </div>
+          <div 
+            class="products-page__stat-card products-page__stat-card--warning" 
+            :class="{ 'products-page__stat-card--active': filterActive === '0' }"
+            @click="filterActive = '0'; submitSearch()"
+          >
+            <span class="products-page__stat-label">已下架</span>
+            <strong class="products-page__stat-value">{{ totalInactive }}</strong>
+          </div>
+        </div>
+
+        <!-- 商品检索与多维度过滤筛选项 (Filter Actions Form) -->
         <el-form class="products-page__filter-form" @submit.prevent="submitSearch">
-        <el-input
-          v-model="searchDraft"
-          placeholder="搜索商品标题、关键词"
-          clearable
-          @keyup.enter="submitSearch"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
+          <el-input
+            v-model="searchDraft"
+            placeholder="搜索商品标题、关键词"
+            clearable
+            @keyup.enter="submitSearch"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
 
-        <el-select v-model="filterActive" placeholder="上下架状态" clearable style="width:130px">
-          <el-option label="全部状态" value="all" />
-          <el-option label="在售" value="1" />
-          <el-option label="已下架" value="0" />
-        </el-select>
+          <el-select v-model="filterActive" placeholder="上下架状态" clearable style="width:130px">
+            <el-option label="全部状态" value="all" />
+            <el-option label="在售" value="1" />
+            <el-option label="已下架" value="0" />
+          </el-select>
 
-        <el-select v-model="filterSyncStatus" placeholder="AI 可读状态" clearable style="width:140px">
-          <el-option label="全部状态" value="" />
-          <el-option label="已入向量" value="success" />
-          <el-option label="待同步" value="pending" />
-          <el-option label="同步失败" value="failed" />
-          <el-option label="同步中" value="syncing" />
-        </el-select>
+          <el-select v-model="filterSyncStatus" placeholder="AI 可读状态" clearable style="width:140px">
+            <el-option label="全部状态" value="" />
+            <el-option label="已入向量" value="success" />
+            <el-option label="待同步" value="pending" />
+            <el-option label="同步失败" value="failed" />
+            <el-option label="同步中" value="syncing" />
+          </el-select>
 
-        <el-checkbox v-model="filterFeatured" border style="height:32px">仅看主推款</el-checkbox>
+          <el-checkbox v-model="filterFeatured" border style="height:32px">仅看主推款</el-checkbox>
 
-        <el-input
-          v-model="filterYouzanId"
-          placeholder="有赞ID"
-          clearable
-          style="width:140px"
-        />
+          <el-input
+            v-model="filterYouzanId"
+            placeholder="有赞ID"
+            clearable
+            style="width:140px"
+          />
 
-        <el-select v-model="filterStockLevel" placeholder="库存状态" clearable style="width:120px">
-          <el-option label="全部" value="" />
-          <el-option label="充足（>200）" value="sufficient" />
-          <el-option label="靠近告磄（≤200）" value="low" />
-          <el-option label="无库存" value="zero" />
-        </el-select>
+          <el-select v-model="filterStockLevel" placeholder="库存状态" clearable style="width:120px">
+            <el-option label="全部" value="" />
+            <el-option label="充足（>200）" value="sufficient" />
+            <el-option label="靠近警告（≤200）" value="low" />
+            <el-option label="无库存" value="zero" />
+          </el-select>
 
           <el-button type="primary" :icon="Search" @click="submitSearch">筛选</el-button>
           <el-button @click="resetFilters">重置</el-button>
@@ -110,22 +139,6 @@ onUnmounted(() => {
             @click="runReconcile"
           >全量对账</el-button>
         </el-form>
-        <div class="products-page__global-stats">
-          <span class="products-page__stat">
-            <span class="products-page__stat-label">全部</span>
-            <strong class="products-page__stat-value">{{ totalActive + totalInactive }}</strong>
-          </span>
-          <span class="products-page__stat-divider" />
-          <span class="products-page__stat">
-            <span class="products-page__stat-label">在售</span>
-            <strong class="products-page__stat-value products-page__stat-value--active">{{ totalActive }}</strong>
-          </span>
-          <span class="products-page__stat-divider" />
-          <span class="products-page__stat">
-            <span class="products-page__stat-label">下架</span>
-            <strong class="products-page__stat-value">{{ totalInactive }}</strong>
-          </span>
-        </div>
       </div>
     </el-card>
 
@@ -310,12 +323,10 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.products-page__filter-header {
+.products-page__header-container {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 16px;
-  flex-wrap: wrap;
 }
 
 .products-page__global-stats {
@@ -324,6 +335,70 @@ onUnmounted(() => {
   gap: 12px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.products-page__stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--yx-bg);
+  border: 1px solid var(--yx-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.products-page__stat-card:hover {
+  background: var(--yx-panel);
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.products-page__stat-card--active {
+  background: var(--el-color-primary-light-9) !important;
+  border-color: var(--el-color-primary) !important;
+  color: var(--el-color-primary);
+}
+
+.products-page__stat-card--active .products-page__stat-value {
+  color: var(--el-color-primary) !important;
+}
+
+.products-page__stat-card--success.products-page__stat-card--active {
+  background: var(--el-color-success-light-9) !important;
+  border-color: var(--el-color-success) !important;
+  color: var(--el-color-success);
+}
+
+.products-page__stat-card--success.products-page__stat-card--active .products-page__stat-value {
+  color: var(--el-color-success) !important;
+}
+
+.products-page__stat-card--warning.products-page__stat-card--active {
+  background: var(--el-color-warning-light-9) !important;
+  border-color: var(--el-color-warning) !important;
+  color: var(--el-color-warning);
+}
+
+.products-page__stat-card--warning.products-page__stat-card--active .products-page__stat-value {
+  color: var(--el-color-warning) !important;
+}
+
+.products-page__stat-label {
+  color: var(--yx-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.products-page__stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--yx-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .products-page__page-stats {
@@ -339,21 +414,6 @@ onUnmounted(() => {
   display: flex;
   align-items: baseline;
   gap: 6px;
-}
-
-.products-page__stat-label {
-  color: var(--yx-text-muted);
-  font-size: 13px;
-}
-
-.products-page__stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.products-page__stat-value--active {
-  color: var(--el-color-success);
 }
 
 .products-page__stat-divider {

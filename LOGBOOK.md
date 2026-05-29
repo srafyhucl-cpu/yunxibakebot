@@ -4,6 +4,20 @@
 
 ______________________________________________________________________
 
+## [2026-05-29] - feat: 商品状态统计位置对调与高交互卡片式 UI 升级
+
+- **操作人**: AI (Cascade)
+- **需求**: 
+  1. 将商品管理页顶部“全部、在售、下架”统计数据与筛选表单上下位置互换，置于最顶部
+  2. 优化 UI：将原本扁平的文本数字数据，升级为可点击、带悬浮动效、毛玻璃质感、和当前状态对应激活的高交互卡片（Stat Cards / Tabs）
+- **改动**:
+  - `ProductsPage.vue` (Template): 将 `products-page__global-stats` 容器移动到 `el-form` 筛选表单上方；统计数据改写为 3 个 `div.products-page__stat-card`；
+  - `ProductsPage.vue` (Interactive): 为 3 个卡片绑定 `@click` 快速交互，点击即可联动更新 `filterActive` 并自动触发 `submitSearch()` 搜索，实现卡片化即点即滤，极致增强 UX 体验！
+  - `ProductsPage.vue` (CSS): 重新设计并编写了 `.products-page__header-container` 纵向流式容器样式；全新设计了 `.products-page__stat-card` 在 hover, focus 时的微移动动画、微米投影阴影以及在 active 态下对应 Element Primary/Success/Warning 三色高亮气泡呼吸效果。
+- **测试**: Python pytest 127/127 Passed；Frontend `npm run build` 成功
+
+______________________________________________________________________
+
 ## [2026-05-29] - feat: 商品管理上下架状态默认值与全局字体标准统一
 
 - **操作人**: AI (Cascade)
