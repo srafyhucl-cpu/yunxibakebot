@@ -46,6 +46,9 @@ function formatDateTime(value: string): string {
           <el-descriptions-item label="商品状态">
             {{ product.isActive ? "在售" : "下架" }}
           </el-descriptions-item>
+          <el-descriptions-item label="商品编码">
+            {{ product.itemNo || "未记录" }}
+          </el-descriptions-item>
           <el-descriptions-item label="有赞商品 ID">
             {{ product.youzanItemId || "未记录" }}
           </el-descriptions-item>

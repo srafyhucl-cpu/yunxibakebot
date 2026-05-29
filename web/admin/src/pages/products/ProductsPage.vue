@@ -174,9 +174,9 @@ onUnmounted(() => {
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="youzanItemId" label="有赞ID" width="110" align="center" show-overflow-tooltip>
+          <el-table-column prop="itemNo" label="商品编码" width="110" align="center" show-overflow-tooltip>
             <template #default="{ row }">
-              <span v-if="row.youzanItemId" class="products-page__youzan-id">{{ row.youzanItemId }}</span>
+              <span v-if="row.itemNo" class="products-page__youzan-id">{{ row.itemNo }}</span>
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
@@ -259,7 +259,7 @@ onUnmounted(() => {
               </el-tag>
             </div>
             <div class="products-page__card-meta">
-              <span v-if="row.youzanItemId">有赞ID：{{ row.youzanItemId }}</span>
+              <span v-if="row.itemNo">商品编码：{{ row.itemNo }}</span>
               <span>来源：{{ row.syncSourceLabel }}</span>
               <span>AI：{{ row.syncStatusLabel }}</span>
               <span>更新：{{ row.updatedAt ? row.updatedAt.replace("T", " ").slice(0, 19) : "未记录" }}</span>

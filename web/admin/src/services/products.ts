@@ -19,6 +19,7 @@ interface ProductListResponse {
     priority: number;
     is_active: boolean;
     youzan_item_id?: string | null;
+    item_no?: string | null;
     price_fen?: number | null;
     stock?: number | null;
     sold_num?: number;
@@ -55,6 +56,7 @@ function normalizeProduct(item: ProductListResponse["data"][number]): ProductLis
     priority: item.priority,
     isActive: item.is_active,
     youzanItemId: item.youzan_item_id || "",
+    itemNo: item.item_no || "",
     priceFen: item.price_fen ?? null,
     stock: item.stock ?? null,
     soldNum: item.sold_num ?? 0,

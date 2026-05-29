@@ -8,6 +8,7 @@ export interface ProductListItem {
   priority: number;
   isActive: boolean;
   youzanItemId: string;
+  itemNo: string;
   priceFen: number | null;
   stock: number | null;
   soldNum: number;

@@ -145,6 +145,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
                 "price_fen": price_stock_map.get(e.youzan_item_id or "", {}).get("price_fen"),
                 "stock": price_stock_map.get(e.youzan_item_id or "", {}).get("stock"),
                 "sold_num": price_stock_map.get(e.youzan_item_id or "", {}).get("sold_num", 0),
+                "item_no": price_stock_map.get(e.youzan_item_id or "", {}).get("item_no", ""),
             }
             for e in entries
         ], "page": page, "page_size": limit}

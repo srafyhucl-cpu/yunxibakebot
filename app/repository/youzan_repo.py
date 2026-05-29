@@ -181,13 +181,13 @@ class YouzanProductRepo:
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
 
     async def get_prices_and_stocks(self, item_ids: list[str]) -> dict[str, dict]:
-        """批量查询商品单价（分）、库存和销量（按 item_no 聚合同款总销量）。"""
+        """批量查询商品单价（分）、库存和销量（按 item_no 聚合同款总销量），并获取商品编码。"""
         valid_ids = [int(i) for i in item_ids if i and i.isdigit()]
         if not valid_ids:
             return {}
         placeholders = ",".join("?" * len(valid_ids))
         rows = await self._db.execute_fetchall(
-            "SELECT yp.item_id, yp.price_fen, yp.stock, "
+            "SELECT yp.item_id, yp.price_fen, yp.stock, yp.item_no, "
             "COALESCE(agg.total_sold, yp.sold_num) AS sold_num "
             "FROM youzan_products yp "
             "LEFT JOIN ("
@@ -204,6 +204,7 @@ class YouzanProductRepo:
                 "price_fen": row["price_fen"],
                 "stock": row["stock"],
                 "sold_num": row["sold_num"] or 0,
+                "item_no": row["item_no"] or "",
             }
             for row in rows
         }

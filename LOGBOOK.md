@@ -1,6 +1,23 @@
-﻿# YunxiBakeBot 项目开发日志 (Logbook)
+# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+
+______________________________________________________________________
+
+## [2026-05-29] - feat: 商品管理页前端展示将有赞 ID 替换为商品编码
+
+- **操作人**: AI (Antigravity)
+- **需求**: 
+  1. 将商品管理页电脑端表格与手机端卡片列表中的“有赞ID”展示替换为更直观的“商品编码 (item_no)”
+  2. 商品详情抽屉中同时展示“商品编码”和“有赞商品 ID”
+- **改动**:
+  - `youzan_repo.py`: `get_prices_and_stocks` 批量接口中，SQL 补充查询 `yp.item_no` 并回传给 Service 层
+  - `admin_config.py`: `/products` API 路由在拼装前端字段时，新增 `item_no` 字段数据
+  - `product.ts` (前端类型): `ProductListItem` 接口新增 `itemNo: string` 属性
+  - `products.ts` (前端服务): 更新 `normalizeProduct` 方法，将后端返回的 `item_no` 字段正确映射给 `itemNo`
+  - `ProductsPage.vue` (前端页面): 表格列中的“有赞ID”改为“商品编码”，数据绑定改为 `row.itemNo`；手机端卡片的有赞 ID 展示亦替换为商品编码
+  - `ProductDetailDrawer.vue` (详情组件): descriptions 描述列表中新增一行“商品编码”展示项，与原“有赞商品 ID”共存
+- **测试**: Python pytest 127/127 Passed；Frontend `npm run build` 成功
 
 ______________________________________________________________________
 
