@@ -10,6 +10,7 @@ import json
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from app.api.admin import require_admin_token
 from app.config import settings
 from app.service.admin import AdminService
 
@@ -22,21 +23,13 @@ _api_router = APIRouter(prefix="/api/v1/admin")
 def create_shop_config_router(admin_service: AdminService) -> APIRouter:
     """创建店铺配置相关路由。"""
 
-    def _verify_token(token: str | None) -> None:
-        if not token:
-            raise HTTPException(status_code=401, detail="Missing Token")
-        if token.replace("Bearer ", "") != settings.ADMIN_API_TOKEN:
-            raise HTTPException(status_code=403, detail="Invalid Token")
-
-
-
     # ────────────── 主推款配置 API ──────────────
 
     @_api_router.get("/shop-config/featured-products")
     async def get_featured_products(
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         return {"code": 0, "data": await admin_service.get_featured_products()}
 
     @_api_router.post("/shop-config/featured-products")
@@ -44,7 +37,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         request: Request,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         raw = await request.body()
         body = json.loads(raw.decode("utf-8"))
         products: list[str] = body.get("products", [])
@@ -67,7 +60,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         keyword_filter: str = "",
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         limit = 30
         offset = (page - 1) * limit
         active_filter: int | None = None
@@ -127,7 +120,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         product_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         entry = await admin_service.get_product(product_id)
         if not entry:
             raise HTTPException(status_code=404, detail="条目不存在")
@@ -138,7 +131,7 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
     async def get_settings_summary(
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         return {"code": 0, "data": await admin_service.get_settings_summary()}
 
     router.include_router(_api_router)

@@ -15,8 +15,11 @@ from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.config_repo import ConfigRepo
 from app.service.embedding_search import EmbeddingSearcher
 from app.service.knowledge_retriever import KnowledgeRetriever
+from app.repository.analytics_repo import AnalyticsRepo
+from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat import ChatService
 from app.service.youzan.client import YouzanClient
+from app.service.youzan.event_handler import YouzanEventHandler
 
 
 @pytest.mark.asyncio
@@ -51,12 +54,24 @@ async def test_product_name_change_prevents_residue(monkeypatch: pytest.MonkeyPa
         vs.build([])
         knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
 
-        # 3. 实例化核心对话服务
+        # 3. 实例化核心对话服务（显式注入有赞依赖，L-1.2）
+        youzan_client = YouzanClient(config_repo=config_repo)
+        webhook_event_repo = YouzanWebhookEventRepo(db)
+        youzan_event_handler = YouzanEventHandler(
+            db=db,
+            knowledge_retriever=knowledge_retriever,
+            youzan_client=youzan_client,
+            audit_repo=webhook_event_repo,
+        )
         chat_service = ChatService(
             session_repo=session_repo,
             message_repo=message_repo,
             transfer_repo=transfer_repo,
             knowledge_retriever=knowledge_retriever,
+            youzan_client=youzan_client,
+            youzan_webhook_events_repo=webhook_event_repo,
+            youzan_event_handler=youzan_event_handler,
+            analytics_repo=AnalyticsRepo(db),
         )
 
         # 4. 模拟第 1 次推送："老款慕斯蛋糕"

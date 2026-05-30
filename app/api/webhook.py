@@ -167,6 +167,11 @@ async def _mark_audit_result(
         logger.error("有赞 webhook 审计结果写入失败 [audit_id=%s]: %s", audit_id, exc)
 
 
+async def _mark_audit_failed(chat_service: ChatService, audit_id: int | None, stage: str, exc: Exception) -> None:
+    """后台任务异常统一落账 FAILED（携带异常类型与信息）。"""
+    await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.FAILED, stage, type(exc).__name__, str(exc))
+
+
 def create_webhook_router(chat_service: ChatService) -> APIRouter:
     """工厂函数：注入 ChatService 依赖后返回路由实例。"""
     import asyncio
@@ -174,6 +179,13 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
 
     # 高并发带滑动窗口自清洗的 TTL 去重容器，彻底在长周期连续运行下死锁任何内存泄漏与锁悬挂
     _processing_msg_timestamps: dict[str, float] = {}
+
+    # 持有后台任务强引用，避免任务被 GC 提前回收导致后台处理/回复丢失（N-2）。
+    _background_tasks: set[asyncio.Task] = set()
+
+    def _track_task(task: asyncio.Task) -> None:
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
     # 定时异步自愈清洗任务（30秒 TTL 自动物理擦除）
     def _cleanup_stale_msg_ids(now: float) -> None:
@@ -240,7 +252,7 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                 await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.DUPLICATE, "in_memory_duplicate")
                 return {"code": 0, "msg": "success"}
 
-        if await chat_service._message_repo.has_processed(msg_id):
+        if await chat_service.has_processed_message(msg_id):
             logger.info("有赞推送已处理完毕，秒回复成功: %s", msg_id)
             await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.DUPLICATE, "db_duplicate")
             return {"code": 0, "msg": "success"}
@@ -268,18 +280,11 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                     )
                 except Exception as exc:
                     logger.error("有赞系统事件后台业务处理异常 [msg_id=%s]: %s", msg_id, exc, exc_info=True)
-                    await _mark_audit_result(
-                        chat_service,
-                        audit_id,
-                        YouzanWebhookStatus.FAILED,
-                        "system_background_failed",
-                        type(exc).__name__,
-                        str(exc),
-                    )
+                    await _mark_audit_failed(chat_service, audit_id, "system_background_failed", exc)
                 finally:
                     _processing_msg_timestamps.pop(msg_id, None)
 
-            asyncio.create_task(_background_process_system_event())
+            _track_task(asyncio.create_task(_background_process_system_event()))
             return {"code": 0, "msg": "success"}
 
         else:
@@ -288,12 +293,25 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             content_obj = payload.get("content", {})
             buyer_id = payload.get("buyer_id", "")
 
-            # 提取文本内容（不同消息类型结构不同）
-            text_content = ""
-            if msg_type == "text":
-                text_content = content_obj.get("text", "") if isinstance(content_obj, dict) else str(content_obj)
-            else:
-                text_content = f"[{msg_type}] {content_obj}"
+            # 非文本消息（图片/语音/视频等）：不喂给 LLM，直接友好兑底回复（N-6）。
+            if msg_type != "text":
+                await _mark_audit_processing(chat_service, audit_id, "chat_nontext_fallback")
+
+                async def _background_nontext_fallback() -> None:
+                    try:
+                        await chat_service.reply_youzan_nontext_fallback(buyer_id, msg_id)
+                        await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_nontext_fallback")
+                    except Exception as exc:
+                        logger.error("有赞非文本兑底回复异常 [msg_id=%s]: %s", msg_id, exc)
+                        await _mark_audit_failed(chat_service, audit_id, "chat_nontext_failed", exc)
+                    finally:
+                        _processing_msg_timestamps.pop(msg_id, None)
+
+                _track_task(asyncio.create_task(_background_nontext_fallback()))
+                return {"code": 0, "msg": "success"}
+
+            # 文本消息：提取文本内容
+            text_content = content_obj.get("text", "") if isinstance(content_obj, dict) else str(content_obj)
 
             if not text_content:
                 _processing_msg_timestamps.pop(msg_id, None)
@@ -312,19 +330,12 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
                     await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_processed")
                 except Exception as exc:
                     logger.error("有赞后台消息处理异常 [msg_id=%s]: %s", msg_id, exc)
-                    await _mark_audit_result(
-                        chat_service,
-                        audit_id,
-                        YouzanWebhookStatus.FAILED,
-                        "chat_background_failed",
-                        type(exc).__name__,
-                        str(exc),
-                    )
+                    await _mark_audit_failed(chat_service, audit_id, "chat_background_failed", exc)
                 finally:
                     # 释放内存锁定
                     _processing_msg_timestamps.pop(msg_id, None)
 
-            asyncio.create_task(_background_process())
+            _track_task(asyncio.create_task(_background_process()))
 
             # 秒回：主协程小于100ms内极速响应，有赞的3秒生死线安全通过
             return {"code": 0, "msg": "success"}
