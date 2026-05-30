@@ -292,6 +292,14 @@ async def handle_item_event(
         is_active = 0 if ("instock" in event_type or event_type.endswith("Instock")) else 1
         if event_type == "ITEM_STATE" and "is_display" in _inner_data:
             is_active = 1 if _inner_data.get("is_display") else 0
+        else:
+            _is_explicit_state_event = (
+                "instock" in event_type.lower()
+                or "onsale" in event_type.lower()
+                or event_type == "ITEM_STATE"
+            )
+            if not _is_explicit_state_event and local_product is not None:
+                is_active = local_product["is_active"]
         skus = item_data.get("skus", [])
         item_props = item_data.get("item_props", [])
         sold_num = int(item_data.get("sold_num", 0) or 0)

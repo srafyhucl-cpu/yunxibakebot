@@ -153,3 +153,115 @@ async def test_empty_alias_uses_item_id_fallback():
     assert len(rows) == 2
     assert {r["alias"] for r in rows} == {"99999", "100010"}
     await db.close()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_and_webhook_preserves_inactive_status():
+    """验证已下架商品在接收常规销量库存更新 Webhook 时，is_active=0 状态能够被保留而不被覆写为 1。"""
+    db = await init_db(":memory:")
+    # 1. 预先向 youzan_products 写入一个下架商品 (is_active=0)
+    await db.execute(
+        "INSERT INTO youzan_products (item_id, title, alias, price_fen, stock, image, is_active, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (88888, "已下架千层蛋糕", "alias_88888", 28800, 100, "", 0, "2026-05-28 00:00:00")
+    )
+    await db.commit()
+
+    # 2. 模拟常规销量更新事件，youzan_client 模拟返回该商品
+    class _FakeClientForWebhook:
+        async def get_product(self, item_id, alias=""):
+            return {
+                "response": {
+                    "item": {
+                        "title": "已下架千层蛋糕",
+                        "alias": "alias_88888",
+                        "price": 28800,
+                        "quantity": 90,  # 模拟库存变更
+                        "pic_url": "",
+                        "desc": "",
+                        "skus": [],
+                        "item_props": [],
+                    }
+                }
+            }
+        async def get_order(self, *a, **kw):
+            return {}
+
+    vs = EmbeddingSearcher()
+    vs.build([])
+    kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
+    handler = YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_FakeClientForWebhook())
+
+    # 模拟常规库存/销量更新 Webhook 事件
+    payload = {
+        "item_id": 88888,
+        "type": "youzan_item_skuStockOrSoldNumUpdated",
+        "id": "msg_99999",
+    }
+    await handler.handle_system_event(
+        payload=payload,
+        event_type="youzan_item_skuStockOrSoldNumUpdated",
+        updated_at_str="2026-05-30 11:43:00",
+        msg_id="msg_99999",
+    )
+
+    # 验证更新后库存已被更新为 90，但是 is_active 依然保留为 0 (下架)！
+    rows = await db.execute_fetchall(
+        "SELECT item_id, stock, is_active FROM youzan_products WHERE item_id = 88888"
+    )
+    assert len(rows) == 1
+    assert rows[0]["stock"] == 90
+    assert rows[0]["is_active"] == 0
+
+    await db.close()
+
+
+@pytest.mark.asyncio
+async def test_live_refresh_preserves_inactive_status():
+    """验证在 AI 实时刷新单品信息时，如果本地已下架 (is_active=0)，刷新后依然能够保留为 0 状态而不被强写为 1。"""
+    db = await init_db(":memory:")
+    # 1. 预写一个下架商品 (is_active=0)
+    await db.execute(
+        "INSERT INTO youzan_products (item_id, title, alias, price_fen, stock, image, is_active, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (77777, "已下架慕斯蛋糕", "alias_77777", 19800, 50, "", 0, "2026-05-28 00:00:00")
+    )
+    await db.commit()
+
+    # 2. 构造 _refresh_product_live 的入参
+    class _FakeClientForLive:
+        async def get_product(self, item_id, alias=""):
+            return {
+                "response": {
+                    "item": {
+                        "title": "已下架慕斯蛋糕",
+                        "alias": "alias_77777",
+                        "price": 19800,
+                        "quantity": 40,  # 模拟库存变更
+                        "pic_url": "",
+                        "desc": "更新描述",
+                        "skus": [],
+                        "item_props": [],
+                    }
+                }
+            }
+
+    vs = EmbeddingSearcher()
+    vs.build([])
+    kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
+
+    from app.service.llm.function_tool_product import _refresh_product_live
+    live_res = await _refresh_product_live(77777, _FakeClientForLive(), db, kr)
+
+    # 验证返回值和数据库中的状态
+    assert live_res is not None
+    assert live_res["stock"] == 40
+
+    rows = await db.execute_fetchall(
+        "SELECT item_id, stock, is_active FROM youzan_products WHERE item_id = 77777"
+    )
+    assert len(rows) == 1
+    assert rows[0]["stock"] == 40
+    assert rows[0]["is_active"] == 0
+
+    await db.close()

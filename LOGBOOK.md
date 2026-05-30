@@ -2,6 +2,16 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-05-30] - fix: 优化 Webhook 与 AI 实时刷新商品在售状态，防止下架商品死灰复燃
+
+- **操作人**: AI (Antigravity)
+- **问题**: 已被对账下架的商品（`is_active = 0`），在收到非上下架的常规 Webhook 事件（如订单创建引发的销量/库存变更）或触发 AI 实时刷新时，系统会硬编码或无脑默认将 `is_active` 置为 `1`（在售），导致已下架的旧/历史复制商品在本地死灰复燃。
+- **改动**:
+  - `app/service/youzan/event_item.py`: 修改商品 Webhook 处理器，接收常规更新事件（如销量、库存或普通信息修改）时，若本地已存在该商品，则维持其原有的 `is_active` 状态不变，仅在明确的上架事件中才设为 `1`。
+  - `app/service/llm/function_tool_product.py`: 修改 AI 商品实时刷新模块，刷新时先读取本地该商品的在售状态，并保留为更新参数，防止在刷新时强写为 `1`。
+  - `tests/service/youzan/test_event_handler_edge.py`: 增加 `test_reconcile_and_webhook_preserves_inactive_status` 和 `test_live_refresh_preserves_inactive_status` 两个专项异步单元测试，覆盖并保证该状态保护机制生效。
+- **测试**: 本地 pytest 全量通过（129/129 Passed）。
+
 ______________________________________________________________________
 
 ## [2026-05-29] - refactor: 将新版后台从 /admin-v2 迁移回原 /admin 入口

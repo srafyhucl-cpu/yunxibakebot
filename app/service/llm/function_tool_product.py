@@ -126,9 +126,14 @@ async def _refresh_product_live(
         tags_str = ", ".join(["\u5728\u552e"] + list(set(spec_names)) + list(set(prop_names)) + list(set(ingredients)))
         updated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        old_active = 1
+        local_product = await YouzanProductRepo(db).get_by_id(item_id)
+        if local_product is not None:
+            old_active = local_product["is_active"]
+
         product_result = await YouzanProductRepo(db).upsert_product(
             item_id=item_id, title=title, alias=alias, price_fen=price_fen,
-            stock=stock, image=image, is_active=1, updated_at=updated_at,
+            stock=stock, image=image, is_active=old_active, updated_at=updated_at,
             skus_json=json.dumps(skus, ensure_ascii=False),
             item_props_json=json.dumps(item_props, ensure_ascii=False),
             desc=desc_clean, tags=tags_str, sold_num=sold_num,
