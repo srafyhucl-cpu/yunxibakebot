@@ -28,7 +28,7 @@ def create_dialog_router(
     """工厂函数：返回 AI 对话调试相关 API 路由。"""
     router = APIRouter(prefix="/api/v1/admin", tags=["admin-dialog"])
 
-    @router.get("/auth/me")
+    @router.get("/me")
     async def auth_me(
         request: Request,
         authorization: str | None = Header(default=None),

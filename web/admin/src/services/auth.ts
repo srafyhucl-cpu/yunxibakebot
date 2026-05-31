@@ -15,7 +15,7 @@ interface AuthActionResponse {
 
 export const authService = {
   async getProfile(): Promise<AdminProfile> {
-    const response = await http.get<AuthMeResponse>("/auth/me");
+    const response = await http.get<AuthMeResponse>("/me");
     return response.data.data;
   },
 

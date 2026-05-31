@@ -40,11 +40,11 @@ async def test_admin_auth_me_returns_profile_with_cookie() -> None:
         admin_service=object(),
         transfer_mgr=object(),
     )
-    endpoint = _get_route_endpoint(router, "/api/v1/admin/auth/me", "GET")
+    endpoint = _get_route_endpoint(router, "/api/v1/admin/me", "GET")
 
     payload = await endpoint(
         request=_build_request(
-            "/api/v1/admin/auth/me",
+            "/api/v1/admin/me",
             cookies={"admin_token": settings.ADMIN_API_TOKEN},
         ),
     )
@@ -62,10 +62,10 @@ async def test_admin_auth_me_accepts_bearer_token() -> None:
         admin_service=object(),
         transfer_mgr=object(),
     )
-    endpoint = _get_route_endpoint(router, "/api/v1/admin/auth/me", "GET")
+    endpoint = _get_route_endpoint(router, "/api/v1/admin/me", "GET")
 
     payload = await endpoint(
-        request=_build_request("/api/v1/admin/auth/me"),
+        request=_build_request("/api/v1/admin/me"),
         authorization=f"Bearer {settings.ADMIN_API_TOKEN}",
     )
 
