@@ -26,12 +26,9 @@ def is_valid_admin_token(token: str | None) -> bool:
     return hmac.compare_digest(token, expected)
 
 
-def verify_token(authorization: str | None = Header(default=None)) -> None:
-    if not authorization or not authorization.startswith("Bearer "):
+def verify_token(request: Request, authorization: str | None = Header(default=None)) -> None:
+    if not has_admin_api_access(request, authorization):
         raise HTTPException(status_code=401, detail="未授权")
-    token = authorization.removeprefix("Bearer ")
-    if not is_valid_admin_token(token):
-        raise HTTPException(status_code=403, detail="Token 无效")
 
 
 def require_admin_token(token: str | None) -> None:
