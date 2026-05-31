@@ -51,11 +51,17 @@ class MessageRepo:
         await self._db.commit()
 
     async def get_by_session(self, session_id: str, limit: int = MAX_MESSAGES_PER_SESSION) -> list[Message]:
-        """查询某会话的所有消息，按时间正序返回。"""
+        """查询某会话最近 limit 条消息，按时间正序返回。
+
+        先按 created_at 倒序截取最近 N 条，再正序返回，避免会话超过 limit 时
+        只取到最旧的消息而丢失最新上下文（N-1：取旧丢新）。rowid 作为同秒内的
+        稳定排序兜底。
+        """
         rows = await self._db.execute_fetchall(
             "SELECT id, session_id, role, content, channel_msg_id, "
             "estimated_tokens, tool_calls, tool_name, created_at "
-            "FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
+            "FROM messages WHERE session_id = ? "
+            "ORDER BY created_at DESC, rowid DESC LIMIT ?",
             (session_id, limit),
         )
-        return [Message(**dict(r)) for r in rows]
+        return [Message(**dict(r)) for r in reversed(rows)]

@@ -34,7 +34,6 @@ from app.service.llm.soothe import apply_soothe, needs_soothe
 from app.utils import now_str
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
-from app.repository.config_repo import ConfigRepo
 from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_handler import YouzanEventHandler
 
@@ -42,6 +41,8 @@ logger = setup_logger()
 
 # ── 业务常量 ──────────────────────────────────────────────────────────────────
 FALLBACK_REPLY = "系统正忙，请稍后再试或联系人工客服。"
+# 非文本消息（图片/语音/视频等）兑底提示：不喂给 LLM，直接友好引导用户改发文字。
+NONTEXT_FALLBACK_REPLY = "您好~ 我暂时只能识别文字消息，麻烦您用文字描述一下需要咨询的问题，我会尽快为您解答 :)"
 TRANSFER_REPLY = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
 DEFAULT_SEARCH_QUERY = "芸熙烘焙 产品 价格"
 KNOWLEDGE_SEARCH_LIMIT = 8
@@ -60,20 +61,21 @@ class ChatService:
         message_repo: MessageRepo,
         transfer_repo: TransferRepo,
         knowledge_retriever: KnowledgeRetriever,
+        youzan_client: YouzanClient,
+        youzan_webhook_events_repo: YouzanWebhookEventRepo,
+        youzan_event_handler: YouzanEventHandler,
+        analytics_repo: AnalyticsRepo,
     ) -> None:
         self._session_mgr = SessionManager(session_repo, message_repo)
         self._session_repo = session_repo
         self._message_repo = message_repo
         self._transfer_mgr = TransferManager(transfer_repo)
         self._knowledge = knowledge_retriever
-        self._youzan_webhook_events_repo = YouzanWebhookEventRepo(session_repo._db)
-        self._youzan_client = YouzanClient(config_repo=ConfigRepo(session_repo._db))
-        self._youzan_events = YouzanEventHandler(
-            db=session_repo._db,
-            knowledge_retriever=knowledge_retriever,
-            youzan_client=self._youzan_client,
-            audit_repo=self._youzan_webhook_events_repo,
-        )
+        # 显式依赖注入：由组装根（main.py）传入，消除越层访问 session_repo._db（L-1.2）。
+        self._youzan_client = youzan_client
+        self._youzan_webhook_events_repo = youzan_webhook_events_repo
+        self._youzan_events = youzan_event_handler
+        self._analytics_repo = analytics_repo
 
     async def create_youzan_webhook_audit(self, event: YouzanWebhookEventCreate) -> int:
         """Record receipt of a Youzan webhook before async business handling."""
@@ -86,6 +88,16 @@ class ChatService:
     async def mark_youzan_webhook_result(self, audit_id: int, update: YouzanWebhookEventUpdate) -> None:
         """Persist a terminal result for a Youzan webhook."""
         await self._youzan_webhook_events_repo.mark_result(audit_id, update)
+
+    async def has_processed_message(self, channel_msg_id: str) -> bool:
+        """Webhook 秒回去重：渠道原始消息 ID 是否已处理（公共接口，避免越层访问 repo）。"""
+        return await self._message_repo.has_processed(channel_msg_id)
+
+    async def reply_youzan_nontext_fallback(self, buyer_id: str, msg_id: str) -> None:
+        """有赞非文本消息兑底：直接回友好提示，不喂给 LLM（N-6）。"""
+        if msg_id and await self._message_repo.has_processed(msg_id):
+            return
+        await self._youzan_client.send_reply(buyer_open_id=buyer_id, content=NONTEXT_FALLBACK_REPLY)
 
     async def handle_message_and_reply_youzan(self, buyer_id: str, content: str, msg_id: str) -> None:
         """处理消息，并将 AI 回复通过有赞客户端投递给买家（业务层闭环封装）。"""
@@ -196,7 +208,7 @@ class ChatService:
         # 9. 回复链路延迟埋点
         try:
             event_time = now_str()
-            await AnalyticsRepo(self._session_repo._db).add_event(
+            await self._analytics_repo.add_event(
                 session_id=session.id,
                 buyer_id=user_id,
                 event_type="reply_latency",

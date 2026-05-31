@@ -109,8 +109,17 @@ async def receive_message(request: Request) -> PlainTextResponse:
         msg_type, from_user, msg_id,
     )
 
-    # 只处理文本消息
-    if msg_type != "text" or not content.strip():
+    # 空文本消息直接忽略
+    if msg_type == "text" and not content.strip():
+        return PlainTextResponse("")
+
+    # 非文本消息（图片/语音/视频等）：企微被动/主动回复链路尚未启用（见 L-4.1 休眠项），
+    # 此前与空消息一样被静默丢弃（L-4.2）。这里至少显式记录，避免无声吞掉，便于排查与后续接入兜底回复。
+    if msg_type != "text":
+        logger.info(
+            "企微非文本消息暂不支持，已跳过处理 type=%s from=%s msg_id=%s",
+            msg_type, from_user, msg_id,
+        )
         return PlainTextResponse("")
 
     # 转给 ChatService 处理

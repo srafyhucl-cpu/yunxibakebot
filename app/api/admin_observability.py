@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 
 
-from app.config import settings
+from app.api.admin import require_admin_token
 from app.service.observability import ObservabilityService
 
 
@@ -13,13 +13,6 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
     """创建数据观察台路由。"""
     api_router = APIRouter(prefix="/api/v1/admin/observability", tags=["admin-observability-api"])
     root_router = APIRouter()
-
-    def _verify_token(token: str | None) -> None:
-        if not token:
-            raise HTTPException(status_code=401, detail="Missing Token")
-        if token.replace("Bearer ", "") != settings.ADMIN_API_TOKEN:
-            raise HTTPException(status_code=403, detail="Invalid Token")
-
 
 
     @api_router.get("/current")
@@ -31,7 +24,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         keyword: str = "",
         product_status: str = "",
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         limit = 30
         offset = (page - 1) * limit
         items, total = await service.list_current_content(
@@ -55,7 +48,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         entity_type: str = "",
         keyword: str = "",
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         limit = 30
         offset = (page - 1) * limit
         items, total = await service.get_history(
@@ -75,7 +68,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         entry_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         entry = await service.get_history_detail(entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Not Found")
@@ -91,7 +84,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         event_type: str = "",
         keyword: str = "",
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         limit = 30
         offset = (page - 1) * limit
         items, total = await service.get_webhooks(
@@ -110,7 +103,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         event_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        _verify_token(authorization)
+        require_admin_token(authorization)
         entry = await service.get_webhook_detail(event_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Not Found")

@@ -14,6 +14,27 @@
 
 ______________________________________________________________________
 
+## [2026-05-30] - fix: 外部审计修复批次 A（contained，N-2/N-1/N-4+L-1.4/N-6+L-4.2/L-1.1+L-1.2/删 jinja2）
+
+- **操作人**: AI (Devin)
+- **需求**: 将外部代码审计发现的一组低风险、互相隔离的缺陷在当前代码结构中重新实现（原审计基于旧快照仓库，补丁无法直接套用，故按当前架构重写）。
+- **改动**:
+  - **N-2 后台任务防 GC**: `app/main.py`、`app/api/webhook.py` 用 `_background_tasks` 集合持有 `asyncio.create_task` 强引用并在 `add_done_callback` 中 discard，避免后台处理/回复任务被 GC 提前回收丢失。
+  - **N-1 取旧丢新**: `app/repository/message_repo.py` `get_by_session` 改 `ORDER BY created_at DESC, rowid DESC LIMIT ?` 后 `reversed()`，确保超 limit 会话取到最近 N 条而非最旧 N 条。
+  - **N-4 + L-1.4 admin Token**: `app/api/admin.py` 用 `hmac.compare_digest` 做定时安全比较，抽共享 `require_admin_token`；`admin_config/knowledge/observability/products.py` 删各自重复的 `_verify_token`、统一调用共享校验。
+  - **N-6 + L-4.2 非文本兜底**: 有赞非文本消息（图片/语音/视频）不再喂 LLM，`ChatService.reply_youzan_nontext_fallback` 直接友好引导改发文字（带审计落账）；企微非文本由静默丢弃改为显式日志记录（被动回复链路属休眠项 L-4.1，待启用后接入兜底）。
+  - **L-1.1 + L-1.2 消除越层访问**: `ChatService` 构造函数显式注入 `youzan_client`/`youzan_webhook_events_repo`/`youzan_event_handler`/`analytics_repo`，由 `main.py` 组装根传入；新增公共方法 `has_processed_message`，`webhook.py` 改调公共接口，不再访问 `chat_service._message_repo` / `session_repo._db`。
+  - **删 jinja2**: `requirements.txt` 移除死依赖 `jinja2`（旧版 Jinja2 模板已于 2026-05-29 物理删除，全仓无服务端模板渲染）。
+- **数据库状态变更 (Schema Update)**: 无
+- **测试覆盖与验证结果**:
+  - `python scripts/check_project.py` ✅ 架构红线全 PASS + 全量 pytest 通过（仅既有函数体量 WARN，非本次引入）。
+  - 同步更新 `tests/service/youzan/test_product_name_change.py`、`tests/service/youzan/test_webhook_retry.py` 适配 `ChatService` 新依赖注入签名与公共接口。
+- **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
+  - 企微被动/主动回复链路仍休眠（L-4.1），非文本兜底目前仅日志记录、未真正下发回复。
+  - 后续批次 B（N-3 连接池）/ C（商品同步去重 + HTML 清洗）/ D（意图复评 + 前端常量）单独评估、单独 PR。
+
+______________________________________________________________________
+
 ## [2026-05-29] - refactor: 将新版后台从 /admin-v2 迁移回原 /admin 入口
 
 - **操作人**: AI (Antigravity)

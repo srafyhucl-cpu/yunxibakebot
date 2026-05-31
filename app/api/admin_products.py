@@ -6,8 +6,9 @@
 - 对账完成后自动批量同步 pending 向量状态
 """
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header
 
+from app.api.admin import require_admin_token
 from app.service.knowledge_sync import KnowledgeSyncService
 from app.service.youzan.product_reconciler import ProductReconcileService
 
@@ -19,19 +20,12 @@ def create_admin_products_router(
     """创建商品管理 API 路由。"""
     router = APIRouter(prefix="/api/v1/admin/products", tags=["admin-products"])
 
-    def _verify_token(token: str | None) -> None:
-        from app.config import settings
-        if not token:
-            raise HTTPException(status_code=401, detail="Missing Token")
-        if token.replace("Bearer ", "") != settings.ADMIN_API_TOKEN:
-            raise HTTPException(status_code=403, detail="Invalid Token")
-
     @router.post("/reconcile")
     async def trigger_reconcile(
         authorization: str | None = Header(default=None),
     ) -> dict:
         """触发商品全量对账，并在对账完成后批量同步所有 pending 向量状态。"""
-        _verify_token(authorization)
+        require_admin_token(authorization)
         reconcile_result = await reconcile_service.run()
         sync_result = await knowledge_sync_service.sync_all_pending()
         return {"code": 0, "data": {**reconcile_result, "vector_sync": sync_result}}
