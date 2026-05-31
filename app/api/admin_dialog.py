@@ -51,14 +51,15 @@ def create_dialog_router(
             value=token,
             max_age=ADMIN_SESSION_MAX_AGE_SECONDS,
             httponly=True,
-            samesite="strict",
+            samesite="lax",
+            path="/",
         )
         return response
 
     @router.post("/auth/logout")
     async def auth_logout() -> JSONResponse:
         response = JSONResponse({"ok": True, "message": "已退出登录"})
-        response.delete_cookie("admin_token")
+        response.delete_cookie("admin_token", path="/")
         return response
 
     @router.get("/ai-dialog/sessions", dependencies=[Depends(verify_token)])
