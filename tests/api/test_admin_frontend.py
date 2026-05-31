@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import json
+
 import pytest
-from fastapi import Request
+from fastapi import HTTPException, Request
 
 from app.api.admin import create_admin_router
 from app.api.admin_frontend import create_admin_frontend_router
@@ -47,9 +49,10 @@ async def test_admin_auth_me_returns_profile_with_cookie() -> None:
         ),
     )
 
-    assert payload["ok"] is True
-    assert payload["data"]["role"] == "admin"
-    assert payload["data"]["name"] == "管理员"
+    body = json.loads(payload.body.decode())
+    assert body["ok"] is True
+    assert body["data"]["role"] == "admin"
+    assert body["data"]["name"] == "管理员"
 
 
 @pytest.mark.asyncio
@@ -66,8 +69,9 @@ async def test_admin_auth_me_accepts_bearer_token() -> None:
         authorization=f"Bearer {settings.ADMIN_API_TOKEN}",
     )
 
-    assert payload["ok"] is True
-    assert payload["data"]["role"] == "admin"
+    body = json.loads(payload.body.decode())
+    assert body["ok"] is True
+    assert body["data"]["role"] == "admin"
 
 
 @pytest.mark.asyncio

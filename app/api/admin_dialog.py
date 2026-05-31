@@ -32,10 +32,29 @@ def create_dialog_router(
     async def auth_me(
         request: Request,
         authorization: str | None = Header(default=None),
-    ) -> dict:
+    ) -> JSONResponse:
         if not has_admin_api_access(request, authorization):
             raise HTTPException(status_code=401, detail="未登录或登录已过期")
-        return {"ok": True, "data": {"name": "管理员", "role": "admin"}}
+            
+        response = JSONResponse({"ok": True, "data": {"name": "管理员", "role": "admin"}})
+        
+        # 自愈机制：如果验证通过，提取合法 Token 并强制补发带有正确全局 path 的 Cookie，
+        # 用于修复因用户浏览器残留旧的 /auth/ 局部路径 Cookie 而导致后续业务接口 401 的无限重定向死循环
+        token = request.cookies.get("admin_token")
+        if not token and authorization and authorization.startswith("Bearer "):
+            token = authorization.removeprefix("Bearer ")
+            
+        if token and is_valid_admin_token(token):
+            response.set_cookie(
+                key="admin_token",
+                value=token,
+                max_age=ADMIN_SESSION_MAX_AGE_SECONDS,
+                httponly=True,
+                samesite="lax",
+                path="/",
+            )
+            
+        return response
 
     @router.post("/auth/login")
     async def auth_login(request: Request) -> JSONResponse:
