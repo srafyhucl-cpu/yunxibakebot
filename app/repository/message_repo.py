@@ -17,8 +17,18 @@ MAX_MESSAGES_PER_SESSION = 50
 class MessageRepo:
     """消息仓库：保存、去重检查、按会话查询。"""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
-        self._db = db
+    def __init__(self, db: aiosqlite.Connection = None) -> None:
+        self._injected_db = db
+
+    @property
+    def _db(self) -> aiosqlite.Connection:
+        if self._injected_db is not None:
+            return self._injected_db
+        try:
+            from app.database import db_conn_var
+            return db_conn_var.get()
+        except LookupError as exc:
+            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def exists(self, channel_msg_id: str) -> bool:
         """根据渠道原始消息 ID 检查是否已处理（幂等去重）。"""

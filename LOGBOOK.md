@@ -2,6 +2,22 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-05-31] - refactor: 数据库并发连接隔离与事务机制加固 (批次 C / N-3)
+
+- **操作人**: AI (Antigravity)
+- **需求**: 修复外部审计高风险项 N-3（aiosqlite 单连接共享 commit 导致的事务隔离与数据漂移缺陷）。
+- **改动**:
+  - `app/database.py`: 引入 `db_conn_var` 上下文变量和 `db_session_scope` 异步上下文管理器（自动处理 commit/rollback 与 close），提供请求级 `get_db_session` FastAPI 依赖项。
+  - `app/repository/*.py` (共 11 个 Repo 及 AnalyticsRepo): 重构 `__init__` 与 `@property def _db()` 动态路由，保证优先取 ContextVar 连接，且无缝兼容测试中的构造注入。
+  - `app/main.py`: 移除全局唯一 db 连接单例，将 lifespan 启动检查、存盘与同步守护协程全数用 `db_session_scope()` 隔离包裹。
+  - `app/api/webhook.py`: 接口端点注入 `Depends(get_db_session)` 依赖，并将唤起的三大核心后台异步协程分别在其最外层用 `db_session_scope()` 范围包裹，彻底物理隔离各并发线程。
+  - `scripts/test_concurrent_100.py`: 修复压测脚本中的本地端口硬编码（8000 -> settings.SERVER_PORT 7001）。
+- **数据库状态变更 (Schema Update)**: 无。
+- **测试覆盖与验证结果**:
+  - pytest 133 个测试全量通过；高并发压测 20 路并发全部 200✅ 成功，无任何锁悬挂、交叉 commit 报错；门禁 check_project.py 全绿。
+
+______________________________________________________________________
+
 ## [2026-05-31] - refactor: 审计报告遗留问题批量重构与安全加固 (批次 B)
 
 - **操作人**: AI (Antigravity)

@@ -15,8 +15,18 @@ from app.utils import now_str
 class YouzanWebhookEventRepo:
     """Stores a durable audit trail for every received Youzan webhook."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
-        self._db = db
+    def __init__(self, db: aiosqlite.Connection = None) -> None:
+        self._injected_db = db
+
+    @property
+    def _db(self) -> aiosqlite.Connection:
+        if self._injected_db is not None:
+            return self._injected_db
+        try:
+            from app.database import db_conn_var
+            return db_conn_var.get()
+        except LookupError as exc:
+            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def create_received(self, event: YouzanWebhookEventCreate) -> int:
         now = now_str()

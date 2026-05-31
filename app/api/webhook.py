@@ -12,8 +12,8 @@ import hashlib
 import json
 import urllib.parse
 
-from fastapi import APIRouter, Request, HTTPException
-
+from fastapi import APIRouter, Request, HTTPException, Depends
+from app.database import get_db_session, db_session_scope
 from app.config import settings
 from app.logger import setup_logger
 from app.models.youzan_webhook_event import (
@@ -200,7 +200,7 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
     # cleanup is performed opportunistically inside each request to avoid orphan tasks in tests
 
     @router.post("/youzan")
-    async def youzan_webhook(request: Request) -> dict:
+    async def youzan_webhook(request: Request, db = Depends(get_db_session)) -> dict:
         """
         有赞消息回调入口（统一接收客服消息推送与交易/商品事件推送）。
 
@@ -267,17 +267,18 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             # Webhook 充当极简网关分发，彻底移除所有 repository 导入，契合架构红线
             async def _background_process_system_event() -> None:
                 try:
-                    import datetime
-                    timestamp_sec = payload.get("timestamp", int(time.time()))
-                    updated_at_str = datetime.datetime.fromtimestamp(timestamp_sec).strftime("%Y-%m-%d %H:%M:%S")
+                    async with db_session_scope():
+                        import datetime
+                        timestamp_sec = payload.get("timestamp", int(time.time()))
+                        updated_at_str = datetime.datetime.fromtimestamp(timestamp_sec).strftime("%Y-%m-%d %H:%M:%S")
 
-                    await chat_service.handle_youzan_system_event(
-                        payload=payload,
-                        event_type=event_type,
-                        updated_at_str=updated_at_str,
-                        msg_id=msg_id,
-                        audit_id=audit_id,
-                    )
+                        await chat_service.handle_youzan_system_event(
+                            payload=payload,
+                            event_type=event_type,
+                            updated_at_str=updated_at_str,
+                            msg_id=msg_id,
+                            audit_id=audit_id,
+                        )
                 except Exception as exc:
                     logger.error("有赞系统事件后台业务处理异常 [msg_id=%s]: %s", msg_id, exc, exc_info=True)
                     await _mark_audit_failed(chat_service, audit_id, "system_background_failed", exc)
@@ -299,8 +300,9 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
 
                 async def _background_nontext_fallback() -> None:
                     try:
-                        await chat_service.reply_youzan_nontext_fallback(buyer_id, msg_id)
-                        await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_nontext_fallback")
+                        async with db_session_scope():
+                            await chat_service.reply_youzan_nontext_fallback(buyer_id, msg_id)
+                            await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_nontext_fallback")
                     except Exception as exc:
                         logger.error("有赞非文本兑底回复异常 [msg_id=%s]: %s", msg_id, exc)
                         await _mark_audit_failed(chat_service, audit_id, "chat_nontext_failed", exc)
@@ -322,12 +324,13 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
 
             async def _background_process() -> None:
                 try:
-                    await chat_service.handle_message_and_reply_youzan(
-                        buyer_id=buyer_id,
-                        content=text_content,
-                        msg_id=msg_id,
-                    )
-                    await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_processed")
+                    async with db_session_scope():
+                        await chat_service.handle_message_and_reply_youzan(
+                            buyer_id=buyer_id,
+                            content=text_content,
+                            msg_id=msg_id,
+                        )
+                        await _mark_audit_result(chat_service, audit_id, YouzanWebhookStatus.PROCESSED, "chat_processed")
                 except Exception as exc:
                     logger.error("有赞后台消息处理异常 [msg_id=%s]: %s", msg_id, exc)
                     await _mark_audit_failed(chat_service, audit_id, "chat_background_failed", exc)

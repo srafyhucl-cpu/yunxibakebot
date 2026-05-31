@@ -15,8 +15,18 @@ ADMIN_LIST_CONTENT_TYPES = ("faq", "rule", "script")
 class KnowledgeAdminRepo:
     """后台知识配置仓库：负责 FAQ/规则/话术的分页、增删改查。"""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
-        self._db = db
+    def __init__(self, db: aiosqlite.Connection = None) -> None:
+        self._injected_db = db
+
+    @property
+    def _db(self) -> aiosqlite.Connection:
+        if self._injected_db is not None:
+            return self._injected_db
+        try:
+            from app.database import db_conn_var
+            return db_conn_var.get()
+        except LookupError as exc:
+            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def list_admin_entries(
         self,

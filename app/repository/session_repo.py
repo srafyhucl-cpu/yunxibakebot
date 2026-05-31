@@ -15,8 +15,18 @@ from app.models.session import Session, SessionCreate, SessionStatus
 class SessionRepo:
     """会话仓库：查询、创建、更新会话状态。"""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
-        self._db = db
+    def __init__(self, db: aiosqlite.Connection = None) -> None:
+        self._injected_db = db
+
+    @property
+    def _db(self) -> aiosqlite.Connection:
+        if self._injected_db is not None:
+            return self._injected_db
+        try:
+            from app.database import db_conn_var
+            return db_conn_var.get()
+        except LookupError as exc:
+            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def get(self, session_id: str) -> Session | None:
         """根据 ID 获取会话，不存在时返回 None。"""

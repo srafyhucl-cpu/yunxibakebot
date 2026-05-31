@@ -32,7 +32,7 @@ os.environ["YOUZAN_MOCK_MODE"] = "true"
 from app.config import settings  # noqa: E402
 from app.service.youzan.mock_emulator import YouzanMockEmulator  # noqa: E402
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = f"http://127.0.0.1:{settings.SERVER_PORT}"
 WEBHOOK_PATH = "/api/v1/webhook/youzan"
 YOUZAN_API_BASE = "https://open.youzanyun.com/api"
 YOUZAN_AUTH_URL = "https://open.youzanyun.com/auth/token"

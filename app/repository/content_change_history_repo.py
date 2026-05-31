@@ -11,8 +11,18 @@ from app.models.content_change_history import (
 class ContentChangeHistoryRepo:
     """Stores append-only content change records."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
-        self._db = db
+    def __init__(self, db: aiosqlite.Connection = None) -> None:
+        self._injected_db = db
+
+    @property
+    def _db(self) -> aiosqlite.Connection:
+        if self._injected_db is not None:
+            return self._injected_db
+        try:
+            from app.database import db_conn_var
+            return db_conn_var.get()
+        except LookupError as exc:
+            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def add(self, entry: ContentChangeHistoryCreate) -> int:
         cursor = await self._db.execute(

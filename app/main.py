@@ -52,54 +52,60 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         1. 关闭数据库连接
     """
     # ── startup ──
-    db = await init_db(settings.DB_PATH)
+    # 仅执行一次性初始化及微创迁移
+    init_conn = await init_db(settings.DB_PATH)
+    await init_conn.close()
+
     # 持有后台任务强引用，避免任务被 GC 提前回收导致回复丢失（N-2）。
     _background_tasks: set[asyncio.Task] = set()
 
-    # Repository 层
-    session_repo = SessionRepo(db)
-    message_repo = MessageRepo(db)
-    knowledge_repo = KnowledgeRepo(db)
-    knowledge_admin_repo = KnowledgeAdminRepo(db)
-    knowledge_product_repo = KnowledgeProductRepo(db)
-    transfer_repo = TransferRepo(db)
-    config_repo = ConfigRepo(db)
-    history_repo = ContentChangeHistoryRepo(db)
-    youzan_product_repo = YouzanProductRepo(db)
-    webhook_event_repo = YouzanWebhookEventRepo(db)
+    # Repository 层：启用动态 Context-Local 动态路由（传入 None）
+    session_repo = SessionRepo(None)
+    message_repo = MessageRepo(None)
+    knowledge_repo = KnowledgeRepo(None)
+    knowledge_admin_repo = KnowledgeAdminRepo(None)
+    knowledge_product_repo = KnowledgeProductRepo(None)
+    transfer_repo = TransferRepo(None)
+    config_repo = ConfigRepo(None)
+    history_repo = ContentChangeHistoryRepo(None)
+    youzan_product_repo = YouzanProductRepo(None)
+    webhook_event_repo = YouzanWebhookEventRepo(None)
 
     # 语义向量搜索服务（启动优化：首选极速缓存载入并进行一致性指纹对比，对齐时 100% 豁免 CPU 全量重算）
     from app.service.embedding_search import EmbeddingSearcher
     vs = EmbeddingSearcher()
     vs_path = settings.EMBEDDING_INDEX_DIR
 
-    logger.info("正在初始化向量搜索：首选尝试极速载入本地预解算缓存...")
-    await vs.load(vs_path)
+    # 包裹在 db_session_scope 内部以提供专属连接
+    from app.database import db_session_scope
+    async with db_session_scope():
+        logger.info("正在初始化向量搜索：首选尝试极速载入本地预解算缓存...")
+        await vs.load(vs_path)
 
-    docs = await knowledge_repo.get_all_titles_with_keys()
-    need_rebuild = True
+        docs = await knowledge_repo.get_all_titles_with_keys()
+        need_rebuild = True
 
-    import hashlib
-    sorted_docs = sorted(docs, key=lambda x: x[0])
-    concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
-    current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
+        import hashlib
+        sorted_docs = sorted(docs, key=lambda x: x[0])
+        concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
+        current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
 
-    if vs._ready and docs:
-        # 对齐校验防漂移：引入 O(N) 集合哈希对比，检查缓存主键数量与值是否与数据库完全一致，同时校验数据文本全量 MD5 锁
-        cached_keys = set(vs._doc_keys)
-        db_keys = {str(d[0]) for d in docs}
-        if cached_keys == db_keys and vs._data_hash == current_db_md5:
-            need_rebuild = False
-            logger.info("向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量", vs.doc_count)
+        if vs._ready and docs:
+            # 对齐校验防漂移：引入 O(N) 集合哈希对比，检查缓存主键数量与值是否与数据库完全一致，同时校验数据文本全量 MD5 锁
+            cached_keys = set(vs._doc_keys)
+            db_keys = {str(d[0]) for d in docs}
+            if cached_keys == db_keys and vs._data_hash == current_db_md5:
+                need_rebuild = False
+                logger.info("向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量", vs.doc_count)
 
-    if need_rebuild:
-        if docs:
-            logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
-            await asyncio.to_thread(vs.build, docs, current_db_md5)
-            await vs.save(vs_path)
-            logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
-        else:
-            logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
+        if need_rebuild:
+            if docs:
+                logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
+                await asyncio.to_thread(vs.build, docs, current_db_md5)
+                await vs.save(vs_path)
+                logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
+            else:
+                logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
 
     # 异步定时节流刷盘后台守护任务
     async def periodic_save_task() -> None:
@@ -111,24 +117,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 except asyncio.TimeoutError:
                     pass
                 if vs and vs._dirty:
-                    active_docs = await knowledge_repo.get_all_titles_with_keys()
-                    import hashlib
-                    sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                    concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
-                    latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
-                    vs._data_hash = latest_db_md5
-                    await vs.save(vs_path)
+                    async with db_session_scope():
+                        active_docs = await knowledge_repo.get_all_titles_with_keys()
+                        import hashlib
+                        sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
+                        concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
+                        latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                        vs._data_hash = latest_db_md5
+                        await vs.save(vs_path)
         except asyncio.CancelledError:
             # 正常退出拦截器，最后一次强制清算持久化
             if vs and vs._dirty:
                 try:
-                    active_docs = await knowledge_repo.get_all_titles_with_keys()
-                    import hashlib
-                    sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                    concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
-                    latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
-                    vs._data_hash = latest_db_md5
-                    await vs.save(vs_path)
+                    async with db_session_scope():
+                        active_docs = await knowledge_repo.get_all_titles_with_keys()
+                        import hashlib
+                        sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
+                        concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
+                        latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                        vs._data_hash = latest_db_md5
+                        await vs.save(vs_path)
                 except Exception as e:
                     logger.error("守护协程退关刷盘异常: %s", e)
         except Exception as e:
@@ -172,9 +180,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     transfer_mgr = TransferManager(transfer_repo)
 
     youzan_client = YouzanClient(config_repo=config_repo)
-    analytics_repo = AnalyticsRepo(db)
+    analytics_repo = AnalyticsRepo(None)
     youzan_event_handler = YouzanEventHandler(
-        db=db,
+        db=None,
         knowledge_retriever=knowledge_retriever,
         youzan_client=youzan_client,
         audit_repo=webhook_event_repo,
@@ -235,8 +243,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async def _startup_sync_task() -> None:
         """服务启动完成后批量同步所有 pending 向量条目。"""
         try:
-            result = await knowledge_sync_service.sync_all_pending()
-            logger.info("启动向量自愈同步完成: %s", result)
+            async with db_session_scope():
+                result = await knowledge_sync_service.sync_all_pending()
+                logger.info("启动向量自愈同步完成: %s", result)
         except Exception as exc:
             logger.error("启动向量自愈同步失败: %s", exc)
 
@@ -252,7 +261,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         pass
     from app.service.wecom.client import close_wecom_client
     await close_wecom_client()
-    await close_db(db)
     logger.info("服务已关闭")
 
 
