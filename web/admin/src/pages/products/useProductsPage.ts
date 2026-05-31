@@ -57,6 +57,8 @@ export function useProductsPage() {
   const currentFeatured = computed(() => route.query.featured === "1");
   const currentItemNo = computed(() => String(route.query.item_no ?? ""));
   const currentStockLevel = computed(() => String(route.query.stock_level ?? ""));
+  const currentSortBy = computed(() => String(route.query.sort_by ?? ""));
+  const currentSortOrder = computed(() => String(route.query.sort_order ?? ""));
   const activeCount = computed(() => products.value.filter((item) => item.isActive).length);
 
   const tableRows = computed(() =>
@@ -112,6 +114,7 @@ export function useProductsPage() {
         currentPage.value, currentKeyword.value,
         currentActive.value, "", currentSyncStatus.value,
         currentFeatured.value, currentItemNo.value, "",
+        currentSortBy.value, currentSortOrder.value,
       );
       products.value = payload.items;
       total.value = payload.total;
@@ -144,6 +147,7 @@ export function useProductsPage() {
         1, searchDraft.value.trim(), filterActive.value,
         filterSyncStatus.value, filterFeatured.value,
         filterItemNo.value.trim(), "", filterStockLevel.value,
+        currentSortBy.value, currentSortOrder.value,
       ),
     });
   }
@@ -164,6 +168,7 @@ export function useProductsPage() {
         page, currentKeyword.value, route.query.is_active !== undefined ? String(route.query.is_active) : "1",
         currentSyncStatus.value, currentFeatured.value,
         currentItemNo.value, "", currentStockLevel.value,
+        currentSortBy.value, currentSortOrder.value,
       ),
     });
   }
@@ -207,6 +212,8 @@ export function useProductsPage() {
     itemNo: string = "",
     kw: string = "",
     stockLevel: string = "",
+    sortBy: string = "",
+    sortOrder: string = "",
   ): Record<string, string> {
     const query: Record<string, string> = {};
     if (page > 1) query.page = String(page);
@@ -217,7 +224,22 @@ export function useProductsPage() {
     if (itemNo) query.item_no = itemNo;
     if (kw) query.kw = kw;
     if (stockLevel) query.stock_level = stockLevel;
+    if (sortBy) query.sort_by = sortBy;
+    if (sortOrder) query.sort_order = sortOrder;
     return query;
+  }
+
+  async function handleSortChange({ prop, order }: { prop: string; order: string | null }) {
+    const sortBy = order ? prop : "";
+    const sortOrder = order === "ascending" ? "asc" : order === "descending" ? "desc" : "";
+    await router.replace({
+      query: buildQuery(
+        1, currentKeyword.value, route.query.is_active !== undefined ? String(route.query.is_active) : "1",
+        currentSyncStatus.value, currentFeatured.value,
+        currentItemNo.value, "", currentStockLevel.value,
+        sortBy, sortOrder,
+      ),
+    });
   }
 
   watch(
@@ -264,6 +286,7 @@ export function useProductsPage() {
     toggleProduct,
     toggleFeatured,
     runReconcile,
+    handleSortChange,
   };
 }
 

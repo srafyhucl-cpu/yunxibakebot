@@ -77,6 +77,8 @@ export const productsService = {
     featuredOnly: boolean = false,
     itemNo: string = "",
     keywordFilter: string = "",
+    sortBy: string = "",
+    sortOrder: string = "",
   ): Promise<ProductListPayload> {
     const response = await http.get<ProductListResponse>("/products", {
       params: {
@@ -88,6 +90,8 @@ export const productsService = {
         featured_only: featuredOnly || undefined,
         item_no: itemNo || undefined,
         keyword_filter: keywordFilter || undefined,
+        sort_by: sortBy || undefined,
+        sort_order: sortOrder || undefined,
       },
     });
     return {

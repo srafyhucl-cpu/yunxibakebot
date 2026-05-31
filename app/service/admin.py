@@ -135,6 +135,8 @@ class AdminService:
         youzan_item_id_filter: str = "",
         keyword_filter: str = "",
         item_no_filter: str = "",
+        sort_by: str = "",
+        sort_order: str = "desc",
     ) -> list[KnowledgeEntry]:
         return await KnowledgeProductRepo(self._knowledge_repo._db).get_all_products(
             search=search, limit=limit, offset=offset,
@@ -144,6 +146,8 @@ class AdminService:
             youzan_item_id_filter=youzan_item_id_filter,
             keyword_filter=keyword_filter,
             item_no_filter=item_no_filter,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
 
     async def count_products(

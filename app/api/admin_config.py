@@ -20,6 +20,29 @@ router = APIRouter(tags=["admin-config"])
 _api_router = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(verify_token)])
 
 
+def _serialize_product_entry(e) -> dict:
+    """序列化商品知识条目。"""
+    return {
+        "id": e.id,
+        "category": e.category,
+        "content_type": e.content_type,
+        "title": e.title,
+        "content": e.content,
+        "keywords": e.keywords,
+        "priority": e.priority,
+        "is_active": e.is_active,
+        "youzan_item_id": e.youzan_item_id,
+        "last_sync_source": e.last_sync_source,
+        "last_sync_ref": e.last_sync_ref,
+        "vector_sync_status": e.vector_sync_status,
+        "updated_at": e.updated_at,
+        "price_fen": getattr(e, "price_fen", None),
+        "stock": getattr(e, "stock", None),
+        "sold_num": getattr(e, "sold_num", 0),
+        "item_no": getattr(e, "item_no", ""),
+    }
+
+
 def create_shop_config_router(admin_service: AdminService) -> APIRouter:
     """创建店铺配置相关路由。"""
 
@@ -58,6 +81,8 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         youzan_item_id: str = "",
         item_no: str = "",
         keyword_filter: str = "",
+        sort_by: str = "",
+        sort_order: str = "desc",
         authorization: str | None = Header(default=None),
     ) -> dict:
 
@@ -79,6 +104,8 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             youzan_item_id_filter=youzan_item_id,
             keyword_filter=keyword_filter,
             item_no_filter=item_no,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
         total = await admin_service.count_products(
             search=search, is_active=active_filter, sync_source=sync_source,
@@ -90,30 +117,15 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         )
         total_active = await admin_service.count_products(is_active=1)
         total_inactive = await admin_service.count_products(is_active=0)
-        youzan_ids = [e.youzan_item_id for e in entries if e.youzan_item_id]
-        price_stock_map = await admin_service.get_prices_and_stocks(youzan_ids)
-        return {"code": 0, "total": total, "total_active": total_active, "total_inactive": total_inactive, "data": [
-            {
-                "id": e.id,
-                "category": e.category,
-                "content_type": e.content_type,
-                "title": e.title,
-                "content": e.content,
-                "keywords": e.keywords,
-                "priority": e.priority,
-                "is_active": e.is_active,
-                "youzan_item_id": e.youzan_item_id,
-                "last_sync_source": e.last_sync_source,
-                "last_sync_ref": e.last_sync_ref,
-                "vector_sync_status": e.vector_sync_status,
-                "updated_at": e.updated_at,
-                "price_fen": price_stock_map.get(e.youzan_item_id or "", {}).get("price_fen"),
-                "stock": price_stock_map.get(e.youzan_item_id or "", {}).get("stock"),
-                "sold_num": price_stock_map.get(e.youzan_item_id or "", {}).get("sold_num", 0),
-                "item_no": price_stock_map.get(e.youzan_item_id or "", {}).get("item_no", ""),
-            }
-            for e in entries
-        ], "page": page, "page_size": limit}
+        return {
+            "code": 0,
+            "total": total,
+            "total_active": total_active,
+            "total_inactive": total_inactive,
+            "data": [_serialize_product_entry(e) for e in entries],
+            "page": page,
+            "page_size": limit,
+        }
 
     @_api_router.post("/products/{product_id}/toggle-active")
     async def toggle_product_active(

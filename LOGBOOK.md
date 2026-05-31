@@ -2,6 +2,23 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-05-31] - feat: 实现商品管理页面全局数据库级排序机制
+
+- **操作人**: AI (Antigravity)
+- **需求**: 将商品管理页面前端的排序升级为全局数据库级排序，避免仅对当前页排序的问题。
+- **根因**: 原前端逻辑直接对当前表格页的数据做局部排序。对于多页数据，应该将排序字段和顺序传递给后端 API，在 SQLite 数据库底层通过 JOIN 查询完成全局字段（如价格、库存、销量、货号等）的排序。
+- **改动**:
+  - `app/repository/knowledge_product_repo.py`: 重写 `get_all_products` 方法，通过 `LEFT JOIN youzan_products` 实现对有赞相关动态字段（`price_fen`, `stock`, `sold_num`, `item_no`）的联合查询；利用排序白名单防御与 `sort_order` 清洗确保安全，防范 SQL 注入；同时，为了遵守 50 行函数限制约束，将排序子句构建与条目解析逻辑拆分抽取为 `_build_sort_order` 和 `_row_to_product_entry` 静态辅助函数。
+  - `app/service/admin.py`: 在 `AdminService.get_all_products` 中向后传递 `sort_by` 与 `sort_order` 参数。
+  - `app/api/admin_config.py`: 在 `/products` API 路由中支持 `sort_by` 和 `sort_order` 查询参数并透传给 Service 层；同时为遵守单个方法 ≤ 50 行约束，提取了 `_serialize_product_entry` 辅助序列化方法。
+  - `web/admin/src/services/products.ts`: 前端 API 定义添加 `sortBy` 与 `sortOrder` 参数。
+  - `web/admin/src/pages/products/useProductsPage.ts`: 引入对 URL 路由中 `sort_by` 和 `sort_order` 状态的响应式绑定，并在 `@sort-change` 事件中将排序状态通过 Router 推送更新，从而保证与分页、过滤器的无缝联动。
+  - `web/admin/src/pages/products/ProductsPage.vue`: 绑定 `el-table` 的 `@sort-change` 事件，将各排序列表头改为 `sortable="custom"`。
+- **数据库状态变更 (Schema Update)**: 无。
+- **测试覆盖与验证结果**:
+  - 本地编写 `scratch/test_product_sorting.py` 自动化集成测试脚本，模拟 API 请求验证价格升序、价格降序、库存降序、销量降序 4 种全局排序场景，100% 验证通过。
+  - 运行 `python -m pytest tests/ -q` 回归测试，全量测试用例 100% 成功。
+
 ## [2026-05-31] - fix: 引入数据库中间件并解决后台鉴权死循环与自愈机制缺陷
 
 - **操作人**: AI (Antigravity)

@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useRoute } from "vue-router";
 
 import ProductDetailDrawer from "@/features/products/ProductDetailDrawer.vue";
 
 import { useProductsPage } from "./useProductsPage";
+
+const route = useRoute();
 
 const {
   loading,
@@ -34,6 +37,7 @@ const {
   toggleFeatured,
   reconciling,
   runReconcile,
+  handleSortChange,
 } = useProductsPage();
 
 const inactiveCount = computed(() => displayedTableRows.value.filter((row) => !row.isActive).length);
@@ -151,9 +155,18 @@ onUnmounted(() => {
       </template>
 
       <div class="products-page__desktop" ref="tableWrapper">
-        <el-table :data="displayedTableRows" v-loading="loading" stripe border :height="tableHeight" class="products-page__table" :default-sort="{ prop: 'updatedAt', order: 'descending' }">
+        <el-table 
+          :data="displayedTableRows" 
+          v-loading="loading" 
+          stripe 
+          border 
+          :height="tableHeight" 
+          class="products-page__table" 
+          :default-sort="route.query.sort_by ? { prop: String(route.query.sort_by), order: route.query.sort_order === 'asc' ? 'ascending' : 'descending' } : { prop: 'updatedAt', order: 'descending' }"
+          @sort-change="handleSortChange"
+        >
           <el-table-column type="index" label="#" width="50" align="center" />
-          <el-table-column prop="title" label="商品名" min-width="180" show-overflow-tooltip>
+          <el-table-column prop="title" label="商品名" min-width="180" sortable="custom" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="products-page__title-button" type="button" @click="openDetail(row)">
                 <strong class="products-page__title-text">{{ row.title || '（无标题）' }}</strong>
@@ -167,20 +180,24 @@ onUnmounted(() => {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="syncStatusLabel" label="AI 可读" width="90" align="center" />
+          <el-table-column prop="vectorSyncStatus" label="AI 可读" width="90" align="center" sortable="custom">
+            <template #default="{ row }">
+              {{ row.syncStatusLabel }}
+            </template>
+          </el-table-column>
           <el-table-column prop="keywords" label="关键词" min-width="160" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.keywords" class="products-page__keywords">{{ row.keywords }}</span>
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="itemNo" label="商品编码" width="110" align="center" show-overflow-tooltip>
+          <el-table-column prop="itemNo" label="商品编码" width="110" align="center" sortable="custom" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.itemNo" class="products-page__youzan-id">{{ row.itemNo }}</span>
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="priceFen" label="单价" width="90" align="right" sortable>
+          <el-table-column prop="priceFen" label="单价" width="90" align="right" sortable="custom">
             <template #default="{ row }">
               <span v-if="row.priceFen != null" class="products-page__price">
                 ¥{{ (row.priceFen / 100).toFixed(2) }}
@@ -188,7 +205,7 @@ onUnmounted(() => {
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="stock" width="100" align="center" sortable>
+          <el-table-column prop="stock" width="100" align="center" sortable="custom">
             <template #header>
               <el-tooltip content="库存 > 200 显示「充足」" placement="top">
                 <el-icon style="margin-right:3px;vertical-align:middle;cursor:help;color:var(--el-color-info);"><QuestionFilled /></el-icon>
@@ -203,13 +220,13 @@ onUnmounted(() => {
               <span v-else class="products-page__stock">{{ row.stock.toLocaleString() }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="soldNum" label="销量" width="80" align="center" sortable>
+          <el-table-column prop="soldNum" label="销量" width="80" align="center" sortable="custom">
             <template #default="{ row }">
               <span v-if="row.soldNum" class="products-page__sold-num">{{ row.soldNum.toLocaleString() }}</span>
               <span v-else class="products-page__empty">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="updatedAt" label="最近更新" min-width="170" align="center" sortable>
+          <el-table-column prop="updatedAt" label="最近更新" min-width="170" align="center" sortable="custom">
             <template #default="{ row }">
               {{ row.updatedAt ? row.updatedAt.replace("T", " ").slice(0, 19) : "未记录" }}
             </template>
