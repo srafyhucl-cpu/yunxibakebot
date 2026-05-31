@@ -1,9 +1,9 @@
 """数据观察台后台路由。"""
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 
-from app.api.admin import require_admin_token
+from app.api.admin import verify_token
 from app.service.observability import ObservabilityService
 
 
@@ -11,7 +11,7 @@ from app.service.observability import ObservabilityService
 
 def create_observability_router(service: ObservabilityService) -> APIRouter:
     """创建数据观察台路由。"""
-    api_router = APIRouter(prefix="/api/v1/admin/observability", tags=["admin-observability-api"])
+    api_router = APIRouter(prefix="/api/v1/admin/observability", tags=["admin-observability-api"], dependencies=[Depends(verify_token)])
     root_router = APIRouter()
 
 
@@ -24,7 +24,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         keyword: str = "",
         product_status: str = "",
     ) -> dict:
-        require_admin_token(authorization)
+
         limit = 30
         offset = (page - 1) * limit
         items, total = await service.list_current_content(
@@ -48,7 +48,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         entity_type: str = "",
         keyword: str = "",
     ) -> dict:
-        require_admin_token(authorization)
+
         limit = 30
         offset = (page - 1) * limit
         items, total = await service.get_history(
@@ -68,7 +68,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         entry_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         entry = await service.get_history_detail(entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Not Found")
@@ -84,7 +84,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         event_type: str = "",
         keyword: str = "",
     ) -> dict:
-        require_admin_token(authorization)
+
         limit = 30
         offset = (page - 1) * limit
         items, total = await service.get_webhooks(
@@ -103,7 +103,7 @@ def create_observability_router(service: ObservabilityService) -> APIRouter:
         event_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         entry = await service.get_webhook_detail(event_id)
         if not entry:
             raise HTTPException(status_code=404, detail="Not Found")

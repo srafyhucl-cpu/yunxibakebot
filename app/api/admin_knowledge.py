@@ -1,8 +1,8 @@
 """知识配置后台页面与 API。"""
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
-from app.api.admin import require_admin_token
+from app.api.admin import verify_token
 from app.models.knowledge_admin import KnowledgeAdminDraft
 from app.service.knowledge_admin import KnowledgeAdminService
 
@@ -13,7 +13,7 @@ _DEFAULT_OPERATOR = "admin"
 def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
     """创建知识配置后台路由。"""
 
-    api_router = APIRouter(prefix="/api/v1/admin/knowledge-config", tags=["admin-knowledge-api"])
+    api_router = APIRouter(prefix="/api/v1/admin/knowledge-config", tags=["admin-knowledge-api"], dependencies=[Depends(verify_token)])
     root_router = APIRouter()
 
     def _build_draft(body: dict) -> KnowledgeAdminDraft:
@@ -66,7 +66,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         keyword: str = "",
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         limit = 20
         safe_page = max(page, 1)
         offset = (safe_page - 1) * limit
@@ -100,7 +100,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         entry_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         detail = await service.get_entry_detail(entry_id)
         if detail is None:
             raise HTTPException(status_code=404, detail="知识条目不存在")
@@ -114,7 +114,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
 
     @api_router.post("/entries")
     async def create_entry(request: Request, authorization: str | None = Header(default=None)) -> dict:
-        require_admin_token(authorization)
+
         body = await request.json()
         try:
             entry = await service.create_entry(_build_draft(body), operator=_DEFAULT_OPERATOR)
@@ -128,7 +128,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         request: Request,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         body = await request.json()
         try:
             entry = await service.update_entry(entry_id, _build_draft(body), operator=_DEFAULT_OPERATOR)
@@ -144,7 +144,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         entry_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         try:
             entry = await service.toggle_active(entry_id, operator=_DEFAULT_OPERATOR)
         except ValueError as exc:
@@ -156,7 +156,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         entry_id: int,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         try:
             entry = await service.retry_sync(entry_id, operator=_DEFAULT_OPERATOR)
         except ValueError as exc:
@@ -168,7 +168,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         request: Request,
         authorization: str | None = Header(default=None),
     ) -> dict:
-        require_admin_token(authorization)
+
         body = await request.json()
         suggestion = service.suggest_category(
             title=str(body.get("title", "")),
