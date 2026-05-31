@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 
@@ -55,10 +56,12 @@ class KnowledgeSyncService:
         )
         try:
             if entry.is_active:
-                vector_data = self._embedding_searcher._get_model().encode(
+                model = self._embedding_searcher._get_model()
+                vector_data = (await asyncio.to_thread(
+                    model.encode,
                     [f"{entry.title} {entry.content}"],
                     normalize_embeddings=True,
-                )[0]
+                ))[0]
                 vector = vector_data.tolist() if hasattr(vector_data, "tolist") else list(vector_data)
                 await self._embedding_searcher.upsert_one(self._doc_key(entry), vector)
             else:
