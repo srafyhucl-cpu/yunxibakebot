@@ -11,21 +11,11 @@ from app.repository.knowledge_repo import ENTRY_COLUMNS, ENTRY_SELECT_SQL
 PRODUCT_CATEGORY = "product"
 
 
-class KnowledgeProductRepo:
+from app.repository.base import BaseRepository
+
+
+class KnowledgeProductRepo(BaseRepository):
     """商品知识仓库：负责商品类知识的写操作和管理后台查询。"""
-
-    def __init__(self, db: aiosqlite.Connection = None) -> None:
-        self._injected_db = db
-
-    @property
-    def _db(self) -> aiosqlite.Connection:
-        if self._injected_db is not None:
-            return self._injected_db
-        try:
-            from app.database import db_conn_var
-            return db_conn_var.get()
-        except LookupError as exc:
-            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     @staticmethod
     def _build_product_where(

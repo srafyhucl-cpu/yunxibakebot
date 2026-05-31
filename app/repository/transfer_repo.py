@@ -12,21 +12,11 @@ import aiosqlite
 from app.models.transfer import HumanTransfer, TransferStatus
 
 
-class TransferRepo:
+from app.repository.base import BaseRepository
+
+
+class TransferRepo(BaseRepository):
     """转人工仓库：创建工单、查询排队、更新状态。"""
-
-    def __init__(self, db: aiosqlite.Connection = None) -> None:
-        self._injected_db = db
-
-    @property
-    def _db(self) -> aiosqlite.Connection:
-        if self._injected_db is not None:
-            return self._injected_db
-        try:
-            from app.database import db_conn_var
-            return db_conn_var.get()
-        except LookupError as exc:
-            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def create(self, session_id: str, user_id: str,
                      reason: str = "", summary: str = "") -> HumanTransfer:

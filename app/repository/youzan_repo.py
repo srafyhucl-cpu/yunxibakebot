@@ -1,26 +1,12 @@
 """有赞商品数据访问层。"""
 
-import aiosqlite
-
 from app.models.content_change_history import WriteResult
+from app.repository.base import BaseRepository
 from app.repository.youzan_order_repo import YouzanOrderRepo  # noqa: F401
 
 
-class YouzanProductRepo:
+class YouzanProductRepo(BaseRepository):
     """有赞商品与库存大宽表仓库。"""
-
-    def __init__(self, db: aiosqlite.Connection = None) -> None:
-        self._injected_db = db
-
-    @property
-    def _db(self) -> aiosqlite.Connection:
-        if self._injected_db is not None:
-            return self._injected_db
-        try:
-            from app.database import db_conn_var
-            return db_conn_var.get()
-        except LookupError as exc:
-            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def get_by_id(self, item_id: int) -> dict | None:
         """根据商品唯一 ID 获取商品数据。"""

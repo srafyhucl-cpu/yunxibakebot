@@ -5,21 +5,11 @@ import aiosqlite
 from app.models.order import YouzanOrderData
 
 
-class YouzanOrderRepo:
+from app.repository.base import BaseRepository
+
+
+class YouzanOrderRepo(BaseRepository):
     """有赞订单交易大宽表仓库。"""
-
-    def __init__(self, db: aiosqlite.Connection = None) -> None:
-        self._injected_db = db
-
-    @property
-    def _db(self) -> aiosqlite.Connection:
-        if self._injected_db is not None:
-            return self._injected_db
-        try:
-            from app.database import db_conn_var
-            return db_conn_var.get()
-        except LookupError as exc:
-            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
 
     async def get_by_order_no(self, order_no: str) -> dict | None:
         """根据订单号获取订单宽表数据。"""

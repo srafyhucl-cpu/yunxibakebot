@@ -2,6 +2,20 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-05-31] - refactor: 提取 BaseRepository 抽象基类以消除重复的数据库路由代码
+
+- **操作人**: AI (Antigravity)
+- **需求**: 消除 N-3 重构中在 12 个 Repository 文件里大量复制的动态连接路由 `_db` property 胶水代码，遵循 DRY 洁净代码原则。
+- **改动**:
+  - `app/repository/base.py`: 新建 `BaseRepository` 基类，收拢 Context-Local 数据库连接的自动路由判断与测试连接注入判定。
+  - `app/repository/*.py` (12个数据仓库文件): 移除冗余的 `__init__`、`_db` 和 `aiosqlite` 导入，全部改为继承 `BaseRepository`。
+- **数据库状态变更 (Schema Update)**: 无。
+- **测试覆盖与验证结果**:
+  - 全量 pytest 133 项测试全部成功通过。
+  - `python scripts/check_project.py --skip-tests` 门禁自检全绿通过。
+
+______________________________________________________________________
+
 ## [2026-05-31] - refactor: 数据库并发连接隔离与事务机制加固 (批次 C / N-3)
 
 - **操作人**: AI (Antigravity)

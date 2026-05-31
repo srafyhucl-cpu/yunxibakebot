@@ -1,32 +1,18 @@
-"""Repository for Youzan webhook audit events."""
+"""有赞 Webhook 审计事件的数据访问层。"""
 
 from datetime import datetime
-
-import aiosqlite
 
 from app.models.youzan_webhook_event import (
     YouzanWebhookEventCreate,
     YouzanWebhookEventUpdate,
     YouzanWebhookStatus,
 )
+from app.repository.base import BaseRepository
 from app.utils import now_str
 
 
-class YouzanWebhookEventRepo:
-    """Stores a durable audit trail for every received Youzan webhook."""
-
-    def __init__(self, db: aiosqlite.Connection = None) -> None:
-        self._injected_db = db
-
-    @property
-    def _db(self) -> aiosqlite.Connection:
-        if self._injected_db is not None:
-            return self._injected_db
-        try:
-            from app.database import db_conn_var
-            return db_conn_var.get()
-        except LookupError as exc:
-            raise RuntimeError("数据库操作未在 db_session_scope 上下文管理器中执行！") from exc
+class YouzanWebhookEventRepo(BaseRepository):
+    """存储每个接收到的有赞 Webhook 的持久审计追踪。"""
 
     async def create_received(self, event: YouzanWebhookEventCreate) -> int:
         now = now_str()
