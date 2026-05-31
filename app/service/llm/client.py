@@ -7,6 +7,8 @@ DeepSeek API 调用层。
 
 from collections.abc import Sequence
 
+from openai.types.chat import ChatCompletion
+
 import httpx
 from openai import AsyncOpenAI
 
@@ -42,7 +44,7 @@ async def chat_completion(
     tools: list | None = None,
     temperature: float = 0.7,
     max_tokens: int = DEFAULT_CHAT_MAX_TOKENS,
-) -> str:
+) -> ChatCompletion:
     """
     调用 DeepSeek 聊天补全接口。
 
@@ -50,7 +52,7 @@ async def chat_completion(
         messages: 消息列表（system + user + assistant + tool）
         tools: Function Calling 工具定义
     返回：
-        LLM 原始响应的 JSON 字符串
+        ChatCompletion SDK 原生响应对象
     异常：
         LLMError: API 调用失败时抛出
     """
@@ -70,4 +72,4 @@ async def chat_completion(
         logger.error("DeepSeek API 调用失败: %s", exc)
         raise LLMError("DeepSeek API 调用失败") from exc
 
-    return response.model_dump_json()
+    return response

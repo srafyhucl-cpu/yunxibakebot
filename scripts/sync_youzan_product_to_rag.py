@@ -42,7 +42,7 @@ async def main() -> None:
         # 实例化 NumPy 向量搜索引擎并自愈对齐
         vs = EmbeddingSearcher()
         from app.config import settings
-        vs_path = settings.EMBEDDING_PATH
+        vs_path = settings.EMBEDDING_INDEX_DIR
         all_kb_titles = await knowledge_repo.get_all_titles_with_keys()
         if all_kb_titles:
             await asyncio.to_thread(vs.build, all_kb_titles)

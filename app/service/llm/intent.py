@@ -18,6 +18,7 @@ from app.service.llm.intent_domain_keywords import (
 from app.service.llm.intent_behavior_keywords import (
     AFTER_SALES_KEYWORDS,
     HUMAN_ASSISTANCE_KEYWORDS,
+    NEGATION_PREFIXES,
     ORDER_ACTION_KEYWORDS,
     ORDER_CONTEXT_KEYWORDS,
     QUESTION_KEYWORDS,
@@ -40,12 +41,21 @@ def _looks_like_question(user_query: str) -> bool:
     return _contains_any(user_query, QUESTION_KEYWORDS)
 
 
+def _has_negation(user_query: str) -> bool:
+    """检测用户输入是否包含否定性引导词。"""
+    return _contains_any(user_query, NEGATION_PREFIXES)
+
+
 def _match_clear_intent(user_query: str) -> IntentType | None:
     has_question_signal = _looks_like_question(user_query)
-    if _contains_any(user_query, HUMAN_ASSISTANCE_KEYWORDS):
+    has_negation = _has_negation(user_query)
+    # 否定语境下不做强动作拦截，放行到 LLM 判断
+    if _contains_any(user_query, HUMAN_ASSISTANCE_KEYWORDS) and not has_negation:
         return IntentType.HUMAN_ASSISTANCE
-    if _contains_any(user_query, AFTER_SALES_KEYWORDS):
-        return IntentType.AFTER_SALES_ISSUE
+    if _contains_any(user_query, AFTER_SALES_KEYWORDS) and not has_negation:
+        # 问句场景放行到 RAG 作答而非直接拦截
+        if not has_question_signal:
+            return IntentType.AFTER_SALES_ISSUE
     has_order_action = _contains_any(user_query, ORDER_ACTION_KEYWORDS)
     has_order_context = _contains_any(user_query, ORDER_CONTEXT_KEYWORDS)
     has_order_topic = _contains_any(user_query, ORDER_SERVICE_TOPIC_KEYWORDS)
@@ -129,8 +139,8 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
     if not normalized_query or not any(char.isalnum() for char in normalized_query):
         return IntentType.SMALL_TALK
 
-    # 2. 0 成本强动作拦截 (最前端直接 Return 拦截，不准引发任何后续的大模型接口请求)
-    if _contains_any(normalized_query, HUMAN_ASSISTANCE_KEYWORDS):
+    # 2. 0 成本强动作拦截（否定语境跳过，放行到 LLM 进一步判断）
+    if _contains_any(normalized_query, HUMAN_ASSISTANCE_KEYWORDS) and not _has_negation(normalized_query):
         logger.debug("转人工强动作拦截命中: \"%s\" -> HUMAN_ASSISTANCE", normalized_query[:30])
         return IntentType.HUMAN_ASSISTANCE
 
@@ -143,16 +153,15 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
     # 4. 大模型多标签打标与 Token 溢出防线
     prompt = INTENT_PROMPT.format(history=history or "无", user_query=normalized_query)
     try:
-        raw_response = await llm_chat(
+        response = await llm_chat(
             [{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=INTENT_LLM_MAX_TOKENS,
         )
-        response = json.loads(raw_response)
-        raw_content = response["choices"][0]["message"].get("content", "1").strip()
+        raw_content = (response.choices[0].message.content or "1").strip()
         intent = _extract_intent(raw_content)
         logger.debug("意图识别: \"%s\" -> %s", normalized_query[:30], intent.name)
         return intent
-    except (LLMError, KeyError, IndexError, json.JSONDecodeError) as exc:
+    except (LLMError, KeyError, IndexError) as exc:
         logger.warning("意图识别失败，默认返回 PRODUCT_CONSULTATION: %s", exc)
         return IntentType.PRODUCT_CONSULTATION

@@ -1,10 +1,21 @@
 import axios from "axios";
 
-function readCookie(name: string): string {
-  const prefix = `${name}=`;
-  const segments = document.cookie.split(";").map((item) => item.trim());
-  const matched = segments.find((item) => item.startsWith(prefix));
-  return matched ? decodeURIComponent(matched.slice(prefix.length)) : "";
+/** 管理员 Token 在 localStorage 中的存储键名 */
+const TOKEN_STORAGE_KEY = "admin_token";
+
+/** 从 localStorage 读取管理员 Token（Cookie 已设为 httponly，JS 无法读取） */
+export function getStoredToken(): string {
+  return localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+}
+
+/** 登录成功后将 Token 持久化到 localStorage */
+export function storeToken(token: string): void {
+  localStorage.setItem(TOKEN_STORAGE_KEY, token);
+}
+
+/** 退出时清除 localStorage 中的 Token */
+export function clearStoredToken(): void {
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
 }
 
 const http = axios.create({
@@ -14,7 +25,7 @@ const http = axios.create({
 });
 
 http.interceptors.request.use((config) => {
-  const token = readCookie("admin_token");
+  const token = getStoredToken();
   if (token) {
     config.headers = config.headers ?? {};
     if (!config.headers.Authorization) {

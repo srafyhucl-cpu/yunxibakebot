@@ -214,7 +214,7 @@ class AdminService:
                 "server_host": settings.SERVER_HOST,
                 "server_port": settings.SERVER_PORT,
                 "database_path": settings.DB_PATH,
-                "embedding_path": settings.EMBEDDING_PATH,
+                "embedding_path": settings.EMBEDDING_INDEX_DIR,
                 "featured_product_count": len(featured_products),
                 "product_total": product_total,
             },

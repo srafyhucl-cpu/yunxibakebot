@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import datetime
 import json
-import re
 from typing import TYPE_CHECKING
 
 from app.logger import setup_logger
@@ -22,9 +21,7 @@ from app.models.content_change_history import (
 from app.models.session import Session
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.service.llm.function_defs import KNOWLEDGE_SEARCH_LIMIT, PRODUCT_SEARCH_LIMIT
-from app.service.knowledge_admin import DEFAULT_PRIORITY
 from app.service.observability import ContentChangeLogger, build_product_change_summary
-from app.service.youzan.event_item import _build_rag_content, _extract_item_tags
 
 if TYPE_CHECKING:
     from app.service.knowledge_retriever import KnowledgeRetriever
@@ -76,7 +73,10 @@ async def _refresh_product_live(
     返回商品基本信息字典，失败时返回 None。
     """
     from app.repository.youzan_repo import YouzanProductRepo
-    from app.repository.knowledge_product_repo import KnowledgeProductRepo
+    from app.service.youzan.product_sync import (
+        parse_product_from_api, build_tags_str,
+        sync_product_to_db, sync_product_to_rag,
+    )
     history_logger = ContentChangeLogger(ContentChangeHistoryRepo(db))
 
     try:
@@ -95,9 +95,9 @@ async def _refresh_product_live(
                 error_message=str(raw["gw_err_resp"]),
             )
             return None
-        outer = raw.get("data") or raw.get("response") if isinstance(raw, dict) else None
-        if not isinstance(outer, dict) or "item" not in outer:
-            logger.error("商品实时刷新响应结构异常: item_id=%s raw_keys=%s", item_id, list(raw.keys()) if isinstance(raw, dict) else type(raw))
+        parsed = parse_product_from_api(raw, item_id)
+        if parsed is None:
+            logger.error("商品实时刷新响应结构异常: item_id=%s", item_id)
             await history_logger.log_failed(
                 entity_type=ChangeEntityType.PRODUCT,
                 entity_key=str(item_id),
@@ -110,64 +110,37 @@ async def _refresh_product_live(
                 error_message="商品接口响应缺少 item",
             )
             return None
-        item = outer["item"]
-        title = item.get("title", "")
-        alias = item.get("alias", "") or str(item_id)
-        price_fen = item.get("price", 0)
-        stock = item.get("quantity", 0)
-        image = item.get("pic_url") or item.get("image") or ""
-        skus = item.get("skus", [])
-        item_props = item.get("item_props", [])
-        sold_num = int(item.get("sold_num", 0) or 0)
-        item_no = item.get("item_no", "") or ""
-        raw_desc = item.get("desc", "") or item.get("summary", "") or ""
-        desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
-        spec_names, prop_names, ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
-        tags_str = ", ".join(["\u5728\u552e"] + list(set(spec_names)) + list(set(prop_names)) + list(set(ingredients)))
+
+        product_repo = YouzanProductRepo(db)
+        local_product = await product_repo.get_by_id(item_id)
+        old_active = local_product["is_active"] if local_product else 1
+        tags_str = build_tags_str(parsed, "在售")
         updated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        old_active = 1
-        local_product = await YouzanProductRepo(db).get_by_id(item_id)
-        if local_product is not None:
-            old_active = local_product["is_active"]
-
-        product_result = await YouzanProductRepo(db).upsert_product(
-            item_id=item_id, title=title, alias=alias, price_fen=price_fen,
-            stock=stock, image=image, is_active=old_active, updated_at=updated_at,
-            skus_json=json.dumps(skus, ensure_ascii=False),
-            item_props_json=json.dumps(item_props, ensure_ascii=False),
-            desc=desc_clean, tags=tags_str, sold_num=sold_num,
-            item_no=item_no,
-            sync_source=SyncSource.CHAT_LIVE_REFRESH,
-            sync_ref=str(item_id),
+        product_result = await sync_product_to_db(
+            product_repo, parsed, old_active, updated_at, tags_str,
+            SyncSource.CHAT_LIVE_REFRESH, str(item_id),
         )
-        content_md = _build_rag_content(title, alias, "\u5728\u552e", skus, item_props, price_fen, stock, desc_clean, tags_str, item_id=item_id, image=image)
-        knowledge_result = await KnowledgeProductRepo(db).upsert_product_knowledge(
-            youzan_item_id=str(item_id), title=title, content=content_md,
-            keywords=f"\u5546\u54c1, \u4ef7\u683c, \u63a8\u8350, \u86cb\u7cd5, {title}, {tags_str}",
-            priority=DEFAULT_PRIORITY, updated_at=updated_at,
-            sync_source=SyncSource.CHAT_LIVE_REFRESH,
-            sync_ref=str(item_id),
+        knowledge_result = await sync_product_to_rag(
+            db, knowledge_retriever, parsed, 1,
+            tags_str, "在售", updated_at,
+            SyncSource.CHAT_LIVE_REFRESH, str(item_id),
         )
-        vs = knowledge_retriever._vs
-        if vs and knowledge_result == WriteResult.APPLIED:
-            vector = vs._get_model().encode([f"{title} {content_md}"], normalize_embeddings=True)[0].tolist()
-            await vs.upsert_one(str(item_id), vector)
         if product_result == WriteResult.APPLIED or knowledge_result == WriteResult.APPLIED:
             await history_logger.log_success(
                 entity_type=ChangeEntityType.PRODUCT,
                 entity_key=str(item_id),
                 category="product",
-                title=title,
+                title=parsed["title"],
                 source=SyncSource.CHAT_LIVE_REFRESH,
                 source_ref=str(item_id),
                 action=ChangeAction.UPSERT,
                 change_summary=build_product_change_summary(
                     item_id=item_id,
-                    title=title,
-                    alias=alias,
-                    price_fen=price_fen,
-                    stock=stock,
+                    title=parsed["title"],
+                    alias=parsed["alias"],
+                    price_fen=parsed["price_fen"],
+                    stock=parsed["stock"],
                     is_active=1,
                     tags=tags_str,
                     updated_at=updated_at,
@@ -176,9 +149,15 @@ async def _refresh_product_live(
                 ),
                 occurred_at=updated_at,
             )
-        logger.info("商品实时刷新写入成功: item_id=%s title=%s", item_id, title)
-        return {"item_id": item_id, "title": title, "price_fen": price_fen, "stock": stock,
-                "tags": tags_str, "updated_at": updated_at}
+        logger.info("商品实时刷新写入成功: item_id=%s title=%s", item_id, parsed["title"])
+        return {
+            "item_id": item_id,
+            "title": parsed["title"],
+            "price_fen": parsed["price_fen"],
+            "stock": parsed["stock"],
+            "tags": tags_str,
+            "updated_at": updated_at,
+        }
     except Exception as exc:
         logger.error("商品实时刷新失败: item_id=%s err=%s", item_id, exc)
         await history_logger.log_failed(

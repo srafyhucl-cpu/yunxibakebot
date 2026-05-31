@@ -2,6 +2,27 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-05-31] - refactor: 审计报告遗留问题批量重构与安全加固 (批次 B)
+
+- **操作人**: AI (Antigravity)
+- **需求**: 针对外部审计发现的 10 项遗留问题进行批量重构与安全加固。
+- **改动**:
+  - `app/service/wecom/client.py`: 引入双重检查锁（asyncio.Lock）保证 WeCom Token 刷新并发安全。
+  - `app/api/admin_dialog.py`, `web/admin/src/services/http.ts`, `web/admin/src/stores/auth.ts`: Cookie 设为 httponly=True，前端改为从 localStorage 双轨维护鉴权 Bearer token。
+  - `app/exceptions.py`, `app/main.py`: 异常基类添加 status_code 多态属性，移除全局异常处理中的异常类名字符串匹配。
+  - `app/service/chat.py`: 将 `build_context` 重复调用 3 次压缩为 1 次，直接节省 DB 开销；移除 LLM 回复的二次 json.loads 反序列化。
+  - `app/service/youzan/product_sync.py`: 新增共享同步工具，统一 API 解析和三表联写逻辑。
+  - `app/service/youzan/event_item.py`, `app/service/llm/function_tool_product.py`: 重构冗余逻辑，收拢调用 ProductSyncHelper。
+  - `app/service/llm/client.py`: chat_completion 接口返回 ChatCompletion 原始对象，不转 JSON 字符串。
+  - `app/service/llm/intent.py`: 移除多余的 json.loads；增加 NEGATION_PATTERN 正则以屏蔽对“不用转人工”等否定句的误转；放行退款咨询等正常 RAG 问句。
+  - `app/config.py`: 重命名配置项 `EMBEDDING_PATH` 为 `EMBEDDING_INDEX_DIR`。
+  - `web/admin/src/utils/constants.ts`, `web/admin/src/utils/date.ts`, `web/admin/src/pages/ai-dialog/AiDialogPage.vue`: 前端抽取意图标签、头像颜色与时间格式化等常量/工具函数并 import，消除硬编码。
+- **数据库状态变更 (Schema Update)**: 无。
+- **测试覆盖与验证结果**:
+  - pytest 133 个测试全量通过；新后台 vue 生产包构建成功，门禁 check_project.py 全绿。
+
+______________________________________________________________________
+
 ## [2026-05-30] - fix: 优化 Webhook 与 AI 实时刷新商品在售状态，防止下架商品死灰复燃
 
 - **操作人**: AI (Antigravity)

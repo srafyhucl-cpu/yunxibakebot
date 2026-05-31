@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 语义向量搜索服务（启动优化：首选极速缓存载入并进行一致性指纹对比，对齐时 100% 豁免 CPU 全量重算）
     from app.service.embedding_search import EmbeddingSearcher
     vs = EmbeddingSearcher()
-    vs_path = settings.EMBEDDING_PATH
+    vs_path = settings.EMBEDDING_INDEX_DIR
 
     logger.info("正在初始化向量搜索：首选尝试极速载入本地预解算缓存...")
     await vs.load(vs_path)
@@ -285,20 +285,9 @@ async def serve_verify_txt(filename: str):
 # ── 全局异常处理器 ──
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    """应用级异常统一返回 JSON 格式。"""
+    """应用级异常统一返回 JSON 格式（通过多态 status_code 属性分发）。"""
     logger.error("应用异常: %s %s", type(exc).__name__, exc)
-    status_map: dict[str, int] = {
-        "AuthError": 403,
-        "NotFoundError": 404,
-        "LLMError": 502,
-        "APIError": 502,
-        "ConfigError": 500,
-    }
-    status = 400
-    for cls_name, code in status_map.items():
-        if type(exc).__name__ == cls_name:
-            status = code
-            break
+    status = exc.status_code
     return JSONResponse(
         status_code=status,
         content={"code": status * 100, "message": str(exc)},

@@ -79,7 +79,7 @@ def check_knowledge_rows() -> SmokeResult:
 
 
 def check_embedding_file() -> SmokeResult:
-    embedding_path = ROOT_DIR / settings.EMBEDDING_PATH
+    embedding_path = ROOT_DIR / settings.EMBEDDING_INDEX_DIR
     return SmokeResult("向量索引文件", embedding_path.exists(), str(embedding_path))
 
 

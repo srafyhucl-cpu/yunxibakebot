@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { parseMessageSegments } from "@/utils/umpParser";
+import { AVATAR_COLORS, INTENT_LABELS } from "@/utils/constants";
+import { fmtTime } from "@/utils/date";
 import { useAiDialogPage } from "./useAiDialogPage";
 
 const {
@@ -26,31 +28,12 @@ function sessionAvatarChar(s: AiDialogSession): string {
   return label ? label[0].toUpperCase() : "?";
 }
 
-const AVATAR_COLORS = ["#5c9ee6","#e67c5c","#5cbe8c","#a068d4","#e6a83a","#5cb8d4","#d45c8c","#7db35c"];
 function sessionAvatarColor(s: AiDialogSession): string {
   const label = sessionLabel(s);
   let h = 0;
   for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
-
-function fmtTime(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso.replace(" ", "T"));
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  if (diff < 86400000 && d.getDate() === now.getDate()) return d.toTimeString().slice(0, 5);
-  if (diff < 172800000) return "昨天";
-  const days = ["日","一","二","三","四","五","六"];
-  if (diff < 604800000) return "周" + days[d.getDay()];
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-const INTENT_LABELS: Record<string | number, string> = {
-  1:"商品咨询", 2:"规则咨询", 3:"运费费用", 4:"配送履约",
-  5:"订单办理", 6:"售后异常", 7:"人工服务", 8:"闲聊其他",
-};
 </script>
 
 <template>

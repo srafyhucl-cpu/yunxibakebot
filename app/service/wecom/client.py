@@ -5,6 +5,7 @@
 - 调用客户联系消息推送接口发送消息
 """
 
+import asyncio
 import time
 
 import httpx
@@ -28,6 +29,7 @@ class WeComClient:
         self._token: str = ""
         self._token_expires_at: float = 0
         self._http: httpx.AsyncClient | None = None
+        self._lock = asyncio.Lock()
 
     @property
     def _client(self) -> httpx.AsyncClient:
@@ -53,14 +55,20 @@ class WeComClient:
         expires_in: int = response_data.get("expires_in", 7200)
         self._token = token
         self._token_expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
-        logger.info("WeCom access_token 刷新成功，有效期 %ds", expires_in)
+        logger.info("WeCom access_token 刷新成功（并发锁保护），有效期 %ds", expires_in)
         return token
 
     async def get_token(self) -> str:
-        """获取有效的 access_token（缓存命中则直接返回）。"""
+        """获取有效的 access_token（双重检查锁保护并发安全）。"""
+        # 快速路径：缓存有效直接返回（无锁开销）
         if self._token and time.time() < self._token_expires_at:
             return self._token
-        return await self._fetch_token()
+        # 慢路径：带锁并发限制，防止多协程同时刷新
+        async with self._lock:
+            # 双重检验：排队等待的协程无需重复刷新
+            if self._token and time.time() < self._token_expires_at:
+                return self._token
+            return await self._fetch_token()
 
     async def send_text(
         self,

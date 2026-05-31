@@ -48,7 +48,7 @@ async def test_product_name_change_prevents_residue(monkeypatch: pytest.MonkeyPa
         vs = EmbeddingSearcher()
         # 为防止污染物理缓存，将持久化路径重定向
         tmp_index_path = "data/test_embedding_name_change_tmp.index"
-        monkeypatch.setattr(settings, "EMBEDDING_PATH", tmp_index_path)
+        monkeypatch.setattr(settings, "EMBEDDING_INDEX_DIR", tmp_index_path)
 
         # 全量空初始化
         vs.build([])

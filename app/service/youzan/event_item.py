@@ -257,9 +257,13 @@ async def handle_item_event(
                 error_message=str(raw_product["gw_err_resp"]),
             )
             return
-        outer_data = raw_product.get("data") or raw_product.get("response") if isinstance(raw_product, dict) else None
-        if not isinstance(outer_data, dict) or "item" not in outer_data:
-            logger.error("商品事件响应结构异常: item_id=%s raw_keys=%s", item_id, list(raw_product.keys()) if isinstance(raw_product, dict) else type(raw_product))
+        from app.service.youzan.product_sync import (
+            parse_product_from_api, build_tags_str,
+            sync_product_to_db, sync_product_to_rag,
+        )
+        parsed = parse_product_from_api(raw_product, item_id)
+        if parsed is None:
+            logger.error("商品事件响应结构异常: item_id=%s", item_id)
             await mark_audit(
                 audit_repo,
                 audit_id,
@@ -283,12 +287,7 @@ async def handle_item_event(
             )
             return
 
-        item_data = outer_data["item"]
-        title = item_data.get("title", "")
-        alias = item_data.get("alias", "") or str(item_id)
-        price_fen = item_data.get("price", 0)
-        stock = item_data.get("quantity", 0)
-        image = item_data.get("pic_url") or item_data.get("image") or ""
+        title = parsed["title"]
         is_active = 0 if ("instock" in event_type or event_type.endswith("Instock")) else 1
         if event_type == "ITEM_STATE" and "is_display" in _inner_data:
             is_active = 1 if _inner_data.get("is_display") else 0
@@ -300,49 +299,22 @@ async def handle_item_event(
             )
             if not _is_explicit_state_event and local_product is not None:
                 is_active = local_product["is_active"]
-        skus = item_data.get("skus", [])
-        item_props = item_data.get("item_props", [])
-        sold_num = int(item_data.get("sold_num", 0) or 0)
-        item_no = item_data.get("item_no", "") or ""
 
-        raw_desc = item_data.get("desc", "") or item_data.get("summary", "") or ""
-        desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
-
-        spec_names, prop_names, found_ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
         status_lbl = "在售" if is_active == 1 else "下架"
-        tags_str = ", ".join([status_lbl] + list(set(spec_names)) + list(set(prop_names)) + list(set(found_ingredients)))
+        tags_str = build_tags_str(parsed, status_lbl)
 
-        product_result = await product_repo.upsert_product(
-            item_id=item_id,
-            title=title,
-            alias=alias,
-            price_fen=price_fen,
-            stock=stock,
-            image=image,
-            is_active=is_active,
-            updated_at=updated_at_str,
-            skus_json=json.dumps(skus, ensure_ascii=False),
-            item_props_json=json.dumps(item_props, ensure_ascii=False),
-            desc=desc_clean,
-            tags=tags_str,
-            sold_num=sold_num,
-            item_no=item_no,
-            sync_source=SyncSource.YOUZAN_WEBHOOK,
-            sync_ref=str(item_id),
+        product_result = await sync_product_to_db(
+            product_repo, parsed, is_active, updated_at_str, tags_str,
+            SyncSource.YOUZAN_WEBHOOK, str(item_id),
+        )
+        knowledge_result = await sync_product_to_rag(
+            db, knowledge_retriever, parsed, is_active,
+            tags_str, status_lbl, updated_at_str,
+            SyncSource.YOUZAN_WEBHOOK, str(item_id),
         )
 
-        content_md = _build_rag_content(title, alias, status_lbl, skus, item_props, price_fen, stock, desc_clean, tags_str, item_id=item_id, image=image)
-        knowledge_result = await _sync_rag_knowledge(
-            db,
-            knowledge_retriever,
-            item_id,
-            title,
-            content_md,
-            tags_str,
-            updated_at_str,
-            is_active,
-        )
-
+        price_fen = parsed["price_fen"]
+        stock = parsed["stock"]
         event_time = now_str()
         if old_price != -1 and old_price != price_fen:
             await analytics_repo.add_event(
@@ -374,7 +346,7 @@ async def handle_item_event(
                 change_summary=build_product_change_summary(
                     item_id=item_id,
                     title=title,
-                    alias=alias,
+                    alias=parsed["alias"],
                     price_fen=price_fen,
                     stock=stock,
                     is_active=is_active,

@@ -50,7 +50,7 @@ def create_dialog_router(
             key="admin_token",
             value=token,
             max_age=ADMIN_SESSION_MAX_AGE_SECONDS,
-            httponly=False,
+            httponly=True,
             samesite="strict",
         )
         return response

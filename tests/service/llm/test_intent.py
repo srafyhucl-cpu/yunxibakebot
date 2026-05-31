@@ -26,8 +26,17 @@ def test_match_clear_intent(query: str, expected_intent: intent_module.IntentTyp
 
 @pytest.mark.asyncio
 async def test_detect_intent_uses_llm_for_ambiguous_query(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _fake_llm(*args: object, **kwargs: object) -> str:
-        return "{\"choices\":[{\"message\":{\"content\":\"{\\\"primary_intent\\\": 2, \\\"secondary_intents\\\": []}\"}}]}"
+    class _FakeMessage:
+        content = '{"primary_intent": 2, "secondary_intents": []}'
+
+    class _FakeChoice:
+        message = _FakeMessage()
+
+    class _FakeResponse:
+        choices = [_FakeChoice()]
+
+    async def _fake_llm(*args: object, **kwargs: object) -> _FakeResponse:
+        return _FakeResponse()
 
     monkeypatch.setattr(intent_module, "llm_chat", _fake_llm)
 

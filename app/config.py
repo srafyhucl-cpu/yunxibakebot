@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # ── 数据库 ──
     DB_PATH: str = "data/bot.db"
-    EMBEDDING_PATH: str = "data/embeddings.pkl"
+    EMBEDDING_INDEX_DIR: str = "data/embeddings"
 
     # ── DeepSeek 大模型 ──
     DEEPSEEK_API_KEY: str = ""

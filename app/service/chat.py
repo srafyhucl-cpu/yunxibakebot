@@ -184,7 +184,10 @@ class ChatService:
 
         # 7. 进入 AI 对话循环
         timing: dict = {}
-        reply = await self._ai_conversation_loop(session, user_query=content, intent=intent, timing=timing)
+        reply = await self._ai_conversation_loop(
+            session, user_query=content, intent=intent, timing=timing,
+            history=history, history_text=history_text,
+        )
         t2 = time.monotonic()
         loop_ms = round((t2 - t1) * 1000)
         total_ms = round((t2 - t0) * 1000)
@@ -252,6 +255,8 @@ class ChatService:
         self, session: Session, user_query: str = "",
         intent: IntentType = IntentType.PRODUCT_CONSULTATION,
         timing: dict | None = None,
+        history: list[dict] | None = None,
+        history_text: str = "",
     ) -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
@@ -264,12 +269,13 @@ class ChatService:
            - tool_calls → 执行工具，继续循环
            - 超过最大轮数 → 兜底回复
         """
-        # 根据意图调整检索策略
-        history = await self._session_mgr.build_context(session.id)
-        history_text = "\n".join(
-            f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:INTENT_CONTENT_PREVIEW]}"
-            for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
-        )
+        # 复用调用方已查询的上下文，避免重复数据库查询（L-5.2）
+        if history is None:
+            history = await self._session_mgr.build_context(session.id)
+            history_text = "\n".join(
+                f"{'用户' if m.get('role')=='user' else 'AI'}：{m.get('content','')[:INTENT_CONTENT_PREVIEW]}"
+                for m in history[-INTENT_HISTORY_MESSAGES:] if m.get("role") in ("user", "assistant")
+            )
         _t_rag = time.monotonic()
         knowledge_entries = await self._load_knowledge_entries(user_query, history_text, intent)
         if timing is not None:
@@ -279,7 +285,6 @@ class ChatService:
             {"role": "system", "content": build_system_prompt(knowledge_entries)},
         ]
 
-        history = await self._session_mgr.build_context(session.id)
         messages.extend(history)
 
         tool_round = 0
@@ -289,34 +294,33 @@ class ChatService:
             try:
                 if _t_llm_first is None:
                     _t_llm_first = time.monotonic()
-                raw = await llm_chat(messages, tools=FUNCTION_DEFINITIONS)
+                response = await llm_chat(messages, tools=FUNCTION_DEFINITIONS)
                 if timing is not None and "llm_ms" not in timing and _t_llm_first is not None:
                     timing["llm_ms"] = round((time.monotonic() - _t_llm_first) * 1000)
-                response = json.loads(raw)
-                choice = response["choices"][0]
-                msg = choice["message"]
+                choice = response.choices[0]
+                msg = choice.message
             except LLMError:
                 logger.error("LLM 调用失败，返回兜底回复")
                 return FALLBACK_REPLY
-            except (json.JSONDecodeError, KeyError, IndexError) as exc:
+            except (KeyError, IndexError) as exc:
                 logger.error("LLM 响应解析失败，返回兜底回复: %s", exc)
                 return FALLBACK_REPLY
 
-            finish_reason = choice.get("finish_reason", "stop")
+            finish_reason = choice.finish_reason or "stop"
 
             if finish_reason == "stop":
                 # LLM 返回纯文本，直接回复
                 if timing is not None:
                     timing["tool_rounds"] = tool_round
-                return msg.get("content", "")
+                return msg.content or ""
 
             if finish_reason == "tool_calls" and tool_round < MAX_TOOL_ROUNDS:
                 # LLM 请求调用工具
-                tool_calls = msg.get("tool_calls", [])
+                tool_calls = msg.tool_calls or []
                 for tc in tool_calls:
-                    fn_name = tc["function"]["name"]
+                    fn_name = tc.function.name
                     try:
-                        fn_args = json.loads(tc["function"]["arguments"])
+                        fn_args = json.loads(tc.function.arguments)
                     except json.JSONDecodeError as exc:
                         logger.error("工具参数解析失败，跳过: tool=%s err=%s", fn_name, exc)
                         fn_args = {}
@@ -344,14 +348,14 @@ class ChatService:
                         "role": "assistant",
                         "content": None,
                         "tool_calls": [{
-                            "id": tc["id"],
+                            "id": tc.id,
                             "type": "function",
                             "function": {"name": fn_name, "arguments": json.dumps(fn_args, ensure_ascii=False)},
                         }],
                     })
                     messages.append({
                         "role": "tool",
-                        "tool_call_id": tc["id"],
+                        "tool_call_id": tc.id,
                         "content": result,
                     })
 
