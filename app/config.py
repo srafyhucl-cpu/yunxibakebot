@@ -36,7 +36,6 @@ class Settings(BaseSettings):
     YOUZAN_CLIENT_ID: str = ""
     YOUZAN_CLIENT_SECRET: str = ""
     YOUZAN_KDT_ID: str = ""
-    YOUZAN_WEBHOOK_TOKEN: str = ""
     YOUZAN_MOCK_MODE: bool = True
 
     # ── 管理后台 ──

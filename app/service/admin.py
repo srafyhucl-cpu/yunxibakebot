@@ -223,7 +223,7 @@ class AdminService:
                     "client_id_configured": _is_configured(settings.YOUZAN_CLIENT_ID),
                     "client_secret_configured": _is_configured(settings.YOUZAN_CLIENT_SECRET),
                     "kdt_id_configured": _is_configured(settings.YOUZAN_KDT_ID),
-                    "webhook_token_configured": _is_configured(settings.YOUZAN_WEBHOOK_TOKEN),
+
                     "mock_mode": settings.YOUZAN_MOCK_MODE,
                 },
                 "wecom": {
