@@ -26,6 +26,9 @@ class MockChatService:
         self._message_repo = MockMessageRepo()
         self.handle_count = 0
 
+    async def has_processed_message(self, channel_msg_id: str) -> bool:
+        return await self._message_repo.has_processed(channel_msg_id)
+
     async def handle_message_and_reply_youzan(self, buyer_id: str, content: str, msg_id: str) -> str:
         self.handle_count += 1
         await asyncio.sleep(0.05)

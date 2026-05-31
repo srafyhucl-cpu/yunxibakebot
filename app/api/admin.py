@@ -7,6 +7,8 @@
 - create_admin_router 工厂（汇总页面路由 + AI 对话 API + 转人工 API）
 """
 
+import hmac
+
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.config import settings
@@ -18,7 +20,10 @@ ADMIN_SESSION_MAX_AGE_SECONDS = 86400
 
 
 def is_valid_admin_token(token: str | None) -> bool:
-    return bool(token and settings.ADMIN_API_TOKEN and token == settings.ADMIN_API_TOKEN)
+    expected = settings.ADMIN_API_TOKEN
+    if not token or not expected:
+        return False
+    return hmac.compare_digest(token, expected)
 
 
 def verify_token(authorization: str | None = Header(default=None)) -> None:
@@ -27,6 +32,17 @@ def verify_token(authorization: str | None = Header(default=None)) -> None:
     token = authorization.removeprefix("Bearer ")
     if not is_valid_admin_token(token):
         raise HTTPException(status_code=403, detail="Token 无效")
+
+
+def require_admin_token(token: str | None) -> None:
+    """共享的 admin Token 校验（供各子路由直接调用，缺失→401 / 无效→403）。
+
+    使用 hmac.compare_digest 做定时安全比较，避免按字节比较泄漏 Token。
+    """
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing Token")
+    if not is_valid_admin_token(token.replace("Bearer ", "")):
+        raise HTTPException(status_code=403, detail="Invalid Token")
 
 
 def check_login(request: Request) -> bool:

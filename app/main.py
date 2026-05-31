@@ -20,6 +20,7 @@ from app.config import settings
 from app.database import init_db, close_db
 from app.exceptions import AppError
 from app.logger import setup_logger
+from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.config_repo import ConfigRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
@@ -33,6 +34,7 @@ from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat import ChatService
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.youzan.client import YouzanClient
+from app.service.youzan.event_handler import YouzanEventHandler
 from app.service.youzan.product_reconciler import ProductReconcileService
 
 logger = setup_logger()
@@ -51,6 +53,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # ── startup ──
     db = await init_db(settings.DB_PATH)
+    # 持有后台任务强引用，避免任务被 GC 提前回收导致回复丢失（N-2）。
+    _background_tasks: set[asyncio.Task] = set()
 
     # Repository 层
     session_repo = SessionRepo(db)
@@ -168,6 +172,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     transfer_mgr = TransferManager(transfer_repo)
 
     youzan_client = YouzanClient(config_repo=config_repo)
+    analytics_repo = AnalyticsRepo(db)
+    youzan_event_handler = YouzanEventHandler(
+        db=db,
+        knowledge_retriever=knowledge_retriever,
+        youzan_client=youzan_client,
+        audit_repo=webhook_event_repo,
+    )
     reconcile_service = ProductReconcileService(
         youzan_client=youzan_client,
         product_repo=youzan_product_repo,
@@ -180,6 +191,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         message_repo=message_repo,
         transfer_repo=transfer_repo,
         knowledge_retriever=knowledge_retriever,
+        youzan_client=youzan_client,
+        youzan_webhook_events_repo=webhook_event_repo,
+        youzan_event_handler=youzan_event_handler,
+        analytics_repo=analytics_repo,
     )
 
     # 注册路由（通过工厂函数注入依赖）
@@ -225,7 +240,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:
             logger.error("启动向量自愈同步失败: %s", exc)
 
-    asyncio.create_task(_startup_sync_task())
+    startup_sync = asyncio.create_task(_startup_sync_task())
+    _background_tasks.add(startup_sync)
+    startup_sync.add_done_callback(_background_tasks.discard)
     yield
     # ── shutdown ──
     save_task.cancel()
