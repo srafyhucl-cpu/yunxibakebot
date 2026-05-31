@@ -2,6 +2,25 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-05-31] - fix: 引入数据库中间件并解决后台鉴权死循环与自愈机制缺陷
+
+- **操作人**: AI (Antigravity)
+- **需求**: 解决用户反映的后台页面疯狂重定向跳转的Bug，看清整体代码，实现自测试通过。
+- **根因**:
+  - 1. 后端鉴权逻辑与入口不一致：`/me` 原本使用 `has_admin_api_access` 兼容 Cookie/Bearer，而业务 API 路由的 `verify_token` 原本只认 Bearer。当只有 Cookie 时，业务接口报 401 触发 Axios 重定向到 `/login`，而 `/login` 的路由守卫发起 `/me` 却因为 Cookie 校验成功再次跳转，从而导致无限死循环重定向。
+  - 2. N-3 数据库加固后遗症：所有的 admin 业务 API 路由均未注入 `get_db_session` 依赖且没有全局中间件，使得在真实 Uvicorn 运行时，业务路由一旦调用 Repository 数据库就会触发 LookupError / RuntimeError 报错。
+  - 3. 匹配太宽泛：前端 Axios 响应拦截器使用 `.includes("/me")` 判断当前是否为 profile 检查，误将包含 `/me` 子串的业务接口 `/ai-dialog/messages` (即 /me*ssages*) 当成 profile 检查，导致其 401 返回时被过滤，无法触发跳转登录页。
+- **改动**:
+  - `app/main.py`: 挂载请求级的 `db_session_middleware` 中间件，自动为每个 HTTP 请求包裹 `db_session_scope` 并进行事务自动隔离与回滚，完美自愈后台所有 API 在 Uvicorn 运行下的数据库连接报错，并精简全局异常处理函数以规避行数超标门禁。
+  - `app/api/admin_dialog.py`: 优化 `/me` 接口的自愈重写机制，支持对脏 Cookie 自动执行 Bearer token 覆写并显式设定 path 为根目录，增强自愈能力。
+  - `web/admin/src/services/http.ts`: 引入正则匹配 `/(?:^|\/)me(?:\?|$)/` 精确判定 profile 接口，消除 `/me*ssages` 的误过滤 Bug。
+- **数据库状态变更 (Schema Update)**: 无。
+- **测试覆盖与验证结果**:
+  - 编写了 `scratch/test_auth_flow.py` 严格校验 4 种鉴权场景下的状态码、Set-Cookie、脏 Cookie 覆写与业务正常请求，4 个场景已 100% 通过。
+  - pytest 全量测试与门禁脚本检测依然保持 100% 通过（全绿）。
+
+______________________________________________________________________
+
 ## [2026-05-31] - fix: 外部审计遗留低危风险收口与配置优化 (批次 D)
 
 - **操作人**: AI (Antigravity)

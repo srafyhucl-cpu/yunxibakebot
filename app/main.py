@@ -290,26 +290,26 @@ async def serve_verify_txt(filename: str):
     raise HTTPException(status_code=404, detail="Not Found")
 
 
+# ── 数据库连接生命周期与事务隔离中间件 ──
+@app.middleware("http")
+async def db_session_middleware(request: Request, call_next):
+    from app.database import db_session_scope
+    async with db_session_scope():
+        return await call_next(request)
+
+
 # ── 全局异常处理器 ──
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    """应用级异常统一返回 JSON 格式（通过多态 status_code 属性分发）。"""
     logger.error("应用异常: %s %s", type(exc).__name__, exc)
     status = exc.status_code
-    return JSONResponse(
-        status_code=status,
-        content={"code": status * 100, "message": str(exc)},
-    )
+    return JSONResponse(status_code=status, content={"code": status * 100, "message": str(exc)})
 
 
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    """未预期异常返回 500，不暴露堆栈详情。"""
     logger.critical("未预期异常: %s", exc, exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"code": 50000, "message": "服务器内部错误"},
-    )
+    return JSONResponse(status_code=500, content={"code": 50000, "message": "服务器内部错误"})
 
 
 # ── 健康检查 ──

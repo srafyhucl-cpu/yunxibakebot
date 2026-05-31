@@ -41,9 +41,12 @@ def create_dialog_router(
         # 自愈机制：如果验证通过，提取合法 Token 并强制补发带有正确全局 path 的 Cookie，
         # 用于修复因用户浏览器残留旧的 /auth/ 局部路径 Cookie 而导致后续业务接口 401 的无限重定向死循环
         token = request.cookies.get("admin_token")
+        if not is_valid_admin_token(token):
+            token = None
+
         if not token and authorization and authorization.startswith("Bearer "):
             token = authorization.removeprefix("Bearer ")
-            
+
         if token and is_valid_admin_token(token):
             response.set_cookie(
                 key="admin_token",
@@ -53,7 +56,7 @@ def create_dialog_router(
                 samesite="lax",
                 path="/",
             )
-            
+
         return response
 
     @router.post("/auth/login")

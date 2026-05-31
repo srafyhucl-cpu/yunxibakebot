@@ -40,7 +40,7 @@ http.interceptors.response.use(
   (error) => {
     const requestUrl = String(error.config?.url || "");
     const routerBase = import.meta.env.VITE_ROUTER_BASE;
-    const isProfileCheck = requestUrl.includes("/me");
+    const isProfileCheck = /(?:^|\/)me(?:\?|$)/.test(requestUrl);
     const isLoginPage = window.location.pathname === `${routerBase}login`;
 
     if (error.response?.status === 401 && !isProfileCheck && !isLoginPage) {
