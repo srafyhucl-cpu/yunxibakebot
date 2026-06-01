@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-01] - fix(reconcile): 修复全量对账服务时区一致性 Bug
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 解决全量对账对已下架商品状态同步更新失效的问题。
+- **根因**: 对账服务使用 UTC 时间（比本地慢 8 小时）获取 `now_str` 作为更新戳，而商品 Webhook 接收和处理则统一使用本地北京时间。当对账服务尝试软下架已不在售的商品时，触发了 `youzan_repo.py` 中 `WHERE item_id = ? AND ? > updated_at` 的过期更新防覆盖过滤，因为对账 UTC 时间比数据库现存本地时间更小，SQLite 底层无脑过滤并拒绝了下架修改（`skipped_stale_or_same`）。
+- **核心变更文件说明**:
+  - `app/service/youzan/product_reconciler.py`（修改）: 移除对 `timezone.utc` 的依赖，引入公共工具函数 `now_str`；对账执行时间 `start_ts` 以及下架时间 `event_time` 统一采用本地北京时间。
+- **数据库状态变更**: 无。
+- **测试覆盖与验证结果**: `pytest -q` → 135 passed ✅。
+- **潜伏风险/遗留未决事项说明**: 无。
+
 ## [2026-06-01] - style(frontend): 修复商品管理页商品编码列截断与字体模糊问题
 
 - **操作人**: AI (Antigravity)

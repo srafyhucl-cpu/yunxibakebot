@@ -10,7 +10,7 @@
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.logger import setup_logger
 from app.models.content_change_history import ContentChangeHistoryCreate
@@ -18,6 +18,7 @@ from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.youzan.client import YouzanClient
+from app.utils import now_str
 
 logger = setup_logger()
 
@@ -47,7 +48,7 @@ class ProductReconcileService:
         执行全量对账，返回摘要字典：
         {checked, deactivated, errors, duration_ms}
         """
-        start_ts = datetime.now(tz=timezone.utc)
+        start_ts = datetime.now()
         logger.info("商品全量对账任务开始")
 
         onsale_ids = await self._client.list_onsale_item_ids()
@@ -71,7 +72,7 @@ class ProductReconcileService:
                 except Exception as exc:
                     logger.error("对账同步销量失败: %s", exc)
 
-        duration_ms = int((datetime.now(tz=timezone.utc) - start_ts).total_seconds() * 1000)
+        duration_ms = int((datetime.now() - start_ts).total_seconds() * 1000)
         logger.info(
             "商品全量对账完成：检查 %d 条，下架 %d 条，销量同步 %d 条（全量 %d 条），错误 %d 条，耗时 %d ms",
             len(local_ids), len(deactivated), sold_updated, len(all_local_ids), len(errors), duration_ms,
@@ -118,11 +119,11 @@ class ProductReconcileService:
         errors: list[str],
     ) -> None:
         """软下架单个商品并写历史记录，异常时记录错误信息不中断整体流程。"""
-        now_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        event_time = now_str()
         try:
             result = await self._product_repo.delete_product(
                 item_id,
-                now_str,
+                event_time,
                 sync_source=RECONCILE_SOURCE,
                 sync_ref="daily_reconcile",
             )
@@ -136,7 +137,7 @@ class ProductReconcileService:
                 action="deactivate",
                 status="success",
                 change_summary_json=f'{{"item_id": {item_id}, "result": "{result}", "reason": "youzan_not_onsale"}}',
-                occurred_at=now_str,
+                occurred_at=event_time,
             ))
             if self._knowledge_product_repo is not None:
                 kb_result = await self._knowledge_product_repo.delete_product_knowledge(
