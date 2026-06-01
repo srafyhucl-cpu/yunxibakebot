@@ -216,6 +216,14 @@ export function useKnowledgePage() {
     { immediate: true },
   );
 
+  async function resetFilters() {
+    filterDraft.contentType = "";
+    filterDraft.isActive = "";
+    filterDraft.vectorStatus = "";
+    filterDraft.keyword = "";
+    await router.replace({ query: {} });
+  }
+
   return {
     loading,
     saving,
@@ -235,6 +243,7 @@ export function useKnowledgePage() {
     form,
     loadEntries,
     submitFilters,
+    resetFilters,
     changePage,
     openCreate,
     openEdit,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from "vue";
 import { Search } from "@element-plus/icons-vue";
 
 import { useKnowledgePage } from "./useKnowledgePage";
@@ -21,7 +22,7 @@ const {
   filterDraft,
   form,
   loadEntries,
-  submitFilters,
+  resetFilters,
   changePage,
   openCreate,
   openEdit,
@@ -31,65 +32,106 @@ const {
   retrySync,
   suggestCategory,
 } = useKnowledgePage();
+
+const tableWrapper = ref<HTMLElement | null>(null);
+const tableHeight = ref(400);
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  if (tableWrapper.value) {
+    resizeObserver = new ResizeObserver(() => {
+      tableHeight.value = tableWrapper.value?.clientHeight ?? 400;
+    });
+    resizeObserver.observe(tableWrapper.value);
+    tableHeight.value = tableWrapper.value.clientHeight;
+  }
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+});
 </script>
 
 <template>
   <section class="knowledge-page">
-    <div class="knowledge-page__summary">
-      <el-card shadow="never">
-        <span>当前页条目</span>
-        <strong>{{ rows.length }}</strong>
-      </el-card>
-      <el-card shadow="never">
-        <span>当前页启用</span>
-        <strong>{{ activeCount }}</strong>
-      </el-card>
-      <el-card shadow="never">
-        <span>同步失败</span>
-        <strong>{{ failedSyncCount }}</strong>
-      </el-card>
-    </div>
-
-    <el-card shadow="never">
+    <el-card shadow="never" class="knowledge-page__card">
       <template #header>
-        <div class="knowledge-page__header">
-          <div>
-            <strong>知识配置</strong>
-            <p>管理 FAQ、规则、话术和商品知识，保存后会同步到 AI 可读向量索引。</p>
+        <div class="knowledge-page__card-header">
+          <div class="knowledge-page__header-left">
+            <span class="knowledge-page__page-title">知识配置</span>
+            <div class="knowledge-page__stat-tabs">
+              <button
+                class="knowledge-page__stat-tab"
+                :class="{ 'is-active': filterDraft.isActive === '' && filterDraft.vectorStatus === '' }"
+                type="button"
+                @click="filterDraft.isActive = ''; filterDraft.vectorStatus = ''; submitFilters()"
+              >
+                当前页全部&nbsp;<strong>{{ rows.length }}</strong>
+              </button>
+              <button
+                class="knowledge-page__stat-tab knowledge-page__stat-tab--success"
+                :class="{ 'is-active': filterDraft.isActive === '1' }"
+                type="button"
+                @click="filterDraft.isActive = '1'; filterDraft.vectorStatus = ''; submitFilters()"
+              >
+                当前页启用&nbsp;<strong>{{ activeCount }}</strong>
+              </button>
+              <button
+                class="knowledge-page__stat-tab knowledge-page__stat-tab--danger"
+                :class="{ 'is-active': filterDraft.vectorStatus === 'failed' }"
+                type="button"
+                @click="filterDraft.isActive = ''; filterDraft.vectorStatus = 'failed'; submitFilters()"
+              >
+                当前页失败&nbsp;<strong>{{ failedSyncCount }}</strong>
+              </button>
+            </div>
           </div>
-          <el-button type="primary" @click="openCreate">新增知识</el-button>
+          <div class="knowledge-page__header-right">
+            <span class="knowledge-page__card-total">共 {{ total }} 条</span>
+            <el-button type="primary" @click="openCreate">新增知识</el-button>
+          </div>
         </div>
       </template>
 
-      <el-form class="knowledge-page__filters" @submit.prevent="submitFilters">
-        <el-select v-model="filterDraft.contentType" clearable placeholder="内容类型">
-          <el-option label="FAQ" value="faq" />
-          <el-option label="规则" value="rule" />
-          <el-option label="话术" value="copywriting" />
-          <el-option label="商品知识" value="product" />
-        </el-select>
-        <el-select v-model="filterDraft.isActive" clearable placeholder="启停状态">
-          <el-option label="启用" value="1" />
-          <el-option label="停用" value="0" />
-        </el-select>
-        <el-select v-model="filterDraft.vectorStatus" clearable placeholder="AI 可读状态">
-          <el-option label="待同步" value="pending" />
-          <el-option label="同步中" value="syncing" />
-          <el-option label="已入向量" value="success" />
-          <el-option label="同步失败" value="failed" />
-        </el-select>
-        <el-input
-          v-model="filterDraft.keyword"
-          clearable
-          placeholder="搜索标题、内容或关键词"
-          @keyup.enter="submitFilters"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        <el-button type="primary" @click="submitFilters">筛选</el-button>
-      </el-form>
+      <!-- 紧凑单行筛选工具栏 -->
+      <div class="knowledge-page__toolbar">
+        <div class="knowledge-page__toolbar-left">
+          <el-input
+            v-model="filterDraft.keyword"
+            clearable
+            placeholder="搜索标题、内容或关键词"
+            class="knowledge-page__search"
+            @keyup.enter="submitFilters"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+
+          <el-select v-model="filterDraft.contentType" clearable placeholder="全部内容类型" style="width: 130px">
+            <el-option label="FAQ" value="faq" />
+            <el-option label="规则" value="rule" />
+            <el-option label="话术" value="copywriting" />
+            <el-option label="商品知识" value="product" />
+          </el-select>
+
+          <el-select v-model="filterDraft.isActive" clearable placeholder="全部状态" style="width: 110px">
+            <el-option label="启用" value="1" />
+            <el-option label="停用" value="0" />
+          </el-select>
+
+          <el-select v-model="filterDraft.vectorStatus" clearable placeholder="全部同步状态" style="width: 140px">
+            <el-option label="已入向量" value="success" />
+            <el-option label="待同步" value="pending" />
+            <el-option label="同步失败" value="failed" />
+            <el-option label="同步中" value="syncing" />
+          </el-select>
+        </div>
+        <div class="knowledge-page__toolbar-right">
+          <el-button type="primary" @click="submitFilters">筛选</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </div>
+      </div>
 
       <el-alert
         v-if="errorMessage"
@@ -104,8 +146,8 @@ const {
         </template>
       </el-alert>
 
-      <div class="knowledge-page__desktop">
-        <el-table :data="rows" v-loading="loading" stripe>
+      <div class="knowledge-page__desktop" ref="tableWrapper">
+        <el-table :data="rows" v-loading="loading" :height="tableHeight" class="knowledge-page__table" stripe>
           <el-table-column prop="title" label="知识条目" min-width="260">
             <template #default="{ row }">
               <button class="knowledge-page__title-button" type="button" @click="openEdit(row)">
@@ -251,113 +293,255 @@ const {
 </template>
 
 <style scoped>
+/* ── 页面根容器 ── */
 .knowledge-page {
-  display: grid;
-  gap: 16px;
-}
-
-.knowledge-page__summary,
-.knowledge-page__filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.knowledge-page__summary :deep(.el-card__body) {
-  display: grid;
-  gap: 8px;
-}
-
-.knowledge-page__summary span,
-.knowledge-page__header p,
-.knowledge-page__title-button span,
-.knowledge-page__card span {
-  color: var(--yx-text-muted);
-}
-
-.knowledge-page__summary strong {
-  font-size: 28px;
-}
-
-.knowledge-page__header,
-.knowledge-page__drawer-row,
-.knowledge-page__drawer-actions,
-.knowledge-page__inline-field {
   display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── 单主卡片：铺满剩余高度 ── */
+.knowledge-page__card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.knowledge-page__card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── 卡片头 ── */
+.knowledge-page__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.knowledge-page__header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.knowledge-page__page-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--yx-text);
+  white-space: nowrap;
+}
+
+.knowledge-page__header-right {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.knowledge-page__header {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.knowledge-page__header p {
-  margin: 6px 0 0;
-}
-
-.knowledge-page__filters {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  margin-bottom: 16px;
-}
-
-.knowledge-page__alert {
-  margin-bottom: 16px;
-}
-
-.knowledge-page__title-button,
-.knowledge-page__card {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.knowledge-page__title-button {
-  display: grid;
-  gap: 4px;
-  padding: 0;
-}
-
-.knowledge-page__actions {
+/* ── 统计快捷 Tab ── */
+.knowledge-page__stat-tabs {
   display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.knowledge-page__stat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 20px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--yx-text-muted);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.knowledge-page__stat-tab strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--yx-text);
+}
+
+.knowledge-page__stat-tab:hover {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.knowledge-page__stat-tab.is-active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.knowledge-page__stat-tab.is-active strong {
+  color: var(--el-color-primary);
+}
+
+.knowledge-page__stat-tab--success.is-active {
+  border-color: var(--el-color-success);
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.knowledge-page__stat-tab--success.is-active strong {
+  color: var(--el-color-success);
+}
+
+.knowledge-page__stat-tab--danger.is-active {
+  border-color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.knowledge-page__stat-tab--danger.is-active strong {
+  color: var(--el-color-danger);
+}
+
+.knowledge-page__card-total {
+  font-size: 13px;
+  color: var(--yx-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── 工具栏：筛选项单行 ── */
+.knowledge-page__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
   flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.knowledge-page__toolbar-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.knowledge-page__search {
+  width: 220px;
+}
+
+.knowledge-page__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── 桌面端表格区 ── */
+.knowledge-page__desktop {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .knowledge-page__mobile {
   display: none;
 }
 
-.knowledge-page__card {
+/* ── 表格样式 ── */
+.knowledge-page__table {
+  flex: 1;
+  --el-table-text-color: var(--yx-text);
+}
+
+.knowledge-page__table :deep(.el-table__header th) {
+  padding: 10px 0;
+  text-align: center;
+}
+
+.knowledge-page__table :deep(.el-table__header th .cell) {
+  white-space: nowrap;
+}
+
+.knowledge-page__table :deep(.el-table__row td) {
+  padding: 14px 0;
+}
+
+.knowledge-page__table :deep(.el-table__cell) {
+  vertical-align: middle;
+}
+
+.knowledge-page__title-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
   display: grid;
-  gap: 8px;
-  border: 1px solid var(--yx-border);
-  border-radius: 14px;
-  padding: 14px;
+  gap: 4px;
 }
 
-.knowledge-page__card div {
+.knowledge-page__title-button strong {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--el-color-primary);
+  transition: color 0.15s;
+}
+
+.knowledge-page__title-button:hover strong {
+  color: var(--el-color-primary-dark-2);
+}
+
+.knowledge-page__title-button span {
+  font-size: 13px;
+  color: var(--yx-text-muted);
+}
+
+.knowledge-page__actions {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
-.knowledge-page__pagination,
-.knowledge-page__drawer-actions {
-  justify-content: flex-end;
-}
-
+/* ── 分页栏 ── */
 .knowledge-page__pagination {
   display: flex;
-  margin-top: 16px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+  flex-shrink: 0;
 }
 
+/* ── 抽屉表单 ── */
 .knowledge-page__drawer-form {
   display: grid;
   gap: 8px;
+}
+
+.knowledge-page__drawer-row {
+  display: flex;
+  gap: 12px;
 }
 
 .knowledge-page__drawer-row > * {
@@ -365,6 +549,8 @@ const {
 }
 
 .knowledge-page__inline-field {
+  display: flex;
+  gap: 12px;
   width: 100%;
 }
 
@@ -385,23 +571,40 @@ const {
   font-size: 12px;
 }
 
-@media (max-width: 1100px) {
-  .knowledge-page__summary,
-  .knowledge-page__filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.knowledge-page__drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
-@media (max-width: 760px) {
-  .knowledge-page__summary,
-  .knowledge-page__filters {
-    grid-template-columns: minmax(0, 1fr);
+/* ── 移动端卡片视图 ── */
+@media (max-width: 767px) {
+  .knowledge-page__toolbar {
+    padding: 12px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
-  .knowledge-page__header,
-  .knowledge-page__drawer-row,
-  .knowledge-page__inline-field {
-    flex-direction: column;
+  .knowledge-page__toolbar-left {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .knowledge-page__toolbar-left > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .knowledge-page__toolbar-left .el-select,
+  .knowledge-page__toolbar-left .el-input {
+    width: 100% !important;
+  }
+
+  .knowledge-page__toolbar-right {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .knowledge-page__desktop {
@@ -409,8 +612,39 @@ const {
   }
 
   .knowledge-page__mobile {
+    display: block;
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+
+  .knowledge-page__card {
     display: grid;
+    gap: 8px;
+    border: 1px solid var(--yx-border);
+    border-radius: 12px;
+    padding: 14px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: box-shadow 0.18s;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .knowledge-page__card:active {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .knowledge-page__card div {
+    display: flex;
+    justify-content: space-between;
     gap: 12px;
+  }
+
+  .knowledge-page__card span {
+    font-size: 13px;
+    color: var(--yx-text-muted);
   }
 }
 </style>
