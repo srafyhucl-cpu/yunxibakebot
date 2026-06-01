@@ -245,7 +245,7 @@ onUnmounted(() => {
           <el-table-column
             prop="itemNo"
             label="商品编码"
-            width="120"
+            width="170"
             align="center"
             sortable="custom"
             show-overflow-tooltip
@@ -652,9 +652,9 @@ onUnmounted(() => {
 }
 
 .products-page__mono {
-  font-family: var(--yx-font-mono);
-  font-size: 12px;
-  color: var(--yx-text-muted);
+  font-size: 13px;
+  color: var(--yx-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .products-page__empty {
