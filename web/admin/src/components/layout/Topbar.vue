@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
+import { Expand } from "@element-plus/icons-vue";
 
 const route = useRoute();
 const appStore = useAppStore();
@@ -20,11 +21,10 @@ const title = computed(() => String(route.meta.title || "芸熙烘焙后台"));
         class="topbar__menu-btn"
         @click="appStore.toggleSidebar"
       >
-        菜单
+        <el-icon size="20"><Expand /></el-icon>
       </el-button>
       <div>
         <div class="topbar__title">{{ title }}</div>
-        <div class="topbar__subtitle">后台前端重构阶段 A</div>
       </div>
     </div>
     <div class="topbar__right">
