@@ -708,15 +708,34 @@ onUnmounted(() => {
 /* ── 移动端卡片视图 ── */
 @media (max-width: 767px) {
   .products-page__toolbar {
-    padding: 10px 16px;
-  }
-
-  .products-page__search {
-    width: 100%;
+    padding: 12px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
   .products-page__toolbar-left {
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+
+  /* 搜索框独占满宽 */
+  .products-page__toolbar-left > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* 强制覆盖所有内联的 width: 110px */
+  .products-page__toolbar-left .el-select,
+  .products-page__toolbar-left .el-input,
+  .products-page__toolbar-left .el-checkbox {
+    width: 100% !important;
+  }
+
+  .products-page__toolbar-right {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .products-page__desktop {

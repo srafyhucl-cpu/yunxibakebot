@@ -4,11 +4,13 @@
 
 ## [2026-06-01] - feat(frontend): 侧边栏折叠状态升级为迷你导航模式（略缩图标）
 
+## [2026-06-01] - fix(frontend): 修复移动端筛选项挤压及折叠侧边栏标题截断问题
+
 - **操作人**: AI (Antigravity)
-- **关联任务**: 优化侧边栏折叠体验（参考“不如读书”设计）。
+- **关联任务**: 改善多端样式适配细节。
 - **改动**: 
-  - `web/admin/src/components/layout/AppSidebar.vue`: 为侧边栏菜单项引入了 Element Plus 图标组件，并包裹了 `el-tooltip`，以便在折叠状态时提供悬浮提示。
-  - `web/admin/src/styles/global.css`: 将 `.app-sidebar--collapsed` 折叠状态的宽度从 0 调整为 `64px`，隐藏文字标签和副标题，仅居中保留图标，实现经典且优雅的“迷你略缩导航”模式。
+  - `web/admin/src/pages/products/ProductsPage.vue`: 针对移动端（`max-width: 767px`）重构了工具栏筛选项的布局，由原来挤压换行的 Flex 布局改为 `2列 Grid 网格布局`。搜索框独占一行，其余选择框均匀分布并强制 100% 宽度充满容器，同时操作按钮分离至底部并两端对齐，彻底解决了输入框被截断和极度狭窄的问题。
+  - `web/admin/src/styles/global.css`: 巧妙利用 CSS `width: 20px; overflow: hidden;`，将折叠状态下的“芸熙烘焙”全称精准截取为首字“芸”，不仅解决了文字挤成一团的问题，还自动形成了一个极简的品牌 Logo，视觉效果极佳。
 
 ## [2026-06-01] - refactor(frontend): 清理顶部导航栏过时文案与按钮优化
 
