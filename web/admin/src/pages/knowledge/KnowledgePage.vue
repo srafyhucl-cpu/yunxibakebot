@@ -22,6 +22,7 @@ const {
   filterDraft,
   form,
   loadEntries,
+  submitFilters,
   resetFilters,
   changePage,
   openCreate,
