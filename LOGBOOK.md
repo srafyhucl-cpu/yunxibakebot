@@ -9,7 +9,8 @@
 - **改动**: 
   - `app/api/admin_knowledge.py` & `web/admin/src/pages/knowledge/useKnowledgePage.ts`: 调整默认每页条数 `pageSize` 从 20 增加到 30。
   - `web/admin/src/pages/knowledge/KnowledgePage.vue`:
-    - 移除了表头全局的强制居中样式，并将表格其他列设置为了 `align="center"`，使表头“知识条目”与内容默认左对齐一致。
+    - 将“知识条目”列设置为 `header-align="center"` 且 `align="left"`，使其内容始终左对齐。
+    - 在 `.knowledge-page__actions` 中增加了 `justify-content: center`，使操作列的按钮真正居中显示。
     - 为 `知识条目` 的标题和内容增加了 `text-overflow: ellipsis` 样式支持，修复了超长文字无法出现省略号截断的问题。
 
 ## [2026-06-01] - fix(admin): 知识配置统计调整为全局且移除商品分类

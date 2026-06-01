@@ -148,11 +148,11 @@ onUnmounted(() => {
 
       <div class="knowledge-page__desktop" ref="tableWrapper">
         <el-table :data="rows" v-loading="loading" :height="tableHeight" class="knowledge-page__table" stripe>
-          <el-table-column prop="title" label="知识条目" min-width="260">
+          <el-table-column prop="title" label="知识条目" min-width="260" header-align="center" align="left">
             <template #default="{ row }">
               <button class="knowledge-page__title-button" type="button" @click="openEdit(row)">
                 <strong>{{ row.title }}</strong>
-                <span>{{ row.keywords || row.content }}</span>
+                <span>{{ row.content }}</span>
               </button>
             </template>
           </el-table-column>
@@ -493,7 +493,9 @@ onUnmounted(() => {
   padding: 0;
   text-align: left;
   cursor: pointer;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
   overflow: hidden;
   max-width: 100%;
@@ -524,6 +526,7 @@ onUnmounted(() => {
 .knowledge-page__actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   flex-wrap: nowrap;
 }
