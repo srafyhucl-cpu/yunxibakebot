@@ -49,6 +49,18 @@ a {
   border-right: 1px solid var(--yx-border);
   background: var(--yx-panel);
   padding: 24px 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.app-sidebar--collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  opacity: 0;
 }
 
 .app-sidebar__brand {
