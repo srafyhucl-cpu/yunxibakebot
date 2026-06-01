@@ -45,7 +45,7 @@ export function useKnowledgePage() {
   const total = ref(0);
   const totalActive = ref(0);
   const totalFailed = ref(0);
-  const pageSize = ref(20);
+  const pageSize = ref(30);
 
   const filterDraft = reactive({
     contentType: normalizeText(route.query.contentType),

@@ -67,7 +67,7 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         authorization: str | None = Header(default=None),
     ) -> dict:
 
-        limit = 20
+        limit = 30
         safe_page = max(page, 1)
         offset = (safe_page - 1) * limit
         entries = await service.list_entries(

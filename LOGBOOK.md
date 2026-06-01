@@ -2,6 +2,16 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-01] - fix(admin): 知识配置页面UI细节和分页数调整
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 知识配置页面UI调整。
+- **改动**: 
+  - `app/api/admin_knowledge.py` & `web/admin/src/pages/knowledge/useKnowledgePage.ts`: 调整默认每页条数 `pageSize` 从 20 增加到 30。
+  - `web/admin/src/pages/knowledge/KnowledgePage.vue`:
+    - 移除了表头全局的强制居中样式，并将表格其他列设置为了 `align="center"`，使表头“知识条目”与内容默认左对齐一致。
+    - 为 `知识条目` 的标题和内容增加了 `text-overflow: ellipsis` 样式支持，修复了超长文字无法出现省略号截断的问题。
+
 ## [2026-06-01] - fix(admin): 知识配置统计调整为全局且移除商品分类
 
 - **操作人**: AI (Antigravity)

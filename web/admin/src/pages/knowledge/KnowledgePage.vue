@@ -152,23 +152,23 @@ onUnmounted(() => {
             <template #default="{ row }">
               <button class="knowledge-page__title-button" type="button" @click="openEdit(row)">
                 <strong>{{ row.title }}</strong>
-                <span>{{ row.keywords || row.content.slice(0, 48) }}</span>
+                <span>{{ row.keywords || row.content }}</span>
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="typeLabel" label="类型" width="120" />
-          <el-table-column prop="activeLabel" label="状态" width="100">
+          <el-table-column prop="typeLabel" label="类型" width="120" align="center" />
+          <el-table-column prop="activeLabel" label="状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="row.isActive ? 'success' : 'info'" effect="light">{{ row.activeLabel }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="syncLabel" label="AI 可读" width="120">
+          <el-table-column prop="syncLabel" label="AI 可读" width="120" align="center">
             <template #default="{ row }">
               <el-tag :type="row.syncType" effect="light">{{ row.syncLabel }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="updatedAtLabel" label="更新时间" min-width="170" />
-          <el-table-column label="操作" width="230" fixed="right">
+          <el-table-column prop="updatedAtLabel" label="更新时间" min-width="170" align="center" />
+          <el-table-column label="操作" width="230" fixed="right" align="center">
             <template #default="{ row }">
               <div class="knowledge-page__actions">
                 <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
@@ -472,7 +472,6 @@ onUnmounted(() => {
 
 .knowledge-page__table :deep(.el-table__header th) {
   padding: 10px 0;
-  text-align: center;
 }
 
 .knowledge-page__table :deep(.el-table__header th .cell) {
@@ -496,6 +495,8 @@ onUnmounted(() => {
   cursor: pointer;
   display: grid;
   gap: 4px;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .knowledge-page__title-button strong {
@@ -503,6 +504,9 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--el-color-primary);
   transition: color 0.15s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .knowledge-page__title-button:hover strong {
@@ -512,6 +516,9 @@ onUnmounted(() => {
 .knowledge-page__title-button span {
   font-size: 13px;
   color: var(--yx-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .knowledge-page__actions {
