@@ -2,12 +2,13 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
-## [2026-06-01] - fix(frontend): 修复侧边栏折叠按钮点击无效 Bug
+## [2026-06-01] - feat(frontend): 侧边栏折叠状态升级为迷你导航模式（略缩图标）
 
 - **操作人**: AI (Antigravity)
-- **关联任务**: 完善后台页面基础交互能力。
+- **关联任务**: 优化侧边栏折叠体验（参考“不如读书”设计）。
 - **改动**: 
-  - `web/admin/src/styles/global.css`: 补充了缺失的 `.app-sidebar--collapsed` CSS 类，并给侧边栏增加 `transition` 过渡动画。现在点击顶部折叠图标后，侧边栏能够平滑地收起隐藏（通过调整宽度、内边距和透明度实现），从而为桌面端用户提供更宽阔的商品管理视野。
+  - `web/admin/src/components/layout/AppSidebar.vue`: 为侧边栏菜单项引入了 Element Plus 图标组件，并包裹了 `el-tooltip`，以便在折叠状态时提供悬浮提示。
+  - `web/admin/src/styles/global.css`: 将 `.app-sidebar--collapsed` 折叠状态的宽度从 0 调整为 `64px`，隐藏文字标签和副标题，仅居中保留图标，实现经典且优雅的“迷你略缩导航”模式。
 
 ## [2026-06-01] - refactor(frontend): 清理顶部导航栏过时文案与按钮优化
 
