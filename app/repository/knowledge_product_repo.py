@@ -17,7 +17,6 @@ from app.repository.base import BaseRepository
 class KnowledgeProductRepo(BaseRepository):
     """商品知识仓库：负责商品类知识的写操作和管理后台查询。"""
 
-
     @staticmethod
     def _build_product_where(
         search: str,
@@ -75,7 +74,7 @@ class KnowledgeProductRepo(BaseRepository):
             "updated_at": "kb.updated_at",
             "priceFen": "yp.price_fen",
             "stock": "yp.stock",
-            "soldNum": "yp.sold_num",
+            "soldNum": "agg_sold_num",
             "itemNo": "yp.item_no",
         }
         db_sort_field = SORT_FIELD_MAP.get(sort_by)
@@ -91,11 +90,10 @@ class KnowledgeProductRepo(BaseRepository):
         row_dict = dict(row)
         price_fen = row_dict.pop("price_fen", None)
         stock = row_dict.pop("stock", None)
-        sold_num = row_dict.pop("sold_num", 0)
+        sold_num = row_dict.pop("agg_sold_num", 0)
         item_no = row_dict.pop("item_no", "")
 
         entry = entry_class(**row_dict)
-        # 动态挂载 youzan_products 特有字段，用以支持 API 层自愈读取
         setattr(entry, "price_fen", price_fen)
         setattr(entry, "stock", stock)
         setattr(entry, "sold_num", sold_num)
@@ -117,7 +115,7 @@ class KnowledgeProductRepo(BaseRepository):
         sort_by: str = "",
         sort_order: str = "desc",
     ) -> list:
-        """分页获取商品知识，支持多维度过滤，并通过与 youzan_products 做 LEFT JOIN 实现安全的全局排序。"""
+        """分页获取商品知识，支持多维度过滤，并通过与 youzan_products 做 LEFT JOIN 聚合实现安全的同款销量合并排序。"""
         from app.models.knowledge import KnowledgeEntry
         result = self._build_product_where(
             search, is_active, sync_source, vector_sync_status,
@@ -135,9 +133,15 @@ class KnowledgeProductRepo(BaseRepository):
             "kb.id, kb.category, kb.content_type, kb.title, kb.content, kb.keywords, kb.priority, "
             "kb.is_active, kb.youzan_item_id, kb.last_sync_source, kb.last_sync_ref, "
             "kb.vector_sync_status, kb.updated_at, "
-            "yp.price_fen, yp.stock, yp.sold_num, yp.item_no "
+            "yp.price_fen, yp.stock, COALESCE(agg.total_sold, yp.sold_num) AS agg_sold_num, yp.item_no "
             "FROM knowledge_base kb "
             "LEFT JOIN youzan_products yp ON kb.youzan_item_id = CAST(yp.item_id AS TEXT) "
+            "LEFT JOIN ("
+            "    SELECT item_no, SUM(sold_num) AS total_sold "
+            "    FROM youzan_products "
+            "    WHERE item_no IS NOT NULL AND item_no != '' "
+            "    GROUP BY item_no"
+            ") agg ON yp.item_no = agg.item_no AND yp.item_no != '' "
             f"WHERE {where} {order_clause} LIMIT ? OFFSET ?"
         )
 

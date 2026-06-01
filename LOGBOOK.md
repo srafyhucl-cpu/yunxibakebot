@@ -2,6 +2,16 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-01] - fix: 修复商品管理页同款销量聚合回归（6acda7c 引入的 agg 子查询丢失）
+
+- **操作人**: AI (Antigravity)
+- **问题**: 商品管理页面中同款商品（相同 `item_no`）的销量显示退回单品原始值，不再展示合并总销量。以编号 BM231204299814550 的商品为例，应展示 788+507=1295 的合并销量，实际只展示单品的 507。
+- **根因**: 最新提交 `6acda7c`（实现全局数据库级排序）在重写 `get_all_products` 的 SQL 时，将原有的 `agg` 同款聚合子查询（`SUM(sold_num) GROUP BY item_no` LEFT JOIN）整个删除，直接改用 `yp.sold_num`（单品原始值），同时 `_row_to_product_entry` 中的 pop key 也从 `agg_sold_num` 改成了 `sold_num`，但 SQL 中没有对应别名，导致取不到聚合值，排序 map 中 `soldNum` 也错误地映射到 `yp.sold_num`。
+- **改动**:
+  - `app/repository/knowledge_product_repo.py`: 恢复三处修改：① SQL SELECT 中将 `yp.sold_num` 改回 `COALESCE(agg.total_sold, yp.sold_num) AS agg_sold_num`；② 恢复 `agg` LEFT JOIN 子查询；③ `_row_to_product_entry` pop key 改回 `agg_sold_num`；④ `_build_sort_order` 中 `soldNum` 映射改回 `agg_sold_num`（按别名排序）。
+- **数据库状态变更**: 无。
+- **测试覆盖与验证结果**: `python -m pytest tests/ -q` → **135 passed** ✅。
+
 ## [2026-05-31] - feat: 实现商品管理页面全局数据库级排序机制
 
 - **操作人**: AI (Antigravity)
