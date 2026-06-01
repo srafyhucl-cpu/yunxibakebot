@@ -35,7 +35,7 @@ export function useKnowledgePage() {
 
   const loading = ref(false);
   const saving = ref(false);
-  const actionId = ref(0);
+  const actionId = ref<number | null>(null);
   const drawerVisible = ref(false);
   const drawerMode = ref<"create" | "edit">("create");
   const errorMessage = ref("");
@@ -43,6 +43,8 @@ export function useKnowledgePage() {
   const selectedEntry = ref<KnowledgeEntry | null>(null);
   const history = ref<Array<Record<string, unknown>>>([]);
   const total = ref(0);
+  const totalActive = ref(0);
+  const totalFailed = ref(0);
   const pageSize = ref(20);
 
   const filterDraft = reactive({
@@ -88,6 +90,8 @@ export function useKnowledgePage() {
       });
       entries.value = payload.items;
       total.value = payload.total;
+      totalActive.value = payload.totalActive;
+      totalFailed.value = payload.totalFailed;
       pageSize.value = payload.pageSize;
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "知识配置加载失败，请稍后重试";

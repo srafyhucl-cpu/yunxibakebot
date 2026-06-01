@@ -15,9 +15,9 @@ const {
   selectedEntry,
   history,
   total,
+  totalActive,
+  totalFailed,
   pageSize,
-  activeCount,
-  failedSyncCount,
   currentPage,
   filterDraft,
   form,
@@ -67,7 +67,7 @@ onUnmounted(() => {
                 type="button"
                 @click="filterDraft.isActive = ''; filterDraft.vectorStatus = ''; submitFilters()"
               >
-                当前页全部&nbsp;<strong>{{ rows.length }}</strong>
+                全部知识&nbsp;<strong>{{ total }}</strong>
               </button>
               <button
                 class="knowledge-page__stat-tab knowledge-page__stat-tab--success"
@@ -75,7 +75,7 @@ onUnmounted(() => {
                 type="button"
                 @click="filterDraft.isActive = '1'; filterDraft.vectorStatus = ''; submitFilters()"
               >
-                当前页启用&nbsp;<strong>{{ activeCount }}</strong>
+                已启用&nbsp;<strong>{{ totalActive }}</strong>
               </button>
               <button
                 class="knowledge-page__stat-tab knowledge-page__stat-tab--danger"
@@ -83,7 +83,7 @@ onUnmounted(() => {
                 type="button"
                 @click="filterDraft.isActive = ''; filterDraft.vectorStatus = 'failed'; submitFilters()"
               >
-                当前页失败&nbsp;<strong>{{ failedSyncCount }}</strong>
+                已失败&nbsp;<strong>{{ totalFailed }}</strong>
               </button>
             </div>
           </div>
@@ -112,8 +112,7 @@ onUnmounted(() => {
           <el-select v-model="filterDraft.contentType" clearable placeholder="全部内容类型" style="width: 130px">
             <el-option label="FAQ" value="faq" />
             <el-option label="规则" value="rule" />
-            <el-option label="话术" value="copywriting" />
-            <el-option label="商品知识" value="product" />
+            <el-option label="话术" value="script" />
           </el-select>
 
           <el-select v-model="filterDraft.isActive" clearable placeholder="全部状态" style="width: 110px">
@@ -243,8 +242,7 @@ onUnmounted(() => {
             <el-select v-model="form.contentType">
               <el-option label="FAQ" value="faq" />
               <el-option label="规则" value="rule" />
-              <el-option label="话术" value="copywriting" />
-              <el-option label="商品知识" value="product" />
+              <el-option label="话术" value="script" />
             </el-select>
             <el-button plain @click="suggestCategory">AI 建议分类</el-button>
           </div>

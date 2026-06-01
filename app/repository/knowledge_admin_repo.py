@@ -29,7 +29,7 @@ class KnowledgeAdminRepo(BaseRepository):
         offset: int = 0,
     ) -> list[KnowledgeEntry]:
         """分页获取后台知识配置列表。"""
-        clauses = ["content_type IN (?, ?, ?)"]
+        clauses = ["content_type IN (?, ?, ?)", "category != 'product'"]
         params: list[object] = list(ADMIN_LIST_CONTENT_TYPES)
         if content_type:
             clauses.append("content_type = ?")
@@ -61,7 +61,7 @@ class KnowledgeAdminRepo(BaseRepository):
         vector_status: str = "",
     ) -> int:
         """返回后台知识配置列表总数。"""
-        clauses = ["content_type IN (?, ?, ?)"]
+        clauses = ["content_type IN (?, ?, ?)", "category != 'product'"]
         params: list[object] = list(ADMIN_LIST_CONTENT_TYPES)
         if content_type:
             clauses.append("content_type = ?")

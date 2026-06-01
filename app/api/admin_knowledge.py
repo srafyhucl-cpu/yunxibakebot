@@ -80,6 +80,25 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         )
         total = await service.count_entries(
             content_type=content_type,
+            is_active="",
+            vector_status="",
+            keyword=keyword,
+        )
+        total_active = await service.count_entries(
+            content_type=content_type,
+            is_active="1",
+            vector_status="",
+            keyword=keyword,
+        )
+        total_failed = await service.count_entries(
+            content_type=content_type,
+            is_active="",
+            vector_status="failed",
+            keyword=keyword,
+        )
+        # 获取当前页的真实总数（用于分页计算）
+        current_filter_total = await service.count_entries(
+            content_type=content_type,
             is_active=is_active,
             vector_status=vector_status,
             keyword=keyword,
@@ -91,7 +110,9 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
                 "page": safe_page,
                 "page_size": limit,
                 "total": total,
-                "total_pages": (total + limit - 1) // limit,
+                "total_active": total_active,
+                "total_failed": total_failed,
+                "total_pages": (current_filter_total + limit - 1) // limit,
             },
         }
 

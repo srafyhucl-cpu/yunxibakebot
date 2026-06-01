@@ -38,6 +38,8 @@ interface KnowledgeListResponse {
     page: number;
     page_size: number;
     total: number;
+    total_active?: number;
+    total_failed?: number;
   };
 }
 
@@ -120,6 +122,8 @@ export const knowledgeService = {
     return {
       items: response.data.data.map(normalizeEntry),
       total: response.data.pagination.total,
+      totalActive: response.data.pagination.total_active || 0,
+      totalFailed: response.data.pagination.total_failed || 0,
       page: response.data.pagination.page,
       pageSize: response.data.pagination.page_size,
     };

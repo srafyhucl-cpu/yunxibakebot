@@ -34,6 +34,8 @@ export interface KnowledgeDraft {
 export interface KnowledgeListPayload {
   items: KnowledgeEntry[];
   total: number;
+  totalActive: number;
+  totalFailed: number;
   page: number;
   pageSize: number;
 }
