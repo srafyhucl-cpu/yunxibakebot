@@ -10,7 +10,7 @@
 - **关联任务**: 改善多端样式适配细节。
 - **改动**: 
   - `web/admin/src/pages/products/ProductsPage.vue`: 针对移动端（`max-width: 767px`）重构了工具栏筛选项的布局，由原来挤压换行的 Flex 布局改为 `2列 Grid 网格布局`。搜索框独占一行，其余选择框均匀分布并强制 100% 宽度充满容器，同时操作按钮分离至底部并两端对齐，彻底解决了输入框被截断和极度狭窄的问题。
-  - `web/admin/src/styles/global.css`: 巧妙利用 CSS `width: 20px; overflow: hidden;`，将折叠状态下的“芸熙烘焙”全称精准截取为首字“芸”，不仅解决了文字挤成一团的问题，还自动形成了一个极简的品牌 Logo，视觉效果极佳。
+  - `web/admin/src/components/layout/AppSidebar.vue` & `global.css`: 修复侧边栏折叠时 Logo 文字出现残缺“脏东西”的问题。移除了原来基于粗暴 `width: 20px; overflow: hidden` 的强行截断方案，改为在 DOM 层级将“芸熙烘焙”解耦为独立标签，并配合 CSS `.is-hidden` 类的 `width` 和 `opacity` 双重平滑过渡，实现了无瑕疵的极简“芸”字 Logo。
 
 ## [2026-06-01] - refactor(frontend): 清理顶部导航栏过时文案与按钮优化
 

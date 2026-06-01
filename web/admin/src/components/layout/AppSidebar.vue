@@ -36,7 +36,10 @@ const activeKey = computed(() => route.meta.navKey);
     :class="{ 'app-sidebar--collapsed': !props.open }"
   >
     <div class="app-sidebar__brand">
-      <span class="app-sidebar__title">芸熙烘焙</span>
+      <span class="app-sidebar__title">
+        <span>芸</span>
+        <span class="app-sidebar__title-rest" :class="{ 'is-hidden': !props.open }">熙烘焙</span>
+      </span>
       <span class="app-sidebar__subtitle">新后台 v2</span>
     </div>
     <nav class="app-sidebar__nav">
