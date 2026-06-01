@@ -2,6 +2,14 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-01] - fix(admin): 知识配置统计调整为全局且移除商品分类
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 修复知识配置页面统计数据逻辑和过滤掉商品数据。
+- **改动**: 
+  - `app/api/admin_knowledge.py` 和 `app/repository/knowledge_admin_repo.py`: 在后端过滤掉 `category = 'product'` 的数据，并在分页数据中返回全量 `total_active` 和 `total_failed` 统计。
+  - `web/admin/src/pages/knowledge/KnowledgePage.vue` 和相关 service：更新展示文案和绑定数据，并从下拉选项中移除了 "商品知识"。
+
 ## [2026-06-01] - refactor(frontend): 知识配置页面UI重构对齐商品管理页
 
 - **操作人**: AI (Antigravity)
