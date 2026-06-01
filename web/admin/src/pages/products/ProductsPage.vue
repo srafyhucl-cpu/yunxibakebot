@@ -583,6 +583,7 @@ onUnmounted(() => {
 /* ── 表格样式 ── */
 .products-page__table {
   flex: 1;
+  --el-table-text-color: var(--yx-text);
 }
 
 .products-page__table :deep(.el-table__header th) {
