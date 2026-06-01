@@ -628,27 +628,25 @@ onUnmounted(() => {
 .products-page__price {
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--el-color-danger);
+  color: var(--yx-text);
 }
 
 .products-page__stock {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
+  color: var(--yx-text);
 }
 
 .products-page__stock-ok {
-  color: var(--el-color-success);
-  font-weight: 500;
   font-size: 13px;
+  color: var(--yx-text);
 }
 
 .products-page__sold {
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--el-color-primary);
+  color: var(--yx-text);
 }
 
 .products-page__mono {
@@ -658,7 +656,7 @@ onUnmounted(() => {
 }
 
 .products-page__empty {
-  color: var(--el-border-color-darker);
+  color: var(--yx-text);
   font-size: 13px;
 }
 

@@ -7,7 +7,8 @@
 - **操作人**: AI (Antigravity)
 - **需求**: 商品编码在列宽不足时被隐藏了一半，且自定义等宽字体导致渲染模糊。
 - **改动**: 
-  - `web/admin/src/pages/products/ProductsPage.vue`: 增加 `itemNo` 列的 width 到 170px，移除 `.products-page__mono` 的自定义等宽字体设置，直接继承系统无衬线字体，并提升字号至 13px、使用标准文本色以增强清晰度。
+  - `web/admin/src/pages/products/ProductsPage.vue`: 增加 `itemNo` 列的 width 到 170px，移除 `.products-page__mono` 的自定义等宽字体设置。
+  - 移除了表格内部单价、库存、销量、空白占位符（—）的特殊颜色（如 primary/danger/success）与加粗字体（font-weight: 500/600），全面统一继承全局标准文本色和默认粗细，使表格视觉噪音更低、样式更一致（商品名超链接等除外）。
 
 ## [2026-06-01] - refactor: 商品管理页前端全新重设计（消除筛选卡片，表格铺满全屏）
 
