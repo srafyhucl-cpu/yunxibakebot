@@ -234,6 +234,9 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     await router.replace({ query: buildQuery("webhooks", DEFAULT_PAGE) });
   }
 
+  const detailEntityKey = ref("");
+  const detailEntityType = ref("");
+
   function closeDrawer() {
     drawerVisible.value = false;
     detailLoading.value = false;
@@ -242,6 +245,8 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     detailSummaryLines.value = [];
     detailFields.value = [];
     detailErrorMessage.value = "";
+    detailEntityKey.value = "";
+    detailEntityType.value = "";
   }
 
   function openCurrentDetail(item: ObservabilityCurrentItem) {
@@ -250,7 +255,18 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     detailSummaryLines.value = item.summary;
     detailFields.value = item.details;
     detailErrorMessage.value = "";
+    detailEntityKey.value = item.entityKey;
+    detailEntityType.value = item.entityType;
     drawerVisible.value = true;
+  }
+
+  async function trackEntityHistory(entityKey: string, entityType: string) {
+    closeDrawer();
+    historyEntityTypeDraft.value = entityType?.toLowerCase() === "product" ? "product" : (entityType?.toLowerCase() === "knowledge" ? "knowledge" : "");
+    historyKeywordDraft.value = entityKey;
+    historySourceDraft.value = "";
+    historyStatusDraft.value = mode === "failures" ? "failed" : "";
+    await router.replace({ query: buildQuery("history", DEFAULT_PAGE) });
   }
 
   async function openHistoryDetail(item: ObservabilityHistoryItem) {
@@ -397,6 +413,8 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     detailSummaryLines,
     detailFields,
     detailErrorMessage,
+    detailEntityKey,
+    detailEntityType,
     listCount,
     issueCount,
     summaryLabel,
@@ -409,6 +427,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     openCurrentDetail,
     openHistoryDetail,
     openWebhookDetail,
+    trackEntityHistory,
     retryLoadData,
   };
 }

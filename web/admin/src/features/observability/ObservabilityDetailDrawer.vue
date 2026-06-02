@@ -1,18 +1,29 @@
 <script setup lang="ts">
 import type { ObservabilityDetailField } from "@/types/observability";
 
-const props = defineProps<{
-  visible: boolean;
-  loading: boolean;
-  title: string;
-  subtitle: string;
-  summaryLines: string[];
-  detailFields: ObservabilityDetailField[];
-  errorMessage?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    visible: boolean;
+    loading: boolean;
+    title: string;
+    subtitle: string;
+    summaryLines: string[];
+    detailFields: ObservabilityDetailField[];
+    errorMessage?: string;
+    showTrackBtn?: boolean;
+    entityKey?: string;
+    entityType?: string;
+  }>(),
+  {
+    showTrackBtn: false,
+    entityKey: "",
+    entityType: "",
+  }
+);
 
 const emit = defineEmits<{
   (event: "update:visible", value: boolean): void;
+  (event: "track-history", entityKey: string, entityType: string): void;
 }>();
 </script>
 
@@ -38,6 +49,17 @@ const emit = defineEmits<{
         :closable="false"
         :title="props.errorMessage"
       />
+
+      <!-- 快速追踪变更历史操作区 -->
+      <section v-if="props.showTrackBtn && props.entityKey" class="observability-detail__track">
+        <el-button
+          type="primary"
+          style="width: 100%; height: 38px; border-radius: 8px;"
+          @click="emit('track-history', props.entityKey, props.entityType)"
+        >
+          追踪该对象的变更历史（回写流水）
+        </el-button>
+      </section>
 
       <section v-if="props.summaryLines.length" class="observability-detail__section">
         <h4>摘要</h4>
@@ -80,6 +102,10 @@ const emit = defineEmits<{
 }
 
 .observability-detail__alert {
+  margin-bottom: 4px;
+}
+
+.observability-detail__track {
   margin-bottom: 4px;
 }
 

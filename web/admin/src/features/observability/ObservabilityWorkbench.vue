@@ -473,7 +473,11 @@ onUnmounted(() => {
       :summary-lines="page.detailSummaryLines"
       :detail-fields="page.detailFields"
       :error-message="page.detailErrorMessage"
+      :show-track-btn="page.activeTab === 'current'"
+      :entity-key="page.detailEntityKey"
+      :entity-type="page.detailEntityType"
       @update:visible="updateDrawerVisible"
+      @track-history="page.trackEntityHistory"
     />
   </section>
 </template>
