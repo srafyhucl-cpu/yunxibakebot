@@ -79,8 +79,25 @@ export function formatEntityType(entityType: string): string {
   return ENTITY_TYPE_MAP[entityType.toLowerCase()] || entityType;
 }
 
+const FIELD_NAME_MAP: Record<string, string> = {
+  price_fen: "价格",
+  stock: "可用库存",
+  is_active: "上下架状态",
+  tags: "配方标签",
+  title: "商品名称/标题",
+  alias: "有赞别名",
+  category: "知识分类",
+  priority: "检索优先级",
+  skus_json: "规格规格/价格明细",
+  item_props_json: "定制属性/加料",
+  desc: "商品介绍正文",
+  content: "知识内容正文",
+  keywords: "检索关键词",
+  youzan_item_id: "关联有赞商品 ID",
+};
+
 /**
- * 解析回写历史 change_summary (即 details)，并结合动作与来源，提取“具体做了什么”
+ * 解析回写历史 change_summary (即 details)，并结合动作与来源，提取“具体做了什么”、覆盖字段与变动诱因
  */
 export function parseChangeSummary(details: any, entityType: string, action?: string, source?: string): string {
   const changes: string[] = [];
@@ -89,86 +106,89 @@ export function parseChangeSummary(details: any, entityType: string, action?: st
   const actionLower = action?.toLowerCase() || "";
   const sourceLower = source?.toLowerCase() || "";
 
-  // 1. 如果有明确的同步原因或结果 (对账下架)
+  // 1. 如果有明确的对账联动下架原因
   if (details && details.reason === "youzan_not_onsale") {
-    changes.push("商品对账联动下架 ── 有赞后台非在售状态");
-    if (details.result) {
-      changes.push(`本地已置为下架`);
-    }
-    return changes.join(" | ");
+    return "对账软下架 ── 每日全量对账发现有赞已下架，联动禁用本地记录，防止 AI 误推荐";
   }
 
-  // 2. 如果是向量索引同步动作
+  // 2. 软下架行为原因解释
+  if (actionLower === "deactivate") {
+    if (sourceLower === "product_reconcile") {
+      return "对账软下架 ── 每日全量对账发现有赞已下架，联动禁用本地记录，防止 AI 误推荐";
+    }
+    if (sourceLower === "youzan_webhook") {
+      return "自动软下架 ── 接收到有赞商品下架事件通知 (ITEM_STATE / ITEM_OFFSHELVE)，同步将本地记录置为禁用";
+    }
+    if (sourceLower === "admin_manual") {
+      return "手动软下架 ── 管理员在后台手动关闭了该项知识的启用状态，暂停参与 AI 对话检索";
+    }
+    return `软下架 ── 该记录被置为禁用状态（触发源: ${formatSource(source || "")}）`;
+  }
+
+  // 3. 向量索引同步动作
   if (actionLower === "sync" || actionLower === "sync_retry") {
     changes.push("同步向量 ── 对知识点文本重新编码并同步至向量索引库以供 AI 检索");
     if (details && details.operator) {
       changes.push(`操作人: ${details.operator}`);
     }
-    if (details && details.content_type) {
-      changes.push(`类型: ${details.content_type}`);
-    }
     return changes.join(" | ");
   }
 
-  // 3. 如果是种子导入动作
+  // 4. 种子导入动作
   if (actionLower === "seed" || sourceLower === "seed_knowledge") {
     changes.push("系统初始化 ── 自动导入预设的种子 FAQ / 规则条目");
     if (details && details.title) {
-      changes.push(`条目: ${details.title}`);
+      changes.push(`导入: ${details.title}`);
     }
     return changes.join(" | ");
   }
 
-  // 4. 标准对象属性修改的深度拆解
+  // 5. 属性深度解释与覆盖字段说明
   if (details && typeof details === "object" && Object.keys(details).length > 0) {
-    // 商品类型
-    if (typeLower === "product" || "price_fen" in details || "stock" in details) {
-      if (details.title) {
-        changes.push(`商品: ${details.title}`);
-      }
-      if (details.price_fen !== undefined) {
-        changes.push(`价格: ¥${(details.price_fen / 100).toFixed(2)}`);
-      }
-      if (details.stock !== undefined) {
-        changes.push(`库存: ${details.stock} 件`);
-      }
-      if (details.is_active !== undefined) {
-        changes.push(details.is_active ? "上架在售" : "下架停用");
-      }
-      if (details.product_write_result) {
-        changes.push(`写库: ${details.product_write_result === "applied" ? "写入成功" : details.product_write_result}`);
-      }
-      if (details.knowledge_write_result) {
-        changes.push(`向量同步: ${details.knowledge_write_result === "applied" ? "同步成功" : details.knowledge_write_result}`);
-      }
-    } 
-    // 知识库类型
-    else {
-      if (details.title) {
-        changes.push(`知识: ${details.title}`);
-      }
-      if (details.category) {
-        changes.push(`分类: ${details.category}`);
-      }
-      if (details.is_active !== undefined) {
-        changes.push(details.is_active ? "启用" : "禁用");
-      }
-      if (details.priority !== undefined) {
-        changes.push(`优先级: ${details.priority}`);
-      }
-    }
-  }
+    const bizKeys = Object.keys(details).filter(
+      k => !["product_write_result", "knowledge_write_result", "updated_at", "item_id"].includes(k)
+    );
+    const translatedFields = bizKeys.map(k => FIELD_NAME_MAP[k] || k);
 
-  if (changes.length > 0) {
+    // 分析修改的主导目的（为什么覆盖这些字段）
+    let purpose = "";
+    if (sourceLower === "chat_live_refresh") {
+      purpose = "实时同步 ── 顾客咨询时，实时调取有赞最新数据以确保 AI 报价和库存准确";
+    } else if (sourceLower === "product_reconcile") {
+      purpose = "对账同步 ── 每日例行拉取有赞最新销量和编码以校正数据";
+    } else if (bizKeys.includes("price_fen") && bizKeys.includes("stock")) {
+      purpose = "业务同步 ── 同步有赞后台最新的商品价格和库存变动";
+    } else if (bizKeys.includes("price_fen")) {
+      purpose = "调价同步 ── 同步有赞后台最新的价格调整";
+    } else if (bizKeys.includes("stock")) {
+      purpose = "库存同步 ── 同步有赞后台最新的可用库存";
+    } else if (bizKeys.includes("is_active")) {
+      purpose = "状态同步 ── 同步商品在售/下架状态变动";
+    } else if (typeLower === "product") {
+      purpose = "信息同步 ── 同步有赞后台更新的商品基本信息(如标题/介绍/配方)";
+    } else {
+      purpose = "内容更新 ── 同步管理员在后台修改的知识条目正文与配置";
+    }
+
+    changes.push(purpose);
+    if (translatedFields.length > 0) {
+      changes.push(`写入字段: [${translatedFields.join(", ")}]`);
+    }
+
+    // 透出核心修改值
+    if (details.price_fen !== undefined) {
+      changes.push(`现价: ¥${(details.price_fen / 100).toFixed(2)}`);
+    }
+    if (details.stock !== undefined) {
+      changes.push(`现库存: ${details.stock} 件`);
+    }
+
     return changes.join(" | ");
   }
 
-  // 5. 根据动作进行的兜底解释
-  if (actionLower === "deactivate") {
-    return "软下架 ── 本地数据库将该记录置为禁用状态";
-  }
+  // 6. 兜底动作解释
   if (actionLower === "activate") {
-    return "启用 ── 本地数据库启用该记录并重新激活";
+    return "启用 ── 本地数据库将该记录状态激活，重新参与 AI 检索";
   }
   if (actionLower === "create") {
     return "新增 ── 写入全新数据并自动触发向量编码";
