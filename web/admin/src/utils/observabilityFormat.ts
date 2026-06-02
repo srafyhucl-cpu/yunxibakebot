@@ -92,7 +92,10 @@ export function parseChangeSummary(details: any, entityType: string): string {
   // 判断是否是商品数据变更
   if (entityType?.toLowerCase() === "product" || "price_fen" in details || "stock" in details) {
     if (details.title) {
-      changes.push(`处理商品 [${details.title}]`);
+      changes.push(`商品: ${details.title}`);
+    }
+    if (details.alias) {
+      changes.push(`别名: ${details.alias}`);
     }
     if (details.price_fen !== undefined) {
       changes.push(`价格: ¥${(details.price_fen / 100).toFixed(2)}`);
