@@ -38,6 +38,7 @@ export interface ObservabilityHistoryItem {
   occurredAt: string;
   summaryLines: string[];
   detailFields: ObservabilityDetailField[];
+  details: any;
 }
 
 export interface ObservabilityWebhookItem {

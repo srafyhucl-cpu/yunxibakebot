@@ -149,6 +149,7 @@ function normalizeHistoryItem(item: HistoryResponse["data"][number]): Observabil
     occurredAt: item.occurred_at || "",
     summaryLines: item.summary_lines || [],
     detailFields: normalizeDetailFields(item.details),
+    details: item.details || {},
   };
 }
 
