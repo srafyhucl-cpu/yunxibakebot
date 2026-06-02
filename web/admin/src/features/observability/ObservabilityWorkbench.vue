@@ -55,6 +55,40 @@ onMounted(() => {
 onUnmounted(() => {
   resizeObserver?.disconnect();
 });
+
+import { ElMessage } from "element-plus";
+
+const errorDialogVisible = ref(false);
+const activeErrorLog = ref("");
+
+function openErrorDialog(log: string) {
+  activeErrorLog.value = log;
+  errorDialogVisible.value = true;
+}
+
+function copyErrorLog() {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(activeErrorLog.value)
+      .then(() => {
+        ElMessage.success("复制成功");
+      })
+      .catch(() => {
+        ElMessage.error("复制失败");
+      });
+  } else {
+    const textarea = document.createElement("textarea");
+    textarea.value = activeErrorLog.value;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+      ElMessage.success("复制成功");
+    } catch (err) {
+      ElMessage.error("复制失败");
+    }
+    document.body.removeChild(textarea);
+  }
+}
 </script>
 
 <template>
@@ -225,7 +259,19 @@ onUnmounted(() => {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="errorLabel" label="错误日志" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="errorLabel" label="错误日志" width="110" align="center">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.errorLabel && row.errorLabel !== '-'"
+                type="danger"
+                link
+                @click="openErrorDialog(row.errorLabel)"
+              >
+                查看日志
+              </el-button>
+              <span v-else class="observability-page__none">-</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="occurredAtLabel" label="发生时间" width="170" align="center" />
           <el-table-column label="操作" width="80" fixed="right" align="center">
             <template #default="{ row }">
@@ -271,7 +317,19 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column prop="processStage" label="处理阶段" width="120" align="center" />
           <el-table-column prop="durationLabel" label="消费耗时" width="100" align="right" />
-          <el-table-column prop="errorLabel" label="错误日志" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="errorLabel" label="错误日志" width="110" align="center">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.errorLabel && row.errorLabel !== '-'"
+                type="danger"
+                link
+                @click="openErrorDialog(row.errorLabel)"
+              >
+                查看日志
+              </el-button>
+              <span v-else class="observability-page__none">-</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="receivedAtLabel" label="接收时间" width="170" align="center" />
           <el-table-column label="操作" width="80" fixed="right" align="center">
             <template #default="{ row }">
@@ -371,6 +429,34 @@ onUnmounted(() => {
       @update:visible="updateDrawerVisible"
       @track-history="page.trackEntityHistory"
     />
+
+    <!-- 错误日志详情弹窗 (终端风格) -->
+    <el-dialog
+      v-model="errorDialogVisible"
+      title="错误日志详情"
+      width="720px"
+      destroy-on-close
+      append-to-body
+      class="observability-page__error-dialog"
+    >
+      <div class="observability-page__terminal">
+        <div class="observability-page__terminal-header">
+          <div class="observability-page__terminal-dots">
+            <span class="observability-page__dot red"></span>
+            <span class="observability-page__dot yellow"></span>
+            <span class="observability-page__dot green"></span>
+          </div>
+          <span class="observability-page__terminal-title">System Stack Trace & Diagnostic Logs</span>
+        </div>
+        <div class="observability-page__terminal-body">
+          <pre class="observability-page__terminal-pre"><code>{{ activeErrorLog }}</code></pre>
+        </div>
+      </div>
+      <div class="observability-page__error-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 12px;">
+        <el-button @click="copyErrorLog" type="primary" plain>一键复制</el-button>
+        <el-button @click="errorDialogVisible = false">关闭</el-button>
+      </div>
+    </el-dialog>
   </section>
 </template>
 
@@ -720,5 +806,86 @@ onUnmounted(() => {
   .observability-page__page-stats {
     display: none;
   }
+}
+
+/* ── 错误日志终端弹窗样式 ── */
+:deep(.observability-page__error-dialog) {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  background: var(--yx-bg-card, #ffffff);
+  border: 1px solid var(--yx-border, #e4e7ed);
+}
+
+:deep(.observability-page__error-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding: 20px 24px 10px;
+}
+
+:deep(.observability-page__error-dialog .el-dialog__body) {
+  padding: 0 24px 10px;
+}
+
+.observability-page__terminal {
+  background: #1e1e24;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #2d2d36;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+}
+
+.observability-page__terminal-header {
+  background: #18181c;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #25252b;
+}
+
+.observability-page__terminal-dots {
+  display: flex;
+  gap: 6px;
+  margin-right: 16px;
+}
+
+.observability-page__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.observability-page__dot.red { background: #ff5f56; }
+.observability-page__dot.yellow { background: #ffbd2e; }
+.observability-page__dot.green { background: #27c93f; }
+
+.observability-page__terminal-title {
+  color: #8e8e93;
+  font-size: 12px;
+  font-family: monospace;
+  user-select: none;
+}
+
+.observability-page__terminal-body {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.observability-page__terminal-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.observability-page__terminal-pre code {
+  color: #ff79c6; /* 亮粉色展示，让报错信息非常醒目 */
+}
+
+.observability-page__error-footer {
+  padding-bottom: 10px;
 }
 </style>
