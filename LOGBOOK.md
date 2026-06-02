@@ -2,13 +2,16 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
-## [2026-06-02] - refactor(frontend): 数据观察台与转人工页面 UI/UX 深度重构对齐商品管理
+## [2026-06-02] - refactor(frontend): 数据观察台与转人工页面 UI/UX 深度重构与可读性可视化增强
 
 - **操作人**: AI (Antigravity)
 - **关联任务**: 数据观察台与转人工页面 UI/UX 深度重构。
 - **改动**: 
-  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 整体架构调整为单卡片锁定满高 flex-col 布局，利用 ResizeObserver 自适应计算并传递 el-table 的高度，移除了顶端散落的指标卡片，将其整合到 card header 内作为圆角快捷切换 Tab，右端以轻量小字展示度量指标；
-  - `web/admin/src/pages/transfers/TransfersPage.vue`: 重构为单卡片满高自适应布局，使用 ResizeObserver 动态更新 table 内部高度。引入紧凑单行工具栏和全局刷新按钮，原顶端队列指标移入卡片头部快捷 Tab 中，并加入前端实时模糊检索（对用户 ID、转人工原委和摘要做 computed 响应式过滤）与状态级过滤，极大提升页面响应速度和交互体验。
+  - `web/admin/src/utils/observabilityFormat.ts`: 新建中文化业务翻译工具类，将原始变量（例如 youzan_webhook, ITEM_INFO, TRADE_ORDER_PAY）映射成业务接口描述；同时提供解析器，自动从 details JSON 中拆解出核心价格/库存改变数值与具体商品/订单关联名称。
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 
+    - 整体架构调整为单卡片锁定满高 flex-col 布局，利用 ResizeObserver 自适应计算并传递 el-table 的高度，移除了顶端散落的指标卡片，将其整合到 card header 内作为圆角快捷切换 Tab，右端以轻量小字展示度量指标。
+    - 回写历史表格合并了来源与动作，新增“修改了什么 / 干嘛的”列显示直观变动；Webhook 审计表格新增“核心关联业务 / 干嘛的”列显示关联对象名，并将事件名翻译为推送接口中文，解决冷冰冰标识符无法理解的痛点。
+  - `web/admin/src/pages/transfers/TransfersPage.vue`: 重构为单卡片满高自适应布局，使用 ResizeObserver 动态更新 table 内部高度。引入紧凑单行工具栏和全局刷新按钮，原顶端队列指标移入卡片头部快捷 Tab 中，并加入前端实时模糊检索与状态级过滤，极大提升页面速度和交互体验。
 
 ## [2026-06-01] - fix(admin): 知识配置页面UI细节和分页数调整
 

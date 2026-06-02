@@ -4,6 +4,14 @@ import { reactive, ref, onMounted, onUnmounted } from "vue";
 
 import ObservabilityDetailDrawer from "./ObservabilityDetailDrawer.vue";
 import { useObservabilityWorkbench } from "./useObservabilityWorkbench";
+import {
+  formatSource,
+  formatAction,
+  formatEventType,
+  formatEntityType,
+  parseChangeSummary,
+  parseWebhookSummary,
+} from "@/utils/observabilityFormat";
 
 import type { ObservabilityTab } from "@/types/observability";
 
@@ -280,16 +288,28 @@ onUnmounted(() => {
           class="observability-page__table"
         >
           <el-table-column type="index" label="#" width="50" align="center" />
-          <el-table-column prop="title" label="回写对象" min-width="200" show-overflow-tooltip>
+          <el-table-column prop="title" label="回写对象 / 业务名" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="observability-page__title-btn" type="button" @click="page.openHistoryDetail(row)">
                 {{ row.title }}
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="entityKey" label="实体键" width="150" align="center" show-overflow-tooltip>
+          <el-table-column prop="source" label="来源接口 / 动作" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="observability-page__mono">{{ row.entityType }} · {{ row.entityKey }}</span>
+              <div style="font-weight: 500; font-size: 13px; color: var(--yx-text)">
+                {{ formatSource(row.source) }}
+              </div>
+              <div style="font-size: 11px; color: var(--yx-text-muted); margin-top: 2px;">
+                {{ formatAction(row.action) }}（{{ formatEntityType(row.entityType) }}）
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="修改了什么 / 干嘛的" min-width="260" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="observability-page__change-summary">
+                {{ parseChangeSummary(row.details, row.entityType) }}
+              </span>
             </template>
           </el-table-column>
           <el-table-column prop="status" label="结果" width="90" align="center">
@@ -299,11 +319,9 @@ onUnmounted(() => {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="source" label="修改来源" min-width="140" align="center" show-overflow-tooltip />
-          <el-table-column prop="action" label="动作" width="100" align="center" />
-          <el-table-column prop="errorLabel" label="错误信息" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="errorLabel" label="错误日志" min-width="160" show-overflow-tooltip />
           <el-table-column prop="occurredAtLabel" label="发生时间" width="170" align="center" />
-          <el-table-column label="操作" width="100" fixed="right" align="center">
+          <el-table-column label="操作" width="80" fixed="right" align="center">
             <template #default="{ row }">
               <el-button link type="primary" @click="page.openHistoryDetail(row)">查看</el-button>
             </template>
@@ -321,16 +339,21 @@ onUnmounted(() => {
           class="observability-page__table"
         >
           <el-table-column type="index" label="#" width="50" align="center" />
-          <el-table-column prop="eventType" label="事件名称" min-width="160" show-overflow-tooltip>
+          <el-table-column prop="eventType" label="推送接口 / 事件类型" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="observability-page__title-btn" type="button" @click="page.openWebhookDetail(row)">
-                {{ row.eventType || "未记录事件" }}
+                {{ formatEventType(row.eventType) }}
               </button>
+              <div class="observability-page__mono" style="font-size: 11px; margin-top: 2px;">
+                {{ row.eventType }}
+              </div>
             </template>
           </el-table-column>
-          <el-table-column prop="businessKey" label="业务标识" width="160" align="center" show-overflow-tooltip>
+          <el-table-column label="核心关联业务 / 干嘛的" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="observability-page__mono">{{ row.businessType }} · {{ row.businessKey || row.msgId || "-" }}</span>
+              <span class="observability-page__biz-summary">
+                {{ parseWebhookSummary(row.details, row.eventType, row.businessType, row.businessKey) }}
+              </span>
             </template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="90" align="center">
@@ -342,9 +365,9 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column prop="processStage" label="处理阶段" width="120" align="center" />
           <el-table-column prop="durationLabel" label="消费耗时" width="100" align="right" />
-          <el-table-column prop="errorLabel" label="错误日志" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="errorLabel" label="错误日志" min-width="160" show-overflow-tooltip />
           <el-table-column prop="receivedAtLabel" label="接收时间" width="170" align="center" />
-          <el-table-column label="操作" width="100" fixed="right" align="center">
+          <el-table-column label="操作" width="80" fixed="right" align="center">
             <template #default="{ row }">
               <el-button link type="primary" @click="page.openWebhookDetail(row)">查看</el-button>
             </template>
@@ -389,9 +412,9 @@ onUnmounted(() => {
               <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
             </div>
             <div class="observability-page__card-meta">
-              <span class="observability-page__mono">{{ row.entityType }} · {{ row.entityKey }}</span>
-              <span>来源: {{ row.source || "-" }}</span>
-              <span>时间: {{ row.occurredAtLabel }}</span>
+              <span><strong>接口:</strong> {{ formatSource(row.source) }} | {{ formatAction(row.action) }}</span>
+              <span><strong>变更:</strong> {{ parseChangeSummary(row.details, row.entityType) }}</span>
+              <span><strong>时间:</strong> {{ row.occurredAtLabel }}</span>
             </div>
           </button>
         </div>
@@ -405,13 +428,13 @@ onUnmounted(() => {
             @click="page.openWebhookDetail(row)"
           >
             <div class="observability-page__card-top">
-              <strong>{{ row.eventType || "未记录事件" }}</strong>
+              <strong>{{ formatEventType(row.eventType) }}</strong>
               <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
             </div>
             <div class="observability-page__card-meta">
-              <span class="observability-page__mono">{{ row.businessType }} · {{ row.businessKey || row.msgId || "-" }}</span>
-              <span>阶段: {{ row.processStage || "-" }}</span>
-              <span>时间: {{ row.receivedAtLabel }}</span>
+              <span><strong>业务:</strong> {{ parseWebhookSummary(row.details, row.eventType, row.businessType, row.businessKey) }}</span>
+              <span><strong>阶段:</strong> {{ row.processStage || "-" }}</span>
+              <span><strong>时间:</strong> {{ row.receivedAtLabel }}</span>
             </div>
           </button>
         </div>
@@ -661,6 +684,12 @@ onUnmounted(() => {
   font-family: var(--yx-font-mono), monospace;
 }
 
+.observability-page__change-summary,
+.observability-page__biz-summary {
+  font-size: 12px;
+  color: var(--yx-text);
+}
+
 .observability-page__error {
   margin: 12px 20px 0;
   flex-shrink: 0;
@@ -780,6 +809,10 @@ onUnmounted(() => {
     gap: 6px 14px;
     font-size: 12px;
     color: var(--yx-text-muted);
+  }
+
+  .observability-page__card-meta span {
+    width: 100%;
   }
 
   .observability-page__pagination {
