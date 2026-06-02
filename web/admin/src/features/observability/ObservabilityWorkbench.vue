@@ -197,7 +197,7 @@ onUnmounted(() => {
           :height="tableHeight"
           class="observability-page__table"
         >
-          <el-table-column type="index" label="#" width="50" align="center" />
+          <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="title" label="回写对象 / 业务名" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="observability-page__title-btn" type="button" @click="page.openHistoryDetail(row)">
@@ -244,7 +244,7 @@ onUnmounted(() => {
           :height="tableHeight"
           class="observability-page__table"
         >
-          <el-table-column type="index" label="#" width="50" align="center" />
+          <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="eventType" label="推送接口 / 事件类型" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">
               <button class="observability-page__title-btn" type="button" @click="page.openWebhookDetail(row)">

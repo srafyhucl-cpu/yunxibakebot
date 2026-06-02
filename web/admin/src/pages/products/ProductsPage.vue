@@ -198,7 +198,7 @@ onUnmounted(() => {
           "
           @sort-change="handleSortChange"
         >
-          <el-table-column type="index" label="#" width="50" align="center" />
+          <el-table-column type="index" label="序号" width="60" align="center" />
 
           <el-table-column
             prop="title"

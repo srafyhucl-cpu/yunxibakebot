@@ -156,7 +156,7 @@ onUnmounted(() => {
           :height="tableHeight"
           class="transfers-page__table"
         >
-          <el-table-column type="index" label="#" width="50" align="center" />
+          <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="shortUserId" label="用户标识" min-width="150" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="transfers-page__mono">{{ row.shortUserId }}</span>

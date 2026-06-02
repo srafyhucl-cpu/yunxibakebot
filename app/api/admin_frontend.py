@@ -67,7 +67,7 @@ def create_admin_frontend_router() -> APIRouter:
         if status == "loading":
             detail_msg = "正在载入本地预解算缓存..."
         elif status == "building":
-            detail_msg = f"正在对知识库数据生成向量表示... ({current} / {total})"
+            detail_msg = f"AI正在后台积极学习知识库...({current} / {total})"
         elif status == "ready":
             detail_msg = "系统向量库初始化完成"
         elif status == "failed":

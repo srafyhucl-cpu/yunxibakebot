@@ -148,6 +148,7 @@ onUnmounted(() => {
 
       <div class="knowledge-page__desktop" ref="tableWrapper">
         <el-table :data="rows" v-loading="loading" :height="tableHeight" class="knowledge-page__table" stripe>
+          <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="title" label="知识条目" min-width="260" header-align="center" align="left">
             <template #default="{ row }">
               <button class="knowledge-page__title-button" type="button" @click="openEdit(row)">
