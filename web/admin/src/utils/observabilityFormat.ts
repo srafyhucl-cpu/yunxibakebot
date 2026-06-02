@@ -171,21 +171,14 @@ export function parseChangeSummary(details: any, entityType: string, action?: st
     }
 
     changes.push(purpose);
-    if (translatedFields.length > 0) {
-      changes.push(`写入字段: [${translatedFields.join(", ")}]`);
-    }
 
     // 透出核心修改值与差异
     if (details.old_price_fen !== undefined && details.price_fen !== undefined && details.old_price_fen !== details.price_fen) {
       changes.push(`价格变动: ¥${(details.old_price_fen / 100).toFixed(2)} → ¥${(details.price_fen / 100).toFixed(2)}`);
-    } else if (details.price_fen !== undefined) {
-      changes.push(`价格: ¥${(details.price_fen / 100).toFixed(2)}`);
     }
 
     if (details.old_stock !== undefined && details.stock !== undefined && details.old_stock !== details.stock) {
       changes.push(`库存变动: ${details.old_stock} 件 → ${details.stock} 件`);
-    } else if (details.stock !== undefined) {
-      changes.push(`库存: ${details.stock} 件`);
     }
 
     return changes.join(" | ");
