@@ -51,6 +51,19 @@ function formatStatusType(value: string): "success" | "warning" | "danger" | "in
   return "info";
 }
 
+function formatStatusText(value: string): string {
+  if (value === "success") {
+    return "成功";
+  }
+  if (value === "failed" || value === "error") {
+    return "失败";
+  }
+  if (value === "processing" || value === "syncing") {
+    return "处理中";
+  }
+  return value || "未标记";
+}
+
 export function useObservabilityWorkbench(mode: WorkbenchMode) {
   const route = useRoute();
   const router = useRouter();
@@ -122,6 +135,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
       ...item,
       occurredAtLabel: formatTime(item.occurredAt),
       statusType: formatStatusType(item.status),
+      statusLabel: formatStatusText(item.status),
       errorLabel: item.errorMessage || item.errorType || "-",
     })),
   );
@@ -131,6 +145,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
       ...item,
       receivedAtLabel: formatTime(item.receivedAt),
       statusType: formatStatusType(item.status),
+      statusLabel: formatStatusText(item.status),
       durationLabel: item.durationMs > 0 ? `${item.durationMs} ms` : "-",
       errorLabel: item.errorMessage || item.errorType || "-",
     })),

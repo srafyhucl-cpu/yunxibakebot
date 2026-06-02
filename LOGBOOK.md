@@ -2,6 +2,14 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - style(observability): 优化结果与状态列显示为中文
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 用户反馈“结果显示：成功或者失败不要英文”。
+- **改动**:
+  - `web/admin/src/features/observability/useObservabilityWorkbench.ts`: 增加 `formatStatusText` 函数，将底层的 `success`, `failed`, `processing`, `syncing` 等英文状态翻译为“成功”、“失败”、“处理中”等中文。
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 修改表格列渲染逻辑，从使用 `row.status` 替换为 `row.statusLabel` 以实现本地化展示。
+
 ## [2026-06-02] - fix(observability): 修复数据观察台移除当前知识面板后导致的白屏无数据问题
 
 - **操作人**: AI (Antigravity)

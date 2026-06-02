@@ -221,7 +221,7 @@ onUnmounted(() => {
           <el-table-column prop="status" label="结果" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.statusType" effect="light" size="small">
-                {{ row.status || "未标记" }}
+                {{ row.statusLabel }}
               </el-tag>
             </template>
           </el-table-column>
@@ -265,7 +265,7 @@ onUnmounted(() => {
           <el-table-column prop="status" label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.statusType" effect="light" size="small">
-                {{ row.status || "未标记" }}
+                {{ row.statusLabel }}
               </el-tag>
             </template>
           </el-table-column>
