@@ -80,56 +80,101 @@ export function formatEntityType(entityType: string): string {
 }
 
 /**
- * 解析回写历史 change_summary (即 details)，提取“具体做了什么”
+ * 解析回写历史 change_summary (即 details)，并结合动作与来源，提取“具体做了什么”
  */
-export function parseChangeSummary(details: any, entityType: string): string {
-  if (!details || typeof details !== "object") {
-    return "同步写入全部数据属性";
-  }
-
+export function parseChangeSummary(details: any, entityType: string, action?: string, source?: string): string {
   const changes: string[] = [];
 
-  // 判断是否是商品数据变更
-  if (entityType?.toLowerCase() === "product" || "price_fen" in details || "stock" in details) {
-    if (details.title) {
-      changes.push(`商品: ${details.title}`);
+  const typeLower = entityType?.toLowerCase() || "";
+  const actionLower = action?.toLowerCase() || "";
+  const sourceLower = source?.toLowerCase() || "";
+
+  // 1. 如果有明确的同步原因或结果 (对账下架)
+  if (details && details.reason === "youzan_not_onsale") {
+    changes.push("商品对账联动下架 ── 有赞后台非在售状态");
+    if (details.result) {
+      changes.push(`本地已置为下架`);
     }
-    if (details.alias) {
-      changes.push(`别名: ${details.alias}`);
+    return changes.join(" | ");
+  }
+
+  // 2. 如果是向量索引同步动作
+  if (actionLower === "sync" || actionLower === "sync_retry") {
+    changes.push("同步向量 ── 对知识点文本重新编码并同步至向量索引库以供 AI 检索");
+    if (details && details.operator) {
+      changes.push(`操作人: ${details.operator}`);
     }
-    if (details.price_fen !== undefined) {
-      changes.push(`价格: ¥${(details.price_fen / 100).toFixed(2)}`);
+    if (details && details.content_type) {
+      changes.push(`类型: ${details.content_type}`);
     }
-    if (details.stock !== undefined) {
-      changes.push(`库存: ${details.stock} 件`);
+    return changes.join(" | ");
+  }
+
+  // 3. 如果是种子导入动作
+  if (actionLower === "seed" || sourceLower === "seed_knowledge") {
+    changes.push("系统初始化 ── 自动导入预设的种子 FAQ / 规则条目");
+    if (details && details.title) {
+      changes.push(`条目: ${details.title}`);
     }
-    if (details.is_active !== undefined) {
-      changes.push(details.is_active ? "标记为「上架在售」" : "标记为「下架停用」");
-    }
-    if (details.product_write_result) {
-      changes.push(`写库: ${details.product_write_result}`);
-    }
-    if (details.knowledge_write_result) {
-      changes.push(`向量同步: ${details.knowledge_write_result}`);
-    }
-  } 
-  // 知识库数据变更
-  else {
-    if (details.title) {
-      changes.push(`知识条目: ${details.title}`);
-    }
-    if (details.category) {
-      changes.push(`分类: ${details.category}`);
-    }
-    if (details.is_active !== undefined) {
-      changes.push(details.is_active ? "状态: 启用" : "状态: 禁用");
-    }
-    if (details.priority !== undefined) {
-      changes.push(`优先级: ${details.priority}`);
+    return changes.join(" | ");
+  }
+
+  // 4. 标准对象属性修改的深度拆解
+  if (details && typeof details === "object" && Object.keys(details).length > 0) {
+    // 商品类型
+    if (typeLower === "product" || "price_fen" in details || "stock" in details) {
+      if (details.title) {
+        changes.push(`商品: ${details.title}`);
+      }
+      if (details.price_fen !== undefined) {
+        changes.push(`价格: ¥${(details.price_fen / 100).toFixed(2)}`);
+      }
+      if (details.stock !== undefined) {
+        changes.push(`库存: ${details.stock} 件`);
+      }
+      if (details.is_active !== undefined) {
+        changes.push(details.is_active ? "上架在售" : "下架停用");
+      }
+      if (details.product_write_result) {
+        changes.push(`写库: ${details.product_write_result === "applied" ? "写入成功" : details.product_write_result}`);
+      }
+      if (details.knowledge_write_result) {
+        changes.push(`向量同步: ${details.knowledge_write_result === "applied" ? "同步成功" : details.knowledge_write_result}`);
+      }
+    } 
+    // 知识库类型
+    else {
+      if (details.title) {
+        changes.push(`知识: ${details.title}`);
+      }
+      if (details.category) {
+        changes.push(`分类: ${details.category}`);
+      }
+      if (details.is_active !== undefined) {
+        changes.push(details.is_active ? "启用" : "禁用");
+      }
+      if (details.priority !== undefined) {
+        changes.push(`优先级: ${details.priority}`);
+      }
     }
   }
 
-  return changes.length > 0 ? changes.join(" | ") : "全量覆盖数据属性";
+  if (changes.length > 0) {
+    return changes.join(" | ");
+  }
+
+  // 5. 根据动作进行的兜底解释
+  if (actionLower === "deactivate") {
+    return "软下架 ── 本地数据库将该记录置为禁用状态";
+  }
+  if (actionLower === "activate") {
+    return "启用 ── 本地数据库启用该记录并重新激活";
+  }
+  if (actionLower === "create") {
+    return "新增 ── 写入全新数据并自动触发向量编码";
+  }
+
+  return "同步属性 ── 覆盖写入该对象的数据字段";
 }
 
 /**

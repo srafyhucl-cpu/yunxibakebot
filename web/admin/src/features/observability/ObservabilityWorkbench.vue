@@ -294,7 +294,7 @@ onUnmounted(() => {
           <el-table-column label="修改了什么 / 干嘛的" min-width="260" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="observability-page__change-summary">
-                {{ parseChangeSummary(row.details, row.entityType) }}
+                {{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}
               </span>
             </template>
           </el-table-column>
@@ -403,7 +403,7 @@ onUnmounted(() => {
                 <span v-if="row.webhookEventType" style="color: var(--yx-primary)"> ({{ formatEventType(row.webhookEventType) }})</span>
                 | {{ formatAction(row.action) }}
               </span>
-              <span><strong>变更:</strong> {{ parseChangeSummary(row.details, row.entityType) }}</span>
+              <span><strong>变更:</strong> {{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}</span>
               <span><strong>时间:</strong> {{ row.occurredAtLabel }}</span>
             </div>
           </button>
