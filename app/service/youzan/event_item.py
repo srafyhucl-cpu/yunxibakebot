@@ -351,9 +351,11 @@ async def handle_item_event(
                     stock=stock,
                     is_active=is_active,
                     tags=tags_str,
-                    updated_at=updated_at_str,
                     product_result=product_result,
                     knowledge_result=knowledge_result,
+                    updated_at=updated_at_str,
+                    old_price_fen=old_price if old_price != -1 and old_price != price_fen else None,
+                    old_stock=old_stock if old_stock != -1 and old_stock != stock else None,
                 ),
                 occurred_at=updated_at_str,
             )

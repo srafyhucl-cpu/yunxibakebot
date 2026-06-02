@@ -107,9 +107,23 @@ function normalizeDetailFields(details: unknown): ObservabilityDetailField[] {
   if (!details || typeof details !== "object" || Array.isArray(details)) {
     return [{ label: "原始内容", value: stringifyValue(details) }];
   }
-  return Object.entries(details).map(([label, value]) => ({
+  
+  const d = details as Record<string, unknown>;
+  const highlightKeys = new Set<string>();
+  
+  if (d.old_price_fen !== undefined) {
+    highlightKeys.add("old_price_fen");
+    highlightKeys.add("price_fen");
+  }
+  if (d.old_stock !== undefined) {
+    highlightKeys.add("old_stock");
+    highlightKeys.add("stock");
+  }
+
+  return Object.entries(d).map(([label, value]) => ({
     label,
     value: stringifyValue(value),
+    highlight: highlightKeys.has(label),
   }));
 }
 

@@ -61,22 +61,19 @@ const emit = defineEmits<{
         </el-button>
       </section>
 
-      <section v-if="props.summaryLines.length" class="observability-detail__section">
-        <h4>摘要</h4>
-        <ul class="observability-detail__summary">
-          <li v-for="line in props.summaryLines" :key="line">{{ line }}</li>
-        </ul>
-      </section>
-
       <section class="observability-detail__section">
-        <h4>详情</h4>
+        <h4>字段详情</h4>
         <div class="observability-detail__fields">
           <div
             v-for="field in props.detailFields"
             :key="field.label"
             class="observability-detail__field"
+            :class="{ 'is-highlighted': field.highlight }"
           >
-            <span class="observability-detail__label">{{ field.label }}</span>
+            <span class="observability-detail__label">
+              {{ field.label }}
+              <el-tag v-if="field.highlight" type="danger" size="small" effect="plain" style="margin-left: 6px; padding: 0 4px; height: 18px;">引发变动</el-tag>
+            </span>
             <pre class="observability-detail__value">{{ field.value }}</pre>
           </div>
         </div>
@@ -134,15 +131,27 @@ const emit = defineEmits<{
 .observability-detail__field {
   display: grid;
   gap: 6px;
-  padding: 12px;
+  padding: 10px 14px;
   border: 1px solid var(--yx-border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #faf7f2;
+}
+
+.observability-detail__field.is-highlighted {
+  border-color: var(--el-color-danger-light-5);
+  background: var(--el-color-danger-light-9);
 }
 
 .observability-detail__label {
   color: var(--yx-text-muted);
   font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.observability-detail__field.is-highlighted .observability-detail__label {
+  color: var(--el-color-danger);
+  font-weight: 600;
 }
 
 .observability-detail__value {
@@ -151,6 +160,10 @@ const emit = defineEmits<{
   word-break: break-word;
   font-family: inherit;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
+}
+
+.observability-detail__field.is-highlighted .observability-detail__value {
+  color: var(--el-color-danger);
 }
 </style>

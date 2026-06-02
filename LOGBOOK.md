@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - feat(observability): 数据观察台支持展示具体变动明细与字段高亮
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 合并数据表列信息，精确展示商品更新前后差异，卡片化详情抽屉。
+- **改动**:
+  - `app/service/observability.py`: `build_product_change_summary` 支持接收 `old_price_fen` 与 `old_stock`。
+  - `app/service/youzan/event_item.py`: 事件处理器透传商品拦截到的旧价格与库存以对比。
+  - `web/admin/src/utils/observabilityFormat.ts`: 针对触发改动的字段，解析渲染例如 `价格变动: ¥10.00 → ¥15.00` 的内容；明确软下架文案逻辑为“本地防御性软下架”。
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 将原本的两列合并为“变更内容与来源”，优化 Web端 和移动端卡片。
+  - `web/admin/src/features/observability/ObservabilityDetailDrawer.vue`: 移除摘要，卡片化展现所有字段，自动识别并标红发生变动的核心字段。
+
 ## [2026-06-02] - refactor(observability): 数据观察台回写历史增加触发原因关联，简化当前内容视图
 
 - **操作人**: AI (Antigravity)

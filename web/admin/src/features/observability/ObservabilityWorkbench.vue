@@ -278,24 +278,18 @@ onUnmounted(() => {
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="source" label="来源接口 / 动作" min-width="220" show-overflow-tooltip>
+          <el-table-column label="变更内容与来源" min-width="380" show-overflow-tooltip>
             <template #default="{ row }">
-              <div style="font-weight: 500; font-size: 13px; color: var(--yx-text)">
-                {{ formatSource(row.source) }}
-              </div>
-              <div v-if="row.webhookEventType" style="font-size: 12px; color: var(--yx-primary); margin-top: 2.5px; font-weight: 500;">
-                触发原因: {{ formatEventType(row.webhookEventType) }}
-              </div>
-              <div style="font-size: 11px; color: var(--yx-text-muted); margin-top: 2px;">
-                {{ formatAction(row.action) }}（{{ formatEntityType(row.entityType) }}）
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="修改了什么 / 干嘛的" min-width="260" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span class="observability-page__change-summary">
+              <div class="observability-page__change-summary" style="font-weight: 500; margin-bottom: 6px;">
                 {{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}
-              </span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--yx-text-muted);">
+                <el-tag size="small" :type="row.source === 'youzan_webhook' ? 'warning' : 'info'" effect="plain">
+                  {{ formatSource(row.source) }}
+                </el-tag>
+                <span v-if="row.webhookEventType" style="color: var(--yx-primary)">触发: {{ formatEventType(row.webhookEventType) }}</span>
+                <span>动作: {{ formatAction(row.action) }}（{{ formatEntityType(row.entityType) }}）</span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column prop="status" label="结果" width="90" align="center">
@@ -399,11 +393,13 @@ onUnmounted(() => {
             </div>
             <div class="observability-page__card-meta">
               <span>
-                <strong>接口:</strong> {{ formatSource(row.source) }}
+                <strong>内容:</strong> <span style="color: var(--yx-text-main); font-weight: 500;">{{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}</span>
+              </span>
+              <span>
+                <strong>来源:</strong> {{ formatSource(row.source) }}
                 <span v-if="row.webhookEventType" style="color: var(--yx-primary)"> ({{ formatEventType(row.webhookEventType) }})</span>
                 | {{ formatAction(row.action) }}
               </span>
-              <span><strong>变更:</strong> {{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}</span>
               <span><strong>时间:</strong> {{ row.occurredAtLabel }}</span>
             </div>
           </button>

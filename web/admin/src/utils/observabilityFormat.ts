@@ -117,7 +117,7 @@ export function parseChangeSummary(details: any, entityType: string, action?: st
       return "对账软下架 ── 每日全量对账发现有赞已下架，联动禁用本地记录，防止 AI 误推荐";
     }
     if (sourceLower === "youzan_webhook") {
-      return "自动软下架 ── 接收到有赞商品下架事件通知 (ITEM_STATE / ITEM_OFFSHELVE)，同步将本地记录置为禁用";
+      return "本地防御性软下架 ── 收到有赞商品下架事件通知 (ITEM_STATE / ITEM_OFFSHELVE)，安全起见自动将本地记录置为禁用";
     }
     if (sourceLower === "admin_manual") {
       return "手动软下架 ── 管理员在后台手动关闭了该项知识的启用状态，暂停参与 AI 对话检索";
@@ -146,7 +146,7 @@ export function parseChangeSummary(details: any, entityType: string, action?: st
   // 5. 属性深度解释与覆盖字段说明
   if (details && typeof details === "object" && Object.keys(details).length > 0) {
     const bizKeys = Object.keys(details).filter(
-      k => !["product_write_result", "knowledge_write_result", "updated_at", "item_id"].includes(k)
+      k => !["product_write_result", "knowledge_write_result", "updated_at", "item_id", "old_price_fen", "old_stock"].includes(k)
     );
     const translatedFields = bizKeys.map(k => FIELD_NAME_MAP[k] || k);
 
@@ -175,12 +175,17 @@ export function parseChangeSummary(details: any, entityType: string, action?: st
       changes.push(`写入字段: [${translatedFields.join(", ")}]`);
     }
 
-    // 透出核心修改值
-    if (details.price_fen !== undefined) {
-      changes.push(`现价: ¥${(details.price_fen / 100).toFixed(2)}`);
+    // 透出核心修改值与差异
+    if (details.old_price_fen !== undefined && details.price_fen !== undefined && details.old_price_fen !== details.price_fen) {
+      changes.push(`价格变动: ¥${(details.old_price_fen / 100).toFixed(2)} → ¥${(details.price_fen / 100).toFixed(2)}`);
+    } else if (details.price_fen !== undefined) {
+      changes.push(`价格: ¥${(details.price_fen / 100).toFixed(2)}`);
     }
-    if (details.stock !== undefined) {
-      changes.push(`现库存: ${details.stock} 件`);
+
+    if (details.old_stock !== undefined && details.stock !== undefined && details.old_stock !== details.stock) {
+      changes.push(`库存变动: ${details.old_stock} 件 → ${details.stock} 件`);
+    } else if (details.stock !== undefined) {
+      changes.push(`库存: ${details.stock} 件`);
     }
 
     return changes.join(" | ");

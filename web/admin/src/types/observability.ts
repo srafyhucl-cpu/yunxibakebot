@@ -3,6 +3,7 @@ export type ObservabilityTab = "current" | "history" | "webhooks";
 export interface ObservabilityDetailField {
   label: string;
   value: string;
+  highlight?: boolean;
 }
 
 export interface ObservabilityCurrentItem {

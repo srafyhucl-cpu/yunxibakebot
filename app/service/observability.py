@@ -314,9 +314,11 @@ def build_product_change_summary(
     updated_at: str,
     knowledge_result: str = "",
     product_result: str = "",
+    old_price_fen: int | None = None,
+    old_stock: int | None = None,
 ) -> dict:
     """构造商品回写历史摘要。"""
-    return {
+    summary = {
         "item_id": item_id,
         "title": title,
         "alias": alias,
@@ -328,6 +330,11 @@ def build_product_change_summary(
         "knowledge_write_result": knowledge_result,
         "updated_at": updated_at,
     }
+    if old_price_fen is not None:
+        summary["old_price_fen"] = old_price_fen
+    if old_stock is not None:
+        summary["old_stock"] = old_stock
+    return summary
 
 
 def build_knowledge_change_summary(
