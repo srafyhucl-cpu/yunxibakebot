@@ -30,6 +30,7 @@ export interface ObservabilityHistoryItem {
   sourceRef: string;
   sessionId: string;
   webhookMsgId: string;
+  webhookEventType?: string;
   action: string;
   status: string;
   errorType: string;

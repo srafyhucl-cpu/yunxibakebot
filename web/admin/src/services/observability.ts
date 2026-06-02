@@ -45,6 +45,7 @@ interface HistoryResponse {
     source_ref: string;
     session_id: string;
     webhook_msg_id: string;
+    webhook_event_type?: string;
     action: string;
     status: string;
     error_type: string;
@@ -140,6 +141,7 @@ function normalizeHistoryItem(item: HistoryResponse["data"][number]): Observabil
     sourceRef: item.source_ref || "",
     sessionId: item.session_id || "",
     webhookMsgId: item.webhook_msg_id || "",
+    webhookEventType: item.webhook_event_type || "",
     action: item.action || "",
     status: item.status || "",
     errorType: item.error_type || "",

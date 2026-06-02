@@ -22,7 +22,7 @@ const props = defineProps<{
 const page = reactive(useObservabilityWorkbench(props.mode));
 
 const workspaceTabs: Array<{ key: ObservabilityTab; label: string }> = [
-  { key: "current", label: "当前内容" },
+  { key: "current", label: "当前知识" },
   { key: "history", label: "回写历史" },
   { key: "webhooks", label: "Webhook 审计" },
 ];
@@ -86,24 +86,18 @@ onUnmounted(() => {
             {{ page.summaryLabel }}：<strong>{{ page.total }}</strong>
             <span class="observability-page__divider-inline" />
             当前页：<strong>{{ page.listCount }}</strong>
-            <span v-if="page.activeTab !== 'current' || page.currentViewDraft !== 'knowledge'" class="observability-page__divider-inline" />
-            <span v-if="page.activeTab !== 'current' || page.currentViewDraft !== 'knowledge'">
+            <span class="observability-page__divider-inline" />
+            <span>
               异常：<strong class="is-danger">{{ page.issueCount }}</strong>
             </span>
           </span>
         </div>
       </template>
 
-      <!-- 紧凑单行筛选工具栏：当前内容 -->
+      <!-- 紧凑单行筛选工具栏：当前知识 -->
       <div v-if="page.activeTab === 'current'" class="observability-page__toolbar">
         <div class="observability-page__toolbar-left">
-          <el-select v-model="page.currentViewDraft" placeholder="内容范围" style="width: 110px">
-            <el-option label="知识内容" value="knowledge" />
-            <el-option label="商品内容" value="products" />
-          </el-select>
-          
           <el-select
-            v-if="page.currentViewDraft === 'knowledge'"
             v-model="page.currentCategoryDraft"
             clearable
             placeholder="知识分类"
@@ -115,22 +109,11 @@ onUnmounted(() => {
             <el-option label="话术" value="copywriting" />
             <el-option label="商品知识" value="product" />
           </el-select>
-          <el-select
-            v-else
-            v-model="page.currentProductStatusDraft"
-            clearable
-            placeholder="商品状态"
-            style="width: 110px"
-          >
-            <el-option label="全部状态" value="" />
-            <el-option label="在售" value="1" />
-            <el-option label="已下架" value="0" />
-          </el-select>
 
           <el-input
             v-model="page.currentKeywordDraft"
             clearable
-            placeholder="搜索标题、关键词或商品别名"
+            placeholder="搜索标题、关键词或实体键"
             class="observability-page__search"
             @keyup.enter="page.submitCurrentFilters"
           >
@@ -141,7 +124,7 @@ onUnmounted(() => {
         </div>
         <div class="observability-page__toolbar-right">
           <el-button type="primary" :icon="Search" @click="page.submitCurrentFilters">筛选</el-button>
-          <el-button @click="page.currentKeywordDraft = ''; page.currentCategoryDraft = ''; page.currentProductStatusDraft = ''; page.submitCurrentFilters()">
+          <el-button @click="page.currentKeywordDraft = ''; page.currentCategoryDraft = ''; page.submitCurrentFilters()">
             重置
           </el-button>
         </div>
@@ -295,10 +278,13 @@ onUnmounted(() => {
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="source" label="来源接口 / 动作" min-width="180" show-overflow-tooltip>
+          <el-table-column prop="source" label="来源接口 / 动作" min-width="220" show-overflow-tooltip>
             <template #default="{ row }">
               <div style="font-weight: 500; font-size: 13px; color: var(--yx-text)">
                 {{ formatSource(row.source) }}
+              </div>
+              <div v-if="row.webhookEventType" style="font-size: 12px; color: var(--yx-primary); margin-top: 2.5px; font-weight: 500;">
+                触发原因: {{ formatEventType(row.webhookEventType) }}
               </div>
               <div style="font-size: 11px; color: var(--yx-text-muted); margin-top: 2px;">
                 {{ formatAction(row.action) }}（{{ formatEntityType(row.entityType) }}）
@@ -412,7 +398,11 @@ onUnmounted(() => {
               <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
             </div>
             <div class="observability-page__card-meta">
-              <span><strong>接口:</strong> {{ formatSource(row.source) }} | {{ formatAction(row.action) }}</span>
+              <span>
+                <strong>接口:</strong> {{ formatSource(row.source) }}
+                <span v-if="row.webhookEventType" style="color: var(--yx-primary)"> ({{ formatEventType(row.webhookEventType) }})</span>
+                | {{ formatAction(row.action) }}
+              </span>
               <span><strong>变更:</strong> {{ parseChangeSummary(row.details, row.entityType) }}</span>
               <span><strong>时间:</strong> {{ row.occurredAtLabel }}</span>
             </div>

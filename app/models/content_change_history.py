@@ -54,6 +54,7 @@ class ContentChangeHistoryEntry:
     error_type: str = ""
     error_message: str = ""
     occurred_at: str = ""
+    webhook_event_type: str = ""
 
 
 @dataclass

@@ -124,19 +124,6 @@ class ObservabilityService:
         offset: int = 0,
     ) -> tuple[list[dict], int]:
         """返回当前内容页所需的数据。"""
-        if view == "products":
-            products = await self._product_repo.list_current_products(
-                keyword=keyword,
-                is_active=product_status,
-                limit=limit,
-                offset=offset,
-            )
-            total = await self._product_repo.count_current_products(
-                keyword=keyword,
-                is_active=product_status,
-            )
-            return [self._format_product_item(item) for item in products], total
-
         entries = await self._knowledge_repo.list_current_entries(
             category=category,
             keyword=keyword,
@@ -222,31 +209,6 @@ class ObservabilityService:
         entry = await self._webhook_repo.get_by_id(event_id)
         return self._format_webhook_entry(entry) if entry else None
 
-    def _format_product_item(self, item: dict) -> dict:
-        return {
-            "entity_type": ChangeEntityType.PRODUCT,
-            "entity_key": str(item["item_id"]),
-            "title": item["title"],
-            "subtitle": f"别名: {item['alias']}",
-            "category": "product",
-            "status_text": "在售" if item["is_active"] else "下架",
-            "is_active": item["is_active"],
-            "updated_at": item["updated_at"],
-            "last_sync_source": item.get("last_sync_source", ""),
-            "last_sync_ref": item.get("last_sync_ref", ""),
-            "summary": [
-                f"价格: {item['price_fen'] / 100:.2f} 元",
-                f"库存: {item['stock']}",
-                f"标签: {item['tags'] or '-'}",
-            ],
-            "details": [
-                {"label": "商品 ID", "value": str(item["item_id"])},
-                {"label": "别名", "value": item["alias"]},
-                {"label": "描述", "value": item["desc"] or "-"},
-                {"label": "规格", "value": self._json_to_lines(item.get("skus_json", "[]"))},
-                {"label": "属性", "value": self._json_to_lines(item.get("item_props_json", "[]"))},
-            ],
-        }
 
     def _format_knowledge_item(self, entry) -> dict:
         category = entry.category.value if hasattr(entry.category, "value") else str(entry.category)
@@ -285,6 +247,7 @@ class ObservabilityService:
             "source_ref": entry.source_ref,
             "session_id": entry.session_id,
             "webhook_msg_id": entry.webhook_msg_id,
+            "webhook_event_type": getattr(entry, "webhook_event_type", ""),
             "action": entry.action,
             "status": entry.status,
             "error_type": entry.error_type,

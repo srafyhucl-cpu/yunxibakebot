@@ -66,9 +66,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   const historyItems = ref<ObservabilityHistoryItem[]>([]);
   const webhookItems = ref<ObservabilityWebhookItem[]>([]);
 
-  const currentViewDraft = ref("knowledge");
   const currentCategoryDraft = ref("");
-  const currentProductStatusDraft = ref("");
   const currentKeywordDraft = ref("");
 
   const historySourceDraft = ref("");
@@ -172,10 +170,10 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
       if (activeTab.value === "current") {
         const payload = await observabilityService.listCurrent({
           page: currentPage.value,
-          view: queryView.value,
+          view: "knowledge",
           category: queryCategory.value,
           keyword: queryCurrentKeyword.value,
-          productStatus: queryProductStatus.value,
+          productStatus: "",
         });
         currentItems.value = payload.items;
         total.value = payload.total;
@@ -320,14 +318,9 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     }
 
     if (tab === "current") {
-      if (currentViewDraft.value && currentViewDraft.value !== "knowledge") {
-        query.view = currentViewDraft.value;
-      }
+      query.view = "knowledge";
       if (currentCategoryDraft.value) {
         query.category = currentCategoryDraft.value;
-      }
-      if (currentProductStatusDraft.value) {
-        query.productStatus = currentProductStatusDraft.value;
       }
       if (currentKeywordDraft.value) {
         query.currentKeyword = currentKeywordDraft.value.trim();
@@ -366,9 +359,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   watch(
     () => route.query,
     async () => {
-      currentViewDraft.value = queryView.value;
       currentCategoryDraft.value = queryCategory.value;
-      currentProductStatusDraft.value = queryProductStatus.value;
       currentKeywordDraft.value = queryCurrentKeyword.value;
 
       historySourceDraft.value = queryHistorySource.value;
@@ -397,9 +388,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     currentRows,
     historyRows,
     webhookRows,
-    currentViewDraft,
     currentCategoryDraft,
-    currentProductStatusDraft,
     currentKeywordDraft,
     historySourceDraft,
     historyStatusDraft,

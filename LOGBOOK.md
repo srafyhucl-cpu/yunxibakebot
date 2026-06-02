@@ -2,6 +2,19 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - refactor(observability): 数据观察台回写历史增加触发原因关联，简化当前内容视图
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 解决数据同步诱因不够一目了然的问题，并移除“当前内容”中的商品管理冗余。
+- **改动**: 
+  - `app/models/content_change_history.py`: 为 `ContentChangeHistoryEntry` 增加 `webhook_event_type` 字段存储关联的 Webhook 推送事件类型。
+  - `app/repository/content_change_history_repo.py`: 修改 `list_entries`, `get_by_id`, `list_for_entity` 的 SQL，通过 `LEFT JOIN youzan_webhook_events` 获取触发变更的 webhook 事件类型。
+  - `app/service/observability.py`: 从 `ObservabilityService` 中删除 redundant 的商品内容过滤与 `_format_product_item` 格式化，并在回写历史中填充 `webhook_event_type`。成功削减了文件体量，符合文件体量守卫。
+  - `tests/service/test_observability.py`: 修复单测断言以对齐最新的纯知识库视图。
+  - `web/admin/src/types/observability.ts` & `web/admin/src/services/observability.ts`: 增加 `webhookEventType` 字段并在 API 返回值映射中予以支持。
+  - `web/admin/src/features/observability/useObservabilityWorkbench.ts`: 移除 redundant 的商品范围与商品上下架过滤状态。
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 重命名“当前内容”页签为“当前知识”，隐藏范围选择下拉框；在回写历史表格的“来源接口 / 动作”列及移动端卡片中，渲染翻译后的“触发原因”，实现一目了然的变动追踪。
+
 ## [2026-06-02] - refactor(frontend): 数据观察台与转人工页面 UI/UX 深度重构与可读性可视化增强
 
 - **操作人**: AI (Antigravity)

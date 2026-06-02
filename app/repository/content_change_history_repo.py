@@ -56,31 +56,33 @@ class ContentChangeHistoryRepo(BaseRepository):
         clauses = ["1 = 1"]
         params: list[object] = []
         if date_from:
-            clauses.append("occurred_at >= ?")
+            clauses.append("c.occurred_at >= ?")
             params.append(f"{date_from} 00:00:00")
         if date_to:
-            clauses.append("occurred_at <= ?")
+            clauses.append("c.occurred_at <= ?")
             params.append(f"{date_to} 23:59:59")
         if source:
-            clauses.append("source = ?")
+            clauses.append("c.source = ?")
             params.append(source)
         if status:
-            clauses.append("status = ?")
+            clauses.append("c.status = ?")
             params.append(status)
         if entity_type:
-            clauses.append("entity_type = ?")
+            clauses.append("c.entity_type = ?")
             params.append(entity_type)
         if keyword:
             like = f"%{keyword}%"
-            clauses.append("(title LIKE ? OR entity_key LIKE ? OR change_summary_json LIKE ?)")
+            clauses.append("(c.title LIKE ? OR c.entity_key LIKE ? OR c.change_summary_json LIKE ?)")
             params.extend([like, like, like])
         rows = await self._db.execute_fetchall(
-            "SELECT id, entity_type, entity_key, category, title, source, source_ref, "
-            "session_id, webhook_msg_id, action, status, change_summary_json, "
-            "error_type, error_message, occurred_at "
-            "FROM content_change_history "
+            "SELECT c.id, c.entity_type, c.entity_key, c.category, c.title, c.source, c.source_ref, "
+            "c.session_id, c.webhook_msg_id, c.action, c.status, c.change_summary_json, "
+            "c.error_type, c.error_message, c.occurred_at, "
+            "w.event_type AS webhook_event_type "
+            "FROM content_change_history c "
+            "LEFT JOIN youzan_webhook_events w ON c.webhook_msg_id = w.msg_id "
             f"WHERE {' AND '.join(clauses)} "
-            "ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?",
+            "ORDER BY c.occurred_at DESC, c.id DESC LIMIT ? OFFSET ?",
             (*params, limit, offset),
         )
         return [ContentChangeHistoryEntry(**dict(row)) for row in rows]
@@ -125,10 +127,13 @@ class ContentChangeHistoryRepo(BaseRepository):
 
     async def get_by_id(self, entry_id: int) -> ContentChangeHistoryEntry | None:
         rows = await self._db.execute_fetchall(
-            "SELECT id, entity_type, entity_key, category, title, source, source_ref, "
-            "session_id, webhook_msg_id, action, status, change_summary_json, "
-            "error_type, error_message, occurred_at "
-            "FROM content_change_history WHERE id = ?",
+            "SELECT c.id, c.entity_type, c.entity_key, c.category, c.title, c.source, c.source_ref, "
+            "c.session_id, c.webhook_msg_id, c.action, c.status, c.change_summary_json, "
+            "c.error_type, c.error_message, c.occurred_at, "
+            "w.event_type AS webhook_event_type "
+            "FROM content_change_history c "
+            "LEFT JOIN youzan_webhook_events w ON c.webhook_msg_id = w.msg_id "
+            "WHERE c.id = ?",
             (entry_id,),
         )
         return ContentChangeHistoryEntry(**dict(rows[0])) if rows else None
@@ -141,12 +146,14 @@ class ContentChangeHistoryRepo(BaseRepository):
         limit: int = 20,
     ) -> list[ContentChangeHistoryEntry]:
         rows = await self._db.execute_fetchall(
-            "SELECT id, entity_type, entity_key, category, title, source, source_ref, "
-            "session_id, webhook_msg_id, action, status, change_summary_json, "
-            "error_type, error_message, occurred_at "
-            "FROM content_change_history "
-            "WHERE entity_type = ? AND entity_key = ? "
-            "ORDER BY occurred_at DESC, id DESC LIMIT ?",
+            "SELECT c.id, c.entity_type, c.entity_key, c.category, c.title, c.source, c.source_ref, "
+            "c.session_id, c.webhook_msg_id, c.action, c.status, c.change_summary_json, "
+            "c.error_type, c.error_message, c.occurred_at, "
+            "w.event_type AS webhook_event_type "
+            "FROM content_change_history c "
+            "LEFT JOIN youzan_webhook_events w ON c.webhook_msg_id = w.msg_id "
+            "WHERE c.entity_type = ? AND c.entity_key = ? "
+            "ORDER BY c.occurred_at DESC, c.id DESC LIMIT ?",
             (entity_type, entity_key, limit),
         )
         return [ContentChangeHistoryEntry(**dict(row)) for row in rows]

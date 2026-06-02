@@ -90,12 +90,12 @@ async def test_observability_service_lists_current_history_and_webhooks(db) -> N
         history_repo=history_repo,
         webhook_repo=webhook_repo,
     )
-    current_items, current_total = await service.list_current_content(view="products", keyword="芒果")
+    current_items, current_total = await service.list_current_content(view="knowledge", keyword="配送")
     history_items, history_total = await service.get_history(source=SyncSource.YOUZAN_WEBHOOK)
     webhook_items, webhook_total = await service.get_webhooks(status="failed")
 
     assert current_total == 1
-    assert current_items[0]["title"] == "芒果蛋糕"
+    assert current_items[0]["title"] == "配送说明"
     assert history_total == 1
     assert history_items[0]["title"] == "芒果蛋糕"
     assert webhook_total == 1
