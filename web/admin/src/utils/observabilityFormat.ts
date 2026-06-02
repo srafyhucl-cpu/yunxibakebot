@@ -170,18 +170,23 @@ export function parseChangeSummary(details: any, entityType: string, action?: st
       purpose = "内容更新 ── 同步管理员在后台修改的知识条目正文与配置";
     }
 
-    changes.push(purpose);
+    const highlightStyle = 'color: var(--el-color-danger); background-color: var(--el-color-danger-light-9); padding: 2px 6px; border-radius: 4px; margin-left: 4px; font-weight: bold; border: 1px solid var(--el-color-danger-light-7);';
 
     // 透出核心修改值与差异
     if (details.old_price_fen !== undefined && details.price_fen !== undefined && details.old_price_fen !== details.price_fen) {
-      changes.push(`价格变动: ¥${(details.old_price_fen / 100).toFixed(2)} → ¥${(details.price_fen / 100).toFixed(2)}`);
+      changes.push(`<span style="${highlightStyle}">价格变动: ¥${(details.old_price_fen / 100).toFixed(2)} → ¥${(details.price_fen / 100).toFixed(2)}</span>`);
     }
 
     if (details.old_stock !== undefined && details.stock !== undefined && details.old_stock !== details.stock) {
-      changes.push(`库存变动: ${details.old_stock} 件 → ${details.stock} 件`);
+      changes.push(`<span style="${highlightStyle}">库存变动: ${details.old_stock} 件 → ${details.stock} 件</span>`);
     }
 
-    return changes.join(" | ");
+    let result = purpose;
+    if (changes.length > 0) {
+      result += ' ' + changes.join(' ');
+    }
+    
+    return result;
   }
 
   // 6. 兜底动作解释

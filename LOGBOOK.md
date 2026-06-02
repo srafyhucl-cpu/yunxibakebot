@@ -2,6 +2,15 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - fix(observability): 彻底移除多余的字段摘要信息，仅展示精确 Diff，并高亮渲染
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 解决数据观察台变更内容依然杂乱、缺乏视觉焦点的问题。
+- **改动**:
+  - `web/admin/src/utils/observabilityFormat.ts`: 删除 `写入字段` 与无变更情况下的静态值，只在触发 Diff 时返回带 HTML 高亮样式的 Span 标签。
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 使用 `v-html` 渲染变更内容，让 Diff 直接在表格中呈现红色警示徽标。
+  - `scripts/backfill_diff.py`: 编写数据回填脚本，逆向推算了 410 条历史 `content_change_history` 的旧价格与旧库存以完善展示。
+
 ## [2026-06-02] - feat(observability): 数据观察台支持展示具体变动明细与字段高亮
 
 - **操作人**: AI (Antigravity)

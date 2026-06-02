@@ -280,8 +280,7 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column label="变更内容与来源" min-width="380" show-overflow-tooltip>
             <template #default="{ row }">
-              <div class="observability-page__change-summary" style="font-weight: 500; margin-bottom: 6px;">
-                {{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}
+              <div class="observability-page__change-summary" style="font-weight: 500; margin-bottom: 6px;" v-html="parseChangeSummary(row.details, row.entityType, row.action, row.source)">
               </div>
               <div style="display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--yx-text-muted);">
                 <el-tag size="small" :type="row.source === 'youzan_webhook' ? 'warning' : 'info'" effect="plain">
@@ -393,7 +392,7 @@ onUnmounted(() => {
             </div>
             <div class="observability-page__card-meta">
               <span>
-                <strong>内容:</strong> <span style="color: var(--yx-text-main); font-weight: 500;">{{ parseChangeSummary(row.details, row.entityType, row.action, row.source) }}</span>
+                <strong>内容:</strong> <span style="color: var(--yx-text-main); font-weight: 500;" v-html="parseChangeSummary(row.details, row.entityType, row.action, row.source)"></span>
               </span>
               <span>
                 <strong>来源:</strong> {{ formatSource(row.source) }}
