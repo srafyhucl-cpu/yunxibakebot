@@ -22,7 +22,6 @@ const props = defineProps<{
 const page = reactive(useObservabilityWorkbench(props.mode));
 
 const workspaceTabs: Array<{ key: ObservabilityTab; label: string }> = [
-  { key: "current", label: "当前知识" },
   { key: "history", label: "回写历史" },
   { key: "webhooks", label: "Webhook 审计" },
 ];
@@ -131,7 +130,7 @@ onUnmounted(() => {
       </div>
 
       <!-- 紧凑单行筛选工具栏：回写历史 -->
-      <div v-else-if="page.activeTab === 'history'" class="observability-page__toolbar">
+      <div v-if="page.activeTab === 'history'" class="observability-page__toolbar">
         <div class="observability-page__toolbar-left">
           <el-select v-model="page.historyStatusDraft" clearable placeholder="处理结果" style="width: 110px">
             <el-option label="全部结果" value="" />
@@ -221,48 +220,10 @@ onUnmounted(() => {
 
       <!-- PC 桌面端表格区 -->
       <div class="observability-page__desktop" ref="tableWrapper">
-        <!-- 当前内容表格 -->
-        <el-table
-          v-if="page.activeTab === 'current'"
-          :data="page.currentRows"
-          v-loading="page.loading"
-          stripe
-          border
-          :height="tableHeight"
-          class="observability-page__table"
-        >
-          <el-table-column type="index" label="#" width="50" align="center" />
-          <el-table-column prop="title" label="内容标题" min-width="220" show-overflow-tooltip>
-            <template #default="{ row }">
-              <button class="observability-page__title-btn" type="button" @click="page.openCurrentDetail(row)">
-                {{ row.title }}
-              </button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="subtitle" label="详情/实体键" min-width="180" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span class="observability-page__mono">{{ row.subtitle || `${row.category} · ${row.entityKey}` }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="statusText" label="状态" width="90" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.statusType" effect="light" size="small">
-                {{ row.statusText || "未标记" }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="syncSourceLabel" label="最后同步来源" min-width="150" align="center" show-overflow-tooltip />
-          <el-table-column prop="updatedAtLabel" label="最近更新时间" width="170" align="center" />
-          <el-table-column label="操作" width="100" fixed="right" align="center">
-            <template #default="{ row }">
-              <el-button link type="primary" @click="page.openCurrentDetail(row)">查看</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
 
         <!-- 回写历史表格 -->
         <el-table
-          v-else-if="page.activeTab === 'history'"
+          v-if="page.activeTab === 'history'"
           :data="page.historyRows"
           v-loading="page.loading"
           stripe
@@ -358,26 +319,6 @@ onUnmounted(() => {
       <div class="observability-page__mobile">
         <el-skeleton :rows="4" animated v-if="page.loading" />
 
-        <div v-else-if="page.activeTab === 'current'" class="observability-page__cards">
-          <button
-            v-for="row in page.currentRows"
-            :key="`${row.entityType}-${row.entityKey}`"
-            type="button"
-            class="observability-page__card-item"
-            @click="page.openCurrentDetail(row)"
-          >
-            <div class="observability-page__card-top">
-              <strong>{{ row.title }}</strong>
-              <el-tag size="small" :type="row.statusType" effect="light">{{ row.statusText }}</el-tag>
-            </div>
-            <div class="observability-page__card-meta">
-              <span class="observability-page__mono">{{ row.subtitle || `${row.category} · ${row.entityKey}` }}</span>
-              <span>来源: {{ row.syncSourceLabel }}</span>
-              <span>时间: {{ row.updatedAtLabel }}</span>
-            </div>
-          </button>
-        </div>
-
         <div v-else-if="page.activeTab === 'history'" class="observability-page__cards">
           <button
             v-for="row in page.historyRows"
@@ -458,7 +399,7 @@ onUnmounted(() => {
       :summary-lines="page.detailSummaryLines"
       :detail-fields="page.detailFields"
       :error-message="page.detailErrorMessage"
-      :show-track-btn="page.activeTab === 'current'"
+      :show-track-btn="false"
       :entity-key="page.detailEntityKey"
       :entity-type="page.detailEntityType"
       @update:visible="updateDrawerVisible"

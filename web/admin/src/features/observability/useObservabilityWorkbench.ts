@@ -30,7 +30,7 @@ function normalizeText(rawValue: unknown): string {
 
 function normalizeTab(rawValue: unknown, mode: WorkbenchMode): ObservabilityTab {
   const allowed: ObservabilityTab[] =
-    mode === "failures" ? ["history", "webhooks"] : ["current", "history", "webhooks"];
+    ["history", "webhooks"];
   const value = normalizeText(rawValue) as ObservabilityTab;
   return allowed.includes(value) ? value : allowed[0];
 }
@@ -61,13 +61,8 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   const drawerVisible = ref(false);
   const errorMessage = ref("");
   const total = ref(0);
-
-  const currentItems = ref<ObservabilityCurrentItem[]>([]);
   const historyItems = ref<ObservabilityHistoryItem[]>([]);
   const webhookItems = ref<ObservabilityWebhookItem[]>([]);
-
-  const currentCategoryDraft = ref("");
-  const currentKeywordDraft = ref("");
 
   const historySourceDraft = ref("");
   const historyStatusDraft = ref(mode === "failures" ? "failed" : "");
@@ -87,11 +82,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   const activeTab = computed(() => normalizeTab(route.query.tab, mode));
   const currentPage = computed(() => parsePage(route.query.page));
 
-  const queryView = computed(() => normalizeText(route.query.view) || "knowledge");
-  const queryCategory = computed(() => normalizeText(route.query.category));
-  const queryProductStatus = computed(() => normalizeText(route.query.productStatus));
-  const queryCurrentKeyword = computed(() => normalizeText(route.query.currentKeyword));
-
   const queryHistorySource = computed(() => normalizeText(route.query.historySource));
   const queryHistoryStatus = computed(() =>
     normalizeText(route.query.historyStatus) || (mode === "failures" ? "failed" : ""),
@@ -106,9 +96,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   const queryWebhookKeyword = computed(() => normalizeText(route.query.webhookKeyword));
 
   const listCount = computed(() => {
-    if (activeTab.value === "current") {
-      return currentItems.value.length;
-    }
     if (activeTab.value === "history") {
       return historyItems.value.length;
     }
@@ -116,9 +103,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   });
 
   const issueCount = computed(() => {
-    if (activeTab.value === "current") {
-      return currentItems.value.filter((item) => !item.isActive).length;
-    }
     if (activeTab.value === "history") {
       return historyItems.value.filter((item) => item.status === "failed").length;
     }
@@ -126,9 +110,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   });
 
   const summaryLabel = computed(() => {
-    if (activeTab.value === "current") {
-      return "当前内容总数";
-    }
     if (activeTab.value === "history") {
       return "回写记录总数";
     }
@@ -385,11 +366,8 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     pageSize: PAGE_SIZE,
     activeTab,
     currentPage,
-    currentRows,
     historyRows,
     webhookRows,
-    currentCategoryDraft,
-    currentKeywordDraft,
     historySourceDraft,
     historyStatusDraft,
     historyEntityTypeDraft,

@@ -2,6 +2,14 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - refactor(observability): 移除数据观察台中冗余的“当前知识”面板
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 精简数据观察台职责，去除与“商品管理”和“知识配置”重叠的静态状态查询。
+- **改动**:
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 移除 `当前知识` Tab 页、筛选工具栏及对应的数据表格，并将 `回写历史` 设为默认激活项。
+  - `web/admin/src/features/observability/useObservabilityWorkbench.ts`: 移除相关的 state 状态定义、过滤逻辑与前端接口调用 `fetchCurrentList`。
+
 ## [2026-06-02] - fix(observability): 彻底移除多余的字段摘要信息，仅展示精确 Diff，并高亮渲染
 
 - **操作人**: AI (Antigravity)
