@@ -2,6 +2,23 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - feat(vector): 向量数据库异步初始化与毛玻璃静态进度过渡页
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 解决冷启动全量向量构建同步阻塞 lifespan 导致 502 Bad Gateway 的痛点，支持记录加载耗时，在 /admin 入口处展示精美可视化进度条。
+- **改动**:
+  - `app/service/embedding_search.py`:
+    - 引入 `self._init_progress` 进度状态记录，并读取历史构建时长进行预计。
+    - 将 `build()` 重构为 batch 批次模式（每批16条），在后台分步推进并记录实时 `current` 与 `elapsed` 数据。
+    - 增加 `rebuild_from_db()` 业务方法，将数据库检索与重构业务内聚于 service 层，确保 api 层无穿透引用。
+  - `app/main.py`:
+    - 将 `vs` 挂载在 `app.state.vs` 上实现上下文共享。
+    - 将 lifespan 内的向量搜索初始化抽取到 `async_init_vector_search()` 协程中，使用后台任务异步执行，彻底避开 502 挂起。
+  - `app/api/admin_frontend.py`:
+    - 增加状态查询接口 `GET /api/admin/vector-build-status` 和一键重建接口 `POST /api/admin/vector-build-retry`。
+    - 编写无任何第三方 JS/CSS 依赖的、支持指数退避轮询的高级毛玻璃过渡进度条 HTML 静态页面。
+    - 在 `/admin` 的入口路由进行核心拦截：如果向量处于未就绪状态，返回过渡 HTML 进度页。支持 `request` 可选化以适配单元测试。
+
 ## [2026-06-02] - style(observability): 优化结果与状态列显示为中文
 
 - **操作人**: AI (Antigravity)

@@ -70,6 +70,22 @@ class EmbeddingSearcher:
         self._data_hash = ""
         self._lock = asyncio.Lock()
         self._save_event = asyncio.Event()
+        self._init_progress = {
+            "status": "uninitialized",
+            "total": 0,
+            "current": 0,
+            "start_time": 0.0,
+            "elapsed": 0.0,
+            "last_build_duration": 0.0,
+        }
+        try:
+            duration_file = Path("data/vector_last_duration.json")
+            if duration_file.exists():
+                with open(duration_file, "r", encoding="utf-8") as f:
+                    self._init_progress["last_build_duration"] = json.load(f).get("last_build_duration", 0.0)
+        except Exception:
+            pass
+
 
     def _get_model(self) -> SentenceTransformer | _FallbackSentenceTransformer:
         """惰性初始化模型，避免模块导入阶段触发重型依赖加载。"""
@@ -90,12 +106,8 @@ class EmbeddingSearcher:
         return self._model
 
     def build(self, documents: list[tuple[str, str, str]], current_db_md5: str = "") -> None:
-        """
-        全量构建语义向量索引。
-
-        documents: [(doc_key, 标题, 内容), ...]
-        current_db_md5: 当前数据库的版本指纹
-        """
+        """全量构建语义向量索引并分批更新进度。"""
+        import time
         model = self._get_model()
         self._doc_keys = []
         texts: list[str] = []
@@ -103,12 +115,39 @@ class EmbeddingSearcher:
             self._doc_keys.append(str(doc_key))
             texts.append(f"{title} {content}")
 
-        raw = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
-        self._embeddings = np.array(raw, dtype=np.float32)
+        total_docs = len(texts)
+        self._init_progress.update({
+            "status": "building",
+            "total": total_docs,
+            "current": 0,
+            "start_time": time.time(),
+            "elapsed": 0.0,
+        })
+
+        all_embeddings = []
+        batch_size = 16
+        for i in range(0, total_docs, batch_size):
+            batch_texts = texts[i : i + batch_size]
+            batch_raw = model.encode(batch_texts, normalize_embeddings=True, show_progress_bar=False)
+            all_embeddings.append(batch_raw)
+            self._init_progress["current"] = min(i + batch_size, total_docs)
+            self._init_progress["elapsed"] = time.time() - self._init_progress["start_time"]
+
+        self._embeddings = np.vstack(all_embeddings) if all_embeddings else np.zeros((0, 256), dtype=np.float32)
         self._ready = True
         self._dirty = True
         self._data_hash = current_db_md5
-        logger.info("Embedding 索引构建完成: %d 条", len(self._doc_keys))
+        self._init_progress["status"] = "ready"
+
+        duration = time.time() - self._init_progress["start_time"]
+        self._init_progress["last_build_duration"] = duration
+        try:
+            os.makedirs("data", exist_ok=True)
+            with open("data/vector_last_duration.json", "w", encoding="utf-8") as f:
+                json.dump({"last_build_duration": duration}, f)
+        except Exception:
+            pass
+        logger.info("Embedding 索引构建完成: %d 条，耗时 %.2f 秒", len(self._doc_keys), duration)
 
     def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
         """按语义相似度检索文档。"""
@@ -200,6 +239,7 @@ class EmbeddingSearcher:
 
     async def load(self, path: str | Path) -> None:
         """从磁盘加载缓存的向量索引。"""
+        self._init_progress["status"] = "loading"
         async with self._lock:
             try:
                 path = Path(path)
@@ -222,6 +262,7 @@ class EmbeddingSearcher:
                     self._embeddings = None
 
                 self._dirty = False
+                self._init_progress["status"] = "ready"
                 logger.info("Embedding 索引已从缓存加载: %d 条", len(self._doc_keys))
             except Exception as exc:
                 logger.warning("向量索引加载失败，将重新构建: %s", exc)
@@ -230,3 +271,29 @@ class EmbeddingSearcher:
     @property
     def doc_count(self) -> int:
         return len(self._doc_keys)
+
+    async def rebuild_from_db(self, index_dir: str | Path = "") -> None:
+        """从数据库读取全部条目，并在后台线程全量重构向量索引并落盘。"""
+        self._init_progress["status"] = "loading"
+        try:
+            from app.database import db_session_scope
+            from app.repository.knowledge_repo import KnowledgeRepo
+            import hashlib
+
+            async with db_session_scope():
+                repo = KnowledgeRepo(None)
+                docs = await repo.get_all_titles_with_keys()
+                
+                sorted_docs = sorted(docs, key=lambda x: x[0])
+                concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
+                current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
+                
+                logger.info("后台自愈：开始从数据库全量重构向量索引...")
+                await asyncio.to_thread(self.build, docs, current_db_md5)
+                
+                if index_dir:
+                    await self.save(index_dir)
+                logger.info("后台自愈：向量索引自愈重构并落盘完成")
+        except Exception as exc:
+            self._init_progress["status"] = "failed"
+            logger.error("后台自愈：异步向量自愈重构遭遇严重异常: %s", exc)

@@ -76,36 +76,50 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     vs = EmbeddingSearcher()
     vs_path = settings.EMBEDDING_INDEX_DIR
 
-    # 包裹在 db_session_scope 内部以提供专属连接
-    from app.database import db_session_scope
-    async with db_session_scope():
-        logger.info("正在初始化向量搜索：首选尝试极速载入本地预解算缓存...")
-        await vs.load(vs_path)
+    # 挂载状态到 app.state，供外部路由轮询访问
+    app.state.vs = vs
 
-        docs = await knowledge_repo.get_all_titles_with_keys()
-        need_rebuild = True
+    # 包装为后台异步初始化协程，避免同步阻塞 lifespan 导致 Uvicorn 延迟监听端口（规避 502）
+    async def async_init_vector_search() -> None:
+        try:
+            vs._init_progress["status"] = "loading"
+            from app.database import db_session_scope
+            async with db_session_scope():
+                logger.info("正在异步初始化向量搜索：首选尝试极速载入本地预解算缓存...")
+                await vs.load(vs_path)
 
-        import hashlib
-        sorted_docs = sorted(docs, key=lambda x: x[0])
-        concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
-        current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
+                docs = await knowledge_repo.get_all_titles_with_keys()
+                need_rebuild = True
 
-        if vs._ready and docs:
-            # 对齐校验防漂移：引入 O(N) 集合哈希对比，检查缓存主键数量与值是否与数据库完全一致，同时校验数据文本全量 MD5 锁
-            cached_keys = set(vs._doc_keys)
-            db_keys = {str(d[0]) for d in docs}
-            if cached_keys == db_keys and vs._data_hash == current_db_md5:
-                need_rebuild = False
-                logger.info("向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量", vs.doc_count)
+                import hashlib
+                sorted_docs = sorted(docs, key=lambda x: x[0])
+                concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
+                current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
 
-        if need_rebuild:
-            if docs:
-                logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在执行冷启动全量向量构建...")
-                await asyncio.to_thread(vs.build, docs, current_db_md5)
-                await vs.save(vs_path)
-                logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
-            else:
-                logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
+                if vs._ready and docs:
+                    cached_keys = set(vs._doc_keys)
+                    db_keys = {str(d[0]) for d in docs}
+                    if cached_keys == db_keys and vs._data_hash == current_db_md5:
+                        need_rebuild = False
+                        vs._init_progress["status"] = "ready"
+                        logger.info("向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量", vs.doc_count)
+
+                if need_rebuild:
+                    if docs:
+                        logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在后台启动全量向量构建...")
+                        await asyncio.to_thread(vs.build, docs, current_db_md5)
+                        await vs.save(vs_path)
+                        logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
+                    else:
+                        vs._init_progress["status"] = "ready"
+                        logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
+        except Exception as exc:
+            vs._init_progress["status"] = "failed"
+            logger.error("异步初始化向量搜索遭遇严重异常: %s", exc)
+
+    init_task = asyncio.create_task(async_init_vector_search())
+    _background_tasks.add(init_task)
+    init_task.add_done_callback(_background_tasks.discard)
 
     # 异步定时节流刷盘后台守护任务
     async def periodic_save_task() -> None:
