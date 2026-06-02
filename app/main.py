@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import init_db, close_db
+from app.database import init_db, close_db, db_session_scope
 from app.exceptions import AppError
 from app.logger import setup_logger
 from app.repository.analytics_repo import AnalyticsRepo
@@ -83,7 +83,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async def async_init_vector_search() -> None:
         try:
             vs._init_progress["status"] = "loading"
-            from app.database import db_session_scope
             async with db_session_scope():
                 logger.info("正在异步初始化向量搜索：首选尝试极速载入本地预解算缓存...")
                 await vs.load(vs_path)
