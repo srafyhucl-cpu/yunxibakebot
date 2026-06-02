@@ -2,6 +2,14 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - fix(observability): 修复数据观察台移除当前知识面板后导致的白屏无数据问题
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 修复上一次清理带来的残余变量引用引发的前端 Vue/TS 编译及运行错误。
+- **改动**:
+  - `web/admin/src/features/observability/ObservabilityWorkbench.vue`: 彻底清理了残留的 `<div v-if="page.activeTab === 'current'">` 搜索工具栏，避免未定义变量报错。
+  - `web/admin/src/features/observability/useObservabilityWorkbench.ts`: 全面清除了之前未能彻底删除的 `currentItems`, `queryCategory` 等残余引用的声明及对应 `if (activeTab === "current")` 分支逻辑，确保前端 JS 执行不被中断，数据加载接口正常请求。
+
 ## [2026-06-02] - refactor(observability): 移除数据观察台中冗余的“当前知识”面板
 
 - **操作人**: AI (Antigravity)

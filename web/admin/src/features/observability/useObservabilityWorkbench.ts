@@ -4,7 +4,6 @@ import { useRoute, useRouter } from "vue-router";
 import { observabilityService } from "@/services/observability";
 import { formatSyncSource } from "@/utils/syncSourceLabel";
 import type {
-  ObservabilityCurrentItem,
   ObservabilityDetailField,
   ObservabilityHistoryItem,
   ObservabilityTab,
@@ -116,14 +115,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     return "Webhook 记录总数";
   });
 
-  const currentRows = computed(() =>
-    currentItems.value.map((item) => ({
-      ...item,
-      updatedAtLabel: formatTime(item.updatedAt),
-      syncSourceLabel: formatSyncSource(item.lastSyncSource),
-      statusType: item.isActive ? "success" : "info",
-    })),
-  );
+
 
   const historyRows = computed(() =>
     historyItems.value.map((item) => ({
@@ -148,18 +140,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     loading.value = true;
     errorMessage.value = "";
     try {
-      if (activeTab.value === "current") {
-        const payload = await observabilityService.listCurrent({
-          page: currentPage.value,
-          view: "knowledge",
-          category: queryCategory.value,
-          keyword: queryCurrentKeyword.value,
-          productStatus: "",
-        });
-        currentItems.value = payload.items;
-        total.value = payload.total;
-        return;
-      }
+
 
       if (activeTab.value === "history") {
         const payload = await observabilityService.listHistory({
@@ -201,9 +182,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     await router.replace({ query: buildQuery(activeTab.value, page) });
   }
 
-  async function submitCurrentFilters() {
-    await router.replace({ query: buildQuery("current", DEFAULT_PAGE) });
-  }
+
 
   async function submitHistoryFilters() {
     await router.replace({ query: buildQuery("history", DEFAULT_PAGE) });
@@ -228,16 +207,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     detailEntityType.value = "";
   }
 
-  function openCurrentDetail(item: ObservabilityCurrentItem) {
-    detailTitle.value = item.title;
-    detailSubtitle.value = `${item.category || "内容"} · ${item.entityKey}`;
-    detailSummaryLines.value = item.summary;
-    detailFields.value = item.details;
-    detailErrorMessage.value = "";
-    detailEntityKey.value = item.entityKey;
-    detailEntityType.value = item.entityType;
-    drawerVisible.value = true;
-  }
+
 
   async function trackEntityHistory(entityKey: string, entityType: string) {
     closeDrawer();
@@ -298,16 +268,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
       query.page = String(page);
     }
 
-    if (tab === "current") {
-      query.view = "knowledge";
-      if (currentCategoryDraft.value) {
-        query.category = currentCategoryDraft.value;
-      }
-      if (currentKeywordDraft.value) {
-        query.currentKeyword = currentKeywordDraft.value.trim();
-      }
-      return query;
-    }
+
 
     if (tab === "history") {
       if (historySourceDraft.value) {
@@ -340,8 +301,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   watch(
     () => route.query,
     async () => {
-      currentCategoryDraft.value = queryCategory.value;
-      currentKeywordDraft.value = queryCurrentKeyword.value;
 
       historySourceDraft.value = queryHistorySource.value;
       historyStatusDraft.value = queryHistoryStatus.value;
@@ -387,11 +346,9 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     summaryLabel,
     switchTab,
     changePage,
-    submitCurrentFilters,
     submitHistoryFilters,
     submitWebhookFilters,
     closeDrawer,
-    openCurrentDetail,
     openHistoryDetail,
     openWebhookDetail,
     trackEntityHistory,

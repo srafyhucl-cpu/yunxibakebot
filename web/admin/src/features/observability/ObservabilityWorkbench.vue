@@ -93,41 +93,7 @@ onUnmounted(() => {
         </div>
       </template>
 
-      <!-- 紧凑单行筛选工具栏：当前知识 -->
-      <div v-if="page.activeTab === 'current'" class="observability-page__toolbar">
-        <div class="observability-page__toolbar-left">
-          <el-select
-            v-model="page.currentCategoryDraft"
-            clearable
-            placeholder="知识分类"
-            style="width: 110px"
-          >
-            <el-option label="全部分类" value="" />
-            <el-option label="FAQ" value="faq" />
-            <el-option label="规则" value="rule" />
-            <el-option label="话术" value="copywriting" />
-            <el-option label="商品知识" value="product" />
-          </el-select>
 
-          <el-input
-            v-model="page.currentKeywordDraft"
-            clearable
-            placeholder="搜索标题、关键词或实体键"
-            class="observability-page__search"
-            @keyup.enter="page.submitCurrentFilters"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </div>
-        <div class="observability-page__toolbar-right">
-          <el-button type="primary" :icon="Search" @click="page.submitCurrentFilters">筛选</el-button>
-          <el-button @click="page.currentKeywordDraft = ''; page.currentCategoryDraft = ''; page.submitCurrentFilters()">
-            重置
-          </el-button>
-        </div>
-      </div>
 
       <!-- 紧凑单行筛选工具栏：回写历史 -->
       <div v-if="page.activeTab === 'history'" class="observability-page__toolbar">
