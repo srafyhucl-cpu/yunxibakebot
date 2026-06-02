@@ -2,6 +2,15 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-02] - feat(brand): 引入扁平设计风格 favicon 图标并消除控制台 404 错误
+
+- **操作人**: AI (Antigravity)
+- **关联任务**: 用户反馈控制台存在 favicon.ico 404 报错，并要求生成 Logo 图标。
+- **改动**:
+  - `web/admin/index.html`: 在 head 中显式加入 `/admin/favicon.ico` 标签，声明图标获取地址。
+  - `app/main.py`: 在主路由入口处挂载根路径 `/favicon.ico` 的穿透 GET 路由响应。当浏览器或插件盲目抓取根目录 `/favicon.ico` 时，自动读取并回执 `/web/admin/dist/favicon.ico`，彻底根治 404 警告。
+  - 自动设计生成了焦糖色与蜂蜜金面包小麦元素的精美 Logo PNG 并通过 PIL 转换出了适配多尺寸（16x16至64x64）的 `favicon.ico` 图标产物。
+
 ## [2026-06-02] - feat(observability): 优化数据观察台错误日志展示与排错终端弹窗
 
 - **操作人**: AI (Antigravity)

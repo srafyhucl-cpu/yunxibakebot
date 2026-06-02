@@ -303,6 +303,19 @@ async def serve_verify_txt(filename: str):
     raise HTTPException(status_code=404, detail="Not Found")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    """网站根目录 favicon.ico 图标响应。"""
+    from fastapi.responses import FileResponse
+    ico_path = BASE_DIR.parent / "web" / "admin" / "dist" / "favicon.ico"
+    if not ico_path.exists():
+        ico_path = BASE_DIR / "static" / "favicon.ico"
+    if ico_path.exists():
+        return FileResponse(str(ico_path))
+    from fastapi.exceptions import HTTPException
+    raise HTTPException(status_code=404, detail="Not Found")
+
+
 # ── 数据库连接生命周期与事务隔离中间件 ──
 @app.middleware("http")
 async def db_session_middleware(request: Request, call_next):
