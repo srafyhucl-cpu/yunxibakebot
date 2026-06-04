@@ -74,14 +74,37 @@ ______________________________________________________________________
 按顺序执行，**不可跳过或乱序**：
 
 1. **调用相关 Guard Skill** 确认代码符合规范
-2. **更新 `LOGBOOK.md`**（在顶部追加本轮条目，格式见 `.windsurf/workflows/commit.md` 第 4.1 步）
-3. **更新 `项目进度与配置清单.md`**（修改"最后更新"日期 + 已完成功能 + 已知问题状态，详见第 4.2 步）
+2. **更新 `LOGBOOK.md`**（可使用 `python scripts/append_logbook.py` 自动追加，或手动在顶部追加条目）
+3. **更新 `项目进度与配置清单.md`**（修改"最后更新"日期 + 已完成功能 + 已知问题状态）
 4. **检查代码注释语言**：凡本轮新增或修改的代码注释，必须统一为中文注释；英文注释需改写后再提交
-5. **检查工作区临时产物**：先执行 `git status --short`，确认不存在 `.tmp-*.log`、`.codex-server*.log`、`.superpowers/` 等本地临时文件；如存在，必须先清理，若文件被占用则先定位并停止残留本地预览/测试进程，再继续提交
+5. **检查工作区临时产物**：先执行 `git status --short`，确认不存在 `.tmp-*.log`、`.codex-server*.log`、`.superpowers/` 等本地临时文件；如存在，必须先清理
 6. **运行测试**：`python -m pytest tests/ -q`
-7. **git add + commit**（pre-commit 会自动检查 LOGBOOK 和进度文档是否已暂存）
+7. **git add + commit**（pre-commit 会自动执行以下操作）：
+   - **版本号自动递增**：根据提交信息自动递增 `VERSION` 文件（feat→minor, fix→patch, feat!→major）
+   - **文档同步检查**：校验 LOGBOOK.md 和项目进度与配置清单.md 已暂存
+   - **质量门禁**：密钥扫描 + 文件体量 + 全套测试
 8. **推送到两个远端**：`git push origin master && git push server master`
 9. **重启服务器**：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
+
+### 版本号自动递增规则
+
+| 提交类型 | 版本递增 | 示例 |
+|---------|---------|------|
+| `feat!` / `BREAKING CHANGE` | 主版本号 (major) | 0.2.0 → 1.0.0 |
+| `feat` / `perf` / `refactor` | 次版本号 (minor) | 0.2.0 → 0.3.0 |
+| `fix` / `docs` / `style` / `chore` | 修订号 (patch) | 0.2.0 → 0.2.1 |
+
+- 版本号唯一来源：根目录 `VERSION` 文件
+- `app/config.py` 中的 `APP_VERSION` 从 `VERSION` 文件自动读取，无需手动同步
+- `app/main.py` 中的 `version` 和 `/health` 端点均引用 `APP_VERSION`
+
+### 环境变量快速跳过
+
+| 场景 | 命令 |
+|------|------|
+| 跳过版本递增 | `SKIP_VERSION_BUMP=1 git commit -m "..."` |
+| 强制指定递增类型 | `VERSION_BUMP=minor git commit -m "..."` |
+| 跳过文档同步检查 | `SKIP_LOGBOOK_CHECK=1 git commit -m "..."` |
 
 > 📄 完整格式参见 `.windsurf/workflows/commit.md`
 
@@ -106,6 +129,9 @@ ______________________________________________________________________
 | 数据观察台后台 | `app/api/admin_observability.py` |
 | 数据库初始化 | `app/repository/database.py` |
 | 商品实时刷新 | `app/service/llm/function_tool_product.py` |
+| 版本号（唯一来源） | `VERSION` |
+| 版本同步门禁 | `scripts/sync_version.py` |
+| LOGBOOK 自动追加 | `scripts/append_logbook.py` |
 
 ______________________________________________________________________
 

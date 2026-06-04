@@ -7,6 +7,17 @@ repos:
         args: [--baseline, .secrets.baseline]
         language: system
 
+      - id: sync-version
+        name: 版本号自动递增与文档同步
+        entry: python scripts/sync_version.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: |
+          根据提交类型自动递增 VERSION 文件，校验文档同步。
+          递增规则: feat!/BREAKING→major, feat/perf/refactor→minor, 其余→patch。
+          可用 SKIP_VERSION_BUMP=1 临时跳过，VERSION_BUMP=patch 强制指定。
+
       - id: check-logbook
         name: LOGBOOK.md 更新检查
         entry: python scripts/check_logbook.py
@@ -26,7 +37,8 @@ repos:
       - id: check-project
         name: YunxiBakeBot Quality Gate
         entry: python scripts/check_project.py
+        args: [--skip-tests]
         language: system
         pass_filenames: false
         always_run: true
-        description: 运行项目红线门禁与全套单元测试（pytest）
+        description: 运行项目红线门禁（测试由 CI 独立执行）

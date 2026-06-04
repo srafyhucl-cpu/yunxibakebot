@@ -5,7 +5,18 @@
 所有敏感信息（API Key、Secret）不进代码仓库。
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+
+def _read_version() -> str:
+    """从项目根目录 VERSION 文件读取版本号，作为版本号的唯一来源。"""
+    version_file = Path(__file__).resolve().parent.parent / "VERSION"
+    return version_file.read_text(encoding="utf-8").strip()
+
+
+APP_VERSION: str = _read_version()
 
 
 class Settings(BaseSettings):

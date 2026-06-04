@@ -35,20 +35,33 @@ jobs:
       - name: Prepare Environment for Smoke Test
         run: |
           cp .env.example .env
-          # 模拟创建向量缓存文件，满足 smoke 依赖
           mkdir -p data
           touch data/embeddings.pkl
 
       - name: Seed Knowledge Database
-        run: |
-          # 这一步会执行建表并导入知识库
-          python scripts/seed_knowledge.py
+        run: python scripts/seed_knowledge.py
 
       - name: Start FastAPI Server
         run: |
           uvicorn app.main:app --host 127.0.0.1 --port 7001 &
-          # 等待服务启动并监听端口
-          sleep 5
+          echo "等待服务就绪..."
+          for i in $(seq 1 30); do
+            if curl -s http://127.0.0.1:7001/health 2>/dev/null | grep -q '"ok"'; then
+              echo "服务已就绪 (耗时 ${i}s)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "错误：服务启动超时（30秒）"
+          exit 1
 
       - name: Run Smoke Test
         run: python scripts/smoke_test.py
+
+      - name: Archive Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 7

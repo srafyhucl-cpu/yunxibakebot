@@ -2,6 +2,34 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-04] - fix(infra): Vibe Coding 可持续性评估 P0 缺陷修复（批次 6 项）
+
+- **操作人**: AI (Claude)
+- **关联任务**: Vibe Coding 可持续性深度评估 → P0 优先修复
+- **改动**:
+  - **P0-1 依赖可复现构建**：
+    - 引入 `pip-tools`，将 `requirements.txt` → `requirements.in`（源约束）+ `requirements.txt`（pip-compile 生成的全量锁文件）。
+    - `requirements-dev.txt` 同理拆分，新增 `pip-tools>=7.4` 和 `pytest-cov>=5.0` 依赖。
+    - 上游 Breaking Change 不再能静默击穿生产环境。
+  - **P0-2 容器化部署**：
+    - 新增 `Dockerfile`（Python 3.11-slim-bookworm，内置模型预缓存与 HEALTHCHECK）。
+    - 新增 `docker-compose.yml`（数据持久化卷、资源限制 4G/2CPU、健康检查）。
+    - 新增 `.dockerignore`（排除缓存/日志/大文件，精简构建上下文）。
+  - **P0-3 测试覆盖率门禁**：
+    - `pytest.ini`：新增 `--cov=app --cov-fail-under=70` 底线，`htmlcov/` + `coverage.xml` 双输出。
+    - `.gitignore`：新增覆盖率产物（`.coverage/`、`htmlcov/`、`coverage.xml`、`.pytest_cache/`）。
+  - **P0-4 CI 健康检查修复**：
+    - `.github/workflows/ci.yml`：废弃 `sleep 5` 等待，改用 bash for 循环轮询 `/health` 端点（最长 30s 超时）。
+    - 新增覆盖率报告上传步骤（`actions/upload-artifact@v4`，7 天保留）。
+  - **P0-5 item_id 解析去重**：
+    - `app/service/youzan/webhook.py`：新增 `parse_item_id()` 工具函数，统一 5 级降级解析（msg_obj → msg.data → payload.data → payload.item_id → payload.id 纯数字过滤）。
+    - `app/api/webhook.py`：`_extract_business_fields()` 简化，item_id 解析委托给共享函数（从 ~30 行减至 2 行调用）。
+    - `app/service/youzan/event_handler.py`：`handle_system_event()` 中商品事件 + 库存事件的 item_id 解析均切换至共享函数，消弭重复逻辑。
+  - **P0-6 API 接口规范文档**：
+    - 新增 `docs/api-spec.md`：含通用约定/认证机制/Webhook 回调/管理后台 CRUD/企微预留/系统架构速查/部署速查。
+  - **文档与评估报告**：
+    - 新增 `docs/VibeCoding可持续性评估报告_20260604.md`：四维度深度评估（可维护性/协作/工具/业务适配），含 14 项优化方案和优先级排序。
+
 ## [2026-06-02] - feat(brand): 引入扁平设计风格 favicon 图标并消除控制台 404 错误
 
 - **操作人**: AI (Antigravity)

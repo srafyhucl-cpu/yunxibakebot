@@ -23,7 +23,7 @@ from app.models.youzan_webhook_event import (
     YouzanWebhookStatus,
 )
 from app.service.chat import ChatService
-from app.service.youzan.webhook import verify_signature as verify_youzan_signature
+from app.service.youzan.webhook import verify_signature as verify_youzan_signature, parse_item_id
 
 logger = setup_logger()
 router = APIRouter(prefix="/api/v1/webhook", tags=["webhook"])
@@ -54,6 +54,7 @@ def _parse_payload_msg(payload: dict) -> dict:
 
 
 def _extract_business_fields(payload: dict, event_type: str, buyer_id: str) -> tuple[str, str]:
+    """从 webhook payload 提取业务类型与业务主键，item_id 解析委托给共享工具函数。"""
     event_type_lower = event_type.lower()
     msg_obj = _parse_payload_msg(payload)
     if event_type_lower.startswith("trade_"):
@@ -63,27 +64,7 @@ def _extract_business_fields(payload: dict, event_type: str, buyer_id: str) -> t
             tid = order_info.get("tid", "")
         return YouzanWebhookBusinessType.TRADE, str(tid)
     if event_type_lower.startswith("item_") or event_type_lower == "youzan_item_skustockorsoldnumupdated":
-        msg_data = msg_obj.get("data", {})
-        if isinstance(msg_data, str):
-            try:
-                msg_data = json.loads(msg_data)
-            except Exception:
-                msg_data = {}
-        if not isinstance(msg_data, dict):
-            msg_data = {}
-        payload_data = payload.get("data", {})
-        if not isinstance(payload_data, dict):
-            payload_data = {}
-        item_id = (
-            msg_obj.get("item_id")
-            or msg_data.get("item_id")
-            or payload_data.get("item_id")
-            or payload.get("item_id")
-        )
-        if not item_id and event_type_lower in ("item_info", "item_sku_info"):
-            _raw_id = payload.get("id")
-            _raw_id_str = str(_raw_id) if _raw_id is not None else ""
-            item_id = _raw_id if _raw_id_str.isdigit() else None
+        item_id = parse_item_id(payload, msg_obj)
         return YouzanWebhookBusinessType.ITEM, str(item_id or "")
     if buyer_id:
         return YouzanWebhookBusinessType.CHAT, buyer_id

@@ -7,6 +7,12 @@
 import sys
 from pathlib import Path
 
+# 强制 stdout 使用 UTF-8，避免 Windows GBK 编码下 pre-commit 管道卡死
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # blocking 阈值（行数）：各层模块上限
 BLOCKING_RULES: list[tuple[str, int]] = [
     ("app/repository/", 250),

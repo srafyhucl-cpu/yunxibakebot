@@ -10,6 +10,12 @@ import os
 import subprocess
 import sys
 
+# 强制 stdout 使用 UTF-8，避免 Windows GBK 编码下 pre-commit 管道卡死
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 SKIP_SENTINEL = "SKIP_LOGBOOK_CHECK"
 
 REQUIRED_DOCS = [

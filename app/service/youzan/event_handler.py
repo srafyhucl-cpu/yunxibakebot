@@ -17,6 +17,7 @@ from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_item import handle_item_event
 from app.service.youzan.event_trade import handle_trade_event
+from app.service.youzan.webhook import parse_item_id
 
 logger = setup_logger()
 
@@ -91,30 +92,12 @@ class YouzanEventHandler:
                 audit_id=audit_id,
             )
         elif event_type_lower.startswith("item_"):
-            msg_data = msg_obj.get("data", {})
-            if isinstance(msg_data, str):
-                try:
-                    msg_data = json.loads(msg_data)
-                except Exception:
-                    msg_data = {}
-            if not isinstance(msg_data, dict):
-                msg_data = {}
-            payload_data = payload.get("data", {})
-            if not isinstance(payload_data, dict):
-                payload_data = {}
-            if not msg_obj.get("item_id") and not msg_data.get("item_id"):
-                # ITEM_INFO/ITEM_SKU_INFO 顶层 id 理论上是商品ID，但生产实测发现该字段
-                # 有时为含字母的消息标识（如 20260527091748314JAM），需过滤非纯数字值
-                _raw_payload_id = payload.get("id") if event_type_lower in ("item_info", "item_sku_info") else None
-                _payload_id_str = str(_raw_payload_id) if _raw_payload_id is not None else ""
-                payload_id_as_item = _raw_payload_id if _payload_id_str.isdigit() else None
-                item_id_from_payload = (
-                    payload_data.get("item_id")
-                    or payload.get("item_id")
-                    or payload_id_as_item
-                )
-                if item_id_from_payload:
-                    msg_obj = {"item_id": item_id_from_payload}
+            item_id = parse_item_id(payload, msg_obj)
+            if not item_id:
+                # ITEM_INFO/ITEM_SKU_INFO 顶层 id 理论上可能是商品ID，由 parse_item_id 已做纯数字过滤
+                logger.warning("有赞商品事件无法解析 item_id: type=%s msg_id=%s", event_type, msg_id)
+                await self._mark_skipped(audit_id, "missing_item_id", event_type)
+                return
             await handle_item_event(
                 db=self._db,
                 youzan_client=self._youzan_client,
@@ -127,7 +110,7 @@ class YouzanEventHandler:
                 audit_id=audit_id,
             )
         elif event_type_lower == _SKU_STOCK_UPDATE_EVENT:
-            item_id = payload.get("item_id")
+            item_id = parse_item_id(payload)
             if item_id:
                 await handle_item_event(
                     db=self._db,
