@@ -2,6 +2,27 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-04] - refactor(infra): Vibe Coding 可持续性评估 P1 缺陷修复（批次 4 项）
+
+- **操作人**: AI (Claude)
+- **关联任务**: Vibe Coding 可持续性深度评估 → P1 优先修复
+- **改动**:
+  - **P1-1 webhook.py 拆分**：
+    - 提取纯辅助函数至 `app/api/webhook_helpers.py`（extract_trace_id、parse_payload_msg、extract_business_fields、build_payload_summary）。
+    - 审计函数和去重逻辑保留在 webhook.py 内，但内联为闭包减少函数签名噪声。
+    - `webhook.py` 从 327 行降为 258 行（低于 api/ 层 350 行阈值）。
+  - **P1-2 CI 三并行 Job**：
+    - 重写 `.github/workflows/ci.yml`，拆分为 `lint`（pre-commit + ruff + mypy）、`test`（pytest + coverage）、`smoke`（服务器启动 + 冒烟测试）三个并行 Job。
+    - smoke 依赖 lint 和 test 均通过后执行。
+  - **P1-3 引入 ruff pre-commit 钩子**：
+    - `.pre-commit-config.yaml` 新增 `ruff-check`（`ruff check --exit-zero`）和 `ruff-format-check`（`ruff format --check --exit-zero`）钩子。
+    - `AGENTS.md` 编码红线补充 ruff 规范说明。
+  - **P1-4 引入 mypy 渐进式类型检查**：
+    - `requirements-dev.in` 新增 `mypy>=1.11`，重新编译 `requirements-dev.txt`。
+    - 新增 `mypy.ini` 配置文件（Python 3.11，非严格模式，渐进式）。
+    - `.pre-commit-config.yaml` 新增 `mypy` 钩子（`--exit-zero` 模式）。
+    - `AGENTS.md` 编码红线补充 mypy 规范说明。
+
 ## [2026-06-04] - fix(infra): Vibe Coding 可持续性评估 P0 缺陷修复（批次 6 项）
 
 - **操作人**: AI (Claude)

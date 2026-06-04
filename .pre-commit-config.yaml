@@ -42,3 +42,34 @@ repos:
         pass_filenames: false
         always_run: true
         description: 运行项目红线门禁（测试由 CI 独立执行）
+
+      - id: check-redline-selftest
+        name: 红线规则自测验证
+        entry: python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: |
+          在每次 commit 前用违规/合规双样本验证全部 11 条红线规则的检测逻辑。
+          确保 check_project.py 的扫描规则不会因代码重构或正则漂移而失效。
+
+      - id: ruff-check
+        name: Ruff Lint Check
+        entry: ruff check --exit-zero
+        language: system
+        types: [python]
+        description: 快速 Python 语法与风格检查（不阻断提交，仅提示）
+
+      - id: ruff-format-check
+        name: Ruff Format Check
+        entry: ruff format --check
+        language: system
+        types: [python]
+        description: 检查 Python 文件格式是否符合 ruff 规范
+
+      - id: mypy
+        name: MyPy Type Check
+        entry: python scripts/mypy_nonblocking.py
+        language: system
+        pass_filenames: false
+        description: 渐进式类型检查（非严格模式，不阻断提交）
