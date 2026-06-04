@@ -117,3 +117,24 @@ jobs:
 
       - name: Run Smoke Test
         run: python scripts/smoke_test.py
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [smoke]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ssh-server.hclstudio.cn
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 2222
+          script: |
+            cd /opt/yunxibakebot
+            git pull server main
+            systemctl restart yunxibakebot
+            sleep 2
+            systemctl is-active yunxibakebot || { echo "服务启动失败"; exit 1; }
+            echo "部署成功"

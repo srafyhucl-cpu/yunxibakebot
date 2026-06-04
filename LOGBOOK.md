@@ -2,6 +2,25 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-04] - refactor(infra): Vibe Coding 可持续性评估 P2 收尾（批次 4 项）
+
+- **操作人**: AI (Claude)
+- **关联任务**: Vibe Coding 可持续性深度评估 → P2 收尾
+- **改动**:
+  - **P2-1 渠道路由抽象化**：
+    - 新增 `app/api/channel_router.py`（ChannelRouter 协议 + 渠道注册机制）。
+    - 后续新增渠道（抖音、美团等）只需实现协议并注册即可接入。
+  - **P2-2 Schema 拆分**：
+    - 新增 `app/migrations/` 包，将 `SCHEMA_STATEMENTS` 和 `PRAGMA_STATEMENTS` 提取至 `app/migrations/schema.py`。
+    - `app/database.py` 从 580 行精简为 365 行（-37%），职责聚焦于连接管理与微创迁移。
+  - **P2-3 版本化迁移系统**：
+    - 新增 `app/migrations/runner.py`（轻量级 MigrationRunner，扫描版本化 SQL 文件并按序执行）。
+    - 新增 `_schema_version` 表记录已应用迁移版本。
+    - 集成到 `init_db()` 末尾，不影响现有建表和微创迁移流程。
+  - **P2-4 CI 自动部署**：
+    - `.github/workflows/ci.yml` 新增 `deploy` Job（仅在 push main/master 时触发，依赖 smoke 通过）。
+    - 通过 SSH 连接到生产服务器，自动 `git pull` + `systemctl restart`。
+
 ## [2026-06-04] - feat(infra): 工程治理加固（AGENTS 瘦身 + 红线自测 + 企微告警）
 
 - **操作人**: AI (GLM)

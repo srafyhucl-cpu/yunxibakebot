@@ -29,13 +29,13 @@ IGNORE_DIRS = {"__pycache__", ".git", "venv", "node_modules", "migrations"}
 # 已知超线但尚未完成拆分的存量文件（仅发出警告，不阻断提交）
 # 完成拆分后请从此名单移除
 KNOWN_OVERSIZE = {
-    "app/repository/knowledge_repo.py",    # 254行，超出4行，待微调
-    "app/service/chat.py",                 # 381行，核心链路，待拆 tool_executor
-    "app/service/observability.py",        # 383行，待拆分页查询与报表
-    "app/service/llm/function_tool_order.py",   # 181行，超出1行
-    "app/service/llm/function_tool_product.py", # 266行，待拆 product_rag_helper
-    "app/service/youzan/event_item.py",    # 412行，待拆 item_builder
-    "app/database.py",                     # 415行，建表语句集中，待分模块
+    "app/repository/knowledge_repo.py",  # 254行，超出4行，待微调
+    "app/service/chat.py",  # 381行，核心链路，待拆 tool_executor
+    "app/service/observability.py",  # 383行，待拆分页查询与报表
+    "app/service/llm/function_tool_order.py",  # 181行，超出1行
+    "app/service/llm/function_tool_product.py",  # 266行，待拆 product_rag_helper
+    "app/service/youzan/event_item.py",  # 412行，待拆 item_builder
+    # app/database.py 已拆分，365 行，无超线
 }
 
 
@@ -69,14 +69,18 @@ def main() -> int:
         limit = get_limit(rel_unix)
         lines = count_lines(py_file)
         if lines > limit:
-            msg = f"  {rel_unix}: {lines} 行（上限 {limit} 行，超出 {lines - limit} 行）"
+            msg = (
+                f"  {rel_unix}: {lines} 行（上限 {limit} 行，超出 {lines - limit} 行）"
+            )
             if rel_unix in KNOWN_OVERSIZE:
                 warnings.append(msg)
             else:
                 violations.append(msg)
 
     if warnings:
-        print("\n[WARN] 已知存量超线文件（不阻断提交，完成拆分后请从 KNOWN_OVERSIZE 移除）：")
+        print(
+            "\n[WARN] 已知存量超线文件（不阻断提交，完成拆分后请从 KNOWN_OVERSIZE 移除）："
+        )
         for w in warnings:
             print(w)
 
@@ -87,7 +91,9 @@ def main() -> int:
         print("\n请先拆分超线文件，再重新提交。")
         return 1
 
-    print(f"[OK] 文件体量检查通过（共检查 {sum(1 for _ in app_root.rglob('*.py'))} 个文件）")
+    print(
+        f"[OK] 文件体量检查通过（共检查 {sum(1 for _ in app_root.rglob('*.py'))} 个文件）"
+    )
     return 0
 
 
