@@ -26,7 +26,7 @@ YOUZAN_API_BASE = "https://open.youzanyun.com/api"
 YOUZAN_GOODS_H5_BASE_URL = "https://h5.youzan.com/v2/showcase/goods"
 TOKEN_REFRESH_MARGIN = 300  # 提前 5 分钟刷新（秒）
 DEFAULT_TOKEN_EXPIRES_SECONDS = 172_800  # 有赞 token 默认有效期（48 小时）
-MOCK_TOKEN_EXPIRES_SECONDS = 86_400     # Mock 模式 token 有效期（24 小时）
+MOCK_TOKEN_EXPIRES_SECONDS = 86_400  # Mock 模式 token 有效期（24 小时）
 
 
 class YouzanClient:
@@ -102,11 +102,11 @@ class YouzanClient:
 
     async def get_token(self) -> str:
         """返回有效的 access_token，使用 asyncio.Lock() 做并发刷新互斥。"""
-        # Fast path
+        # 快速路径：Token 未过期则直接返回
         if self._access_token and time.time() < self._token_expires_at:
             return self._access_token
 
-        # Slow path with Lock
+        # 慢速路径：使用 Lock 互斥刷新
         async with self._lock:
             # Double-Checked Locking 双重过滤
             if self._access_token and time.time() < self._token_expires_at:
@@ -117,13 +117,18 @@ class YouzanClient:
         """调用有赞 OpenAPI，自动附加 Bearer token。"""
         if settings.YOUZAN_MOCK_MODE:
             from app.service.youzan.mock_emulator import YouzanMockEmulator
+
             logger.info("有赞 API 仿真调用拦截 [%s]: %s", api_name, params)
             if api_name == "youzan.scrm.im.conversation.message.create":
                 return {"response": {"success": True}}
             elif api_name == "youzan.trade.get":
-                return YouzanMockEmulator.get_mock_order_response(params.get("tid", "mock_order_123"))
+                return YouzanMockEmulator.get_mock_order_response(
+                    params.get("tid", "mock_order_123")
+                )
             elif api_name == "youzan.express.order.get":
-                return YouzanMockEmulator.get_mock_logistics_response(params.get("tid", "mock_order_123"))
+                return YouzanMockEmulator.get_mock_logistics_response(
+                    params.get("tid", "mock_order_123")
+                )
             elif api_name == "youzan.item.get":
                 return YouzanMockEmulator.get_mock_product_response(
                     params.get("item_id", 0), params.get("alias", "")
@@ -148,7 +153,8 @@ class YouzanClient:
         """主动推送客服消息给买家。"""
         logger.info("有赞客服消息发送: buyer=%s", buyer_open_id)
         return await self._call(
-            "youzan.scrm.im.conversation.message.create", "3.0.0",
+            "youzan.scrm.im.conversation.message.create",
+            "3.0.0",
             {
                 "kdt_id": settings.YOUZAN_KDT_ID,
                 "open_id": buyer_open_id,
@@ -161,7 +167,8 @@ class YouzanClient:
         """查询订单详情。"""
         logger.info("有赞订单查询: order=%s", order_no)
         return await self._call(
-            "youzan.trade.get", "4.0.0",
+            "youzan.trade.get",
+            "4.0.0",
             {"tid": order_no, "kdt_id": settings.YOUZAN_KDT_ID},
         )
 
@@ -169,7 +176,8 @@ class YouzanClient:
         """查询物流跟踪信息。"""
         logger.info("有赞物流查询: order=%s", order_no)
         return await self._call(
-            "youzan.express.order.get", "3.0.0",
+            "youzan.express.order.get",
+            "3.0.0",
             {"tid": order_no, "kdt_id": settings.YOUZAN_KDT_ID},
         )
 
@@ -181,11 +189,14 @@ class YouzanClient:
             try:
                 params["item_id"] = int(item_id)
             except (ValueError, TypeError) as exc:
-                raise ValueError(f"商品ID格式非法，期望纯数字，实际值: {item_id!r}") from exc
+                raise ValueError(
+                    f"商品ID格式非法，期望纯数字，实际值: {item_id!r}"
+                ) from exc
         if alias:
             params["alias"] = alias
         return await self._call(
-            "youzan.item.get", "3.0.0",
+            "youzan.item.get",
+            "3.0.0",
             params,
         )
 
@@ -200,7 +211,8 @@ class YouzanClient:
         all_items: list[dict] = []
         while True:
             result = await self._call(
-                "youzan.items.onsale.get", "3.0.1",
+                "youzan.items.onsale.get",
+                "3.0.1",
                 {
                     "kdt_id": settings.YOUZAN_KDT_ID,
                     "page_no": page_no,
@@ -210,7 +222,9 @@ class YouzanClient:
             response = result.get("data") or result.get("response") or {}
             items: list[dict] = response.get("items") or []
             all_items.extend(items)
-            total_results = int(response.get("count") or response.get("total_results") or 0)
+            total_results = int(
+                response.get("count") or response.get("total_results") or 0
+            )
             if page_no * page_size >= total_results or not items:
                 break
             page_no += 1

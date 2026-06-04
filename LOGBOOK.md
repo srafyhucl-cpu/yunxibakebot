@@ -2,6 +2,24 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-04] - feat(infra): 工程治理加固（AGENTS 瘦身 + 红线自测 + 企微告警）
+
+- **操作人**: AI (GLM)
+- **关联任务**: 项目基础设施持续加固
+- **改动**:
+  - **P1-1 AGENTS.md 瘦身 + 子文档体系**：
+    - `AGENTS.md` 从 200+ 行精简为 ~80 行启动检查清单。
+    - 编码红线详解、提交收口规范、Skill 速查、快速参考拆分至 `docs/AGENTS/` 子目录（4 个 .md）。
+  - **P1-2 红线规则第 11 条 + 自测套件**：
+    - 新增「禁止英文注释」红线规则（正则：排除含中文的注释行，避免误报）。
+    - 创建 `tests/test_red_line_rules.py`：25 个测试用例，覆盖 11 条红线的违规/合规双样本验证。
+  - **P1-3 pre-commit 增强钩子**：
+    - `.pre-commit-config.yaml` 新增 `check-redline-selftest` 钩子（commit 前运行红线自测 pytest）。
+  - **P1-4 企业微信告警模块**：
+    - 新增 `app/service/alerting.py`：支持 INFO/WARNING/CRITICAL 三级告警、防刷机制、Markdown 格式、阈值聚合器。
+    - 集成至 `main.py` 生命周期（启动/关闭通知 + 未预期异常告警）。
+    - 集成至 `chat.py` LLM 调用失败点（60s 内累计 3 次失败触发 WARNING 告警）。
+
 ## [2026-06-04] - refactor(infra): Vibe Coding 可持续性评估 P1 缺陷修复（批次 4 项）
 
 - **操作人**: AI (Claude)

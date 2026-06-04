@@ -20,6 +20,7 @@ from app.config import APP_VERSION, settings
 from app.database import init_db, close_db, db_session_scope
 from app.exceptions import AppError
 from app.logger import setup_logger
+from app.service.alerting import AlertLevel, alert_service
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.config_repo import ConfigRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
@@ -73,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 语义向量搜索服务（启动优化：首选极速缓存载入并进行一致性指纹对比，对齐时 100% 豁免 CPU 全量重算）
     from app.service.embedding_search import EmbeddingSearcher
+
     vs = EmbeddingSearcher()
     vs_path = settings.EMBEDDING_INDEX_DIR
 
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 need_rebuild = True
 
                 import hashlib
+
                 sorted_docs = sorted(docs, key=lambda x: x[0])
                 concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
                 current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
@@ -101,14 +104,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     if cached_keys == db_keys and vs._data_hash == current_db_md5:
                         need_rebuild = False
                         vs._init_progress["status"] = "ready"
-                        logger.info("向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量", vs.doc_count)
+                        logger.info(
+                            "向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量",
+                            vs.doc_count,
+                        )
 
                 if need_rebuild:
                     if docs:
-                        logger.info("向量缓存缺失或数据指纹不对齐（数据发生漂移），正在后台启动全量向量构建...")
+                        logger.info(
+                            "向量缓存缺失或数据指纹不对齐（数据发生漂移），正在后台启动全量向量构建..."
+                        )
                         await asyncio.to_thread(vs.build, docs, current_db_md5)
                         await vs.save(vs_path)
-                        logger.info("全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量", vs.doc_count)
+                        logger.info(
+                            "全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量",
+                            vs.doc_count,
+                        )
                     else:
                         vs._init_progress["status"] = "ready"
                         logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
@@ -133,9 +144,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     async with db_session_scope():
                         active_docs = await knowledge_repo.get_all_titles_with_keys()
                         import hashlib
+
                         sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                        concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
-                        latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                        concat_str = "".join(
+                            f"{d[1]}{d[2]}" for d in sorted_active_docs
+                        )
+                        latest_db_md5 = hashlib.md5(
+                            concat_str.encode("utf-8")
+                        ).hexdigest()
                         vs._data_hash = latest_db_md5
                         await vs.save(vs_path)
         except asyncio.CancelledError:
@@ -145,9 +161,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     async with db_session_scope():
                         active_docs = await knowledge_repo.get_all_titles_with_keys()
                         import hashlib
+
                         sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                        concat_str = "".join(f"{d[1]}{d[2]}" for d in sorted_active_docs)
-                        latest_db_md5 = hashlib.md5(concat_str.encode("utf-8")).hexdigest()
+                        concat_str = "".join(
+                            f"{d[1]}{d[2]}" for d in sorted_active_docs
+                        )
+                        latest_db_md5 = hashlib.md5(
+                            concat_str.encode("utf-8")
+                        ).hexdigest()
                         vs._data_hash = latest_db_md5
                         await vs.save(vs_path)
                 except Exception as e:
@@ -158,7 +179,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     save_task = asyncio.create_task(periodic_save_task())
 
     # Service 层
-    knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
+    knowledge_retriever = KnowledgeRetriever(
+        knowledge_repo, vs, config_repo=config_repo
+    )
     from app.service.admin import AdminService
     from app.service.knowledge_admin import KnowledgeAdminService
     from app.service.knowledge_sync import KnowledgeSyncService
@@ -229,29 +252,43 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.api.wecom import router as wecom_router, register_handler
 
     # 注册企微消息回调处理器
-    async def wecom_handler(channel: str, user_id: str, content: str, channel_msg_id: str) -> None:
+    async def wecom_handler(
+        channel: str, user_id: str, content: str, channel_msg_id: str
+    ) -> None:
         await chat_service.handle_message(
             channel=channel,
             user_id=user_id,
             content=content,
             channel_msg_id=channel_msg_id,
         )
+
     register_handler(wecom_handler)
 
     app.include_router(create_webhook_router(chat_service))
-    app.include_router(create_admin_router(
-        chat_service=chat_service,
-        admin_service=admin_service,
-        transfer_mgr=transfer_mgr,
-    ))
+    app.include_router(
+        create_admin_router(
+            chat_service=chat_service,
+            admin_service=admin_service,
+            transfer_mgr=transfer_mgr,
+        )
+    )
     app.include_router(create_admin_frontend_router())
     app.include_router(create_shop_config_router(admin_service))
     app.include_router(create_admin_knowledge_router(knowledge_admin_service))
     app.include_router(create_observability_router(observability_service))
-    app.include_router(create_admin_products_router(reconcile_service, knowledge_sync_service))
+    app.include_router(
+        create_admin_products_router(reconcile_service, knowledge_sync_service)
+    )
     app.include_router(wecom_router)
 
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)
+    asyncio.create_task(
+        alert_service.alert(
+            AlertLevel.INFO,
+            "服务已启动",
+            f"芸熙烘焙 AI 客服 v{APP_VERSION} 已启动，监听端口 {settings.SERVER_PORT}",
+        )
+    )
 
     async def _startup_sync_task() -> None:
         """服务启动完成后批量同步所有 pending 向量条目。"""
@@ -273,7 +310,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except asyncio.CancelledError:
         pass
     from app.service.wecom.client import close_wecom_client
+
     await close_wecom_client()
+    await alert_service.alert(
+        AlertLevel.INFO, "服务已关闭", f"芸熙烘焙 AI 客服 v{APP_VERSION} 已正常关闭"
+    )
     logger.info("服务已关闭")
 
 
@@ -307,12 +348,14 @@ async def serve_verify_txt(filename: str):
 async def serve_favicon():
     """网站根目录 favicon.ico 图标响应。"""
     from fastapi.responses import FileResponse
+
     ico_path = BASE_DIR.parent / "web" / "admin" / "dist" / "favicon.ico"
     if not ico_path.exists():
         ico_path = BASE_DIR / "static" / "favicon.ico"
     if ico_path.exists():
         return FileResponse(str(ico_path))
     from fastapi.exceptions import HTTPException
+
     raise HTTPException(status_code=404, detail="Not Found")
 
 
@@ -320,6 +363,7 @@ async def serve_favicon():
 @app.middleware("http")
 async def db_session_middleware(request: Request, call_next):
     from app.database import db_session_scope
+
     async with db_session_scope():
         return await call_next(request)
 
@@ -329,13 +373,23 @@ async def db_session_middleware(request: Request, call_next):
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     logger.error("应用异常: %s %s", type(exc).__name__, exc)
     status = exc.status_code
-    return JSONResponse(status_code=status, content={"code": status * 100, "message": str(exc)})
+    return JSONResponse(
+        status_code=status, content={"code": status * 100, "message": str(exc)}
+    )
 
 
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.critical("未预期异常: %s", exc, exc_info=True)
-    return JSONResponse(status_code=500, content={"code": 50000, "message": "服务器内部错误"})
+    # 异步发送企微告警（不阻塞 HTTP 响应）
+    asyncio.create_task(
+        alert_service.alert(
+            AlertLevel.CRITICAL, "未预期异常", f"{type(exc).__name__}: {exc}"
+        )
+    )
+    return JSONResponse(
+        status_code=500, content={"code": 50000, "message": "服务器内部错误"}
+    )
 
 
 # ── 健康检查 ──

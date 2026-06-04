@@ -1,0 +1,37 @@
+# Skill 调用速查
+
+______________________________________________________________________
+
+## 项目 Guard Skill（修改代码前必须调用）
+
+| 场景 | 调用命令 |
+|------|---------|
+| 修改任意分层代码 | `skill invoke yunxi-architecture-guard` |
+| 修改 LLM/Prompt/意图 | `skill invoke yunxi-llm-guard` |
+| 新增/修改 `.py` 文件 | `skill invoke yunxi-file-size-guard` |
+| 代码审查/发现质量问题 | `skill invoke yunxi-clean-code-guard` |
+
+> ⚠️ **不允许跳过**：即使任务看起来很小，只要涉及上表中的文件范围，就必须先调用 Skill。
+
+---
+
+## 全局 Skill（按场景引入）
+
+| 场景 | Skill | 说明 |
+|------|-------|------|
+| **新功能 / 新需求设计** | `brainstorming` | 探索需求、提 2-3 方案、用户确认后再实现；禁止跳过 |
+| **查阅外部 API 文档**（有赞、DeepSeek、微信） | `defuddle` | 清洁提取网页正文，去噪省 token，替代 WebFetch |
+| **创建或改进 Guard Skill** | `skill-creator` | 草稿 → 测试 → 迭代，优化 description 触发精度 |
+| **向飞书发送开发通知**（部署结果、生产告警） | `lark-im` | 推送消息到开发群或个人 |
+| **Skill 发现习惯建立** | `using-superpowers` | 任务开始前查找可用 skill 的元协议 |
+
+---
+
+## 工作流
+
+| 场景 | 工作流 |
+|------|-------|
+| 全流程收口检查 | `/check` |
+| 代码 Review | `/review` |
+| 提交 | `/commit` |
+| Skill 同步更新 | `/sync-skills` |

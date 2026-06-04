@@ -36,13 +36,26 @@ RED_LINE_RULES: tuple[ScanRule, ...] = (
     ScanRule("禁止 Optional/Union", r"Optional\[|Union\[", (APP_DIR,)),
     ScanRule("禁止 TODO 占位", r"# TODO", (APP_DIR,)),
     ScanRule("禁止 SELECT 星号", r"SELECT\s+\*", (APP_DIR,)),
-    ScanRule("api 层禁止直接导入 repository", r"from app\.repository", (APP_DIR / "api",)),
-    ScanRule("service 层禁止直连 aiosqlite", r"import aiosqlite|aiosqlite\.", (APP_DIR / "service",)),
-    ScanRule("models 层禁止引用上层模块", r"from app\.(service|repository|api)", (APP_DIR / "models",)),
+    ScanRule(
+        "api 层禁止直接导入 repository", r"from app\.repository", (APP_DIR / "api",)
+    ),
+    ScanRule(
+        "service 层禁止直连 aiosqlite",
+        r"import aiosqlite|aiosqlite\.",
+        (APP_DIR / "service",),
+    ),
+    ScanRule(
+        "models 层禁止引用上层模块",
+        r"from app\.(service|repository|api)",
+        (APP_DIR / "models",),
+    ),
     ScanRule("禁止 SQL f-string 拼接", r"f\"(SELECT|INSERT|UPDATE|DELETE)", (APP_DIR,)),
     ScanRule("禁止静默吞异常", r"except.*:\s*pass", (APP_DIR,)),
-    ScanRule("禁止硬编码密钥", r"api_key\s*=\s*[\"']sk-|secret\s*=\s*[\"']", (APP_DIR,)),
+    ScanRule(
+        "禁止硬编码密钥", r"api_key\s*=\s*[\"']sk-|secret\s*=\s*[\"']", (APP_DIR,)
+    ),
     ScanRule("app 内禁止裸 print", r"^\s+print\(", (APP_DIR,)),
+    ScanRule("禁止英文注释", r"^\s*#\s+(?!.*[\u4e00-\u9fff])[A-Za-z]", (APP_DIR,)),
 )
 
 TEST_COMMANDS: tuple[tuple[str, ...], ...] = (
@@ -61,15 +74,22 @@ HARDCODED_DOMAINS: tuple[str, ...] = (
 )
 
 # 必须命名为常量的已知业务魔法整数
-KNOWN_MAGIC_INTEGERS: frozenset[int] = frozenset({
-    172800, 86400, 43200, 604800,  # 秒级时间常量
-})
+KNOWN_MAGIC_INTEGERS: frozenset[int] = frozenset(
+    {
+        172800,
+        86400,
+        43200,
+        604800,  # 秒级时间常量
+    }
+)
 
 
 def _parse_ast(file_path: Path) -> ast.Module | None:
     """安全解析 Python 文件为 AST，语法错误时返回 None。"""
     try:
-        return ast.parse(file_path.read_text(encoding=TEXT_ENCODING), filename=str(file_path))
+        return ast.parse(
+            file_path.read_text(encoding=TEXT_ENCODING), filename=str(file_path)
+        )
     except SyntaxError:
         return None
 
@@ -87,7 +107,9 @@ def check_hardcoded_urls_in_functions(app_dir: Path) -> CheckResult:
             for child in ast.walk(func_node):
                 if child is func_node:
                     continue
-                if not (isinstance(child, ast.Constant) and isinstance(child.value, str)):
+                if not (
+                    isinstance(child, ast.Constant) and isinstance(child.value, str)
+                ):
                     continue
                 if any(domain in child.value for domain in HARDCODED_DOMAINS):
                     rel = file_path.relative_to(ROOT_DIR)
@@ -108,7 +130,10 @@ def check_known_magic_integers(app_dir: Path) -> CheckResult:
             for child in ast.walk(func_node):
                 if child is func_node:
                     continue
-                if isinstance(child, ast.Constant) and child.value in KNOWN_MAGIC_INTEGERS:
+                if (
+                    isinstance(child, ast.Constant)
+                    and child.value in KNOWN_MAGIC_INTEGERS
+                ):
                     rel = file_path.relative_to(ROOT_DIR)
                     violations.append(
                         f"{rel}:{child.lineno}: 魔法整数 {child.value!r}（请提取为命名常量）"
