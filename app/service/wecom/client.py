@@ -179,6 +179,88 @@ class WeComClient:
             logger.error("Markdown 发送失败 err=%s", response_data.get("errmsg"))
         return response_data
 
+    async def send_news(
+        self,
+        user_id: str,
+        title: str,
+        description: str = "",
+        url: str = "",
+        pic_url: str = "",
+        agent_id: str | None = None,
+    ) -> dict:
+        """
+        发送图文消息（news），用于商品卡片等场景。
+
+        参数：
+            user_id: 用户 userid
+            title: 图文标题
+            description: 图文描述
+            url: 点击跳转链接
+            pic_url: 封面图片 URL
+            agent_id: 应用 AgentId
+        返回：
+            API 响应 JSON
+        """
+        token = await self.get_token()
+        agentid = int(agent_id or settings.WECOM_AGENT_ID)
+
+        news_body = {
+            "articles": [
+                {
+                    "title": title,
+                    "description": description,
+                    "url": url,
+                    "picurl": pic_url,
+                }
+            ]
+        }
+
+        # 优先使用内部接口
+        resp = await self._client.post(
+            f"{WECOM_API_BASE}/message/send",
+            params={"access_token": token},
+            json={
+                "touser": user_id,
+                "msgtype": "news",
+                "agentid": agentid,
+                "news": news_body,
+            },
+        )
+        response_data = resp.json()
+
+        # 失败时降级到外部联系人接口
+        if response_data.get("errcode") != 0 and response_data.get("errcode") in (
+            60001,
+            60002,
+            60004,
+            60005,
+            60006,
+            81003,
+            81006,
+        ):
+            resp = await self._client.post(
+                f"{WECOM_API_BASE}/externalcontact/message/send",
+                params={"access_token": token},
+                json={
+                    "to_user": user_id,
+                    "msgtype": "news",
+                    "agent_id": agentid,
+                    "news": news_body,
+                },
+            )
+            response_data = resp.json()
+
+        if response_data.get("errcode") == 0:
+            logger.info("图文消息已发送 to=%s title=%s", user_id, title)
+        else:
+            logger.error(
+                "图文消息发送失败 to=%s title=%s err=%s",
+                user_id,
+                title,
+                response_data.get("errmsg"),
+            )
+        return response_data
+
     async def close(self) -> None:
         """关闭 HTTP 客户端。"""
         if self._http:
