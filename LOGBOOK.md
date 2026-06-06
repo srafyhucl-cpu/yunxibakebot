@@ -19,6 +19,16 @@
     - 合入 bundle + 依赖增量安装 + 服务启停 + 健康检查（60s 超时）
     - 失败时输出回滚命令和排查指令
 
+## [2026-06-06] - fix: enqueue await 补漏 + NearestNeighbors 类型修复
+
+- **操作人**: AI
+- **关联问题**:
+  - `wecom_queue.enqueue()` 缺少 await，消息从未入队，Worker 永远收不到
+  - `embedding_search.py` 两处 `None.fit()` pyright error
+- **修复**:
+  - `app/api/wecom.py`: 补充 `await wecom_queue.enqueue()`
+  - `app/service/embedding_search.py`: assert + type: ignore 消除类型错误
+
 ## [2026-06-06] - fix(wecom): 修复 POST 回调签名验证 403 Bug
 
 - **操作人**: AI

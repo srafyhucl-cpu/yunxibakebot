@@ -144,16 +144,17 @@ class EmbeddingSearcher:
             and len(self._doc_keys) > 0
         ):
             try:
+                assert NearestNeighbors is not None
                 # 动态计算合理的最近邻数量
                 n_neighbors = min(
                     max(50, len(self._doc_keys) // 10), len(self._doc_keys)
                 )
-                self._nn_index = NearestNeighbors(
+                self._nn_index = NearestNeighbors(  # type: ignore[misc]
                     n_neighbors=n_neighbors,
                     metric="cosine",
                     algorithm="auto",
                 )
-                self._nn_index.fit(self._embeddings)
+                self._nn_index.fit(self._embeddings)  # type: ignore[union-attr]
                 logger.info(
                     "NearestNeighbors ANN 索引构建完成：%d 条", len(self._doc_keys)
                 )
@@ -215,15 +216,16 @@ class EmbeddingSearcher:
         # 尝试延迟重建 ANN 索引（向量已变更但未重建索引时）
         if SKLEARN_AVAILABLE and self._nn_index is None and len(self._doc_keys) > 0:
             try:
+                assert NearestNeighbors is not None
                 n_neighbors = min(
                     max(50, len(self._doc_keys) // 10), len(self._doc_keys)
                 )
-                self._nn_index = NearestNeighbors(
+                self._nn_index = NearestNeighbors(  # type: ignore[misc]
                     n_neighbors=n_neighbors,
                     metric="cosine",
                     algorithm="auto",
                 )
-                self._nn_index.fit(self._embeddings)
+                self._nn_index.fit(self._embeddings)  # type: ignore[union-attr]
                 logger.info("延迟重建 ANN 索引完成：%d 条", len(self._doc_keys))
                 # 递归调用，使用新索引
                 return self.search(query, limit)

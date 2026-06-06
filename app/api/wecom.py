@@ -129,7 +129,7 @@ async def receive_message(request: Request) -> PlainTextResponse:
     # 异步入队：立即返回，后台 Worker 负责处理
     from app.service.wecom.message_queue import wecom_queue, WeComIncomingMessage
 
-    success = wecom_queue.enqueue(
+    success = await wecom_queue.enqueue(
         WeComIncomingMessage(
             external_user_id=from_user,
             content=content,
