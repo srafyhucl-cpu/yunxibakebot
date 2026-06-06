@@ -71,12 +71,14 @@ async def receive_message(request: Request) -> PlainTextResponse:
     raw = await request.body()
     xml_str = raw.decode("utf-8")
 
-    # 提取加密字段
+    # 签名参数从 URL query string 获取（非 XML body）
+    msg_signature = request.query_params.get("msg_signature", "")
+    timestamp = request.query_params.get("timestamp", str(int(time.time())))
+    nonce = request.query_params.get("nonce", "")
+
+    # 加密消息体从 XML body 提取
     try:
         root = ET.fromstring(xml_str)
-        msg_signature = root.findtext("MsgSignature") or ""
-        timestamp = root.findtext("TimeStamp") or str(int(time.time()))
-        nonce = root.findtext("Nonce") or ""
         encrypt_xml = root.findtext("Encrypt") or ""
     except ET.ParseError as exc:
         logger.error("XML 解析失败: %s", exc)

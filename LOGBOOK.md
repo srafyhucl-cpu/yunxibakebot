@@ -19,6 +19,15 @@
     - 合入 bundle + 依赖增量安装 + 服务启停 + 健康检查（60s 超时）
     - 失败时输出回滚命令和排查指令
 
+## [2026-06-06] - fix(wecom): 修复 POST 回调签名验证 403 Bug
+
+- **操作人**: AI
+- **关联问题**: 企微消息全部返回 403 Forbidden，签名验证失败
+- **根因**: `wecom.py` 从 XML body 解析 `MsgSignature`/`TimeStamp`/`Nonce`
+  - 企微实际将这些签名参数放在 **URL query string** 中（与 GET 验证一致）
+  - XML body 只包含 `Encrypt` 加密消息体
+- **修复**: 改为 `request.query_params.get()` 获取签名参数
+
 ## [2026-06-06] - chore: 清理工作区散落改动 + embedding_search 拆分
 
 - **操作人**: AI
