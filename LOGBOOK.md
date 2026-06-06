@@ -19,6 +19,14 @@
     - 合入 bundle + 依赖增量安装 + 服务启停 + 健康检查（60s 超时）
     - 失败时输出回滚命令和排查指令
 
+## [2026-06-06] - fix(wecom): Worker 添加 db_session_scope 数据库上下文
+
+- **操作人**: AI
+- **关联问题**: Worker 调用 `ChatService.handle_message()` 报错
+  - 错误: `数据库操作未在 db_session_scope 上下文管理器中执行！`
+- **根因**: Worker 绕过 API 层直接调用 service，缺少数据库会话上下文
+- **修复**: `message_queue.py` 的 `_process_one()` 用 `db_session_scope()` 包裹调用链
+
 ## [2026-06-06] - fix: enqueue await 补漏 + NearestNeighbors 类型修复
 
 - **操作人**: AI

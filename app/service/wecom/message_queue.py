@@ -124,26 +124,29 @@ class WeComMessageQueue:
             logger.error("ChatService 未注入，无法处理消息")
             return
 
-        # 1. 调用 ChatService 进行 AI 对话
-        reply = await self._chat_service.handle_message(
-            channel="wecom_1on1",
-            user_id=msg.external_user_id,
-            content=msg.content,
-            channel_msg_id=msg.channel_msg_id,
-        )
+        from app.database import db_session_scope
 
-        # 2. 如果有回复，发送给客户
-        if reply:
-            from app.service.wecom.client import get_wecom_client
+        # Worker 绕过 API 层直接调用 service，需自行提供数据库上下文
+        async with db_session_scope():
+            reply = await self._chat_service.handle_message(
+                channel="wecom_1on1",
+                user_id=msg.external_user_id,
+                content=msg.content,
+                channel_msg_id=msg.channel_msg_id,
+            )
 
-            client = get_wecom_client()
-            result = await client.send_text(msg.external_user_id, reply)
-            if result.get("errcode") != 0:
-                logger.error(
-                    "企微回复发送失败 user=%s err=%s",
-                    msg.external_user_id,
-                    result.get("errmsg"),
-                )
+            # 如果有回复，发送给客户
+            if reply:
+                from app.service.wecom.client import get_wecom_client
+
+                client = get_wecom_client()
+                result = await client.send_text(msg.external_user_id, reply)
+                if result.get("errcode") != 0:
+                    logger.error(
+                        "企微回复发送失败 user=%s err=%s",
+                        msg.external_user_id,
+                        result.get("errmsg"),
+                    )
 
 
 # ── 全局单例 ────────────────────────────────────────────────
