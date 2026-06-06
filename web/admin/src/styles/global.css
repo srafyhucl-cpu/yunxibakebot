@@ -188,6 +188,11 @@ a {
   padding: 24px;
 }
 
+.page-container--no-padding {
+  padding: 0;
+  overflow: hidden;
+}
+
 .placeholder-page {
   display: grid;
   gap: 16px;

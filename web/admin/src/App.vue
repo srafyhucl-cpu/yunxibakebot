@@ -8,12 +8,15 @@ import AuthLayout from "@/layouts/AuthLayout.vue";
 const route = useRoute();
 
 const layoutComponent = computed(() => {
-  return route.meta.layout === "auth" ? AuthLayout : AdminLayout;
+  if (route.meta.layout === "auth") return AuthLayout;
+  if (route.meta.layout === "none") return null;
+  return AdminLayout;
 });
 </script>
 
 <template>
-  <component :is="layoutComponent">
+  <component v-if="layoutComponent" :is="layoutComponent">
     <RouterView />
   </component>
+  <RouterView v-else />
 </template>

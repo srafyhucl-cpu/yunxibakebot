@@ -28,6 +28,7 @@ export const routes: RouteRecordRaw[] = [
     name: "ai-dialog",
     component: () => import("@/pages/ai-dialog/AiDialogPage.vue"),
     meta: {
+      layout: "none",
       title: "AI 对话",
       navKey: "ai-dialog",
     },

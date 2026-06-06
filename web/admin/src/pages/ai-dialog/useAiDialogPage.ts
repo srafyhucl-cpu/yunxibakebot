@@ -263,7 +263,7 @@ export function useAiDialogPage() {
     mobileChatActive,
     openSession, onNewChat, selectPreset, onCustomInput,
     cancelRolePicker, confirmRolePicker,
-    sendMessage, showCtxMenu, hideCtxMenu, lpStart, lpEnd,
+    sendMessage, scrollToBottom, showCtxMenu, hideCtxMenu, lpStart, lpEnd,
     ctxPinSession, ctxDeleteSession, mobileBack, loadSessions,
   };
 }

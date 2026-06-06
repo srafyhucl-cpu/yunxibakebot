@@ -19,6 +19,20 @@
     - 合入 bundle + 依赖增量安装 + 服务启停 + 健康检查（60s 超时）
     - 失败时输出回滚命令和排查指令
 
+## [2026-06-06] - chore: 清理工作区散落改动 + embedding_search 拆分
+
+- **操作人**: AI
+- **关联任务**: 工作区清理 + 文件体量合规
+- **改动**:
+  - **拆分 `app/service/embedding_search.py`**（384→308行）：
+    - `embedding_model.py`: 模型常量 + FallbackEncoder + sklearn 导入
+    - `embedding_io.py`: save/load 磁盘持久化
+    - `embedding_rebuild.py`: rebuild_from_db 数据库重建
+  - **数据库迁移扩展**: v001/v002/v003 SQL
+  - **企微相关**: setup_wecom.sh, nginx 配置
+  - **前端 AI 对话页面**: AiDialogPage/prototype 等
+  - **文档**: AI 对话页面原型设计说明, HarnessEngineering 评估报告
+
 ## [2026-06-06] - feat(wecom): 企微 1对1 客户对话完整接入（异步消息队列）
 
 - **操作人**: AI

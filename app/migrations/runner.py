@@ -76,7 +76,20 @@ async def run_migrations(conn: aiosqlite.Connection) -> int:
             continue
         try:
             sql_content = sql_path.read_text(encoding="utf-8")
-            await conn.executescript(sql_content)
+            # 逐条执行 SQL 语句，容忍 duplicate column 错误
+            for stmt in _split_sql_statements(sql_content):
+                if not stmt.strip():
+                    continue
+                try:
+                    await conn.execute(stmt)
+                except aiosqlite.OperationalError as exc:
+                    if (
+                        "duplicate column" in str(exc).lower()
+                        or "already exists" in str(exc).lower()
+                    ):
+                        logger.debug("跳过已存在的列/索引（幂等）: %s", exc)
+                        continue
+                    raise
             await conn.execute(
                 "INSERT INTO _schema_version (version) VALUES (?)", (version,)
             )
@@ -90,3 +103,20 @@ async def run_migrations(conn: aiosqlite.Connection) -> int:
     if count > 0:
         logger.info("共完成 %d 个迁移", count)
     return count
+
+
+def _split_sql_statements(sql: str) -> list[str]:
+    """简单按分号拆分 SQL 语句（不处理字符串内的分号）。"""
+    statements = []
+    current = []
+    for line in sql.splitlines():
+        line = line.strip()
+        if not line or line.startswith("--"):
+            continue
+        current.append(line)
+        if line.endswith(";"):
+            statements.append(" ".join(current))
+            current = []
+    if current:
+        statements.append(" ".join(current))
+    return statements

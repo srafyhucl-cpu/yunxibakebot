@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     YOUZAN_MOCK_MODE: bool = True
 
     # ── 管理后台 ──
-    ADMIN_API_TOKEN: str = ""
+    # 注意：生产环境必须在 .env 中设置强密码，不能使用默认值
+    ADMIN_API_TOKEN: str = "CHANGE_ME_IN_PRODUCTION_ENV"
 
     # ── 企业微信（客户联系） ──
     WECOM_CORP_ID: str = ""

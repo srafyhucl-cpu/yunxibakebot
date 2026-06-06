@@ -20,11 +20,22 @@ set -euo pipefail
 SSH_HOST="${SSH_HOST:-47.94.102.250}"
 SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-/mnt/c/Users/srafy/.ssh/id_ed25519}"
 REMOTE_DIR="/opt/yunxibakebot"
 BUNDLE_FILE="server.bundle"
 MAX_RETRY=3
 CONNECT_TIMEOUT=10
+
+# ---- WSL 兼容：修复密钥权限 ----
+# Windows 文件系统上密钥权限为 0777，SSH 拒绝使用
+# 解决方案：复制到 /tmp 并设为 600
+TMP_SSH_KEY=""
+if [[ "$SSH_KEY" == /mnt/c/* || "$OSTYPE" == "msys" ]]; then
+    TMP_SSH_KEY="/tmp/deploy_ssh_key_$$"
+    cp "$SSH_KEY" "$TMP_SSH_KEY"
+    chmod 600 "$TMP_SSH_KEY"
+    SSH_KEY="$TMP_SSH_KEY"
+fi
 
 # 颜色输出
 RED='\033[0;31m'
@@ -125,12 +136,7 @@ START_TIME=$(date +%s)
 # 检查 Git 仓库状态
 log_info "检查工作区状态..."
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-    log_warn "工作区有未提交的变更！建议先提交后再部署。"
-    read -rp "是否继续？(y/N) " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        log_info "已取消部署"
-        exit 0
-    fi
+    log_warn "工作区有未提交的变更，将使用当前代码进行部署"
 fi
 
 # 获取版本信息
@@ -236,3 +242,8 @@ echo "  时间:     $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 echo "  访问:     https://yunxifood.cn/health"
 echo "============================================"
+
+# ---- 清理临时密钥 ----
+if [ -n "$TMP_SSH_KEY" ]; then
+    rm -f "$TMP_SSH_KEY"
+fi

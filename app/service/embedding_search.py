@@ -10,6 +10,10 @@ from __future__ import annotations
 1. build() 时批量编码所有知识条目为稠密向量，并在内存中缓存
 2. search() 时编码查询文本，与文档向量做 cosine 相似度计算
 3. 返回 Top-K 最相关条目，减少 TF-IDF 对同义表达的遗漏
+
+性能优化：
+- 使用 numpy.argpartition 替代全量 sorted，将 Top-K 选择降至 O(n) 均摊
+- 可选集成 sklearn.neighbors.NearestNeighbors 实现 ANN 近似检索
 """
 
 import asyncio
@@ -21,41 +25,19 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from app.logger import setup_logger
+from app.service.embedding_model import (
+    EMBEDDING_MODEL,
+    MIN_SIMILARITY_SCORE,
+    BGE_QUERY_PREFIX,
+    _FallbackSentenceTransformer,
+    NearestNeighbors,  # type: ignore[possibly-undefined]
+    SKLEARN_AVAILABLE,
+)
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
 logger = setup_logger()
-
-EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
-BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
-MIN_SIMILARITY_SCORE = 0.35
-
-
-class _FallbackSentenceTransformer:
-    """测试环境使用的轻量编码器，避免特定解释器下真实模型加载崩溃。"""
-
-    def encode(
-        self,
-        texts: list[str],
-        normalize_embeddings: bool = True,
-        show_progress_bar: bool = False,
-    ) -> np.ndarray:
-        del show_progress_bar
-        rows: list[np.ndarray] = []
-        for text in texts:
-            vector = np.zeros(256, dtype=np.float32)
-            for index, char in enumerate(text):
-                bucket = (ord(char) + index * 131) % 256
-                vector[bucket] += 1.0
-            if normalize_embeddings:
-                norm = np.linalg.norm(vector)
-                if norm > 0:
-                    vector = vector / norm
-            rows.append(vector)
-        if not rows:
-            return np.zeros((0, 256), dtype=np.float32)
-        return np.vstack(rows)
 
 
 class EmbeddingSearcher:
@@ -70,6 +52,8 @@ class EmbeddingSearcher:
         self._data_hash = ""
         self._lock = asyncio.Lock()
         self._save_event = asyncio.Event()
+        # sklearn NearestNeighbors 索引（可选加速）
+        self._nn_index: NearestNeighbors | None = None
         self._init_progress = {
             "status": "uninitialized",
             "total": 0,
@@ -82,10 +66,11 @@ class EmbeddingSearcher:
             duration_file = Path("data/vector_last_duration.json")
             if duration_file.exists():
                 with open(duration_file, "r", encoding="utf-8") as f:
-                    self._init_progress["last_build_duration"] = json.load(f).get("last_build_duration", 0.0)
+                    self._init_progress["last_build_duration"] = json.load(f).get(
+                        "last_build_duration", 0.0
+                    )
         except Exception:
             pass
-
 
     def _get_model(self) -> SentenceTransformer | _FallbackSentenceTransformer:
         """惰性初始化模型，避免模块导入阶段触发重型依赖加载。"""
@@ -105,9 +90,12 @@ class EmbeddingSearcher:
             logger.info("Embedding 模型已加载: %s", EMBEDDING_MODEL)
         return self._model
 
-    def build(self, documents: list[tuple[str, str, str]], current_db_md5: str = "") -> None:
+    def build(
+        self, documents: list[tuple[str, str, str]], current_db_md5: str = ""
+    ) -> None:
         """全量构建语义向量索引并分批更新进度。"""
         import time
+
         model = self._get_model()
         self._doc_keys = []
         texts: list[str] = []
@@ -116,28 +104,64 @@ class EmbeddingSearcher:
             texts.append(f"{title} {content}")
 
         total_docs = len(texts)
-        self._init_progress.update({
-            "status": "building",
-            "total": total_docs,
-            "current": 0,
-            "start_time": time.time(),
-            "elapsed": 0.0,
-        })
+        self._init_progress.update(
+            {
+                "status": "building",
+                "total": total_docs,
+                "current": 0,
+                "start_time": time.time(),
+                "elapsed": 0.0,
+            }
+        )
 
         all_embeddings = []
         batch_size = 16
         for i in range(0, total_docs, batch_size):
             batch_texts = texts[i : i + batch_size]
-            batch_raw = model.encode(batch_texts, normalize_embeddings=True, show_progress_bar=False)
+            batch_raw = model.encode(
+                batch_texts, normalize_embeddings=True, show_progress_bar=False
+            )
             all_embeddings.append(batch_raw)
             self._init_progress["current"] = min(i + batch_size, total_docs)
-            self._init_progress["elapsed"] = time.time() - self._init_progress["start_time"]
+            self._init_progress["elapsed"] = (
+                time.time() - self._init_progress["start_time"]
+            )
 
-        self._embeddings = np.vstack(all_embeddings) if all_embeddings else np.zeros((0, 256), dtype=np.float32)
+        self._embeddings = (
+            np.vstack(all_embeddings)
+            if all_embeddings
+            else np.zeros((0, 256), dtype=np.float32)
+        )
         self._ready = True
         self._dirty = True
         self._data_hash = current_db_md5
         self._init_progress["status"] = "ready"
+
+        # 构建 NearestNeighbors ANN 索引（加速检索）
+        if (
+            SKLEARN_AVAILABLE
+            and self._embeddings is not None
+            and len(self._doc_keys) > 0
+        ):
+            try:
+                # 动态计算合理的最近邻数量
+                n_neighbors = min(
+                    max(50, len(self._doc_keys) // 10), len(self._doc_keys)
+                )
+                self._nn_index = NearestNeighbors(
+                    n_neighbors=n_neighbors,
+                    metric="cosine",
+                    algorithm="auto",
+                )
+                self._nn_index.fit(self._embeddings)
+                logger.info(
+                    "NearestNeighbors ANN 索引构建完成：%d 条", len(self._doc_keys)
+                )
+            except Exception as e:
+                logger.warning("NearestNeighbors 索引构建失败，将使用线性扫描: %s", e)
+                self._nn_index = None
+        else:
+            self._nn_index = None
 
         duration = time.time() - self._init_progress["start_time"]
         self._init_progress["last_build_duration"] = duration
@@ -147,22 +171,77 @@ class EmbeddingSearcher:
                 json.dump({"last_build_duration": duration}, f)
         except Exception:
             pass
-        logger.info("Embedding 索引构建完成: %d 条，耗时 %.2f 秒", len(self._doc_keys), duration)
+        logger.info(
+            "Embedding 索引构建完成: %d 条，耗时 %.2f 秒", len(self._doc_keys), duration
+        )
 
     def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
-        """按语义相似度检索文档。"""
+        """按语义相似度检索文档（优先使用 ANN 索引加速）。"""
         if not self._ready or self._embeddings is None:
             return []
 
         model = self._get_model()
         prefixed = BGE_QUERY_PREFIX + query
-        q_vec = model.encode([prefixed], normalize_embeddings=True)[0]
-        scores: list[float] = (self._embeddings @ q_vec).tolist()
-        ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)
+        q_vec = model.encode([prefixed], normalize_embeddings=True)
+        q_vec = q_vec[0]  # shape (dim,)
+
+        # 优先使用 NearestNeighbors ANN 索引
+        if SKLEARN_AVAILABLE and self._nn_index is not None:
+            try:
+                import warnings
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    # NearestNeighbors 返回距离（越小越相似），需转换为相似度
+                    distances, indices = self._nn_index.kneighbors(
+                        q_vec.reshape(1, -1),
+                        n_neighbors=min(limit * 2, len(self._doc_keys)),
+                    )
+                distances = distances[0]
+                indices = indices[0]
+                # cosine 距离转相似度：similarity = 1 - distance / 2
+                scores = 1 - distances / 2
+                results = []
+                for idx, score in zip(indices.tolist(), scores.tolist()):
+                    if score > MIN_SIMILARITY_SCORE:
+                        results.append((self._doc_keys[idx], score))
+                        if len(results) >= limit:
+                            break
+                return results
+            except Exception as e:
+                logger.warning("ANN 检索失败，回退到线性扫描: %s", e)
+                # 回退到线性扫描
+
+        # 尝试延迟重建 ANN 索引（向量已变更但未重建索引时）
+        if SKLEARN_AVAILABLE and self._nn_index is None and len(self._doc_keys) > 0:
+            try:
+                n_neighbors = min(
+                    max(50, len(self._doc_keys) // 10), len(self._doc_keys)
+                )
+                self._nn_index = NearestNeighbors(
+                    n_neighbors=n_neighbors,
+                    metric="cosine",
+                    algorithm="auto",
+                )
+                self._nn_index.fit(self._embeddings)
+                logger.info("延迟重建 ANN 索引完成：%d 条", len(self._doc_keys))
+                # 递归调用，使用新索引
+                return self.search(query, limit)
+            except Exception as e:
+                logger.warning("延迟重建 ANN 索引失败: %s", e)
+
+        # 线性扫描（使用 argpartition 优化 Top-K 选择）
+        scores: np.ndarray = self._embeddings @ q_vec
+        if len(scores) > limit:
+            # 使用 argpartition 进行部分排序，均摊 O(n) 优于全量 sorted O(n log n)
+            top_k_indices = np.argpartition(scores, -limit)[-limit:]
+            top_k_indices = top_k_indices[np.argsort(scores[top_k_indices])[::-1]]
+        else:
+            top_k_indices = np.argsort(scores)[::-1]
         return [
-            (self._doc_keys[index], score)
-            for index, score in ranked[:limit]
-            if score > MIN_SIMILARITY_SCORE
+            (self._doc_keys[i], float(scores[i]))
+            for i in top_k_indices
+            if scores[i] > MIN_SIMILARITY_SCORE
         ]
 
     async def upsert_one(self, key: str, vector: list[float]) -> None:
@@ -176,13 +255,18 @@ class EmbeddingSearcher:
                 logger.info("已通过内存原子替换增量更新单条向量: %s", key)
             else:
                 self._doc_keys.append(key)
-                if self._embeddings is None or self._embeddings.size == 0 or len(self._embeddings.shape) < 2:
+                if (
+                    self._embeddings is None
+                    or self._embeddings.size == 0
+                    or len(self._embeddings.shape) < 2
+                ):
                     self._embeddings = np.array([new_vec], dtype=np.float32)
                 else:
                     self._embeddings = np.vstack([self._embeddings, new_vec])
                 logger.info("已通过内存增量追加单条向量: %s", key)
             self._ready = True
             self._dirty = True
+            self._nn_index = None  # 向量变更，使 ANN 索引失效
             self._save_event.set()
 
     async def delete_one(self, key: str) -> None:
@@ -195,6 +279,7 @@ class EmbeddingSearcher:
                     self._embeddings = np.delete(self._embeddings, index, axis=0)
                 logger.info("已从内存原子删除单条向量: %s", key)
                 self._dirty = True
+                self._nn_index = None  # 向量变更，使 ANN 索引失效
                 self._save_event.set()
                 if not self._doc_keys:
                     self._ready = False
@@ -202,71 +287,15 @@ class EmbeddingSearcher:
 
     async def save(self, path: str | Path) -> None:
         """将向量索引安全持久化到磁盘。"""
-        if not self._dirty:
-            logger.debug("向量索引未发生变更，跳过磁盘写入")
-            return
+        from app.service.embedding_io import save_index
 
-        async with self._lock:
-            try:
-                path = Path(path)
-                npy_path = path.with_suffix(".npy")
-                json_path = path.with_suffix(".json")
-                tmp_npy = npy_path.with_suffix(".tmp.npy")
-                tmp_json = json_path.with_suffix(".json.tmp")
-
-                if self._embeddings is not None:
-                    np.save(tmp_npy, self._embeddings)
-                else:
-                    np.save(tmp_npy, np.array([], dtype=np.float32))
-
-                meta = {
-                    "doc_keys": self._doc_keys,
-                    "ready": self._ready,
-                    "data_hash": self._data_hash,
-                }
-                with open(tmp_json, "w", encoding="utf-8") as file_obj:
-                    json.dump(meta, file_obj, ensure_ascii=False, indent=2)
-
-                if tmp_npy.exists():
-                    os.replace(str(tmp_npy), str(npy_path))
-                if tmp_json.exists():
-                    os.replace(str(tmp_json), str(json_path))
-
-                self._dirty = False
-                logger.info("已安全持久化向量索引: %d 条", len(self._doc_keys))
-            except Exception as exc:
-                logger.error("向量索引保存失败: %s", exc)
+        await save_index(self, path)
 
     async def load(self, path: str | Path) -> None:
         """从磁盘加载缓存的向量索引。"""
-        self._init_progress["status"] = "loading"
-        async with self._lock:
-            try:
-                path = Path(path)
-                npy_path = path.with_suffix(".npy")
-                json_path = path.with_suffix(".json")
+        from app.service.embedding_io import load_index
 
-                if not npy_path.exists() or not json_path.exists():
-                    logger.warning("向量索引缓存文件不存在，将重新构建")
-                    self._ready = False
-                    return
-
-                with open(json_path, "r", encoding="utf-8") as file_obj:
-                    meta = json.load(file_obj)
-
-                self._doc_keys = meta["doc_keys"]
-                self._ready = meta["ready"]
-                self._data_hash = meta.get("data_hash", "")
-                self._embeddings = np.load(npy_path)
-                if self._embeddings.size == 0:
-                    self._embeddings = None
-
-                self._dirty = False
-                self._init_progress["status"] = "ready"
-                logger.info("Embedding 索引已从缓存加载: %d 条", len(self._doc_keys))
-            except Exception as exc:
-                logger.warning("向量索引加载失败，将重新构建: %s", exc)
-                self._ready = False
+        await load_index(self, path)
 
     @property
     def doc_count(self) -> int:
@@ -274,26 +303,6 @@ class EmbeddingSearcher:
 
     async def rebuild_from_db(self, index_dir: str | Path = "") -> None:
         """从数据库读取全部条目，并在后台线程全量重构向量索引并落盘。"""
-        self._init_progress["status"] = "loading"
-        try:
-            from app.database import db_session_scope
-            from app.repository.knowledge_repo import KnowledgeRepo
-            import hashlib
+        from app.service.embedding_rebuild import rebuild_from_db
 
-            async with db_session_scope():
-                repo = KnowledgeRepo(None)
-                docs = await repo.get_all_titles_with_keys()
-                
-                sorted_docs = sorted(docs, key=lambda x: x[0])
-                concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
-                current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
-                
-                logger.info("后台自愈：开始从数据库全量重构向量索引...")
-                await asyncio.to_thread(self.build, docs, current_db_md5)
-                
-                if index_dir:
-                    await self.save(index_dir)
-                logger.info("后台自愈：向量索引自愈重构并落盘完成")
-        except Exception as exc:
-            self._init_progress["status"] = "failed"
-            logger.error("后台自愈：异步向量自愈重构遭遇严重异常: %s", exc)
+        await rebuild_from_db(self, str(index_dir))
