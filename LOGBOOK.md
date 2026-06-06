@@ -2,6 +2,29 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-06] - feat(wecom): 企微 1对1 客户对话完整接入（异步消息队列）
+
+- **操作人**: AI
+- **关联任务**: 企微接入 — 方案 C 异步队列模式
+- **改动**:
+  - **新增 `app/service/wecom/message_queue.py`**：
+    - `WeComIncomingMessage`：不可变入队消息数据类
+    - `WeComMessageQueue`：异步消息队列 + 后台 Worker
+      - 入队非阻塞（<1ms），满足企微回调 5s 超时要求
+      - 后台循环消费队列，调用 ChatService 进行 AI 对话
+      - 异常隔离：单条失败不影响其他消息
+      - 队列容量上限 1000 条，满时丢弃并告警
+  - **修改 `app/api/wecom.py`**：
+    - 移除 `_message_handler` / `register_handler` 同步回调机制
+    - POST `/callback` 改为解密后直接入队，立即返回 200
+  - **修改 `app/main.py`**：
+    - lifespan startup 启动 `wecom_queue.start_worker(chat_service)`
+    - lifespan shutdown 停止 `wecom_queue.stop()`
+- **架构决策**：
+  - 选择异步队列模式（方案 C）而非同步直调（方案 B）
+  - 原因：LLM 调用耗时 3-15s，可能超过企微回调超时限制
+  - 与有赞渠道的 `handle_message_and_reply_youzan()` 保持对称设计
+
 ## [2026-06-04] - refactor(infra): Vibe Coding 可持续性评估 P2 收尾（批次 4 项）
 
 - **操作人**: AI (Claude)

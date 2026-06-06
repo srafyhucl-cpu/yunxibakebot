@@ -12,12 +12,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import APP_VERSION, settings
-from app.database import init_db, close_db, db_session_scope
+from app.database import init_db, db_session_scope
 from app.exceptions import AppError
 from app.logger import setup_logger
 from app.service.alerting import AlertLevel, alert_service
@@ -41,6 +43,33 @@ from app.service.youzan.product_reconciler import ProductReconcileService
 logger = setup_logger()
 
 
+def _check_startup_safety() -> None:
+    """
+    启动时检查敏感配置，检测到问题则记录警告或阻止启动。
+    """
+    # 检查 ADMIN_API_TOKEN 是否为默认值
+    if settings.ADMIN_API_TOKEN == "CHANGE_ME_IN_PRODUCTION_ENV":
+        logger.critical(
+            "启动安全检查失败：ADMIN_API_TOKEN 仍为默认值，请在 .env 中设置强密码"
+        )
+        raise SystemExit(1)
+
+    # 检查其他敏感配置是否为空（仅记录警告，不阻止启动）
+    sensitive_configs = [
+        ("DEEPSEEK_API_KEY", settings.DEEPSEEK_API_KEY),
+        ("YOUZAN_CLIENT_ID", settings.YOUZAN_CLIENT_ID),
+        ("YOUZAN_CLIENT_SECRET", settings.YOUZAN_CLIENT_SECRET),
+        ("WECOM_CORP_ID", settings.WECOM_CORP_ID),
+        ("WECOM_SECRET", settings.WECOM_SECRET),
+    ]
+
+    for name, value in sensitive_configs:
+        if not value:
+            logger.warning(
+                "启动安全检查警告：%s 未设置，相关功能可能无法正常工作", name
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -53,195 +82,76 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         1. 关闭数据库连接
     """
     # ── startup ──
-    # 仅执行一次性初始化及微创迁移
+    # 0. 启动安全检查
+    _check_startup_safety()
+
+    bg_tasks = await _init_lifespan_services(app)
+
+    yield
+
+    # ── shutdown ──
+    await _shutdown_lifespan_services(app, bg_tasks)
+
+
+async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
+    """初始化 lifespan 所需的所有服务，返回后台任务集合。"""
+    # 1. 初始化数据库
+    await _init_database()
+
+    # 2. 初始化 Repository 层
+    repos = _init_repositories()
+
+    # 3. 初始化向量搜索
+    from app.lifespan_vector import init_vector_search
+
+    vs, save_task = await init_vector_search(app, repos["knowledge_repo"])
+
+    # 4. 初始化 Service 层
+    from app.lifespan_services import init_services
+
+    services = init_services(repos, vs)
+
+    # 5. 注册路由
+    _register_routes(app, services)
+
+    # 6. 启动后台任务
+    bg_tasks = _start_background_tasks()
+    bg_tasks.add(save_task)
+
+    # 7. 启动通知
+    await _startup_notify()
+
+    # 8. 启动向量同步任务
+    await _startup_sync(services["knowledge_sync_service"], bg_tasks)
+
+    return bg_tasks
+
+
+async def _init_database() -> None:
+    """初始化 SQLite 数据库（含微创迁移）。"""
     init_conn = await init_db(settings.DB_PATH)
     await init_conn.close()
 
-    # 持有后台任务强引用，避免任务被 GC 提前回收导致回复丢失（N-2）。
-    _background_tasks: set[asyncio.Task] = set()
 
-    # Repository 层：启用动态 Context-Local 动态路由（传入 None）
-    session_repo = SessionRepo(None)
-    message_repo = MessageRepo(None)
-    knowledge_repo = KnowledgeRepo(None)
-    knowledge_admin_repo = KnowledgeAdminRepo(None)
-    knowledge_product_repo = KnowledgeProductRepo(None)
-    transfer_repo = TransferRepo(None)
-    config_repo = ConfigRepo(None)
-    history_repo = ContentChangeHistoryRepo(None)
-    youzan_product_repo = YouzanProductRepo(None)
-    webhook_event_repo = YouzanWebhookEventRepo(None)
+def _init_repositories() -> dict[str, object]:
+    """初始化 Repository 层（使用 None 占位，运行时通过 ContextVar 动态路由）。"""
+    return {
+        "session_repo": SessionRepo(None),
+        "message_repo": MessageRepo(None),
+        "knowledge_repo": KnowledgeRepo(None),
+        "knowledge_admin_repo": KnowledgeAdminRepo(None),
+        "knowledge_product_repo": KnowledgeProductRepo(None),
+        "transfer_repo": TransferRepo(None),
+        "config_repo": ConfigRepo(None),
+        "history_repo": ContentChangeHistoryRepo(None),
+        "youzan_product_repo": YouzanProductRepo(None),
+        "webhook_event_repo": YouzanWebhookEventRepo(None),
+        "analytics_repo": AnalyticsRepo(None),
+    }
 
-    # 语义向量搜索服务（启动优化：首选极速缓存载入并进行一致性指纹对比，对齐时 100% 豁免 CPU 全量重算）
-    from app.service.embedding_search import EmbeddingSearcher
 
-    vs = EmbeddingSearcher()
-    vs_path = settings.EMBEDDING_INDEX_DIR
-
-    # 挂载状态到 app.state，供外部路由轮询访问
-    app.state.vs = vs
-
-    # 包装为后台异步初始化协程，避免同步阻塞 lifespan 导致 Uvicorn 延迟监听端口（规避 502）
-    async def async_init_vector_search() -> None:
-        try:
-            vs._init_progress["status"] = "loading"
-            async with db_session_scope():
-                logger.info("正在异步初始化向量搜索：首选尝试极速载入本地预解算缓存...")
-                await vs.load(vs_path)
-
-                docs = await knowledge_repo.get_all_titles_with_keys()
-                need_rebuild = True
-
-                import hashlib
-
-                sorted_docs = sorted(docs, key=lambda x: x[0])
-                concat_text = "".join(f"{d[1]}{d[2]}" for d in sorted_docs)
-                current_db_md5 = hashlib.md5(concat_text.encode("utf-8")).hexdigest()
-
-                if vs._ready and docs:
-                    cached_keys = set(vs._doc_keys)
-                    db_keys = {str(d[0]) for d in docs}
-                    if cached_keys == db_keys and vs._data_hash == current_db_md5:
-                        need_rebuild = False
-                        vs._init_progress["status"] = "ready"
-                        logger.info(
-                            "向量缓存指纹与文本特征 MD5 已完全对齐，直接载入启动，共有 %d 条向量",
-                            vs.doc_count,
-                        )
-
-                if need_rebuild:
-                    if docs:
-                        logger.info(
-                            "向量缓存缺失或数据指纹不对齐（数据发生漂移），正在后台启动全量向量构建..."
-                        )
-                        await asyncio.to_thread(vs.build, docs, current_db_md5)
-                        await vs.save(vs_path)
-                        logger.info(
-                            "全量向量自愈构建并落盘完成，对齐并持久化 %d 条活跃向量",
-                            vs.doc_count,
-                        )
-                    else:
-                        vs._init_progress["status"] = "ready"
-                        logger.warning("知识库中尚无活跃条目，跳过启动向量构建")
-        except Exception as exc:
-            vs._init_progress["status"] = "failed"
-            logger.error("异步初始化向量搜索遭遇严重异常: %s", exc)
-
-    init_task = asyncio.create_task(async_init_vector_search())
-    _background_tasks.add(init_task)
-    init_task.add_done_callback(_background_tasks.discard)
-
-    # 异步定时节流刷盘后台守护任务
-    async def periodic_save_task() -> None:
-        try:
-            while True:
-                try:
-                    await asyncio.wait_for(vs._save_event.wait(), timeout=120.0)
-                    vs._save_event.clear()
-                except asyncio.TimeoutError:
-                    pass
-                if vs and vs._dirty:
-                    async with db_session_scope():
-                        active_docs = await knowledge_repo.get_all_titles_with_keys()
-                        import hashlib
-
-                        sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                        concat_str = "".join(
-                            f"{d[1]}{d[2]}" for d in sorted_active_docs
-                        )
-                        latest_db_md5 = hashlib.md5(
-                            concat_str.encode("utf-8")
-                        ).hexdigest()
-                        vs._data_hash = latest_db_md5
-                        await vs.save(vs_path)
-        except asyncio.CancelledError:
-            # 正常退出拦截器，最后一次强制清算持久化
-            if vs and vs._dirty:
-                try:
-                    async with db_session_scope():
-                        active_docs = await knowledge_repo.get_all_titles_with_keys()
-                        import hashlib
-
-                        sorted_active_docs = sorted(active_docs, key=lambda x: x[0])
-                        concat_str = "".join(
-                            f"{d[1]}{d[2]}" for d in sorted_active_docs
-                        )
-                        latest_db_md5 = hashlib.md5(
-                            concat_str.encode("utf-8")
-                        ).hexdigest()
-                        vs._data_hash = latest_db_md5
-                        await vs.save(vs_path)
-                except Exception as e:
-                    logger.error("守护协程退关刷盘异常: %s", e)
-        except Exception as e:
-            logger.error("定时节流刷盘守护协程异常: %s", e)
-
-    save_task = asyncio.create_task(periodic_save_task())
-
-    # Service 层
-    knowledge_retriever = KnowledgeRetriever(
-        knowledge_repo, vs, config_repo=config_repo
-    )
-    from app.service.admin import AdminService
-    from app.service.knowledge_admin import KnowledgeAdminService
-    from app.service.knowledge_sync import KnowledgeSyncService
-    from app.service.observability import ObservabilityService
-    from app.service.transfer_manager import TransferManager
-
-    admin_service = AdminService(
-        session_repo=session_repo,
-        message_repo=message_repo,
-        transfer_repo=transfer_repo,
-        knowledge_repo=knowledge_repo,
-        config_repo=config_repo,
-        youzan_product_repo=youzan_product_repo,
-    )
-    observability_service = ObservabilityService(
-        knowledge_repo=knowledge_repo,
-        product_repo=youzan_product_repo,
-        history_repo=history_repo,
-        webhook_repo=webhook_event_repo,
-    )
-    knowledge_sync_service = KnowledgeSyncService(
-        knowledge_repo=knowledge_repo,
-        history_repo=history_repo,
-        embedding_searcher=vs,
-    )
-    knowledge_admin_service = KnowledgeAdminService(
-        knowledge_repo=knowledge_repo,
-        admin_repo=knowledge_admin_repo,
-        history_repo=history_repo,
-        sync_service=knowledge_sync_service,
-    )
-    transfer_mgr = TransferManager(transfer_repo)
-
-    youzan_client = YouzanClient(config_repo=config_repo)
-    analytics_repo = AnalyticsRepo(None)
-    youzan_event_handler = YouzanEventHandler(
-        db=None,
-        knowledge_retriever=knowledge_retriever,
-        youzan_client=youzan_client,
-        audit_repo=webhook_event_repo,
-    )
-    reconcile_service = ProductReconcileService(
-        youzan_client=youzan_client,
-        product_repo=youzan_product_repo,
-        history_repo=history_repo,
-        knowledge_product_repo=knowledge_product_repo,
-    )
-
-    chat_service = ChatService(
-        session_repo=session_repo,
-        message_repo=message_repo,
-        transfer_repo=transfer_repo,
-        knowledge_retriever=knowledge_retriever,
-        youzan_client=youzan_client,
-        youzan_webhook_events_repo=webhook_event_repo,
-        youzan_event_handler=youzan_event_handler,
-        analytics_repo=analytics_repo,
-    )
-
-    # 注册路由（通过工厂函数注入依赖）
+def _register_routes(app: FastAPI, services: dict[str, Any]) -> None:
+    """注册所有 API 路由。"""
     from app.api.admin import create_admin_router
     from app.api.admin_config import create_shop_config_router
     from app.api.admin_frontend import create_admin_frontend_router
@@ -249,38 +159,37 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.api.admin_observability import create_observability_router
     from app.api.admin_products import create_admin_products_router
     from app.api.webhook import create_webhook_router
-    from app.api.wecom import router as wecom_router, register_handler
+    from app.api.wecom import router as wecom_router
 
-    # 注册企微消息回调处理器
-    async def wecom_handler(
-        channel: str, user_id: str, content: str, channel_msg_id: str
-    ) -> None:
-        await chat_service.handle_message(
-            channel=channel,
-            user_id=user_id,
-            content=content,
-            channel_msg_id=channel_msg_id,
-        )
+    # 启动企微消息队列 Worker（异步消费，避免回调超时）
+    from app.service.wecom.message_queue import wecom_queue
 
-    register_handler(wecom_handler)
+    wecom_queue.start_worker(services["chat_service"])
 
-    app.include_router(create_webhook_router(chat_service))
+    app.include_router(create_webhook_router(services["chat_service"]))
     app.include_router(
         create_admin_router(
-            chat_service=chat_service,
-            admin_service=admin_service,
-            transfer_mgr=transfer_mgr,
+            chat_service=services["chat_service"],
+            admin_service=services["admin_service"],
+            transfer_mgr=services["transfer_mgr"],
         )
     )
     app.include_router(create_admin_frontend_router())
-    app.include_router(create_shop_config_router(admin_service))
-    app.include_router(create_admin_knowledge_router(knowledge_admin_service))
-    app.include_router(create_observability_router(observability_service))
+    app.include_router(create_shop_config_router(services["admin_service"]))
     app.include_router(
-        create_admin_products_router(reconcile_service, knowledge_sync_service)
+        create_admin_knowledge_router(services["knowledge_admin_service"])
+    )
+    app.include_router(create_observability_router(services["observability_service"]))
+    app.include_router(
+        create_admin_products_router(
+            services["reconcile_service"], services["knowledge_sync_service"]
+        )
     )
     app.include_router(wecom_router)
 
+
+async def _startup_notify() -> None:
+    """发送启动通知。"""
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)
     asyncio.create_task(
         alert_service.alert(
@@ -290,8 +199,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
     )
 
+
+def _start_background_tasks() -> set[asyncio.Task[None]]:
+    """创建后台任务集合（持有强引用，避免任务被 GC 提前回收）。"""
+    return set()
+
+
+async def _startup_sync(
+    knowledge_sync_service: Any, bg_tasks: set[asyncio.Task[None]]
+) -> None:
+    """服务启动完成后批量同步所有 pending 向量条目。"""
+
     async def _startup_sync_task() -> None:
-        """服务启动完成后批量同步所有 pending 向量条目。"""
         try:
             async with db_session_scope():
                 result = await knowledge_sync_service.sync_all_pending()
@@ -300,18 +219,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error("启动向量自愈同步失败: %s", exc)
 
     startup_sync = asyncio.create_task(_startup_sync_task())
-    _background_tasks.add(startup_sync)
-    startup_sync.add_done_callback(_background_tasks.discard)
-    yield
-    # ── shutdown ──
-    save_task.cancel()
-    try:
-        await save_task
-    except asyncio.CancelledError:
-        pass
+    bg_tasks.add(startup_sync)
+    startup_sync.add_done_callback(lambda t: bg_tasks.discard(t))
+
+
+async def _shutdown_lifespan_services(
+    app: FastAPI, _bg_tasks: set[asyncio.Task[None]]
+) -> None:
+    """关闭 lifespan 所有服务。"""
+    # 取消定时刷盘任务
+    if hasattr(app.state, "save_task"):
+        save_task = app.state.save_task
+        save_task.cancel()
+        try:
+            await save_task
+        except asyncio.CancelledError:
+            pass
+
+    # 停止企微消息队列 Worker
+    from app.service.wecom.message_queue import wecom_queue
+
+    await wecom_queue.stop()
+
+    # 关闭企微客户端
     from app.service.wecom.client import close_wecom_client
 
     await close_wecom_client()
+
+    # 发送关闭通知
     await alert_service.alert(
         AlertLevel.INFO, "服务已关闭", f"芸熙烘焙 AI 客服 v{APP_VERSION} 已正常关闭"
     )
@@ -370,7 +305,7 @@ async def db_session_middleware(request: Request, call_next):
 
 # ── 全局异常处理器 ──
 @app.exception_handler(AppError)
-async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
     logger.error("应用异常: %s %s", type(exc).__name__, exc)
     status = exc.status_code
     return JSONResponse(
@@ -379,7 +314,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 
 @app.exception_handler(Exception)
-async def general_error_handler(request: Request, exc: Exception) -> JSONResponse:
+async def general_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     logger.critical("未预期异常: %s", exc, exc_info=True)
     # 异步发送企微告警（不阻塞 HTTP 响应）
     asyncio.create_task(
@@ -394,5 +329,5 @@ async def general_error_handler(request: Request, exc: Exception) -> JSONRespons
 
 # ── 健康检查 ──
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str]:
     return {"status": "ok", "version": APP_VERSION}

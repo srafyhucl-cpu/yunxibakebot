@@ -5,12 +5,15 @@
 
 流程：
 1. GET 请求验证 URL（echostr 解密）
-2. POST 接收消息（解密 XML → 交给 ChatService 处理 → 发回复）
+2. POST 接收消息（解密 XML → 入队异步处理 → 立即返回 200）
+
+异步设计：
+- 回调接口只负责解密 + 入队（<1ms），满足企微 5s 超时要求
+- 实际 AI 对话 + 发回复由 message_queue.py 的后台 Worker 执行
 """
 
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
 
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
@@ -22,15 +25,6 @@ from app.service.wecom.crypto import decrypt, verify_signature
 logger = setup_logger()
 
 router = APIRouter(prefix="/api/v1/wecom", tags=["wecom"])
-
-# 消息处理回调（由 ChatService 注册）
-_message_handler: Callable | None = None
-
-
-def register_handler(handler: Callable) -> None:
-    """注册消息处理函数。"""
-    global _message_handler
-    _message_handler = handler
 
 
 def _parse_message_xml(xml_str: str) -> dict:
@@ -54,7 +48,9 @@ async def verify_url(
         logger.error("WECOM_ENCODING_AES_KEY 或 WECOM_TOKEN 未配置")
         return PlainTextResponse("配置错误", status_code=500)
 
-    if not verify_signature(settings.WECOM_TOKEN, timestamp, nonce, echostr, msg_signature):
+    if not verify_signature(
+        settings.WECOM_TOKEN, timestamp, nonce, echostr, msg_signature
+    ):
         logger.warning("URL 验证签名失败")
         return PlainTextResponse("签名验证失败", status_code=403)
 
@@ -87,7 +83,9 @@ async def receive_message(request: Request) -> PlainTextResponse:
         return PlainTextResponse("XML 解析失败", status_code=400)
 
     # 验签
-    if not verify_signature(settings.WECOM_TOKEN, timestamp, nonce, encrypt_xml, msg_signature):
+    if not verify_signature(
+        settings.WECOM_TOKEN, timestamp, nonce, encrypt_xml, msg_signature
+    ):
         logger.warning("消息签名验证失败")
         return PlainTextResponse("签名验证失败", status_code=403)
 
@@ -106,7 +104,9 @@ async def receive_message(request: Request) -> PlainTextResponse:
 
     logger.info(
         "收到企微消息 type=%s from=%s msg_id=%s",
-        msg_type, from_user, msg_id,
+        msg_type,
+        from_user,
+        msg_id,
     )
 
     # 空文本消息直接忽略
@@ -118,21 +118,24 @@ async def receive_message(request: Request) -> PlainTextResponse:
     if msg_type != "text":
         logger.info(
             "企微非文本消息暂不支持，已跳过处理 type=%s from=%s msg_id=%s",
-            msg_type, from_user, msg_id,
+            msg_type,
+            from_user,
+            msg_id,
         )
         return PlainTextResponse("")
 
-    # 转给 ChatService 处理
-    if _message_handler:
-        try:
-            await _message_handler(
-                channel="wecom_1on1",
-                user_id=from_user,
-                content=content,
-                channel_msg_id=msg_id,
-            )
-        except Exception as exc:
-            logger.error("消息处理失败: %s", exc)
+    # 异步入队：立即返回，后台 Worker 负责处理
+    from app.service.wecom.message_queue import wecom_queue, WeComIncomingMessage
+
+    success = wecom_queue.enqueue(
+        WeComIncomingMessage(
+            external_user_id=from_user,
+            content=content,
+            channel_msg_id=msg_id,
+        )
+    )
+    if not success:
+        logger.warning("企微消息队列已满，丢弃消息 user=%s", from_user)
 
     # 企微回调要求立即返回 200，内容为空
     return PlainTextResponse("")
