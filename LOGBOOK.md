@@ -19,6 +19,16 @@
     - 合入 bundle + 依赖增量安装 + 服务启停 + 健康检查（60s 超时）
     - 失败时输出回滚命令和排查指令
 
+## [2026-06-06] - fix(wecom): 消息发送改用内部接口 + 自动降级
+
+- **操作人**: AI
+- **关联问题**: 发送消息报错 `errcode=48002 (api forbidden)`
+- **根因**: 代码使用 `externalcontact/message/send`（外部联系人 API），
+  但测试用户 hucloong 是企业**内部成员**，不是外部联系人
+- **修复**: 
+  - `client.py`: `send_text/send_markdown` 改为优先使用内部接口 `/message/send`
+  - 内部接口失败时自动降级到外部联系人接口（兼容真实客户场景）
+
 ## [2026-06-06] - fix(wecom): Worker 添加 db_session_scope 数据库上下文
 
 - **操作人**: AI

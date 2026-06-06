@@ -72,62 +72,109 @@ class WeComClient:
 
     async def send_text(
         self,
-        external_user_id: str,
+        user_id: str,
         content: str,
         agent_id: str | None = None,
     ) -> dict:
         """
-        给客户（外部联系人）发送文本消息。
+        发送文本消息（自动适配内部成员/外部联系人）。
 
         参数：
-            external_user_id: 企微外部联系人 userid
+            user_id: 用户 userid（内部成员或外部联系人）
             content: 消息内容
             agent_id: 应用 AgentId（默认从配置读取）
         返回：
             API 响应 JSON
         """
         token = await self.get_token()
+        agentid = int(agent_id or settings.WECOM_AGENT_ID)
+
+        # 先尝试内部消息接口（适用于企业成员）
         resp = await self._client.post(
-            f"{WECOM_API_BASE}/externalcontact/message/send",
+            f"{WECOM_API_BASE}/message/send",
             params={"access_token": token},
             json={
-                "to_user": external_user_id,
+                "touser": user_id,
                 "msgtype": "text",
+                "agentid": agentid,
                 "text": {"content": content},
-                "agent_id": int(agent_id or settings.WECOM_AGENT_ID),
             },
         )
         response_data = resp.json()
+
+        # 如果内部接口失败且是用户不存在类错误，降级尝试外部联系人接口
+        if response_data.get("errcode") != 0:
+            errcode = response_data.get("errcode")
+            # 常见的不存在/无权限错误码，尝试外部联系人接口
+            if errcode in (60001, 60002, 60004, 60005, 60006, 81003, 81006):
+                logger.info(
+                    "内部消息发送失败(err=%d)，降级尝试外部联系人接口 user=%s",
+                    errcode,
+                    user_id,
+                )
+                resp = await self._client.post(
+                    f"{WECOM_API_BASE}/externalcontact/message/send",
+                    params={"access_token": token},
+                    json={
+                        "to_user": user_id,
+                        "msgtype": "text",
+                        "agent_id": agentid,
+                        "text": {"content": content},
+                    },
+                )
+                response_data = resp.json()
+
         if response_data.get("errcode") == 0:
-            logger.info(
-                "消息已发送 to=%s len=%d", external_user_id, len(content)
-            )
+            logger.info("消息已发送 to=%s len=%d", user_id, len(content))
         else:
             logger.error(
-                "消息发送失败 to=%s err=%s",
-                external_user_id, response_data.get("errmsg"),
+                "消息发送失败 to=%s err=%s", user_id, response_data.get("errmsg")
             )
         return response_data
 
     async def send_markdown(
         self,
-        external_user_id: str,
+        user_id: str,
         content: str,
         agent_id: str | None = None,
     ) -> dict:
-        """给客户发送 Markdown 消息。"""
+        """发送 Markdown 消息（自动适配内部/外部）。"""
         token = await self.get_token()
+        agentid = int(agent_id or settings.WECOM_AGENT_ID)
+
         resp = await self._client.post(
-            f"{WECOM_API_BASE}/externalcontact/message/send",
+            f"{WECOM_API_BASE}/message/send",
             params={"access_token": token},
             json={
-                "to_user": external_user_id,
+                "touser": user_id,
                 "msgtype": "markdown",
+                "agentid": agentid,
                 "markdown": {"content": content},
-                "agent_id": int(agent_id or settings.WECOM_AGENT_ID),
             },
         )
         response_data = resp.json()
+
+        if response_data.get("errcode") != 0 and response_data.get("errcode") in (
+            60001,
+            60002,
+            60004,
+            60005,
+            60006,
+            81003,
+            81006,
+        ):
+            resp = await self._client.post(
+                f"{WECOM_API_BASE}/externalcontact/message/send",
+                params={"access_token": token},
+                json={
+                    "to_user": user_id,
+                    "msgtype": "markdown",
+                    "agent_id": agentid,
+                    "markdown": {"content": content},
+                },
+            )
+            response_data = resp.json()
+
         if response_data.get("errcode") != 0:
             logger.error("Markdown 发送失败 err=%s", response_data.get("errmsg"))
         return response_data
