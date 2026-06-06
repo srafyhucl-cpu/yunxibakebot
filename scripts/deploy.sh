@@ -16,8 +16,8 @@
 
 set -euo pipefail
 
-# ---- 配置区（请根据实际情况修改）----
-SSH_HOST="${SSH_HOST:-your_server_ip}"      # TODO: 替换为真实服务器 IP 或域名
+# ---- 配置区 ----
+SSH_HOST="${SSH_HOST:-47.94.102.250}"
 SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
