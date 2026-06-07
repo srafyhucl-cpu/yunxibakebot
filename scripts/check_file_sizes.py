@@ -9,9 +9,9 @@ from pathlib import Path
 
 # 强制 stdout 使用 UTF-8，避免 Windows GBK 编码下 pre-commit 管道卡死
 try:
-    sys.stdout.reconfigure(encoding="utf-8")
-except Exception:
-    pass
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+except AttributeError:
+    pass  # Python < 3.7 或某些环境不支持 reconfigure，忽略即可
 
 # blocking 阈值（行数）：各层模块上限
 BLOCKING_RULES: list[tuple[str, int]] = [

@@ -34,11 +34,8 @@ from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
-from app.service.chat import ChatService
-from app.service.knowledge_retriever import KnowledgeRetriever
-from app.service.youzan.client import YouzanClient
-from app.service.youzan.event_handler import YouzanEventHandler
-from app.service.youzan.product_reconciler import ProductReconcileService
+# 以下5个服务类由lifespan_services模块内部按需导入，避免顶层循环依赖
+# （顶层仅做类型标注用）：ChatService、KnowledgeRetriever、YouzanClient、YouzanEventHandler、ProductReconcileService
 
 logger = setup_logger()
 
@@ -104,7 +101,10 @@ async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
     # 3. 初始化向量搜索
     from app.lifespan_vector import init_vector_search
 
-    vs, save_task = await init_vector_search(app, repos["knowledge_repo"])
+    vs, save_task = await init_vector_search(
+        app,
+        repos["knowledge_repo"],  # type: ignore[arg-type]
+    )
 
     # 4. 初始化 Service 层
     from app.lifespan_services import init_services

@@ -12,12 +12,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+# 本文件使用Mixin混入模式（见pyrightconfig.json的overrides配置），
+# 运行时通过__bases__动态将KfClientMixin方法注入WeComClient，
+# 类型检查已在该文件的overrides中放宽限制
+
 from app.config import settings
 from app.logger import setup_logger
 from app.service.wecom.constants import WECOM_API_BASE
 
 if TYPE_CHECKING:
-    from app.service.wecom.client import WeComClient
+    pass
 
 logger = setup_logger()
 
@@ -278,7 +282,7 @@ class KfClientMixin:
 
         try:
             # 企微 kf/servicer/list 接口：尝试多种请求方式
-            data: dict[str, Any] | None = None
+            data: dict[str, Any] = {}
 
             # 方式1: GET + 查询参数
             resp = await self._client.get(
