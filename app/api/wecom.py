@@ -1,15 +1,19 @@
-"""企微回调入口。
+"""企微回调入口（统一：自建应用 + 微信客服）。
 
-客户发消息给员工时，企微推送到此接口。
-需要先在企微后台配置回调 URL。
+客户发消息给员工（自建应用）、或微信用户发消息给客服（微信客服），都推送到此接口。
+需要先在企微后台配置回调 URL，并开启「微信客服消息和事件」开关。
 
 流程：
 1. GET 请求验证 URL（echostr 解密）
-2. POST 接收消息（解密 XML → 入队异步处理 → 立即返回 200）
+2. POST 接收消息/事件通知（解密 XML → 根据类型分发处理）
+
+消息类型分流：
+- MsgType=text  → 自建应用消息 → 入队 wecom_queue
+- MsgType=event + Event=kf_msg_or_event → 微信客服通知 → sync_msg拉取 → 入队 kf_queue
 
 异步设计：
 - 回调接口只负责解密 + 入队（<1ms），满足企微 5s 超时要求
-- 实际 AI 对话 + 发回复由 message_queue.py 的后台 Worker 执行
+- 实际 AI 对话 + 发回复由各队列的 Worker 执行
 """
 
 import time
@@ -43,7 +47,7 @@ async def verify_url(
     nonce: str,
     echostr: str,
 ) -> PlainTextResponse:
-    """验证回调 URL（企微 GET 请求）。"""
+    """验证回调 URL（企微 GET 请求）。自建应用与微信共用此验证。"""
     if not settings.WECOM_ENCODING_AES_KEY or not settings.WECOM_TOKEN:
         logger.error("WECOM_ENCODING_AES_KEY 或 WECOM_TOKEN 未配置")
         return PlainTextResponse("配置错误", status_code=500)
@@ -62,9 +66,98 @@ async def verify_url(
         return PlainTextResponse("解密失败", status_code=500)
 
 
+async def _handle_kf_callback(msg: dict) -> None:
+    """
+    处理微信客服回调通知。
+
+    收到 event=kf_msg_or_event 后：
+    1. 从 XML 中提取 Token 和 OpenKfId
+    2. 用 Token 调 /kf/sync_msg 拉取具体消息内容（JSON）
+    3. 过滤客户文本消息（origin=3, msgtype=text）
+    4. 异步入队到 kf_queue
+    """
+    kf_token = msg.get("Token", "")
+    open_kfid = msg.get("OpenKfId", "")
+
+    if not kf_token:
+        logger.warning("客服回调事件中无 Token 字段，忽略")
+        return
+
+    logger.info("收到客服回调通知 open_kfid=%s token=%s...", open_kfid, kf_token[:8])
+
+    # 用 Token 调用 sync_msg 拉取消息
+    from app.service.wecom.client import get_wecom_client
+
+    client = get_wecom_client()
+    try:
+        sync_result = await client.sync_kf_messages(kf_token=kf_token)
+    except Exception as exc:
+        logger.error("sync_msg 拉取消息失败: %s", exc)
+        return
+
+    if sync_result.get("errcode") != 0:
+        logger.error(
+            "sync_msg 返回错误 err=%s %s",
+            sync_result.get("errcode"),
+            sync_result.get("errmsg"),
+        )
+        return
+
+    # 处理消息列表
+    from app.service.wecom.kf_message_queue import kf_queue, KfIncomingMessage
+
+    msg_list = sync_result.get("msg_list", [])
+    enqueued_count = 0
+
+    for item in msg_list:
+        origin = item.get("origin", 0)
+        msgtype = item.get("msgtype", "")
+
+        # 只处理客户发送的文本消息（origin=3 表示客户发）
+        if origin != 3 or msgtype != "text":
+            if origin == 4:
+                logger.debug(
+                    "客服系统事件 type=%s msg_id=%s",
+                    item.get("event_type", msgtype),
+                    item.get("msgid", ""),
+                )
+            elif origin == 5:
+                logger.debug("接待人员消息（无需处理）msg_id=%s", item.get("msgid", ""))
+            continue
+
+        external_userid = item.get("external_userid", "")
+        text_content = item.get("text", {}).get("content", "")
+        item_msg_id = item.get("msgid", "")
+
+        if not text_content.strip():
+            continue
+
+        logger.info(
+            "收到客服文本消息 user=%s content=%s msg_id=%s",
+            external_userid,
+            text_content[:50],
+            item_msg_id,
+        )
+
+        success = await kf_queue.enqueue(
+            KfIncomingMessage(
+                external_userid=external_userid,
+                open_kfid=open_kfid,
+                content=text_content,
+                msg_id=item_msg_id,
+            )
+        )
+        if success:
+            enqueued_count += 1
+        else:
+            logger.warning("客服消息队列已满，丢弃 user=%s", external_userid)
+
+    logger.info("客服回调处理完成 共%d条消息 入队%d条", len(msg_list), enqueued_count)
+
+
 @router.post("/callback")
 async def receive_message(request: Request) -> PlainTextResponse:
-    """接收企微推送的消息（POST）。"""
+    """接收企微推送的消息和事件（POST）。根据类型分流处理。"""
     if not settings.WECOM_ENCODING_AES_KEY or not settings.WECOM_TOKEN:
         return PlainTextResponse("配置错误", status_code=500)
 
@@ -100,6 +193,17 @@ async def receive_message(request: Request) -> PlainTextResponse:
 
     msg = _parse_message_xml(plain_xml)
     msg_type = msg.get("MsgType", "")
+
+    # ── 分流：微信客服事件 ──
+    if msg_type == "event":
+        event_type = msg.get("Event", "")
+        if event_type == "kf_msg_or_event":
+            await _handle_kf_callback(msg)
+        else:
+            logger.info("收到其他企微事件 type=%s（未处理）", event_type)
+        return PlainTextResponse("")
+
+    # ── 自建应用消息（原有逻辑）──
     content = msg.get("Content", "")
     from_user = msg.get("FromUserName", "")
     msg_id = msg.get("MsgId", "")
@@ -115,8 +219,7 @@ async def receive_message(request: Request) -> PlainTextResponse:
     if msg_type == "text" and not content.strip():
         return PlainTextResponse("")
 
-    # 非文本消息（图片/语音/视频等）：企微被动/主动回复链路尚未启用（见 L-4.1 休眠项），
-    # 此前与空消息一样被静默丢弃（L-4.2）。这里至少显式记录，避免无声吞掉，便于排查与后续接入兜底回复。
+    # 非文本消息（图片/语音/视频等）：显式记录，便于排查与后续扩展
     if msg_type != "text":
         logger.info(
             "企微非文本消息暂不支持，已跳过处理 type=%s from=%s msg_id=%s",

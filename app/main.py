@@ -166,6 +166,11 @@ def _register_routes(app: FastAPI, services: dict[str, Any]) -> None:
 
     wecom_queue.start_worker(services["chat_service"])
 
+    # 启动微信客服消息队列 Worker（复用同一回调URL，通过事件类型分流）
+    from app.service.wecom.kf_message_queue import kf_queue
+
+    kf_queue.start_worker(services["chat_service"])
+
     app.include_router(create_webhook_router(services["chat_service"]))
     app.include_router(
         create_admin_router(
@@ -240,6 +245,11 @@ async def _shutdown_lifespan_services(
     from app.service.wecom.message_queue import wecom_queue
 
     await wecom_queue.stop()
+
+    # 停止微信客服消息队列 Worker
+    from app.service.wecom.kf_message_queue import kf_queue
+
+    await kf_queue.stop()
 
     # 关闭企微客户端
     from app.service.wecom.client import close_wecom_client

@@ -62,5 +62,10 @@ class Settings(BaseSettings):
     WECOM_STAFF_ID: str = ""  # 客服小李的企微 USER_ID
     WECOM_ROBOT_WEBHOOK: str = ""  # 企微值班群机器人 WEBHOOK 地址 (选填，支持群机器人)
 
+    # ── 企业微信（微信客服） ──
+    # 微信客服与自建应用共用同一个回调URL / Token / EncodingAESKey
+    # 只需额外配置客服账号 ID，用于发送消息时指定 open_kfid
+    WECOM_KF_ID: str = ""  # 微信客服账号 ID (open_kfid)，格式如 wkxxxxxxxx
+
 
 settings = Settings()

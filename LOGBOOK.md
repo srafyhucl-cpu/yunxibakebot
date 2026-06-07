@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - feat(wecom-kf): 微信客服接入（kf_msg_or_event回调 + sync_msg拉取 + AI自动回复）
+
+- **操作人**: AI
+- **关联需求**: 用户通过微信客服「芸熙智能客服」发消息时，AI 自动回复
+- **变更**:
+  - `config.py`: +1 配置项 `WECOM_KF_ID`（复用原有 Token/AESKey）
+  - `client.py`: +3 方法 `send_kf_text()` / `send_kf_link()` / `sync_kf_messages()`
+  - `api/wecom.py`: 回调中新增事件分流，识别 `kf_msg_or_event` → sync_msg → 入队 kf_queue
+  - `service/wecom/kf_message_queue.py`: 新建客服消息队列 Worker（复用 ChatService）
+  - `main.py`: 注册 kf_queue Worker 启停
+- **架构**: 微信客服与自建应用共用同一回调URL `/api/v1/wecom/callback`，通过 event 类型分流
+
 ## [2026-06-06] - scripts(deploy): 一键部署脚本（打包→传输→远程部署→清理）
 
 - **操作人**: AI
