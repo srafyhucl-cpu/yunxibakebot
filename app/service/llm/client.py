@@ -24,24 +24,38 @@ logger = setup_logger()
 # 聊天补全接口的默认 token 上限
 DEFAULT_CHAT_MAX_TOKENS = 2048
 
-# 全局单例客户端（MiMo 主力），避免重复创建连接
-_client: AsyncOpenAI | None = None
+# 全局单例客户端
+_mimo_client: AsyncOpenAI | None = None
+_deepseek_client: AsyncOpenAI | None = None
 
 
-def get_client() -> AsyncOpenAI:
+def get_mimo_client() -> AsyncOpenAI:
     """获取或初始化 MiMo 异步客户端（单例模式）。"""
-    global _client
-    if _client is None:
+    global _mimo_client
+    if _mimo_client is None:
         # trust_env=False 禁止读取系统代理环境变量
         # MiMo 使用 api-key 认证头（非标准 Bearer），通过 default_headers 传入
-        _client = AsyncOpenAI(
+        _mimo_client = AsyncOpenAI(
             api_key=settings.MIMO_API_KEY,
             base_url=settings.MIMO_BASE_URL,
             timeout=settings.MIMO_TIMEOUT_SECONDS,
             http_client=httpx.AsyncClient(trust_env=False),
             default_headers={"api-key": settings.MIMO_API_KEY},
         )
-    return _client
+    return _mimo_client
+
+
+def get_deepseek_client() -> AsyncOpenAI:
+    """获取或初始化 DeepSeek 异步客户端（单例模式）。"""
+    global _deepseek_client
+    if _deepseek_client is None:
+        _deepseek_client = AsyncOpenAI(
+            api_key=settings.DEEPSEEK_API_KEY,
+            base_url=settings.DEEPSEEK_BASE_URL,
+            timeout=settings.DEEPSEEK_TIMEOUT_SECONDS,
+            http_client=httpx.AsyncClient(trust_env=False),
+        )
+    return _deepseek_client
 
 
 async def chat_completion(
@@ -52,19 +66,21 @@ async def chat_completion(
     model: str = "",
 ) -> ChatCompletion:
     """
-    调用 MiMo 聊天补全接口。
+    调用聊天补全接口（根据模型自动路由 MiMo 或 DeepSeek）。
 
     参数：
         messages: 消息列表（system + user + assistant + tool）
         tools: Function Calling 工具定义
-        model: 可选模型名（为空则使用默认 MIMO_CHAT_MODEL，多模态场景可传 VISION 模型）
+        model: 可选模型名（为空则使用默认 DEEPSEEK_MODEL，多模态场景传 VISION 模型）
     返回：
         ChatCompletion SDK 原生响应对象
     异常：
         LLMError: API 调用失败时抛出
     """
-    client = get_client()
-    resolved_model = model or settings.MIMO_CHAT_MODEL
+    resolved_model = model or settings.DEEPSEEK_MODEL
+    is_mimo = "mimo" in resolved_model.lower()
+    client = get_mimo_client() if is_mimo else get_deepseek_client()
+
     kwargs: dict = {
         "model": resolved_model,
         "messages": messages,
@@ -77,8 +93,9 @@ async def chat_completion(
     try:
         response = await client.chat.completions.create(**kwargs)
     except Exception as exc:
-        logger.error("MiMo API 调用失败(model=%s): %s", resolved_model, exc)
-        raise LLMError(f"MiMo API 调用失败({resolved_model})") from exc
+        provider = "MiMo" if is_mimo else "DeepSeek"
+        logger.error("%s API 调用失败(model=%s): %s", provider, resolved_model, exc)
+        raise LLMError(f"{provider} API 调用失败({resolved_model})") from exc
 
     return response
 
@@ -100,7 +117,7 @@ async def asr_transcribe(
     异常：
         LLMError: ASR 调用失败时抛出
     """
-    client = get_client()
+    client = get_mimo_client()
     audio_data_url = f"data:{mime_type};base64,{audio_base64}"
 
     try:
