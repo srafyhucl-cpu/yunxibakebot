@@ -1,7 +1,7 @@
 """微信客服 API 方法集（Mixin 基类，供 WeComClient 继承）。
 
 职责：
-- 调用微信客服专用接口（send_msg / sync_msg）
+- 调用微信客服专用接口（send_msg / sync_msg / media_upload）
 - 与自建应用的 /message/send 完全独立的 API 体系
 
 使用方式：
@@ -111,6 +111,46 @@ class KfClientMixin:
                 response_data.get("errmsg"),
             )
         return response_data
+
+    async def upload_kf_temp_media(
+        self: WeComClient,
+        file_data: bytes,
+        file_type: str = "image",
+        file_name: str = "image.jpg",
+    ) -> str | None:
+        """
+        上传临时素材到企微，返回 media_id。
+
+        用于发送 link 图文消息时提供 thumb_media_id。
+        临时素材有效期 3 天。
+
+        返回 media_id（字符串），失败返回 None。
+        """
+        token = await self.get_token()
+
+        # 使用 multipart/form-data 格式上传（httpx files 参数）
+        resp = await self._client.post(
+            f"{WECOM_API_BASE}/media/upload",
+            params={"access_token": token, "type": file_type},
+            files={"media": (file_name, file_data, "image/jpeg")},
+        )
+        data = resp.json()
+
+        if data.get("errcode") == 0:
+            media_id = data.get("media_id", "")
+            logger.info(
+                "临时素材上传成功 type=%s media_id=%s",
+                file_type,
+                media_id,
+            )
+            return media_id
+
+        logger.error(
+            "临时素材上传失败 type=%s err=%s",
+            file_type,
+            data.get("errmsg"),
+        )
+        return None
 
     async def sync_kf_messages(
         self: WeComClient, kf_token: str, cursor: str = "", limit: int = 1000

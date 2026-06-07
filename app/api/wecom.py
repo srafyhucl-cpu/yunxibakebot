@@ -107,54 +107,84 @@ async def _handle_kf_callback(msg: dict) -> None:
     from app.service.wecom.kf_message_queue import kf_queue, KfIncomingMessage
 
     msg_list = sync_result.get("msg_list", [])
-    enqueued_count = 0
 
+    # 第一步：按用户分组收集客户文本消息（origin=3, msgtype=text）
+    # 并记录非文本消息类型（卡片/图片等），用于排查
+    user_messages: dict[str, dict[str, dict]] = {}  # {user: {msgid: item}}
     for item in msg_list:
         origin = item.get("origin", 0)
         msgtype = item.get("msgtype", "")
+        item_msgid = item.get("msgid", "")
 
-        # 只处理客户发送的文本消息（origin=3 表示客户发）
-        if origin != 3 or msgtype != "text":
+        if origin != 3:
             if origin == 4:
                 logger.debug(
                     "客服系统事件 type=%s msg_id=%s",
                     item.get("event_type", msgtype),
-                    item.get("msgid", ""),
+                    item_msgid,
                 )
             elif origin == 5:
-                logger.debug("接待人员消息（无需处理）msg_id=%s", item.get("msgid", ""))
+                logger.debug("接待人员消息（无需处理）msg_id=%s", item_msgid)
             continue
 
         external_userid = item.get("external_userid", "")
-        text_content = item.get("text", {}).get("content", "")
-        item_msg_id = item.get("msgid", "")
 
-        if not text_content.strip():
+        # 文本消息：按 msg_id 去重后入队
+        if msgtype == "text":
+            text_content = item.get("text", {}).get("content", "")
+            if not text_content.strip():
+                continue
+
+            # 同一 msg_id 的重复推送只保留一条，不同 msg_id 都保留
+            user_dict = user_messages.setdefault(external_userid, {})
+            if item_msgid not in user_dict:
+                user_dict[item_msgid] = item
+                logger.info(
+                    "收到客服文本消息 user=%s content=%s msg_id=%s",
+                    external_userid,
+                    text_content[:50],
+                    item_msgid,
+                )
+            else:
+                logger.debug(
+                    "重复消息已跳过 user=%s msg_id=%s", external_userid, item_msgid
+                )
+
+        # 非文本消息：记录日志（后续可扩展支持图片/卡片等）
+        else:
+            logger.info(
+                "收到客服非文本消息 type=%s user=%s msg_id=%s（暂不处理）",
+                msgtype,
+                external_userid,
+                item_msgid,
+            )
+
+    # 第二步：对每个用户做一次会话状态处理，然后入队所有去重后的消息
+    enqueued_count = 0
+    for ext_uid, msg_dict in user_messages.items():
+        # 抢先处理会话状态（新会话分配给智能助手，人工会话则结束）
+        can_reply = await client.ensure_kf_session_active(ext_uid)
+        if not can_reply:
+            logger.info(
+                "用户会话不可用，跳过 %d 条消息 user=%s",
+                len(msg_dict),
+                ext_uid,
+            )
             continue
 
-        logger.info(
-            "收到客服文本消息 user=%s content=%s msg_id=%s",
-            external_userid,
-            text_content[:50],
-            item_msg_id,
-        )
-
-        # 抢先将会话分配给智能助手（避免被系统自动分配为人工接待）
-        # 状态 0→1 是允许的；若已是其他状态则忽略错误
-        await client.ensure_kf_session_active(external_userid)
-
-        success = await kf_queue.enqueue(
-            KfIncomingMessage(
-                external_userid=external_userid,
-                open_kfid=open_kfid,
-                content=text_content,
-                msg_id=item_msg_id,
+        for _msgid, item in msg_dict.items():
+            success = await kf_queue.enqueue(
+                KfIncomingMessage(
+                    external_userid=ext_uid,
+                    open_kfid=open_kfid,
+                    content=item["text"]["content"],
+                    msg_id=_msgid,
+                )
             )
-        )
-        if success:
-            enqueued_count += 1
-        else:
-            logger.warning("客服消息队列已满，丢弃 user=%s", external_userid)
+            if success:
+                enqueued_count += 1
+            else:
+                logger.warning("客服消息队列已满，丢弃 user=%s", ext_uid)
 
     logger.info("客服回调处理完成 共%d条消息 入队%d条", len(msg_list), enqueued_count)
 

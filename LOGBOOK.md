@@ -2,6 +2,21 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - fix(wecom-kf): 企微客服消息处理链路修复（卡片发送 + 消息不回复 + 转人工）
+
+- **操作人**: AI
+- **关联问题**:
+  1. 商品卡片只显示文字链接，微信端看不到图文卡片
+  2. 转人工后聊天死掉不再回复
+  3. 缩进 BUG 导致所有消息被静默丢弃
+- **根因分析**:
+  1. `link` 图文消息的 `thumb_media_id` 必填，传空值导致 40007 错误降级为文本
+  2. 调用 `service_state/trans` 切到状态3（人工接收）后企微停止推送消息给回调
+  3. 删除 service_state/trans 代码时替换操作导致后续 30+ 行多缩进一层变成死代码
+- **修复内容**:
+  - `client_kf.py`: 新增 `upload_kf_temp_media()` 上传临时素材获取 media_id
+  - `kf_message_queue.py`: `_send_card()` 完整链路（下载图片→上传素材→发 link 卡片）；修复 httpx 用法；修复缩进死代码；移除 service_state/trans 调用
+
 ## [2026-06-07] - fix(wecom-kf): 修复 client_kf mixin 不生效导致 sync_kf_messages 方法缺失
 
 - **操作人**: AI
