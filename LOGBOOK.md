@@ -2,6 +2,13 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - fix(wecom-kf): 修复 client_kf mixin 不生效导致 sync_kf_messages 方法缺失
+
+- **操作人**: AI
+- **关联问题**: 生产日志报 `'WeComClient' object has no attribute 'sync_kf_messages'`
+- **根因**: `client_kf.py` 使用运行时 `__bases__` 修改实现 mixin，但未在 `WeComClient` 被使用前触发导入
+- **修复**: 在 `client.py` 末尾显式 `import client_kf`，确保类定义完成后立即混入
+
 ## [2026-06-07] - feat(wecom-kf): 微信客服接入（kf_msg_or_event回调 + sync_msg拉取 + AI自动回复）
 
 - **操作人**: AI

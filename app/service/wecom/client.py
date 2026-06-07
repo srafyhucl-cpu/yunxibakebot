@@ -286,3 +286,10 @@ async def close_wecom_client() -> None:
     if _client:
         await _client.close()
         _client = None
+
+
+# 触发微信客服方法混入（必须在本模块完全加载后导入，避免循环依赖）
+from app.service.wecom import client_kf  # noqa: E402, F401
+
+# 清除引用，防止外部误用
+del client_kf
