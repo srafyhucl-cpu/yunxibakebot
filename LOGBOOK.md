@@ -2,6 +2,16 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - fix(audio): 解决企业微信客服语音消息因 AMR 格式未转码导致 ASR 识别失败的 Bug
+
+- **操作人**: AI (Antigravity)
+- **变更范围**:
+  - `app/utils.py` — 新增 `convert_amr_to_wav` 异步方法，使用系统 ffmpeg 将 AMR 格式字节流转换为 wav
+  - `app/service/wecom/kf_message_queue.py` — 语音消息处理阶段下载临时媒体后，先调用 `convert_amr_to_wav` 对语音文件转码为 wav 再进行 ASR 识别
+- **功能说明**:
+  1. 修复了正式服务器接收语音消息没有回复而是返回“非文本消息返回兜底提示”的 Bug。原因在于微信推送的语音为 amr 格式，小米 mimo ASR 不支持解码直接抛出 500。
+  2. 远程正式服务器成功安装 `ffmpeg` 系统工具，完成转码与 ASR 转写流程的打通。
+
 ## [2026-06-07] - feat(mimo): 全局接入小米 MiMo API 并修复 ASR 与数据库迁移 Bug
 
 - **操作人**: AI (Antigravity)
