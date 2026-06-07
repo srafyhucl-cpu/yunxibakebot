@@ -43,7 +43,9 @@ def _discover_migrations() -> list[tuple[int, str, str]]:
     if not MIGRATIONS_DIR.is_dir():
         return migrations
     for fname in sorted(os.listdir(MIGRATIONS_DIR)):
-        if not fname.endswith(".sql") or not fname[0].isdigit():
+        if not fname.endswith(".sql") or not (
+            fname[0].isdigit() or fname[0].lower() == "v"
+        ):
             continue
         # 提取 v001_xxx.sql 中的版本号
         try:

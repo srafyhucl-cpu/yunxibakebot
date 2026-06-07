@@ -2,6 +2,22 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - feat(mimo): 全局接入小米 MiMo API 并修复 ASR 与数据库迁移 Bug
+
+- **操作人**: AI (Antigravity)
+- **变更范围**:
+  - `app/config.py` — 新增小米 MiMo 大模型 API_KEY 等配置，废弃 DeepSeek 相关配置
+  - `app/main.py` — 启动安全配置检查切换至 `MIMO_API_KEY`
+  - `app/service/admin.py` — 系统状态诊断接口切换至小米配置指标
+  - `app/service/chat.py` — 视觉识别模型修改为使用 `MIMO_VISION_MODEL`
+  - `app/service/llm/client.py` — OpenAI 客户端初始化切换至 MiMo，并新增 `asr_transcribe` 语音转文字接口
+  - `app/service/llm/query_rewriter.py` — 默认改写模型切换至 `MIMO_CHAT_MODEL`
+  - `app/service/wecom/kf_message_queue.py` — 接入 ASR 语音识别链路，并修复了 `asr_transcribe().strip()` 协程调用导致程序崩溃的 AttributeError 异常
+  - `app/migrations/runner.py` — 修复 `_discover_migrations` 过滤条件过滤掉以 `v` 开头的增量迁移 SQL 文件，导致新表字段未成功创建、从而大面积单元测试失败的严重 Bug
+- **功能说明**:
+  1. 系统完整从原 DeepSeek 切换到小米 MiMo API，保证多模态在本地及服务器上的可用性。
+  2. 修复了因文件名校验导致数据库在 `:memory:` 初始化时缺失 `youzan_item_id` 进而使测试大面积卡死和崩溃的严重迁移 Bug。
+
 ## [2026-06-07] - feat(multimedia): 客服消息多媒体支持（图片识别 + 非文本兜底提示）
 
 - **操作人**: AI

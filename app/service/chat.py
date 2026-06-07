@@ -394,12 +394,12 @@ class ChatService:
             try:
                 if _t_llm_first is None:
                     _t_llm_first = time.monotonic()
-                # 多模态图片消息使用视觉模型
+                # 多模态图片消息使用 MiMo 视觉模型
                 llm_model = ""
                 if image_base64:
                     from app.config import settings as _cfg
 
-                    llm_model = _cfg.DEEPSEEK_VISION_MODEL or _cfg.DEEPSEEK_MODEL
+                    llm_model = _cfg.MIMO_VISION_MODEL or _cfg.MIMO_CHAT_MODEL
                 response = await llm_chat(
                     messages, tools=FUNCTION_DEFINITIONS, model=llm_model
                 )

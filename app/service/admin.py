@@ -22,7 +22,10 @@ from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.observability import ContentChangeLogger, build_knowledge_change_summary
+from app.service.observability import (
+    ContentChangeLogger,
+    build_knowledge_change_summary,
+)
 
 
 class AdminService:
@@ -100,7 +103,9 @@ class AdminService:
             return False
         extra = json.loads(session.extra_info or "{}")
         extra["name"] = name
-        await self._session_repo.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
+        await self._session_repo.update_extra(
+            session_id, json.dumps(extra, ensure_ascii=False)
+        )
         return True
 
     async def discard_session(self, session_id: str) -> bool:
@@ -139,8 +144,11 @@ class AdminService:
         sort_order: str = "desc",
     ) -> list[KnowledgeEntry]:
         return await KnowledgeProductRepo(self._knowledge_repo._db).get_all_products(
-            search=search, limit=limit, offset=offset,
-            is_active=is_active, sync_source=sync_source,
+            search=search,
+            limit=limit,
+            offset=offset,
+            is_active=is_active,
+            sync_source=sync_source,
             vector_sync_status=vector_sync_status,
             featured_titles=featured_titles,
             youzan_item_id_filter=youzan_item_id_filter,
@@ -162,7 +170,9 @@ class AdminService:
         item_no_filter: str = "",
     ) -> int:
         return await KnowledgeProductRepo(self._knowledge_repo._db).count_products(
-            search=search, is_active=is_active, sync_source=sync_source,
+            search=search,
+            is_active=is_active,
+            sync_source=sync_source,
             vector_sync_status=vector_sync_status,
             featured_titles=featured_titles,
             youzan_item_id_filter=youzan_item_id_filter,
@@ -185,8 +195,14 @@ class AdminService:
             sync_source=SyncSource.ADMIN_MANUAL,
             sync_ref=str(product_id),
         )
-        category = entry.category.value if hasattr(entry.category, "value") else str(entry.category)
-        await ContentChangeLogger(ContentChangeHistoryRepo(self._knowledge_repo._db)).log_success(
+        category = (
+            entry.category.value
+            if hasattr(entry.category, "value")
+            else str(entry.category)
+        )
+        await ContentChangeLogger(
+            ContentChangeHistoryRepo(self._knowledge_repo._db)
+        ).log_success(
             entity_type=ChangeEntityType.KNOWLEDGE,
             entity_key=str(product_id),
             category=category,
@@ -225,9 +241,10 @@ class AdminService:
             "channels": {
                 "youzan": {
                     "client_id_configured": _is_configured(settings.YOUZAN_CLIENT_ID),
-                    "client_secret_configured": _is_configured(settings.YOUZAN_CLIENT_SECRET),
+                    "client_secret_configured": _is_configured(
+                        settings.YOUZAN_CLIENT_SECRET
+                    ),
                     "kdt_id_configured": _is_configured(settings.YOUZAN_KDT_ID),
-
                     "mock_mode": settings.YOUZAN_MOCK_MODE,
                 },
                 "wecom": {
@@ -235,17 +252,22 @@ class AdminService:
                     "agent_id_configured": _is_configured(settings.WECOM_AGENT_ID),
                     "secret_configured": _is_configured(settings.WECOM_SECRET),
                     "token_configured": _is_configured(settings.WECOM_TOKEN),
-                    "encoding_aes_key_configured": _is_configured(settings.WECOM_ENCODING_AES_KEY),
+                    "encoding_aes_key_configured": _is_configured(
+                        settings.WECOM_ENCODING_AES_KEY
+                    ),
                     "staff_id_configured": _is_configured(settings.WECOM_STAFF_ID),
-                    "robot_webhook_configured": _is_configured(settings.WECOM_ROBOT_WEBHOOK),
+                    "robot_webhook_configured": _is_configured(
+                        settings.WECOM_ROBOT_WEBHOOK
+                    ),
                 },
             },
             "api": {
                 "admin_token_configured": _is_configured(settings.ADMIN_API_TOKEN),
-                "deepseek_api_key_configured": _is_configured(settings.DEEPSEEK_API_KEY),
-                "deepseek_base_url": settings.DEEPSEEK_BASE_URL,
-                "deepseek_model": settings.DEEPSEEK_MODEL,
-                "deepseek_timeout_seconds": settings.DEEPSEEK_TIMEOUT_SECONDS,
+                "mimo_api_key_configured": _is_configured(settings.MIMO_API_KEY),
+                "mimo_base_url": settings.MIMO_BASE_URL,
+                "mimo_chat_model": settings.MIMO_CHAT_MODEL,
+                "mimo_vision_model": settings.MIMO_VISION_MODEL,
+                "mimo_asr_model": settings.MIMO_ASR_MODEL,
             },
         }
 

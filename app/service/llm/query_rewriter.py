@@ -77,14 +77,14 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
 
     try:
         response = await client.chat.completions.create(
-            model=settings.DEEPSEEK_MODEL,
+            model=settings.MIMO_CHAT_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=QUERY_REWRITER_MAX_TOKENS,
         )  # type: ignore[union-attr]
         rewritten = (response.choices[0].message.content or "").strip()
         # 清理可能的引用标记
-        for ch in ["\"", "'", "“", "”", "‘", "’"]:
+        for ch in ['"', "'", "“", "”", "‘", "’"]:
             rewritten = rewritten.strip(ch)
         if not rewritten or len(rewritten) < 2:
             return user_query

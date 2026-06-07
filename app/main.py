@@ -53,7 +53,7 @@ def _check_startup_safety() -> None:
 
     # 检查其他敏感配置是否为空（仅记录警告，不阻止启动）
     sensitive_configs = [
-        ("DEEPSEEK_API_KEY", settings.DEEPSEEK_API_KEY),
+        ("MIMO_API_KEY", settings.MIMO_API_KEY),
         ("YOUZAN_CLIENT_ID", settings.YOUZAN_CLIENT_ID),
         ("YOUZAN_CLIENT_SECRET", settings.YOUZAN_CLIENT_SECRET),
         ("WECOM_CORP_ID", settings.WECOM_CORP_ID),

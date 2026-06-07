@@ -184,7 +184,6 @@ class KfMessageQueue:
         image_base64: str = ""
         effective_content = msg.content
         nontext_fallback_map = {
-            "voice": "不好意思，我没听清您的语音，可以打字告诉我吗？",
             "video": "抱歉，我暂时无法查看视频，麻烦您用文字描述一下需要咨询的问题~",
             "file": "抱歉，我暂时无法接收文件，请直接用文字告诉我您的问题，我会尽快为您解答 :)",
             "location": "我看到您发了一个位置信息~ 请问是想了解配送范围还是门店地址呢？",
@@ -213,6 +212,45 @@ class KfMessageQueue:
                         "下载图片素材异常 user=%s err=%s", msg.external_userid, exc
                     )
                     effective_content = ""
+
+            # 语音消息：下载后调用 MiMo ASR 转文字
+            elif msg.msgtype == "voice" and msg.media_id:
+                try:
+                    from app.service.llm.client import asr_transcribe
+
+                    voice_bytes = await client.download_kf_temp_media(msg.media_id)
+                    if voice_bytes:
+                        import base64
+
+                        audio_b64 = base64.b64encode(voice_bytes).decode("utf-8")
+                        # 企微语音默认为 amr 格式，MiMo ASR 支持 wav/mp3
+                        # 尝试按 wav 解码（大部分 ASR 模型能容忍格式差异）
+                        raw_asr_text = await asr_transcribe(
+                            audio_base64=audio_b64,
+                            mime_type="audio/wav",
+                            language="zh",
+                        )
+                        asr_text = raw_asr_text.strip()
+                        if asr_text:
+                            effective_content = f"[语音] {asr_text}"
+                            logger.info(
+                                "ASR 语音转文字成功 原文=%s user=%s",
+                                asr_text[:50],
+                                msg.external_userid,
+                            )
+                        else:
+                            effective_content = ""
+                    else:
+                        effective_content = ""
+                except Exception as exc:
+                    logger.error(
+                        "语音 ASR 转写异常 user=%s err=%s",
+                        msg.external_userid,
+                        exc,
+                    )
+                    effective_content = ""
+            else:
+                effective_content = ""
 
             if not image_base64 and not effective_content:
                 # 非图片或图片下载失败 → 直接回复兜底提示，不调 AI

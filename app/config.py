@@ -37,13 +37,24 @@ class Settings(BaseSettings):
     DB_PATH: str = "data/bot.db"
     EMBEDDING_INDEX_DIR: str = "data/embeddings"
 
-    # ── DeepSeek 大模型 ──
+    # ── DeepSeek 大模型（已废弃，保留字段兼容） ──
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_MODEL: str = "deepseek-chat"
-    # 视觉识别模型（支持图片输入的多模态模型），默认同上
+    # 视觉识别模型（已废弃，保留字段兼容）
     DEEPSEEK_VISION_MODEL: str = ""
     DEEPSEEK_TIMEOUT_SECONDS: float = 15.0
+
+    # ── 小米 MiMo 大模型（主力 LLM） ──
+    MIMO_API_KEY: str = ""
+    MIMO_BASE_URL: str = "https://api.xiaomimimo.com/v1"
+    # 文本对话模型
+    MIMO_CHAT_MODEL: str = "mimo-v2.5-pro"
+    # 视觉/多模态模型（支持图片输入）
+    MIMO_VISION_MODEL: str = "mimo-v2.5"
+    # 语音转文字模型（ASR）
+    MIMO_ASR_MODEL: str = "mimo-v2.5-asr"
+    MIMO_TIMEOUT_SECONDS: float = 120.0
 
     # ── 有赞云 ──
     YOUZAN_CLIENT_ID: str = ""
