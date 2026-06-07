@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     MIMO_API_KEY: str = ""
     MIMO_BASE_URL: str = "https://api.xiaomimimo.com/v1"
     # 文本对话模型
-    MIMO_CHAT_MODEL: str = "mimo-v2.5-pro"
+    MIMO_CHAT_MODEL: str = "mimo-v2.5"
     # 视觉/多模态模型（支持图片输入）
     MIMO_VISION_MODEL: str = "mimo-v2.5"
     # 语音转文字模型（ASR）

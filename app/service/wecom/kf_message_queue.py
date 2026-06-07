@@ -84,6 +84,16 @@ class KfMessageQueue:
         入队（非阻塞）。
         返回 True 表示入队成功，False 表示队列已满。
         """
+        # 1. 内存去重（在入队前端进行，防范微信客服历史重推消息塞爆队列）
+        if msg.msg_id in _processed_msg_ids:
+            logger.debug("入队拦截：重复消息已跳过 msg_id=%s", msg.msg_id)
+            return True
+        _processed_msg_ids.add(msg.msg_id)
+        # 防止内存无限增长：超过上限时清空旧数据
+        if len(_processed_msg_ids) > _MAX_PROCESSED_CACHE:
+            _processed_msg_ids.clear()
+            logger.info("已处理消息缓存已清空（达到上限 %d）", _MAX_PROCESSED_CACHE)
+
         try:
             self._queue.put_nowait(msg)
             return True
@@ -155,22 +165,11 @@ class KfMessageQueue:
     async def _process_one(self, msg: KfIncomingMessage) -> None:
         """
         处理单条客服消息的完整流程：
-        0. 消息去重（防止企微重复推送）
         1. 非文本消息处理：图片→下载+识别，其他→兜底提示
         2. 文本/图片消息：调用 ChatService 进行 AI 对话
         3. 解析回复中的 UMP 标记（卡片/图片）
         4. 通过 /kf/send_msg 发送纯文本和链接消息
         """
-        # 消息去重：同一 msg_id 不重复处理
-        if msg.msg_id in _processed_msg_ids:
-            logger.debug("重复消息已跳过 msg_id=%s", msg.msg_id)
-            return
-        _processed_msg_ids.add(msg.msg_id)
-        # 防止内存无限增长：超过上限时清空旧数据
-        if len(_processed_msg_ids) > _MAX_PROCESSED_CACHE:
-            _processed_msg_ids.clear()
-            logger.info("已处理消息缓存已清空（达到上限 %d）", _MAX_PROCESSED_CACHE)
-
         if self._chat_service is None:
             logger.error("ChatService 未注入，无法处理客服消息")
             return
