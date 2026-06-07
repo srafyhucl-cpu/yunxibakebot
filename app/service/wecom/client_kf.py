@@ -21,7 +21,8 @@ from app.logger import setup_logger
 from app.service.wecom.constants import WECOM_API_BASE
 
 if TYPE_CHECKING:
-    pass
+    # 前向引用：运行时通过 __bases__ 动态混入，类型检查时需显式导入
+    from app.service.wecom.client import WeComClient  # noqa: F401
 
 logger = setup_logger()
 
@@ -30,7 +31,7 @@ class KfClientMixin:
     """微信客服 API 方法集。"""
 
     async def send_kf_text(
-        self: WeComClient,
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
         external_userid: str,
         content: str,
         msgid: str = "",
@@ -72,7 +73,7 @@ class KfClientMixin:
         return response_data
 
     async def send_kf_link(
-        self: WeComClient,
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
         external_userid: str,
         title: str,
         url: str,
@@ -117,7 +118,7 @@ class KfClientMixin:
         return response_data
 
     async def upload_kf_temp_media(
-        self: WeComClient,
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
         file_data: bytes,
         file_type: str = "image",
         file_name: str = "image.jpg",
@@ -157,7 +158,10 @@ class KfClientMixin:
         return None
 
     async def sync_kf_messages(
-        self: WeComClient, kf_token: str, cursor: str = "", limit: int = 1000
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        kf_token: str,
+        cursor: str = "",
+        limit: int = 1000,
     ) -> dict:
         """拉取微信客服消息（sync_msg 接口）。"""
         token = await self.get_token()
@@ -181,7 +185,8 @@ class KfClientMixin:
     # ── 会话状态管理 ──────────────────────────────────────
 
     async def get_kf_service_state(
-        self: WeComClient, external_userid: str
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        external_userid: str,
     ) -> int | None:
         """
         查询客服会话状态。
@@ -216,7 +221,10 @@ class KfClientMixin:
             )
             return None
 
-    async def ensure_kf_session_active(self: WeComClient, external_userid: str) -> bool:
+    async def ensure_kf_session_active(
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        external_userid: str,
+    ) -> bool:
         """
         确保客服会话处于可发消息的状态。
 
@@ -272,7 +280,7 @@ class KfClientMixin:
         )
         return False
 
-    async def _get_first_servicer(self: WeComClient) -> str:
+    async def _get_first_servicer(self: WeComClient) -> str:  # type: ignore[reportGeneralTypeIssues]
         """
         查询客服账号的接待人员列表，返回第一个可用的 userid。
         返回空字符串表示没有找到可用接待人员。
@@ -330,7 +338,7 @@ class KfClientMixin:
             return ""
 
     async def _trans_service_state(
-        self: WeComClient,
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
         external_userid: str,
         target_state: int,
         servicer_userid: str = "",

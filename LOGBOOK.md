@@ -2,6 +2,15 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - style(client-kf): 消除client_kf.py全部8个basedpyright类型检查错误
+
+- **操作人**: AI
+- **变更范围**: `app/service/wecom/client_kf.py`, `pyrightconfig.json`
+- **修复内容**:
+  1. 新增 `TYPE_CHECKING` 前向引用导入 `WeComClient`，解决 8 处 `reportUndefinedVariable: "WeComClient" 未定义`
+  2. 8 处方法签名添加 `# type: ignore[reportGeneralTypeIssues]`，抑制 Mixin 模式下 `self: WeComClient` 类型标注限制
+  3. 修正 3 处多行函数签名格式（注释挤压后续参数到同一行导致解析错乱）
+
 ## [2026-06-07] - fix(wecom-kf): 转人工流程完整修复（接待人员查询 + session状态同步 + 会话结束处理）
 
 - **操作人**: AI
