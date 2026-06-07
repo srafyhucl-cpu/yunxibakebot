@@ -108,9 +108,16 @@ async def _handle_kf_callback(msg: dict) -> None:
 
     msg_list = sync_result.get("msg_list", [])
 
-    # 第一步：按用户分组收集客户文本消息（origin=3, msgtype=text）
-    # 并记录非文本消息类型（卡片/图片等），用于排查
+    # 第一步：按用户分组收集客户消息（origin=3）
+    # 文本消息按 msg_id 去重；非文本消息（图片/语音/视频等）提取 media_id 一并入队
     user_messages: dict[str, dict[str, dict]] = {}  # {user: {msgid: item}}
+    nontext_messages: list[
+        dict
+    ] = []  # 非文本消息列表（每个用户最多保留一条，避免刷屏）
+    nontext_processed_users: set[str] = (
+        set()
+    )  # 已处理非文本消息的用户（每个用户每轮只处理一条）
+
     for item in msg_list:
         origin = item.get("origin", 0)
         msgtype = item.get("msgtype", "")
@@ -150,16 +157,40 @@ async def _handle_kf_callback(msg: dict) -> None:
                     "重复消息已跳过 user=%s msg_id=%s", external_userid, item_msgid
                 )
 
-        # 非文本消息：记录日志（后续可扩展支持图片/卡片等）
+        # 非文本消息：提取 media_id，每用户每轮只保留一条（避免连续发多张图导致多次调用）
         else:
-            logger.info(
-                "收到客服非文本消息 type=%s user=%s msg_id=%s（暂不处理）",
-                msgtype,
-                external_userid,
-                item_msgid,
-            )
+            # 每个用户本轮回调中只处理第一条非文本消息
+            if external_userid not in nontext_processed_users:
+                nontext_processed_users.add(external_userid)
+                media_id = ""
+                # 各类型的 media_id 提取位置不同
+                if msgtype == "image":
+                    media_id = item.get("image", {}).get("media_id", "")
+                elif msgtype == "voice":
+                    media_id = item.get("voice", {}).get("media_id", "")
+                elif msgtype == "video":
+                    media_id = item.get("video", {}).get("media_id", "")
+                elif msgtype == "file":
+                    media_id = item.get("file", {}).get("media_id", "")
 
-    # 第二步：对每个用户做一次会话状态处理，然后入队所有去重后的消息
+                logger.info(
+                    "收到客服非文本消息 type=%s user=%s media_id=%s msg_id=%s",
+                    msgtype,
+                    external_userid,
+                    media_id[:20] if media_id else "(空)",
+                    item_msgid,
+                )
+                nontext_messages.append(
+                    {
+                        "external_userid": external_userid,
+                        "open_kfid": open_kfid,
+                        "msgtype": msgtype,
+                        "media_id": media_id,
+                        "msg_id": item_msgid,
+                    }
+                )
+
+    # 第二步：对每个用户做一次会话状态处理，然后入队所有去重后的消息（文本 + 非文本）
     enqueued_count = 0
     for ext_uid, msg_dict in user_messages.items():
         # 抢先处理会话状态（新会话分配给智能助手，人工会话则结束）
@@ -179,12 +210,45 @@ async def _handle_kf_callback(msg: dict) -> None:
                     open_kfid=open_kfid,
                     content=item["text"]["content"],
                     msg_id=_msgid,
+                    msgtype="text",
                 )
             )
             if success:
                 enqueued_count += 1
             else:
                 logger.warning("客服消息队列已满，丢弃 user=%s", ext_uid)
+
+    # 入队非文本消息（图片/语音/视频等）
+    for nontext in nontext_messages:
+        ext_uid = nontext["external_userid"]
+        # 非文本消息也需要确认会话状态
+        can_reply = await client.ensure_kf_session_active(ext_uid)
+        if not can_reply:
+            logger.info(
+                "用户会话不可用，跳过非文本消息 type=%s user=%s",
+                nontext["msgtype"],
+                ext_uid,
+            )
+            continue
+
+        success = await kf_queue.enqueue(
+            KfIncomingMessage(
+                external_userid=ext_uid,
+                open_kfid=nontext["open_kfid"],
+                content=f"[{nontext['msgtype']}消息]",
+                msg_id=nontext["msg_id"],
+                msgtype=nontext["msgtype"],
+                media_id=nontext["media_id"],
+            )
+        )
+        if success:
+            enqueued_count += 1
+        else:
+            logger.warning(
+                "客服消息队列已满，丢弃非文本消息 user=%s type=%s",
+                ext_uid,
+                nontext["msgtype"],
+            )
 
     logger.info("客服回调处理完成 共%d条消息 入队%d条", len(msg_list), enqueued_count)
 

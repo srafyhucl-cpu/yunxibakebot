@@ -44,6 +44,7 @@ async def chat_completion(
     tools: list | None = None,
     temperature: float = 0.7,
     max_tokens: int = DEFAULT_CHAT_MAX_TOKENS,
+    model: str = "",
 ) -> ChatCompletion:
     """
     调用 DeepSeek 聊天补全接口。
@@ -51,14 +52,17 @@ async def chat_completion(
     参数：
         messages: 消息列表（system + user + assistant + tool）
         tools: Function Calling 工具定义
+        model: 可选模型名（为空则使用默认 DEEPSEEK_MODEL，多模态场景可传 VISION 模型）
     返回：
         ChatCompletion SDK 原生响应对象
     异常：
         LLMError: API 调用失败时抛出
     """
     client = get_client()
+    # 优先使用传入的模型，否则回退到配置的视觉模型或默认模型
+    resolved_model = model or settings.DEEPSEEK_MODEL
     kwargs: dict = {
-        "model": settings.DEEPSEEK_MODEL,
+        "model": resolved_model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -69,7 +73,7 @@ async def chat_completion(
     try:
         response = await client.chat.completions.create(**kwargs)
     except Exception as exc:
-        logger.error("DeepSeek API 调用失败: %s", exc)
+        logger.error("DeepSeek API 调用失败(model=%s): %s", resolved_model, exc)
         raise LLMError("DeepSeek API 调用失败") from exc
 
     return response

@@ -182,6 +182,45 @@ class KfClientMixin:
         )
         return resp.json()
 
+    async def download_kf_temp_media(
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        media_id: str,
+    ) -> bytes | None:
+        """
+        从企微下载客服临时素材（图片/语音/视频/文件等）。
+
+        使用 /cgi-bin/media/get 接口下载，返回原始字节。
+        临时素材有效期 3 天。
+
+        参数：
+            media_id: 素材 media_id（从 sync_msg 消息中获取）
+        返回：
+            文件字节数据，失败返回 None
+        """
+        token = await self.get_token()
+
+        resp = await self._client.get(
+            f"{WECOM_API_BASE}/media/get",
+            params={"access_token": token, "media_id": media_id},
+            timeout=30,
+        )
+
+        if resp.status_code != 200:
+            logger.error(
+                "下载临时素材失败 status=%d media_id=%s",
+                resp.status_code,
+                media_id,
+            )
+            return None
+
+        data = await resp.aread()
+        logger.info(
+            "已下载临时素材 size=%dB media_id=%s",
+            len(data),
+            media_id,
+        )
+        return data
+
     # ── 会话状态管理 ──────────────────────────────────────
 
     async def get_kf_service_state(

@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_MODEL: str = "deepseek-chat"
+    # 视觉识别模型（支持图片输入的多模态模型），默认同上
+    DEEPSEEK_VISION_MODEL: str = ""
     DEEPSEEK_TIMEOUT_SECONDS: float = 15.0
 
     # ── 有赞云 ──

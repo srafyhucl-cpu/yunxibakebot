@@ -63,8 +63,10 @@ class KfIncomingMessage:
 
     external_userid: str  # 微信客户的 external_userid
     open_kfid: str  # 客服账号 ID
-    content: str  # 文本内容
+    content: str  # 文本内容（文本消息为原文，非文本消息为占位描述）
     msg_id: str  # 消息唯一 ID
+    msgtype: str = "text"  # 消息类型（text/image/voice/video/file/location 等）
+    media_id: str = ""  # 非文本消息的素材 ID（用于下载）
 
 
 class KfMessageQueue:
@@ -154,9 +156,10 @@ class KfMessageQueue:
         """
         处理单条客服消息的完整流程：
         0. 消息去重（防止企微重复推送）
-        1. 调用 ChatService 进行 AI 对话
-        2. 解析回复中的 UMP 标记（卡片/图片）
-        3. 通过 /kf/send_msg 发送纯文本和链接消息
+        1. 非文本消息处理：图片→下载+识别，其他→兜底提示
+        2. 文本/图片消息：调用 ChatService 进行 AI 对话
+        3. 解析回复中的 UMP 标记（卡片/图片）
+        4. 通过 /kf/send_msg 发送纯文本和链接消息
         """
         # 消息去重：同一 msg_id 不重复处理
         if msg.msg_id in _processed_msg_ids:
@@ -167,6 +170,7 @@ class KfMessageQueue:
         if len(_processed_msg_ids) > _MAX_PROCESSED_CACHE:
             _processed_msg_ids.clear()
             logger.info("已处理消息缓存已清空（达到上限 %d）", _MAX_PROCESSED_CACHE)
+
         if self._chat_service is None:
             logger.error("ChatService 未注入，无法处理客服消息")
             return
@@ -175,6 +179,60 @@ class KfMessageQueue:
         from app.service.wecom.client import get_wecom_client
 
         client = get_wecom_client()
+
+        # ── 非文本消息预处理 ──
+        image_base64: str = ""
+        effective_content = msg.content
+        nontext_fallback_map = {
+            "voice": "不好意思，我没听清您的语音，可以打字告诉我吗？",
+            "video": "抱歉，我暂时无法查看视频，麻烦您用文字描述一下需要咨询的问题~",
+            "file": "抱歉，我暂时无法接收文件，请直接用文字告诉我您的问题，我会尽快为您解答 :)",
+            "location": "我看到您发了一个位置信息~ 请问是想了解配送范围还是门店地址呢？",
+        }
+
+        if msg.msgtype != "text":
+            # 图片消息：尝试下载并转 base64 交给 AI 识别
+            if msg.msgtype == "image" and msg.media_id:
+                try:
+                    media_bytes = await client.download_kf_temp_media(msg.media_id)
+                    if media_bytes:
+                        import base64
+
+                        image_base64 = base64.b64encode(media_bytes).decode("utf-8")
+                        effective_content = "[用户发送了一张图片]"
+                        logger.info(
+                            "图片素材已下载 size=%dB user=%s",
+                            len(media_bytes),
+                            msg.external_userid,
+                        )
+                    else:
+                        # 下载失败，走兜底
+                        effective_content = ""
+                except Exception as exc:
+                    logger.error(
+                        "下载图片素材异常 user=%s err=%s", msg.external_userid, exc
+                    )
+                    effective_content = ""
+
+            if not image_base64 and not effective_content:
+                # 非图片或图片下载失败 → 直接回复兜底提示，不调 AI
+                fallback = nontext_fallback_map.get(
+                    msg.msgtype,
+                    "您好~ 我暂时只能识别文字和图片消息，麻烦用文字描述一下哦 :)",
+                )
+                logger.info(
+                    "非文本消息返回兜底提示 type=%s user=%s",
+                    msg.msgtype,
+                    msg.external_userid,
+                )
+                result = await client.send_kf_text(msg.external_userid, fallback)
+                if result.get("errcode") != 0:
+                    logger.error(
+                        "兜底提示发送失败 user=%s err=%s",
+                        msg.external_userid,
+                        result.get("errmsg"),
+                    )
+                return
 
         # 确保会话处于可发消息状态（企微限制：非智能助手状态无法API发送）
         can_send = await client.ensure_kf_session_active(msg.external_userid)
@@ -212,8 +270,9 @@ class KfMessageQueue:
             reply = await self._chat_service.handle_message(
                 channel="wecom_kf",  # 用独立渠道标识区分来源
                 user_id=msg.external_userid,
-                content=msg.content,
+                content=effective_content,
                 channel_msg_id=msg.msg_id,
+                image_base64=image_base64 or None,
             )
 
             if not reply:

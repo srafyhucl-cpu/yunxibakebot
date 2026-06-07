@@ -141,16 +141,18 @@ class ChatService:
         content: str,
         staff_id: str = "",
         channel_msg_id: str = "",
+        image_base64: str | None = None,
     ) -> str | None:
         """
         处理用户消息的主入口。
 
         参数：
-            channel: 渠道标识（youzan / wecom_1on1 / wecom_group）
+            channel: 渠道标识（youzan / wecom_1on1 / wecom_group / wecom_kf）
             user_id: 渠道用户 ID
             content: 消息内容
             staff_id: 所属员工 ID（企微必传）
             channel_msg_id: 渠道原始消息 ID（用于去重）
+            image_base64: 图片的 base64 编码数据（多模态识别用，可选）
         返回：
             回复文本，无需回复时返回 None
         """
@@ -230,6 +232,7 @@ class ChatService:
             timing=timing,
             history=history,
             history_text=history_text,
+            image_base64=image_base64,
         )
         t2 = time.monotonic()
         loop_ms = round((t2 - t1) * 1000)
@@ -308,6 +311,7 @@ class ChatService:
         timing: dict | None = None,
         history: list[dict] | None = None,
         history_text: str = "",
+        image_base64: str | None = None,
     ) -> str | None:
         """
         AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
@@ -341,6 +345,48 @@ class ChatService:
 
         messages.extend(history)
 
+        # 多模态图片处理：如果用户发了图片，将最后一条用户消息替换为多模态格式
+        if image_base64:
+            import base64 as _base64_mod
+
+            # 确保是合法 base64 数据（无前缀则补上 data URI）
+            b64_data = image_base64
+            if not b64_data.startswith("data:"):
+                # 尝试检测 MIME 类型（简单判断 JPEG/PNG）
+                header_bytes = _base64_mod.b64decode(b64_data[:32])[:4]
+                mime_type = "image/jpeg"
+                if header_bytes[:4] == b"\x89PNG":
+                    mime_type = "image/png"
+                elif header_bytes[0:2] == b"\xff\xd8":
+                    mime_type = "image/jpeg"
+                elif header_bytes[0:4] == b"RIFF":
+                    mime_type = "image/webp"
+                b64_data = f"data:{mime_type};base64,{b64_data}"
+
+            # 从后往前找最后一条 role=user 的消息，替换为多模态格式
+            for i in range(len(messages) - 1, -1, -1):
+                if messages[i].get("role") == "user":
+                    original_text = messages[i].get("content", "") or ""
+                    messages[i] = {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": b64_data},
+                            },
+                            {
+                                "type": "text",
+                                "text": original_text or "[用户发送了一张图片]",
+                            },
+                        ],
+                    }
+                    logger.info(
+                        "会话 %s 已构建多模态消息（图片 %d 字符 base64）",
+                        session.id,
+                        len(image_base64),
+                    )
+                    break
+
         tool_round = 0
         _t_llm_first: float | None = None
 
@@ -348,7 +394,15 @@ class ChatService:
             try:
                 if _t_llm_first is None:
                     _t_llm_first = time.monotonic()
-                response = await llm_chat(messages, tools=FUNCTION_DEFINITIONS)
+                # 多模态图片消息使用视觉模型
+                llm_model = ""
+                if image_base64:
+                    from app.config import settings as _cfg
+
+                    llm_model = _cfg.DEEPSEEK_VISION_MODEL or _cfg.DEEPSEEK_MODEL
+                response = await llm_chat(
+                    messages, tools=FUNCTION_DEFINITIONS, model=llm_model
+                )
                 if (
                     timing is not None
                     and "llm_ms" not in timing

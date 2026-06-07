@@ -2,6 +2,23 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - feat(multimedia): 客服消息多媒体支持（图片识别 + 非文本兜底提示）
+
+- **操作人**: AI
+- **变更范围**:
+  - `app/config.py` — 新增 `DEEPSEEK_VISION_MODEL` 配置项
+  - `app/service/wecom/client_kf.py` — 新增 `download_kf_temp_media()` 方法（下载企微临时素材）
+  - `app/service/wecom/kf_message_queue.py` — 扩展 `KfIncomingMessage`（msgtype/media_id 字段）+ Worker 多媒体预处理逻辑
+  - `app/api/wecom.py` — 客服回调非文本消息提取 media_id 并入队
+  - `app/service/chat.py` — handle_message 支持 image_base64 参数，多模态消息构建
+  - `app/service/llm/client.py` — chat_completion 支持可选 model 覆盖
+- **功能说明**:
+  1. **图片消息**：下载企微素材 → base64 编码 → 构建多模态 messages → 调用视觉模型识别 → AI 基于图片内容回复
+  2. **语音/视频/文件/位置消息**：直接返回友好文字提示引导用户改发文字或描述问题
+  3. 每个用户每轮回调只处理第一条非文本消息（防刷屏）
+  4. 图片下载失败自动降级为兜底提示
+- **配置要求**：如需图片识别，需设置 `DEEPSEEK_VISION_MODEL` 为支持 vision 的模型名；不设则回退到默认模型
+
 ## [2026-06-07] - style(client-kf): 消除client_kf.py全部8个basedpyright类型检查错误
 
 - **操作人**: AI
