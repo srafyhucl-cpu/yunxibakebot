@@ -360,7 +360,7 @@ class ChatService:
             except LLMError:
                 logger.error("LLM 调用失败，返回兜底回复")
                 await _llm_failure_alerter(
-                    f"LLMError: chat.py handle_message 返回兜底回复"
+                    "LLMError: chat.py handle_message 返回兜底回复"
                 )
                 return FALLBACK_REPLY
             except (KeyError, IndexError) as exc:

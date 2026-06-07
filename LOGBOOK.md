@@ -2,6 +2,22 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-07] - fix(wecom-kf): 转人工流程完整修复（接待人员查询 + session状态同步 + 会话结束处理）
+
+- **操作人**: AI
+- **关联问题**:
+  1. 转人工后接待人员 hucoolong 收不到消息（报 "user is not a servicer"）
+  2. 人工会话结束后用户再发消息，AI 不回复（session.status 残留 transfer_pending）
+  3. ensure_kf_session_active 在 state=3 时主动结束人工会话，踢掉接待人员
+- **根因分析**:
+  1. `service_state/trans` 切到状态3必须传 `servicer_userid`，之前没传
+  2. 企微会话结束后创建新会话，但数据库 session.status 没有重置
+  3. state=3 时代码主动调 trans(4) 结束会话，打断了人工服务
+- **修复内容**:
+  - `config.py`: 新增 `WECOM_KF_SERVICER_USERID` 配置项
+  - `client_kf.py`: `_trans_service_state()` 支持 servicer_userid 参数；新增 `_get_first_servicer()` 动态从 API 查询接待人员列表；state=3 时不再干预人工服务
+  - `kf_message_queue.py`: 处理前检测 session 为人工状态时查企微实际状态，发现已结束/重建则自动重置为 active
+
 ## [2026-06-07] - fix(wecom-kf): 企微客服消息处理链路修复（卡片发送 + 消息不回复 + 转人工）
 
 - **操作人**: AI

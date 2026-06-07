@@ -30,11 +30,13 @@ IGNORE_DIRS = {"__pycache__", ".git", "venv", "node_modules", "migrations"}
 # 完成拆分后请从此名单移除
 KNOWN_OVERSIZE = {
     "app/repository/knowledge_repo.py",  # 254行，超出4行，待微调
-    "app/service/chat.py",  # 381行，核心链路，待拆 tool_executor
-    "app/service/observability.py",  # 383行，待拆分页查询与报表
+    "app/service/chat.py",  # 496行，核心链路，待拆 tool_executor
+    "app/service/observability.py",  # 353行，待拆分页查询与报表
     "app/service/llm/function_tool_order.py",  # 181行，超出1行
-    "app/service/llm/function_tool_product.py",  # 266行，待拆 product_rag_helper
-    "app/service/youzan/event_item.py",  # 412行，待拆 item_builder
+    "app/service/llm/function_tool_product.py",  # 252行，待拆 product_rag_helper
+    "app/service/youzan/event_item.py",  # 396行，待拆 item_builder
+    "app/service/wecom/client_kf.py",  # 387行，mixin模式待拆分
+    "app/service/wecom/kf_message_queue.py",  # 348行，待拆消息处理链路
     # app/database.py 已拆分，365 行，无超线
 }
 

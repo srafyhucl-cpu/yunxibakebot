@@ -184,6 +184,31 @@ class KfMessageQueue:
 
         # Worker 绕过 API 层直接调用 service，需自行提供数据库上下文
         async with db_session_scope():
+            # 处理前同步 session 状态与企微实际状态
+            # 场景：之前转人工后企微会话已结束（state=4），用户重新发消息
+            # 触发企微创建新会话（state=0/1），但数据库 session.status 还是 transfer_pending
+            # 此时需要重置 session 为 active，让 AI 能正常回复
+            from app.models.session import SessionStatus
+            from app.repository.session_repo import SessionRepo
+
+            session_repo = SessionRepo()
+            session = await session_repo.get_active(msg.external_userid, "wecom_kf")
+            if session and session.status in (
+                "transfer_pending",
+                "human_service",
+            ):
+                # 查询企微实际会话状态
+                kf_state = await client.get_kf_service_state(msg.external_userid)
+                # 企微状态 0(未处理)、1(智能助手) 或 4(已结束)
+                # 说明旧的人工会话已结束，应重置 session 让 AI 继续服务
+                if kf_state is not None and kf_state in (0, 1, 4):
+                    await session_repo.update_status(session.id, SessionStatus.ACTIVE)
+                    logger.info(
+                        "企微会话已重建(state=%d)，重置session %s 为active",
+                        kf_state,
+                        session.id,
+                    )
+
             reply = await self._chat_service.handle_message(
                 channel="wecom_kf",  # 用独立渠道标识区分来源
                 user_id=msg.external_userid,
@@ -193,6 +218,28 @@ class KfMessageQueue:
 
             if not reply:
                 return
+
+            # 处理完 AI 回复后，检查 session 是否因转人工而变为人工状态
+            # 如果是，则通知企微将会话切换为人工接待模式（service_state=3）
+            from app.repository.session_repo import SessionRepo
+
+            session_repo = SessionRepo()
+            session = await session_repo.get_active(msg.external_userid, "wecom_kf")
+            if session and session.status in (
+                "transfer_pending",
+                "human_service",
+            ):
+                logger.info(
+                    "会话已进入人工状态(%s)，切换企微为人工接待 mode user=%s",
+                    session.status,
+                    msg.external_userid,
+                )
+                trans_result = await client._trans_service_state(
+                    msg.external_userid,
+                    3,
+                )
+                if not trans_result:
+                    logger.error("切换人工接待模式失败 user=%s", msg.external_userid)
 
         # 解析 UMP 标记，分离纯文本和卡片/图片
         clean_text, ump_tags = _parse_ump_tags(reply)

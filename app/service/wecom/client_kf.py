@@ -251,19 +251,13 @@ class KfClientMixin:
         if state == 2:
             return await self._trans_service_state(external_userid, 1)
 
-        # 3（人工接待）→ 无法切回智能助手，只能结束会话
-        #   结束后用户重新发消息会创建状态 0 的新会话
+        # 3（人工接待）→ 不应干预，由人工客服处理
+        #   注意：不能主动结束会话或切换状态，否则会打断人工服务
         if state == 3:
-            logger.warning(
-                "客服会话处于人工接待模式，尝试结束会话 user=%s",
+            logger.info(
+                "客服会话处于人工接待模式，不发送AI消息 user=%s",
                 external_userid,
             )
-            ended = await self._trans_service_state(external_userid, 4)
-            if ended:
-                logger.info(
-                    "已结束人工客服会话，请用户重新发送消息以创建新会话 user=%s",
-                    external_userid,
-                )
             return False
 
         # 4（已结束）
@@ -274,11 +268,74 @@ class KfClientMixin:
         )
         return False
 
+    async def _get_first_servicer(self: WeComClient) -> str:
+        """
+        查询客服账号的接待人员列表，返回第一个可用的 userid。
+        返回空字符串表示没有找到可用接待人员。
+        """
+        token = await self.get_token()
+        open_kfid = settings.WECOM_KF_ID
+
+        try:
+            # 企微 kf/servicer/list 接口：尝试多种请求方式
+            data: dict[str, Any] | None = None
+
+            # 方式1: GET + 查询参数
+            resp = await self._client.get(
+                f"{WECOM_API_BASE}/kf/servicer/list",
+                params={"access_token": token, "open_kfid": open_kfid},
+            )
+            data = resp.json()
+
+            if data.get("errcode") != 0:
+                # 方式2: POST + URL参数（open_kfid 在 params 里）
+                resp2 = await self._client.post(
+                    f"{WECOM_API_BASE}/kf/servicer/list",
+                    params={"access_token": token, "open_kfid": open_kfid},
+                )
+                data = resp2.json()
+
+            if data.get("errcode") != 0:
+                logger.error(
+                    "查询接待人员列表失败 err=%s %s",
+                    data.get("errcode"),
+                    data.get("errmsg"),
+                )
+                return ""
+
+            servicer_list = data.get("servicer_list", [])
+            if not servicer_list:
+                logger.warning(
+                    "客服账号 %s 没有配置任何接待人员，请在企微管理后台添加",
+                    open_kfid,
+                )
+                return ""
+
+            # 取第一个可用接待人员的 userid
+            userid = servicer_list[0].get("userid", "")
+            if userid:
+                logger.info(
+                    "自动选择接待人员: %s (共 %d 人)",
+                    userid,
+                    len(servicer_list),
+                )
+            return userid
+
+        except Exception as e:
+            logger.error("查询接待人员列表异常: %s", e)
+            return ""
+
     async def _trans_service_state(
-        self: WeComClient, external_userid: str, target_state: int
+        self: WeComClient,
+        external_userid: str,
+        target_state: int,
+        servicer_userid: str = "",
     ) -> bool:
         """
         调用 service_state/trans 接口变更会话状态。
+
+        切换到状态3（人工接待）时必须传入 servicer_userid。
+        如果未传则自动从企微 API 查询该客服账号的接待人员列表，取第一个。
         """
         token = await self.get_token()
         open_kfid = settings.WECOM_KF_ID
@@ -288,6 +345,16 @@ class KfClientMixin:
             "external_userid": external_userid,
             "service_state": target_state,
         }
+
+        # 切到人工接待(3)必须指定接待人员；未传则动态查询
+        if target_state == 3:
+            if not servicer_userid:
+                # 自动查询客服账号的接待人员列表
+                servicer_userid = await self._get_first_servicer()
+                if not servicer_userid:
+                    logger.error("切到人工接待模式失败：未找到可用接待人员")
+                    return False
+            body["servicer_userid"] = servicer_userid
 
         resp = await self._client.post(
             f"{WECOM_API_BASE}/kf/service_state/trans",

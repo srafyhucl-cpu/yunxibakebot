@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     # 微信客服与自建应用共用同一个回调URL / Token / EncodingAESKey
     # 只需额外配置客服账号 ID，用于发送消息时指定 open_kfid
     WECOM_KF_ID: str = ""  # 微信客服账号 ID (open_kfid)，格式如 wkxxxxxxxx
+    WECOM_KF_SERVICER_USERID: str = (
+        ""  # 转人工时的默认接待人员 userid（企微内部userid）
+    )
 
 
 settings = Settings()
