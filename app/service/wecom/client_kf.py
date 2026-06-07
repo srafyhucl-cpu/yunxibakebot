@@ -176,8 +176,19 @@ class KfClientMixin:
         """
         确保客服会话处于可发消息的状态。
 
-        企微限制：只有 service_state 为 0（未处理）或 1（智能助手）时，
-        才能通过 API 发送消息。如果当前状态不允许，自动切换为 1。
+        企微限制：
+          - 状态 0（未处理）：需先分配给智能助手才能 API 发送
+          - 状态 1（智能助手）：可以直接 API 发送
+          - 状态 2（排队中）：可切换为智能助手
+          - 状态 3（人工接待）：只能转接或结束，**无法切回智能助手**
+          - 状态 4（已结束）：无法操作
+
+        状态转换规则（官方文档）：
+          - 0 → 1 / 2 / 3
+          - 1 → 2 / 3
+          - 2 → 3
+          - 3 → 3（转接）/ 4（结束）
+          - 4 → 不可变更（需用户重新发消息）
 
         返回 True 表示可以发消息，False 表示失败。
         """
@@ -188,33 +199,54 @@ class KfClientMixin:
             logger.warning("无法查询会话状态，将直接尝试发送 user=%s", external_userid)
             return True
 
-        # 0（未处理）和 1（智能助手）都可以直接发消息
-        if state in (0, 1):
+        # 1（智能助手）可以直接发消息
+        if state == 1:
             return True
 
-        # 4（已结束）无法恢复，放弃发送
-        if state == 4:
+        # 0（未处理）→ 分配给智能助手
+        if state == 0:
+            return await self._trans_service_state(external_userid, 1)
+
+        # 2（排队中）→ 尝试切换为智能助手
+        if state == 2:
+            return await self._trans_service_state(external_userid, 1)
+
+        # 3（人工接待）→ 无法切回智能助手，只能结束会话
+        #   结束后用户重新发消息会创建状态 0 的新会话
+        if state == 3:
             logger.warning(
-                "客服会话已结束，无法发送消息 user=%s state=%d",
+                "客服会话处于人工接待模式，尝试结束会话 user=%s",
                 external_userid,
-                state,
             )
+            ended = await self._trans_service_state(external_userid, 4)
+            if ended:
+                logger.info(
+                    "已结束人工客服会话，请用户重新发送消息以创建新会话 user=%s",
+                    external_userid,
+                )
             return False
 
-        # 2（排队中）或 3（人工接待），切换为 1（智能助手）
-        logger.info(
-            "客服会话状态 %d 不允许API发送，切换为智能助手模式 user=%s",
-            state,
+        # 4（已结束）
+        logger.warning(
+            "客服会话已结束，无法发送消息 user=%s state=%d",
             external_userid,
+            state,
         )
+        return False
 
+    async def _trans_service_state(
+        self: WeComClient, external_userid: str, target_state: int
+    ) -> bool:
+        """
+        调用 service_state/trans 接口变更会话状态。
+        """
         token = await self.get_token()
         open_kfid = settings.WECOM_KF_ID
 
         body: dict[str, Any] = {
             "open_kfid": open_kfid,
             "external_userid": external_userid,
-            "service_state": 1,  # 切换为智能助手接待
+            "service_state": target_state,
         }
 
         resp = await self._client.post(
@@ -222,15 +254,27 @@ class KfClientMixin:
             params={"access_token": token},
             json=body,
         )
-        trans_data = resp.json()
+        data = resp.json()
 
-        if trans_data.get("errcode") == 0:
-            logger.info("客服会话已切换为智能助手模式 user=%s", external_userid)
+        state_names = {
+            0: "未处理",
+            1: "智能助手",
+            2: "排队中",
+            3: "人工接待",
+            4: "已结束",
+        }
+        target_name = state_names.get(target_state, str(target_state))
+
+        if data.get("errcode") == 0:
+            logger.info(
+                "客服会话状态切换成功 → %s user=%s", target_name, external_userid
+            )
             return True
 
         logger.error(
-            "客服会话状态切换失败 user=%s err=%s",
+            "客服会话状态切换失败 目标=%s user=%s err=%s",
+            target_name,
             external_userid,
-            trans_data.get("errmsg"),
+            data.get("errmsg"),
         )
         return False

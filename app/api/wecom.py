@@ -139,6 +139,10 @@ async def _handle_kf_callback(msg: dict) -> None:
             item_msg_id,
         )
 
+        # 抢先将会话分配给智能助手（避免被系统自动分配为人工接待）
+        # 状态 0→1 是允许的；若已是其他状态则忽略错误
+        await client.ensure_kf_session_active(external_userid)
+
         success = await kf_queue.enqueue(
             KfIncomingMessage(
                 external_userid=external_userid,
