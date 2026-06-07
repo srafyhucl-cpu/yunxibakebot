@@ -6,7 +6,7 @@
 
 from app.config import settings
 from app.logger import setup_logger
-from app.service.llm.client import get_client
+from app.service.llm.client import get_deepseek_client
 
 logger = setup_logger()
 
@@ -68,7 +68,7 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
     if len(user_query) < 2:
         return user_query
 
-    client = get_client()
+    client = get_deepseek_client()
 
     prompt = REWRITE_PROMPT.format(
         history=history or "无",
@@ -77,7 +77,7 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
 
     try:
         response = await client.chat.completions.create(
-            model=settings.MIMO_CHAT_MODEL,
+            model=settings.DEEPSEEK_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=QUERY_REWRITER_MAX_TOKENS,
