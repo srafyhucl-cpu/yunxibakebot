@@ -3,6 +3,7 @@
 职责：
 - 缓存并自动刷新 access_token（2 小时过期）
 - 调用客户联系消息推送接口发送消息
+- 微信客服消息发送（通过 KfClientMixin 混入）
 """
 
 import asyncio
@@ -12,17 +13,16 @@ import httpx
 
 from app.config import settings
 from app.logger import setup_logger
+from app.service.wecom.client_kf import KfClientMixin
+from app.service.wecom.constants import WECOM_API_BASE
 
 logger = setup_logger()
-
-# 企微 API 基础地址
-WECOM_API_BASE = "https://qyapi.weixin.qq.com/cgi-bin"
 
 # access_token 提前 5 分钟刷新
 TOKEN_REFRESH_MARGIN = 300
 
 
-class WeComClient:
+class WeComClient(KfClientMixin):
     """企微 API 客户端（单例，管理 access_token 缓存）。"""
 
     def __init__(self) -> None:
@@ -286,10 +286,3 @@ async def close_wecom_client() -> None:
     if _client:
         await _client.close()
         _client = None
-
-
-# 触发微信客服方法混入（必须在本模块完全加载后导入，避免循环依赖）
-from app.service.wecom import client_kf  # noqa: E402, F401
-
-# 清除引用，防止外部误用
-del client_kf

@@ -1,24 +1,32 @@
-"""微信客服 API 客户端（独立模块，避免 client.py 超线）。
+"""微信客服 API 方法集（Mixin 基类，供 WeComClient 继承）。
 
 职责：
 - 调用微信客服专用接口（send_msg / sync_msg）
 - 与自建应用的 /message/send 完全独立的 API 体系
+
+使用方式：
+    class WeComClient(KfClientMixin): ...
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from app.config import settings
 from app.logger import setup_logger
-from app.service.wecom.client import WECOM_API_BASE, WeComClient
+from app.service.wecom.constants import WECOM_API_BASE
+
+if TYPE_CHECKING:
+    from app.service.wecom.client import WeComClient
 
 logger = setup_logger()
 
 
 class KfClientMixin:
-    """微信客服 API 方法集（混入 WeComClient）。"""
+    """微信客服 API 方法集。"""
 
     async def send_kf_text(
-        self,
+        self: WeComClient,
         external_userid: str,
         content: str,
         msgid: str = "",
@@ -27,13 +35,6 @@ class KfClientMixin:
         发送微信客服文本消息。
 
         使用 /cgi-bin/kf/send_msg 接口，与自建应用的 /message/send 完全独立。
-
-        参数：
-            external_userid: 微信客户的 external_userid
-            content: 文本内容（最长 2048 字节）
-            msgid: 消息 ID（用于幂等性，可选）
-        返回：
-            API 响应 JSON
         """
         token = await self.get_token()
         open_kfid = settings.WECOM_KF_ID
@@ -67,7 +68,7 @@ class KfClientMixin:
         return response_data
 
     async def send_kf_link(
-        self,
+        self: WeComClient,
         external_userid: str,
         title: str,
         url: str,
@@ -75,19 +76,7 @@ class KfClientMixin:
         thumb_media_id: str = "",
         msgid: str = "",
     ) -> dict:
-        """
-        发送微信客服图文链接消息（用于商品卡片）。
-
-        参数：
-            external_userid: 微信客户的 external_userid
-            title: 标题（最长 128 字节）
-            url: 点击跳转链接（最长 2048 字节）
-            desc: 描述（最长 512 字节）
-            thumb_media_id: 缩略图素材 ID
-            msgid: 消息 ID（用于幂等性，可选）
-        返回：
-            API 响应 JSON
-        """
+        """发送微信客服图文链接消息（用于商品卡片）。"""
         token = await self.get_token()
         open_kfid = settings.WECOM_KF_ID
 
@@ -124,20 +113,9 @@ class KfClientMixin:
         return response_data
 
     async def sync_kf_messages(
-        self, kf_token: str, cursor: str = "", limit: int = 1000
+        self: WeComClient, kf_token: str, cursor: str = "", limit: int = 1000
     ) -> dict:
-        """
-        拉取微信客服消息（sync_msg 接口）。
-
-        收到企微回调通知后，用回调中的 Token 调此接口拉取具体消息内容。
-
-        参数：
-            kf_token: 回调事件中的 Token 字段（有效期 10 分钟）
-            cursor: 上一次返回的游标，首次不填
-            limit: 每次拉取数量，最大 1000
-        返回：
-            API 响应 JSON，包含 next_cursor / has_more / msg_list
-        """
+        """拉取微信客服消息（sync_msg 接口）。"""
         token = await self.get_token()
         open_kfid = settings.WECOM_KF_ID
 
@@ -155,7 +133,3 @@ class KfClientMixin:
             json=body,
         )
         return resp.json()
-
-
-# 让 WeComClient 继承 KfClientMixin，保持原有调用方式不变
-WeComClient.__bases__ = (KfClientMixin,) + WeComClient.__bases__
