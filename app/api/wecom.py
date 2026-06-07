@@ -123,6 +123,21 @@ async def _handle_kf_callback(msg: dict) -> None:
         msgtype = item.get("msgtype", "")
         item_msgid = item.get("msgid", "")
 
+        # 过滤掉过期的重推消息（比如发送时间距离当前超过 120 秒，防范风暴重推）
+        send_time = item.get("send_time", 0)
+        if send_time > 0:
+            import time
+
+            delay = int(time.time()) - send_time
+            if delay > 120:
+                logger.info(
+                    "跳过微信客服过期的历史重推消息 msg_id=%s send_time=%d 延迟=%ds",
+                    item_msgid,
+                    send_time,
+                    delay,
+                )
+                continue
+
         if origin != 3:
             if origin == 4:
                 logger.debug(
