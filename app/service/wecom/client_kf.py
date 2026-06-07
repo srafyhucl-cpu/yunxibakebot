@@ -133,3 +133,104 @@ class KfClientMixin:
             json=body,
         )
         return resp.json()
+
+    # ── 会话状态管理 ──────────────────────────────────────
+
+    async def get_kf_service_state(
+        self: WeComClient, external_userid: str
+    ) -> int | None:
+        """
+        查询客服会话状态。
+
+        返回值：
+            service_state: 0-未处理 / 1-智能助手 / 2-排队中 / 3-人工接待 / 4-已结束
+            出错返回 None
+        """
+        token = await self.get_token()
+        open_kfid = settings.WECOM_KF_ID
+
+        body: dict[str, str] = {
+            "open_kfid": open_kfid,
+            "external_userid": external_userid,
+        }
+        resp = await self._client.post(
+            f"{WECOM_API_BASE}/kf/service_state/get",
+            params={"access_token": token},
+            json=body,
+        )
+        data = resp.json()
+
+        if data.get("errcode") == 0:
+            state = data.get("service_state")
+            logger.debug("客服会话状态查询 user=%s state=%s", external_userid, state)
+            return state
+        else:
+            logger.error(
+                "客服会话状态查询失败 user=%s err=%s",
+                external_userid,
+                data.get("errmsg"),
+            )
+            return None
+
+    async def ensure_kf_session_active(self: WeComClient, external_userid: str) -> bool:
+        """
+        确保客服会话处于可发消息的状态。
+
+        企微限制：只有 service_state 为 0（未处理）或 1（智能助手）时，
+        才能通过 API 发送消息。如果当前状态不允许，自动切换为 1。
+
+        返回 True 表示可以发消息，False 表示失败。
+        """
+        state = await self.get_kf_service_state(external_userid)
+
+        # 状态为 None 表示查询失败，仍尝试发送（让 send_msg 报错更明确）
+        if state is None:
+            logger.warning("无法查询会话状态，将直接尝试发送 user=%s", external_userid)
+            return True
+
+        # 0（未处理）和 1（智能助手）都可以直接发消息
+        if state in (0, 1):
+            return True
+
+        # 4（已结束）无法恢复，放弃发送
+        if state == 4:
+            logger.warning(
+                "客服会话已结束，无法发送消息 user=%s state=%d",
+                external_userid,
+                state,
+            )
+            return False
+
+        # 2（排队中）或 3（人工接待），切换为 1（智能助手）
+        logger.info(
+            "客服会话状态 %d 不允许API发送，切换为智能助手模式 user=%s",
+            state,
+            external_userid,
+        )
+
+        token = await self.get_token()
+        open_kfid = settings.WECOM_KF_ID
+
+        body: dict[str, Any] = {
+            "open_kfid": open_kfid,
+            "external_userid": external_userid,
+            "service_state": 1,  # 切换为智能助手接待
+        }
+
+        resp = await self._client.post(
+            f"{WECOM_API_BASE}/kf/service_state/trans",
+            params={"access_token": token},
+            json=body,
+        )
+        trans_data = resp.json()
+
+        if trans_data.get("errcode") == 0:
+            logger.info("客服会话已切换为智能助手模式 user=%s", external_userid)
+            return True
+
+        logger.error(
+            "客服会话状态切换失败 user=%s err=%s",
+            external_userid,
+            trans_data.get("errmsg"),
+        )
+        return False

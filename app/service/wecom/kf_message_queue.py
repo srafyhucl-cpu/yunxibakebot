@@ -161,6 +161,12 @@ class KfMessageQueue:
 
         client = get_wecom_client()
 
+        # 确保会话处于可发消息状态（企微限制：非智能助手状态无法API发送）
+        can_send = await client.ensure_kf_session_active(msg.external_userid)
+        if not can_send:
+            logger.info("客服会话不可用，跳过回复 user=%s", msg.external_userid)
+            return
+
         # Worker 绕过 API 层直接调用 service，需自行提供数据库上下文
         async with db_session_scope():
             reply = await self._chat_service.handle_message(
