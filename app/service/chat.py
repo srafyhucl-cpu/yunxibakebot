@@ -28,6 +28,7 @@ from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat_llm import request_llm_choice
 from app.service.chat_multimodal import apply_multimodal_image_message
 from app.service.chat_tools import ToolExecutionContext, process_tool_calls
+from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.functions import MAX_TOOL_ROUNDS
 from app.service.llm.intent import IntentType, detect_intent
@@ -70,7 +71,6 @@ _llm_failure_alerter = alert_service.create_threshold_alerter(
     threshold=3,
     window_seconds=60.0,
 )
-TRANSFER_SUMMARY_LENGTH = 200
 QUERY_TIMEOUT_REPLY = "正在为您查询，请稍候。如果长时间没有回复，请联系人工客服。"
 
 
@@ -269,18 +269,17 @@ class ChatService:
         reason: str,
         history_text: str,
     ) -> str:
-        try:
-            await self._transfer_mgr.request_transfer(
-                session.id,
-                user_id,
+        transfer_created = await request_human_transfer(
+            HumanTransferContext(
+                session=session,
+                user_id=user_id,
                 reason=reason,
-                summary=history_text[-TRANSFER_SUMMARY_LENGTH:],
+                history_text=history_text,
+                transfer_mgr=self._transfer_mgr,
+                session_repo=self._session_repo,
             )
-            await self._session_repo.update_status(
-                session.id, SessionStatus.TRANSFER_PENDING
-            )
-        except Exception as exc:
-            logger.error("创建售后转人工工单失败: session=%s err=%s", session.id, exc)
+        )
+        if not transfer_created:
             return FALLBACK_REPLY
 
         assistant_msg = Message(

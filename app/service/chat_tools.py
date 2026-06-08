@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.logger import setup_logger
-from app.models.session import Session, SessionStatus
+from app.models.session import Session
+from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 from app.service.llm.functions import dispatch_tool
 
 logger = setup_logger()
 
-TRANSFER_SUMMARY_LENGTH = 200
 TRANSFER_TOOL_NAME = "transfer_to_human"
 TRANSFER_TOOL_DEFAULT_REASON = "用户通过工具请求转人工"
 TRANSFER_TOOL_SUCCESS_MESSAGE = "已为您转接人工客服，请稍候"
@@ -70,30 +70,25 @@ async def _transfer_to_human(
     context: ToolExecutionContext,
 ) -> str:
     reason = tool_args.get("reason", TRANSFER_TOOL_DEFAULT_REASON)
-    try:
-        await context.transfer_mgr.request_transfer(
-            context.session.id,
-            context.session.user_id,
+    transfer_created = await request_human_transfer(
+        HumanTransferContext(
+            session=context.session,
+            user_id=context.session.user_id,
             reason=reason,
-            summary=context.history_text[-TRANSFER_SUMMARY_LENGTH:],
+            history_text=context.history_text,
+            transfer_mgr=context.transfer_mgr,
+            session_repo=context.session_repo,
         )
-        await context.session_repo.update_status(
-            context.session.id, SessionStatus.TRANSFER_PENDING
-        )
+    )
+    if transfer_created:
         return json.dumps(
             {"status": "success", "message": TRANSFER_TOOL_SUCCESS_MESSAGE},
             ensure_ascii=False,
         )
-    except Exception as exc:
-        logger.error(
-            "创建转人工工单失败: session=%s err=%s",
-            context.session.id,
-            exc,
-        )
-        return json.dumps(
-            {"status": "error", "message": TRANSFER_TOOL_ERROR_MESSAGE},
-            ensure_ascii=False,
-        )
+    return json.dumps(
+        {"status": "error", "message": TRANSFER_TOOL_ERROR_MESSAGE},
+        ensure_ascii=False,
+    )
 
 
 def append_tool_result_messages(

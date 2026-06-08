@@ -18,6 +18,7 @@ from app.service.chat_tools import (
     parse_tool_arguments,
     process_tool_calls,
 )
+from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 from app.service.llm.intent import IntentType
 
 
@@ -281,3 +282,28 @@ async def test_process_tool_calls_handles_transfer_and_appends_result() -> None:
     assert messages[1]["role"] == "tool"
     assert messages[1]["tool_call_id"] == "tool-1"
     assert '"status": "success"' in messages[1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_request_human_transfer_updates_state_and_truncates_summary() -> None:
+    transfer_mgr = _FakeTransferManager()
+    session_repo = _FakeSessionRepo()
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+
+    created = await request_human_transfer(
+        HumanTransferContext(
+            session=session,
+            user_id="buyer-1",
+            reason="need staff",
+            history_text="old dialog " * 100,
+            transfer_mgr=transfer_mgr,
+            session_repo=session_repo,
+        )
+    )
+
+    assert created is True
+    assert transfer_mgr.calls[0].session_id == "session-1"
+    assert transfer_mgr.calls[0].user_id == "buyer-1"
+    assert transfer_mgr.calls[0].reason == "need staff"
+    assert len(transfer_mgr.calls[0].summary) == 200
+    assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]

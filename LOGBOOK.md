@@ -2,6 +2,19 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 收敛转人工请求边界
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_transfer.py` - 新增转人工请求共享边界，统一创建转人工工单、截取会话摘要与更新会话状态
+  - `app/service/chat.py` - 普通转人工意图改为调用 `request_human_transfer`，移除重复的工单创建与状态更新逻辑
+  - `app/service/chat_tools.py` - `transfer_to_human` tool 改为复用同一转人工边界，保留 tool 返回结果组装职责
+  - `tests/service/test_chat_refactor.py` - 补充共享转人工请求回归测试
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_tools.py app\service\chat_transfer.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_tools.py app\service\chat_transfer.py tests\service\test_chat_refactor.py` 通过
+  - `api/service/models` 分层扫描无新增违规
+
 ## [2026-06-08] - refactor(chat): 抽离多模态消息构造模块
 - **操作人**: AI (Codex)
 - **变更范围**:
