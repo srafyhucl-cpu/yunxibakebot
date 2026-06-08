@@ -219,13 +219,7 @@ class ChatService:
         loop_ms = round((t2 - t1) * 1000)
         total_ms = round((t2 - t0) * 1000)
 
-        # 清理 Markdown 符号（LLM 偶尔会输出 ** 加粗）
-        if reply:
-            reply = reply.replace("**", "").replace("*", "").replace("__", "")
-
-        # 安抚策略：检测到敏感词时附加道歉前缀
-        if reply and needs_soothe(content):
-            reply = apply_soothe(reply)
+        reply = self._postprocess_reply(reply, user_content=content)
 
         # 8. 保存 AI 回复
         if reply:
@@ -237,31 +231,16 @@ class ChatService:
             )
             await self._message_repo.save(assistant_msg)
 
-        # 9. 回复链路延迟埋点
-        try:
-            event_time = now_str()
-            await self._analytics_repo.add_event(
-                session_id=session.id,
-                buyer_id=user_id,
-                event_type="reply_latency",
-                event_source="chat_pipeline",
-                ref_id=session.id,
-                meta_data=json.dumps(
-                    {
-                        "intent": intent.name,
-                        "intent_ms": intent_ms,
-                        "rag_ms": timing.get("rag_ms"),
-                        "llm_ms": timing.get("llm_ms"),
-                        "tool_rounds": timing.get("tool_rounds", 0),
-                        "loop_ms": loop_ms,
-                        "total_ms": total_ms,
-                        "channel": channel,
-                    }
-                ),
-                created_at=event_time,
-            )
-        except Exception as exc:
-            logger.warning("回复延迟埋点失败: %s", exc)
+        await self._record_reply_latency(
+            session=session,
+            user_id=user_id,
+            channel=channel,
+            intent=intent,
+            intent_ms=intent_ms,
+            timing=timing,
+            loop_ms=loop_ms,
+            total_ms=total_ms,
+        )
 
         return reply
 
@@ -315,6 +294,50 @@ class ChatService:
         )
         await self._message_repo.save(assistant_msg)
         return TRANSFER_REPLY
+
+    def _postprocess_reply(self, reply: str | None, user_content: str) -> str | None:
+        if not reply:
+            return reply
+
+        cleaned_reply = reply.replace("**", "").replace("*", "").replace("__", "")
+        if needs_soothe(user_content):
+            return apply_soothe(cleaned_reply)
+        return cleaned_reply
+
+    async def _record_reply_latency(
+        self,
+        session: Session,
+        user_id: str,
+        channel: str,
+        intent: IntentType,
+        intent_ms: int,
+        timing: dict,
+        loop_ms: int,
+        total_ms: int,
+    ) -> None:
+        try:
+            await self._analytics_repo.add_event(
+                session_id=session.id,
+                buyer_id=user_id,
+                event_type="reply_latency",
+                event_source="chat_pipeline",
+                ref_id=session.id,
+                meta_data=json.dumps(
+                    {
+                        "intent": intent.name,
+                        "intent_ms": intent_ms,
+                        "rag_ms": timing.get("rag_ms"),
+                        "llm_ms": timing.get("llm_ms"),
+                        "tool_rounds": timing.get("tool_rounds", 0),
+                        "loop_ms": loop_ms,
+                        "total_ms": total_ms,
+                        "channel": channel,
+                    }
+                ),
+                created_at=now_str(),
+            )
+        except Exception as exc:
+            logger.warning("回复延迟埋点失败: %s", exc)
 
     async def _load_knowledge_entries(
         self,

@@ -5,6 +5,7 @@ import pytest
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
 from app.service.chat import TRANSFER_REPLY, ChatService, _build_history_text
+from app.service.llm.intent import IntentType
 
 
 def test_build_history_text_keeps_recent_dialog_and_truncates_content() -> None:
@@ -70,6 +71,14 @@ class _FakeMessageRepo:
         self.saved.append(message)
 
 
+class _FakeAnalyticsRepo:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    async def add_event(self, **kwargs: object) -> None:
+        self.events.append(kwargs)
+
+
 @pytest.mark.asyncio
 async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
     service = ChatService.__new__(ChatService)
@@ -97,3 +106,38 @@ async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
     assert len(message_repo.saved) == 1
     assert message_repo.saved[0].role == MessageRole.ASSISTANT
     assert message_repo.saved[0].content == TRANSFER_REPLY
+
+
+def test_postprocess_reply_removes_markdown_marks() -> None:
+    service = ChatService.__new__(ChatService)
+
+    reply = service._postprocess_reply("**hello** __ok__", user_content="normal")
+
+    assert reply == "hello ok"
+
+
+@pytest.mark.asyncio
+async def test_record_reply_latency_keeps_expected_meta() -> None:
+    service = ChatService.__new__(ChatService)
+    analytics_repo = _FakeAnalyticsRepo()
+    service._analytics_repo = analytics_repo
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+
+    await service._record_reply_latency(
+        session=session,
+        user_id="buyer-1",
+        channel="youzan",
+        intent=IntentType.PRODUCT_CONSULTATION,
+        intent_ms=12,
+        timing={"rag_ms": 34, "llm_ms": 56, "tool_rounds": 1},
+        loop_ms=78,
+        total_ms=90,
+    )
+
+    assert len(analytics_repo.events) == 1
+    event = analytics_repo.events[0]
+    assert event["session_id"] == "session-1"
+    assert event["buyer_id"] == "buyer-1"
+    assert event["event_type"] == "reply_latency"
+    assert '"intent": "PRODUCT_CONSULTATION"' in str(event["meta_data"])
+    assert '"tool_rounds": 1' in str(event["meta_data"])

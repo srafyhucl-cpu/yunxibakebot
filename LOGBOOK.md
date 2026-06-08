@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 拆分回复后处理与延迟埋点
+
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat.py` - 提取 `_postprocess_reply`，集中处理 LLM 回复 Markdown 清理与安抚策略
+  - `app/service/chat.py` - 提取 `_record_reply_latency`，将回复链路埋点从 `handle_message` 主流程中分离
+  - `tests/service/test_chat_refactor.py` - 补充回复后处理和埋点 meta 结构回归测试
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py tests\service\test_chat_refactor.py` 通过
+
 ## [2026-06-08] - refactor(chat): 拆分对话主流程局部职责
 
 - **操作人**: AI (Codex)
