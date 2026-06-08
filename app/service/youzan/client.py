@@ -21,9 +21,7 @@ from app.repository.config_repo import ConfigRepo
 logger = setup_logger()
 
 # ── 有赞云常量 ────────────────────────────────────────────────────────────
-YOUZAN_AUTH_URL = "https://open.youzanyun.com/auth/token"
-YOUZAN_API_BASE = "https://open.youzanyun.com/api"
-YOUZAN_GOODS_H5_BASE_URL = "https://h5.youzan.com/v2/showcase/goods"
+YOUZAN_GOODS_H5_BASE_URL = settings.YOUZAN_GOODS_H5_BASE_URL
 TOKEN_REFRESH_MARGIN = 300  # 提前 5 分钟刷新（秒）
 DEFAULT_TOKEN_EXPIRES_SECONDS = 172_800  # 有赞 token 默认有效期（48 小时）
 MOCK_TOKEN_EXPIRES_SECONDS = 86_400  # Mock 模式 token 有效期（24 小时）
@@ -43,7 +41,9 @@ class YouzanClient:
     def _client(self) -> httpx.AsyncClient:
         if self._http is None:
             # trust_env=False 禁止从环境变量读取代理，避免无效端口错误
-            self._http = httpx.AsyncClient(timeout=httpx.Timeout(10.0), trust_env=False)
+            self._http = httpx.AsyncClient(
+                timeout=settings.YOUZAN_HTTP_TIMEOUT_SECONDS, trust_env=False
+            )
         return self._http
 
     async def _refresh_token(self) -> str:
@@ -57,7 +57,7 @@ class YouzanClient:
 
         try:
             resp = await self._client.post(
-                YOUZAN_AUTH_URL,
+                settings.YOUZAN_AUTH_URL,
                 json={
                     "client_id": settings.YOUZAN_CLIENT_ID,
                     "client_secret": settings.YOUZAN_CLIENT_SECRET,
@@ -138,7 +138,7 @@ class YouzanClient:
         token = await self.get_token()
         try:
             resp = await self._client.post(
-                f"{YOUZAN_API_BASE}/{api_name}/{version}?access_token={token}",
+                f"{settings.YOUZAN_API_BASE}/{api_name}/{version}?access_token={token}",
                 json=params,
             )
             result: dict = resp.json()

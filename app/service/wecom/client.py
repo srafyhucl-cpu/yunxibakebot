@@ -34,7 +34,9 @@ class WeComClient(KfClientMixin):
     @property
     def _client(self) -> httpx.AsyncClient:
         if self._http is None:
-            self._http = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
+            self._http = httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.WECOM_HTTP_TIMEOUT_SECONDS)
+            )
         return self._http
 
     async def _fetch_token(self) -> str:

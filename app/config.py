@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     YOUZAN_CLIENT_SECRET: str = ""
     YOUZAN_KDT_ID: str = ""
     YOUZAN_MOCK_MODE: bool = True
+    YOUZAN_AUTH_URL: str = "https://open.youzanyun.com/auth/token"
+    YOUZAN_API_BASE: str = "https://open.youzanyun.com/api"
+    YOUZAN_GOODS_H5_BASE_URL: str = "https://h5.youzan.com/v2/showcase/goods"
+    YOUZAN_HTTP_TIMEOUT_SECONDS: float = 10.0
 
     # ── 管理后台 ──
     # 注意：生产环境必须在 .env 中设置强密码，不能使用默认值
@@ -74,7 +78,8 @@ class Settings(BaseSettings):
     WECOM_ENCODING_AES_KEY: str = ""
     WECOM_STAFF_ID: str = ""  # 客服小李的企微 USER_ID
     WECOM_ROBOT_WEBHOOK: str = ""  # 企微值班群机器人 WEBHOOK 地址 (选填，支持群机器人)
-
+    WECOM_API_BASE: str = "https://qyapi.weixin.qq.com/cgi-bin"
+    WECOM_HTTP_TIMEOUT_SECONDS: float = 10.0
     # ── 企业微信（微信客服） ──
     # 微信客服与自建应用共用同一个回调URL / Token / EncodingAESKey
     # 只需额外配置客服账号 ID，用于发送消息时指定 open_kfid

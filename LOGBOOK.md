@@ -2,6 +2,22 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(wecom): 收敛客服回调边界与队列公共能力
+
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/api/wecom.py` - 客服回调业务逻辑下沉到 service，API 层只保留委派
+  - `app/service/wecom/kf_callback_processor.py` - 新增微信客服回调处理器，承接消息拉取、过期过滤、分流与入队
+  - `app/service/wecom/base_queue.py` - 新增微信消息队列 Worker 生命周期基类
+  - `app/service/wecom/processed_message_cache.py` - 新增固定容量消息去重缓存，替代满容量全量清空
+  - `app/service/wecom/message_queue.py` / `app/service/wecom/kf_message_queue.py` - 复用公共队列基类，保留各自入队与消息处理差异
+  - `app/config.py` / `app/service/youzan/client.py` / `app/service/wecom/constants.py` / `app/service/wecom/client.py` - 外部 URL 与 timeout 配置集中到 Settings
+  - `tests/service/wecom/` - 新增微信客服 processor、去重缓存、队列基类回归测试
+- **验证**:
+  - `python -m pytest tests\service\wecom tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m pytest tests\service\test_youzan_emulator.py tests\service\test_transfer_notification.py -q --no-cov` 通过
+  - `python -m ruff check` 针对改动文件通过
+  - 架构边界 rg 扫描通过
 ## [2026-06-07] - fix(audio): 微信客服回调新增 send_time 过期时间过滤，解决风暴式历史消息重推刷屏问题
 
 - **操作人**: AI (Antigravity)

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from urllib.parse import unquote
 
 from app.logger import setup_logger
+from app.service.wecom.base_queue import BaseWeComMessageQueue
 
 logger = setup_logger()
 
@@ -61,15 +62,11 @@ class WeComIncomingMessage:
     channel_msg_id: str
 
 
-class WeComMessageQueue:
+class WeComMessageQueue(BaseWeComMessageQueue[WeComIncomingMessage]):
     """企微异步消息队列 + 后台 Worker。"""
 
     def __init__(self) -> None:
-        self._queue: asyncio.Queue[WeComIncomingMessage] = asyncio.Queue(
-            maxsize=QUEUE_MAX_SIZE
-        )
-        self._worker_task: asyncio.Task[None] | None = None
-        self._chat_service = None  # 延迟注入（lifespan 启动时设置）
+        super().__init__(QUEUE_MAX_SIZE, "企微消息队列")
 
     async def enqueue(self, msg: WeComIncomingMessage) -> bool:
         """
@@ -86,63 +83,6 @@ class WeComMessageQueue:
                 msg.external_user_id,
             )
             return False
-
-    def start_worker(self, chat_service) -> None:
-        """
-        启动后台消费任务。
-
-        参数：
-            chat_service: ChatService 实例，用于处理消息和发送回复
-        必须在事件循环中调用（通常在 lifespan startup 阶段）。
-        """
-        if self._worker_task is not None and not self._worker_task.done():
-            logger.warning("Worker 已在运行，跳过重复启动")
-            return
-
-        self._chat_service = chat_service
-        self._worker_task = asyncio.create_task(self._worker_loop())
-        logger.info("企微消息队列 Worker 已启动")
-
-    async def stop(self) -> None:
-        """停止后台 Worker（应用关闭时调用）。"""
-        if self._worker_task is None or self._worker_task.done():
-            return
-
-        self._worker_task.cancel()
-        try:
-            await self._worker_task
-        except asyncio.CancelledError:
-            pass
-        self._worker_task = None
-        logger.info("企微消息队列 Worker 已停止")
-
-    @property
-    def queue_size(self) -> int:
-        """当前队列中待处理的消息数量（用于监控）。"""
-        return self._queue.qsize()
-
-    async def _worker_loop(self) -> None:
-        """后台循环：持续从队列取消息并处理。"""
-        logger.info("企微消息队列 Worker 开始运行")
-        while True:
-            try:
-                # 阻塞等待下一条消息
-                msg = await self._queue.get()
-            except (asyncio.CancelledError, GeneratorExit):
-                break
-
-            try:
-                await self._process_one(msg)
-            except Exception as exc:
-                # 异常隔离：单条失败不影响后续处理
-                logger.error(
-                    "企微消息处理异常 user=%s msg_id=%s err=%s",
-                    msg.external_user_id,
-                    msg.channel_msg_id,
-                    exc,
-                )
-            finally:
-                self._queue.task_done()
 
     async def _process_one(self, msg: WeComIncomingMessage) -> None:
         """
@@ -220,6 +160,9 @@ class WeComMessageQueue:
                 user_id,
                 result.get("errmsg"),
             )
+
+    def _message_log_context(self, msg: WeComIncomingMessage) -> str:
+        return f"user={msg.external_user_id} msg_id={msg.channel_msg_id}"
 
 
 # ── 全局单例 ────────────────────────────────────────────────

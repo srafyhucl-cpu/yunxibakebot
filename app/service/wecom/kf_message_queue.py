@@ -18,13 +18,15 @@ from dataclasses import dataclass
 from urllib.parse import unquote
 
 from app.logger import setup_logger
+from app.service.wecom.base_queue import BaseWeComMessageQueue
+from app.service.wecom.processed_message_cache import ProcessedMessageCache
 
 logger = setup_logger()
 
 # 已处理的 msg_id 集合（内存去重，防止企微重复推送导致 AI 多次回复）
-_processed_msg_ids: set[str] = set()
 # 最大缓存条数（防止内存泄漏）
 _MAX_PROCESSED_CACHE = 5000
+_processed_msg_cache = ProcessedMessageCache(max_size=_MAX_PROCESSED_CACHE)
 
 # 队列容量上限（满队列时新消息被丢弃）
 QUEUE_MAX_SIZE = 1000
@@ -69,15 +71,11 @@ class KfIncomingMessage:
     media_id: str = ""  # 非文本消息的素材 ID（用于下载）
 
 
-class KfMessageQueue:
+class KfMessageQueue(BaseWeComMessageQueue[KfIncomingMessage]):
     """微信客服异步消息队列 + 后台 Worker。"""
 
     def __init__(self) -> None:
-        self._queue: asyncio.Queue[KfIncomingMessage] = asyncio.Queue(
-            maxsize=QUEUE_MAX_SIZE
-        )
-        self._worker_task: asyncio.Task[None] | None = None
-        self._chat_service = None  # 延迟注入（lifespan 启动时设置）
+        super().__init__(QUEUE_MAX_SIZE, "微信客服消息队列")
 
     async def enqueue(self, msg: KfIncomingMessage) -> bool:
         """
@@ -85,14 +83,10 @@ class KfMessageQueue:
         返回 True 表示入队成功，False 表示队列已满。
         """
         # 1. 内存去重（在入队前端进行，防范微信客服历史重推消息塞爆队列）
-        if msg.msg_id in _processed_msg_ids:
+        if not _processed_msg_cache.add_if_new(msg.msg_id):
             logger.debug("入队拦截：重复消息已跳过 msg_id=%s", msg.msg_id)
             return True
-        _processed_msg_ids.add(msg.msg_id)
         # 防止内存无限增长：超过上限时清空旧数据
-        if len(_processed_msg_ids) > _MAX_PROCESSED_CACHE:
-            _processed_msg_ids.clear()
-            logger.info("已处理消息缓存已清空（达到上限 %d）", _MAX_PROCESSED_CACHE)
 
         try:
             self._queue.put_nowait(msg)
@@ -104,63 +98,6 @@ class KfMessageQueue:
                 msg.external_userid,
             )
             return False
-
-    def start_worker(self, chat_service) -> None:
-        """
-        启动后台消费任务。
-
-        参数：
-            chat_service: ChatService 实例，用于处理消息和发送回复
-        必须在事件循环中调用（通常在 lifespan startup 阶段）。
-        """
-        if self._worker_task is not None and not self._worker_task.done():
-            logger.warning("客服 Worker 已在运行，跳过重复启动")
-            return
-
-        self._chat_service = chat_service
-        self._worker_task = asyncio.create_task(self._worker_loop())
-        logger.info("微信客服消息队列 Worker 已启动")
-
-    async def stop(self) -> None:
-        """停止后台 Worker（应用关闭时调用）。"""
-        if self._worker_task is None or self._worker_task.done():
-            return
-
-        self._worker_task.cancel()
-        try:
-            await self._worker_task
-        except asyncio.CancelledError:
-            pass
-        self._worker_task = None
-        logger.info("微信客服消息队列 Worker 已停止")
-
-    @property
-    def queue_size(self) -> int:
-        """当前队列中待处理的消息数量（用于监控）。"""
-        return self._queue.qsize()
-
-    async def _worker_loop(self) -> None:
-        """后台循环：持续从队列取消息并处理。"""
-        logger.info("微信客服消息队列 Worker 开始运行")
-        while True:
-            try:
-                # 阻塞等待下一条消息
-                msg = await self._queue.get()
-            except (asyncio.CancelledError, GeneratorExit):
-                break
-
-            try:
-                await self._process_one(msg)
-            except Exception as exc:
-                # 异常隔离：单条失败不影响后续处理
-                logger.error(
-                    "客服消息处理异常 user=%s msg_id=%s err=%s",
-                    msg.external_userid,
-                    msg.msg_id,
-                    exc,
-                )
-            finally:
-                self._queue.task_done()
 
     async def _process_one(self, msg: KfIncomingMessage) -> None:
         """
@@ -451,6 +388,9 @@ class KfMessageQueue:
                 external_userid,
                 text_result.get("errmsg"),
             )
+
+    def _message_log_context(self, msg: KfIncomingMessage) -> str:
+        return f"user={msg.external_userid} msg_id={msg.msg_id}"
 
 
 # ── 全局单例 ────────────────────────────────────────────────
