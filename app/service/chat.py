@@ -12,7 +12,6 @@
 import time
 
 from app.logger import setup_logger
-from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionCreate, SessionStatus
 from app.models.youzan_webhook_event import (
@@ -24,6 +23,7 @@ from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.service.chat_context import prepare_chat_context
 from app.service.chat_llm import request_llm_choice
 from app.service.chat_multimodal import apply_multimodal_image_message
 from app.service.chat_reply import postprocess_reply, record_reply_latency
@@ -33,8 +33,6 @@ from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.functions import MAX_TOOL_ROUNDS
 from app.service.llm.intent import IntentType, detect_intent
 from app.service.llm.intent_types import is_transfer_intent
-from app.service.llm.prompt import build_system_prompt
-from app.service.llm.query_rewriter import rewrite_query
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 from app.service.youzan.client import YouzanClient
@@ -48,8 +46,6 @@ FALLBACK_REPLY = "系统正忙，请稍后再试或联系人工客服。"
 # 非文本消息（图片/语音/视频等）兑底提示：不喂给 LLM，直接友好引导用户改发文字。
 NONTEXT_FALLBACK_REPLY = "您好~ 我暂时只能识别文字消息，麻烦您用文字描述一下需要咨询的问题，我会尽快为您解答 :)"
 TRANSFER_REPLY = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
-DEFAULT_SEARCH_QUERY = "芸熙烘焙 产品 价格"
-KNOWLEDGE_SEARCH_LIMIT = 8
 INTENT_HISTORY_MESSAGES = 4
 INTENT_CONTENT_PREVIEW = 80
 
@@ -290,25 +286,6 @@ class ChatService:
         await self._message_repo.save(assistant_msg)
         return TRANSFER_REPLY
 
-    async def _load_knowledge_entries(
-        self,
-        user_query: str,
-        history_text: str,
-        intent: IntentType,
-    ) -> list[KnowledgeEntry]:
-        if intent == IntentType.SMALL_TALK:
-            return await self._knowledge.search_keyword_only(
-                user_query, limit=KNOWLEDGE_SEARCH_LIMIT
-            )
-
-        search_query = user_query or DEFAULT_SEARCH_QUERY
-        rewritten = await rewrite_query(search_query, history=history_text)
-        try:
-            return await self._knowledge.search(rewritten, limit=KNOWLEDGE_SEARCH_LIMIT)
-        except Exception as exc:
-            logger.error("知识库检索失败，使用空上下文继续: %s", exc)
-            return []
-
     async def _ai_conversation_loop(
         self,
         session: Session,
@@ -334,18 +311,16 @@ class ChatService:
         if history is None:
             history = await self._session_mgr.build_context(session.id)
             history_text = _build_history_text(history)
-        _t_rag = time.monotonic()
-        knowledge_entries = await self._load_knowledge_entries(
-            user_query, history_text, intent
+        chat_context = await prepare_chat_context(
+            knowledge=self._knowledge,
+            user_query=user_query,
+            history_text=history_text,
+            intent=intent,
+            history=history,
         )
         if timing is not None:
-            timing["rag_ms"] = round((time.monotonic() - _t_rag) * 1000)
-
-        messages: list[dict] = [
-            {"role": "system", "content": build_system_prompt(knowledge_entries)},
-        ]
-
-        messages.extend(history)
+            timing["rag_ms"] = chat_context.rag_ms
+        messages = chat_context.messages
 
         if image_base64:
             apply_multimodal_image_message(messages, image_base64, session.id)

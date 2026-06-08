@@ -8,6 +8,7 @@ from app.service import chat_llm as chat_llm_module
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
 from app.service.chat import TRANSFER_REPLY, ChatService, _build_history_text
+from app.service.chat_context import prepare_chat_context
 from app.service.chat_llm import request_llm_choice, select_llm_model
 from app.service.chat_multimodal import (
     apply_multimodal_image_message,
@@ -94,6 +95,20 @@ class _FakeAnalyticsRepo:
         self.events.append(kwargs)
 
 
+class _FakeKnowledgeRetriever:
+    def __init__(self) -> None:
+        self.search_calls: list[tuple[str, int]] = []
+        self.keyword_calls: list[tuple[str, int]] = []
+
+    async def search(self, query: str, limit: int = 8) -> list:
+        self.search_calls.append((query, limit))
+        return []
+
+    async def search_keyword_only(self, query: str, limit: int = 8) -> list:
+        self.keyword_calls.append((query, limit))
+        return []
+
+
 @pytest.mark.asyncio
 async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
     service = ChatService.__new__(ChatService)
@@ -153,6 +168,35 @@ async def test_record_reply_latency_keeps_expected_meta() -> None:
     assert event["event_type"] == "reply_latency"
     assert '"intent": "PRODUCT_CONSULTATION"' in str(event["meta_data"])
     assert '"tool_rounds": 1' in str(event["meta_data"])
+
+
+@pytest.mark.asyncio
+async def test_prepare_chat_context_builds_system_message_and_preserves_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    knowledge = _FakeKnowledgeRetriever()
+    history = [{"role": "user", "content": "hello"}]
+
+    async def fake_rewrite_query(user_query: str, history: str = "") -> str:
+        return f"rewritten:{user_query}:{history}"
+
+    monkeypatch.setattr(
+        "app.service.chat_context.rewrite_query",
+        fake_rewrite_query,
+    )
+
+    chat_context = await prepare_chat_context(
+        knowledge=knowledge,
+        user_query="cake",
+        history_text="old",
+        intent=IntentType.PRODUCT_CONSULTATION,
+        history=history,
+    )
+
+    assert knowledge.search_calls == [("rewritten:cake:old", 8)]
+    assert chat_context.messages[0]["role"] == "system"
+    assert chat_context.messages[1:] == history
+    assert isinstance(chat_context.rag_ms, int)
 
 
 def test_normalize_image_data_uri_detects_png() -> None:

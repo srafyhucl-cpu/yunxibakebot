@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 抽离知识上下文构造边界
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_context.py` - 新增知识检索、query rewrite、system prompt 与 LLM messages 构造边界
+  - `app/service/chat.py` - 移除 `_load_knowledge_entries`，主循环改为调用 `prepare_chat_context` 并记录 `rag_ms`
+  - `tests/service/test_chat_refactor.py` - 补充上下文构造保留历史消息与 RAG 查询回归测试
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_context.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_context.py tests\service\test_chat_refactor.py` 通过
+  - `api/service/models` 分层扫描无新增违规
+
 ## [2026-06-08] - refactor(chat): 抽离回复后处理与埋点边界
 - **操作人**: AI (Codex)
 - **变更范围**:
