@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(wecom): 统一 UMP 标签解析工具
+
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/wecom/ump.py` - 新增企微统一媒体协议解析工具，集中解析 `[UMP: ...]` 标签并保留 URL decode 行为
+  - `app/service/wecom/message_queue.py` / `app/service/wecom/kf_message_queue.py` - 移除重复 `_parse_ump_tags` 实现，统一调用共享解析器，保留各自卡片发送协议差异
+  - `tests/service/wecom/test_ump.py` - 覆盖多标签解析、URL 解码与无效片段跳过
+- **验证**:
+  - `python -m pytest tests\service\wecom -q --no-cov` 通过
+  - `python -m ruff check app\service\wecom tests\service\wecom` 通过
+  - `python -m compileall -q app\service\wecom\ump.py app\service\wecom\message_queue.py app\service\wecom\kf_message_queue.py` 通过
+
 ## [2026-06-08] - refactor(wecom): 收敛客服回调边界与队列公共能力
 
 - **操作人**: AI (Codex)

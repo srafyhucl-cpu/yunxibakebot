@@ -13,44 +13,16 @@
 """
 
 import asyncio
-import re
 from dataclasses import dataclass
-from urllib.parse import unquote
 
 from app.logger import setup_logger
 from app.service.wecom.base_queue import BaseWeComMessageQueue
+from app.service.wecom.ump import parse_ump_tags
 
 logger = setup_logger()
 
 # 队列容量上限（满队列时新消息被丢弃）
 QUEUE_MAX_SIZE = 1000
-
-# UMP 标记正则：[UMP: type=xxx&key=value&...]
-UMP_PATTERN = re.compile(r"\[UMP:\s*(.*?)\]")
-
-
-def _parse_ump_tags(text: str) -> tuple[str, list[dict]]:
-    """
-    从回复文本中解析 UMP 标记。
-
-    返回：(纯文本, UMP标签列表)
-    每个UMP标签是解析后的参数字典。
-    """
-    ump_list: list[dict] = []
-
-    def _replacer(match: re.Match[str]) -> str:
-        raw = match.group(1)
-        params: dict[str, str] = {}
-        for pair in raw.split("&"):
-            if "=" in pair:
-                k, v = pair.split("=", 1)
-                params[k.strip()] = unquote(v.strip())
-        if params:
-            ump_list.append(params)
-        return ""  # 移除标记文本
-
-    clean_text = UMP_PATTERN.sub(_replacer, text).strip()
-    return clean_text, ump_list
 
 
 @dataclass(frozen=True)
@@ -113,7 +85,7 @@ class WeComMessageQueue(BaseWeComMessageQueue[WeComIncomingMessage]):
                 return
 
             # 解析 UMP 标记，分离纯文本和卡片/图片
-            clean_text, ump_tags = _parse_ump_tags(reply)
+            clean_text, ump_tags = parse_ump_tags(reply)
 
             # 发送纯文本（如果解析后还有内容）
             if clean_text:
