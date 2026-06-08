@@ -9,7 +9,6 @@
 5. 循环最多 3 轮 tool call
 """
 
-import base64
 import json
 import time
 
@@ -27,6 +26,7 @@ from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat_llm import request_llm_choice
+from app.service.chat_multimodal import apply_multimodal_image_message
 from app.service.chat_tools import ToolExecutionContext, process_tool_calls
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.functions import MAX_TOOL_ROUNDS
@@ -336,52 +336,6 @@ class ChatService:
         except Exception as exc:
             logger.warning("回复延迟埋点失败: %s", exc)
 
-    def _normalize_image_data_uri(self, image_base64: str) -> str:
-        if image_base64.startswith("data:"):
-            return image_base64
-
-        header_bytes = base64.b64decode(image_base64[:32])[:4]
-        mime_type = "image/jpeg"
-        if header_bytes[:4] == b"\x89PNG":
-            mime_type = "image/png"
-        elif header_bytes[0:2] == b"\xff\xd8":
-            mime_type = "image/jpeg"
-        elif header_bytes[0:4] == b"RIFF":
-            mime_type = "image/webp"
-        return f"data:{mime_type};base64,{image_base64}"
-
-    def _apply_multimodal_image_message(
-        self,
-        messages: list[dict],
-        image_base64: str,
-        session_id: str,
-    ) -> None:
-        image_data_uri = self._normalize_image_data_uri(image_base64)
-        for index in range(len(messages) - 1, -1, -1):
-            if messages[index].get("role") != "user":
-                continue
-
-            original_text = messages[index].get("content", "") or ""
-            messages[index] = {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_data_uri},
-                    },
-                    {
-                        "type": "text",
-                        "text": original_text or "[用户发送了一张图片]",
-                    },
-                ],
-            }
-            logger.info(
-                "会话 %s 已构建多模态消息（图片 %d 字符 base64）",
-                session_id,
-                len(image_base64),
-            )
-            return
-
     async def _load_knowledge_entries(
         self,
         user_query: str,
@@ -440,7 +394,7 @@ class ChatService:
         messages.extend(history)
 
         if image_base64:
-            self._apply_multimodal_image_message(messages, image_base64, session.id)
+            apply_multimodal_image_message(messages, image_base64, session.id)
 
         tool_round = 0
         _t_llm_first: float | None = None

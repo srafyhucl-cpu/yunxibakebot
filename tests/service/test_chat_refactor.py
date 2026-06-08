@@ -9,6 +9,10 @@ from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
 from app.service.chat import TRANSFER_REPLY, ChatService, _build_history_text
 from app.service.chat_llm import request_llm_choice, select_llm_model
+from app.service.chat_multimodal import (
+    apply_multimodal_image_message,
+    normalize_image_data_uri,
+)
 from app.service.chat_tools import (
     ToolExecutionContext,
     parse_tool_arguments,
@@ -153,17 +157,15 @@ async def test_record_reply_latency_keeps_expected_meta() -> None:
 
 
 def test_normalize_image_data_uri_detects_png() -> None:
-    service = ChatService.__new__(ChatService)
     png_base64 = b64encode(b"\x89PNG\r\n\x1a\nfake").decode("ascii")
 
-    data_uri = service._normalize_image_data_uri(png_base64)
+    data_uri = normalize_image_data_uri(png_base64)
 
     assert data_uri.startswith("data:image/png;base64,")
     assert data_uri.endswith(png_base64)
 
 
 def test_apply_multimodal_image_message_replaces_last_user_message() -> None:
-    service = ChatService.__new__(ChatService)
     jpeg_base64 = b64encode(b"\xff\xd8\xff\xe0fake").decode("ascii")
     messages = [
         {"role": "user", "content": "first"},
@@ -171,7 +173,7 @@ def test_apply_multimodal_image_message_replaces_last_user_message() -> None:
         {"role": "user", "content": "last"},
     ]
 
-    service._apply_multimodal_image_message(messages, jpeg_base64, "session-1")
+    apply_multimodal_image_message(messages, jpeg_base64, "session-1")
 
     assert messages[0]["content"] == "first"
     assert messages[2]["role"] == "user"
