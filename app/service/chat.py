@@ -9,6 +9,7 @@
 5. 循环最多 3 轮 tool call
 """
 
+import base64
 import json
 import time
 
@@ -339,6 +340,52 @@ class ChatService:
         except Exception as exc:
             logger.warning("回复延迟埋点失败: %s", exc)
 
+    def _normalize_image_data_uri(self, image_base64: str) -> str:
+        if image_base64.startswith("data:"):
+            return image_base64
+
+        header_bytes = base64.b64decode(image_base64[:32])[:4]
+        mime_type = "image/jpeg"
+        if header_bytes[:4] == b"\x89PNG":
+            mime_type = "image/png"
+        elif header_bytes[0:2] == b"\xff\xd8":
+            mime_type = "image/jpeg"
+        elif header_bytes[0:4] == b"RIFF":
+            mime_type = "image/webp"
+        return f"data:{mime_type};base64,{image_base64}"
+
+    def _apply_multimodal_image_message(
+        self,
+        messages: list[dict],
+        image_base64: str,
+        session_id: str,
+    ) -> None:
+        image_data_uri = self._normalize_image_data_uri(image_base64)
+        for index in range(len(messages) - 1, -1, -1):
+            if messages[index].get("role") != "user":
+                continue
+
+            original_text = messages[index].get("content", "") or ""
+            messages[index] = {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_data_uri},
+                    },
+                    {
+                        "type": "text",
+                        "text": original_text or "[用户发送了一张图片]",
+                    },
+                ],
+            }
+            logger.info(
+                "会话 %s 已构建多模态消息（图片 %d 字符 base64）",
+                session_id,
+                len(image_base64),
+            )
+            return
+
     async def _load_knowledge_entries(
         self,
         user_query: str,
@@ -396,47 +443,8 @@ class ChatService:
 
         messages.extend(history)
 
-        # 多模态图片处理：如果用户发了图片，将最后一条用户消息替换为多模态格式
         if image_base64:
-            import base64 as _base64_mod
-
-            # 确保是合法 base64 数据（无前缀则补上 data URI）
-            b64_data = image_base64
-            if not b64_data.startswith("data:"):
-                # 尝试检测 MIME 类型（简单判断 JPEG/PNG）
-                header_bytes = _base64_mod.b64decode(b64_data[:32])[:4]
-                mime_type = "image/jpeg"
-                if header_bytes[:4] == b"\x89PNG":
-                    mime_type = "image/png"
-                elif header_bytes[0:2] == b"\xff\xd8":
-                    mime_type = "image/jpeg"
-                elif header_bytes[0:4] == b"RIFF":
-                    mime_type = "image/webp"
-                b64_data = f"data:{mime_type};base64,{b64_data}"
-
-            # 从后往前找最后一条 role=user 的消息，替换为多模态格式
-            for i in range(len(messages) - 1, -1, -1):
-                if messages[i].get("role") == "user":
-                    original_text = messages[i].get("content", "") or ""
-                    messages[i] = {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": b64_data},
-                            },
-                            {
-                                "type": "text",
-                                "text": original_text or "[用户发送了一张图片]",
-                            },
-                        ],
-                    }
-                    logger.info(
-                        "会话 %s 已构建多模态消息（图片 %d 字符 base64）",
-                        session.id,
-                        len(image_base64),
-                    )
-                    break
+            self._apply_multimodal_image_message(messages, image_base64, session.id)
 
         tool_round = 0
         _t_llm_first: float | None = None
