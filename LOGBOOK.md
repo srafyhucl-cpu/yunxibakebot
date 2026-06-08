@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 拆分 LLM 调用边界
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_llm.py` - 新增 ChatService 专用 LLM 调用边界，集中处理模型选择、首次 LLM 耗时记录、LLMError 与响应解析兜底
+  - `app/service/chat.py` - 将 `_ai_conversation_loop` 内联 LLM try/except 收敛为 `request_llm_choice` 调用，减少主循环职责密度
+  - `tests/service/test_chat_refactor.py` - 补充文本/图片模型选择和 LLM 调用耗时记录回归测试
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_llm.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_llm.py tests\service\test_chat_refactor.py` 通过
+  - `api/service/models` 分层扫描无新增违规
+
 ## [2026-06-08] - refactor(chat): 拆分多模态图片消息构造
 
 - **操作人**: AI (Codex)

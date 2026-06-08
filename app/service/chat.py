@@ -13,7 +13,6 @@ import base64
 import json
 import time
 
-from app.exceptions import LLMError
 from app.logger import setup_logger
 from app.models.knowledge import KnowledgeEntry
 from app.models.message import Message, MessageRole
@@ -27,13 +26,9 @@ from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.service.chat_llm import request_llm_choice
 from app.service.knowledge_retriever import KnowledgeRetriever
-from app.service.llm.client import chat_completion as llm_chat
-from app.service.llm.functions import (
-    FUNCTION_DEFINITIONS,
-    MAX_TOOL_ROUNDS,
-    dispatch_tool,
-)
+from app.service.llm.functions import MAX_TOOL_ROUNDS, dispatch_tool
 from app.service.llm.intent import IntentType, detect_intent
 from app.service.llm.intent_types import is_transfer_intent
 from app.service.llm.prompt import build_system_prompt
@@ -450,36 +445,22 @@ class ChatService:
         _t_llm_first: float | None = None
 
         while tool_round <= MAX_TOOL_ROUNDS:
-            try:
-                if _t_llm_first is None:
-                    _t_llm_first = time.monotonic()
-                # 多模态图片消息使用 MiMo 视觉模型
-                llm_model = ""
-                if image_base64:
-                    from app.config import settings as _cfg
+            llm_result = await request_llm_choice(
+                messages=messages,
+                timing=timing,
+                first_llm_started_at=_t_llm_first,
+                has_image=bool(image_base64),
+                fallback_reply=FALLBACK_REPLY,
+                failure_alerter=_llm_failure_alerter,
+            )
+            _t_llm_first = llm_result.first_llm_started_at
+            if llm_result.fallback_reply is not None:
+                return llm_result.fallback_reply
 
-                    llm_model = _cfg.MIMO_VISION_MODEL or _cfg.MIMO_CHAT_MODEL
-                response = await llm_chat(
-                    messages, tools=FUNCTION_DEFINITIONS, model=llm_model
-                )
-                if (
-                    timing is not None
-                    and "llm_ms" not in timing
-                    and _t_llm_first is not None
-                ):
-                    timing["llm_ms"] = round((time.monotonic() - _t_llm_first) * 1000)
-                choice = response.choices[0]
-                msg = choice.message
-            except LLMError:
-                logger.error("LLM 调用失败，返回兜底回复")
-                await _llm_failure_alerter(
-                    "LLMError: chat.py handle_message 返回兜底回复"
-                )
-                return FALLBACK_REPLY
-            except (KeyError, IndexError) as exc:
-                logger.error("LLM 响应解析失败，返回兜底回复: %s", exc)
-                await _llm_failure_alerter(f"LLM 响应解析失败: {exc}")
-                return FALLBACK_REPLY
+            choice = llm_result.choice
+            msg = llm_result.message
+            assert choice is not None
+            assert msg is not None
 
             finish_reason = choice.finish_reason or "stop"
 

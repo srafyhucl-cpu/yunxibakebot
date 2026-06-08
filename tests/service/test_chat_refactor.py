@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 from base64 import b64encode
+from types import SimpleNamespace
 
 import pytest
 
+from app.service import chat_llm as chat_llm_module
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
 from app.service.chat import TRANSFER_REPLY, ChatService, _build_history_text
+from app.service.chat_llm import request_llm_choice, select_llm_model
 from app.service.llm.intent import IntentType
 
 
@@ -172,3 +175,59 @@ def test_apply_multimodal_image_message_replaces_last_user_message() -> None:
         "data:image/jpeg;base64,"
     )
     assert messages[2]["content"][1] == {"type": "text", "text": "last"}
+
+
+def test_select_llm_model_uses_default_for_text() -> None:
+    assert select_llm_model(has_image=False) == ""
+
+
+def test_select_llm_model_uses_vision_and_chat_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_llm_module.settings, "MIMO_VISION_MODEL", "vision-model")
+    monkeypatch.setattr(chat_llm_module.settings, "MIMO_CHAT_MODEL", "chat-model")
+
+    assert select_llm_model(has_image=True) == "vision-model"
+
+    monkeypatch.setattr(chat_llm_module.settings, "MIMO_VISION_MODEL", "")
+    assert select_llm_model(has_image=True) == "chat-model"
+
+
+@pytest.mark.asyncio
+async def test_request_llm_choice_records_latency_and_uses_selected_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    async def fake_llm_chat(
+        messages: list[dict], tools: list[dict], model: str
+    ) -> object:
+        captured["messages"] = messages
+        captured["tools"] = tools
+        captured["model"] = model
+        message = SimpleNamespace(content="ok")
+        choice = SimpleNamespace(message=message, finish_reason="stop")
+        return SimpleNamespace(choices=[choice])
+
+    async def fake_alerter(message: str) -> None:
+        captured["alert"] = message
+
+    monkeypatch.setattr(chat_llm_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(chat_llm_module.settings, "MIMO_VISION_MODEL", "vision-model")
+    timing: dict[str, int] = {}
+    messages = [{"role": "user", "content": "hello"}]
+
+    result = await request_llm_choice(
+        messages=messages,
+        timing=timing,
+        first_llm_started_at=None,
+        has_image=True,
+        fallback_reply="fallback",
+        failure_alerter=fake_alerter,
+    )
+
+    assert captured["messages"] == messages
+    assert captured["model"] == "vision-model"
+    assert result.message.content == "ok"
+    assert result.fallback_reply is None
+    assert isinstance(timing["llm_ms"], int)
