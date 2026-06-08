@@ -57,6 +57,15 @@ KNOWLEDGE_SEARCH_LIMIT = 8
 INTENT_HISTORY_MESSAGES = 4
 INTENT_CONTENT_PREVIEW = 80
 
+
+def _build_history_text(history: list[dict]) -> str:
+    return "\n".join(
+        f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
+        for m in history[-INTENT_HISTORY_MESSAGES:]
+        if m.get("role") in ("user", "assistant")
+    )
+
+
 # LLM 连续失败阈值告警器（60 秒内累计 3 次失败触发告警）
 _llm_failure_alerter = alert_service.create_threshold_alerter(
     AlertLevel.WARNING,
@@ -161,20 +170,13 @@ class ChatService:
             logger.debug("消息已处理，跳过: %s", channel_msg_id)
             return None
 
-        # 2. 获取或创建会话
-        session = await self._session_repo.get_or_create(
-            SessionCreate(id="", channel=channel, user_id=user_id, staff_id=staff_id),
-        )
-
-        # 3. 保存用户消息
-        user_msg = Message(
-            id="",
-            session_id=session.id,
-            role=MessageRole.USER,
+        session = await self._prepare_session_and_save_user_message(
+            channel=channel,
+            user_id=user_id,
+            staff_id=staff_id,
             content=content,
             channel_msg_id=channel_msg_id,
         )
-        await self._message_repo.save(user_msg)
 
         # 4. 状态判断：人工服务中则不调用 LLM
         if session.status in (
@@ -187,11 +189,7 @@ class ChatService:
         # 5. 意图识别（决定走售后、知识搜索还是闲聊）
         t0 = time.monotonic()
         history = await self._session_mgr.build_context(session.id)
-        history_text = "\n".join(
-            f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
-            for m in history[-INTENT_HISTORY_MESSAGES:]
-            if m.get("role") in ("user", "assistant")
-        )
+        history_text = _build_history_text(history)
         intent = await detect_intent(content, history=history_text)
         t1 = time.monotonic()
         intent_ms = round((t1 - t0) * 1000)
@@ -199,29 +197,12 @@ class ChatService:
 
         # 转人工 → 自动创建转人工工单
         if is_transfer_intent(intent):
-            try:
-                await self._transfer_mgr.request_transfer(
-                    session.id,
-                    user_id,
-                    reason=content,
-                    summary=history_text[-TRANSFER_SUMMARY_LENGTH:],
-                )
-                await self._session_repo.update_status(
-                    session.id, SessionStatus.TRANSFER_PENDING
-                )
-            except Exception as exc:
-                logger.error(
-                    "创建售后转人工工单失败: session=%s err=%s", session.id, exc
-                )
-                return FALLBACK_REPLY
-            assistant_msg = Message(
-                id="",
-                session_id=session.id,
-                role=MessageRole.ASSISTANT,
-                content=TRANSFER_REPLY,
+            return await self._handle_transfer_intent(
+                session=session,
+                user_id=user_id,
+                reason=content,
+                history_text=history_text,
             )
-            await self._message_repo.save(assistant_msg)
-            return TRANSFER_REPLY
 
         # 7. 进入 AI 对话循环
         timing: dict = {}
@@ -284,6 +265,57 @@ class ChatService:
 
         return reply
 
+    async def _prepare_session_and_save_user_message(
+        self,
+        channel: str,
+        user_id: str,
+        staff_id: str,
+        content: str,
+        channel_msg_id: str,
+    ) -> Session:
+        session = await self._session_repo.get_or_create(
+            SessionCreate(id="", channel=channel, user_id=user_id, staff_id=staff_id),
+        )
+        user_msg = Message(
+            id="",
+            session_id=session.id,
+            role=MessageRole.USER,
+            content=content,
+            channel_msg_id=channel_msg_id,
+        )
+        await self._message_repo.save(user_msg)
+        return session
+
+    async def _handle_transfer_intent(
+        self,
+        session: Session,
+        user_id: str,
+        reason: str,
+        history_text: str,
+    ) -> str:
+        try:
+            await self._transfer_mgr.request_transfer(
+                session.id,
+                user_id,
+                reason=reason,
+                summary=history_text[-TRANSFER_SUMMARY_LENGTH:],
+            )
+            await self._session_repo.update_status(
+                session.id, SessionStatus.TRANSFER_PENDING
+            )
+        except Exception as exc:
+            logger.error("创建售后转人工工单失败: session=%s err=%s", session.id, exc)
+            return FALLBACK_REPLY
+
+        assistant_msg = Message(
+            id="",
+            session_id=session.id,
+            role=MessageRole.ASSISTANT,
+            content=TRANSFER_REPLY,
+        )
+        await self._message_repo.save(assistant_msg)
+        return TRANSFER_REPLY
+
     async def _load_knowledge_entries(
         self,
         user_query: str,
@@ -327,11 +359,7 @@ class ChatService:
         # 复用调用方已查询的上下文，避免重复数据库查询（L-5.2）
         if history is None:
             history = await self._session_mgr.build_context(session.id)
-            history_text = "\n".join(
-                f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
-                for m in history[-INTENT_HISTORY_MESSAGES:]
-                if m.get("role") in ("user", "assistant")
-            )
+            history_text = _build_history_text(history)
         _t_rag = time.monotonic()
         knowledge_entries = await self._load_knowledge_entries(
             user_query, history_text, intent

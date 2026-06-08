@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 拆分对话主流程局部职责
+
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat.py` - 提取 `_build_history_text` 复用上下文摘要构造，避免意图识别和兜底调用路径重复拼接历史文本
+  - `app/service/chat.py` - 提取 `_prepare_session_and_save_user_message`，收敛会话获取与用户消息落库步骤
+  - `app/service/chat.py` - 提取 `_handle_transfer_intent`，将转人工工单创建、会话状态更新与回复保存从 `handle_message` 主流程中分离
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py tests\service\test_chat_refactor.py` 通过
+
 ## [2026-06-08] - refactor(wecom): 统一 UMP 标签解析工具
 
 - **操作人**: AI (Codex)
