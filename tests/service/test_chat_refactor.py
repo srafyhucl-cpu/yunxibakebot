@@ -13,6 +13,7 @@ from app.service.chat_multimodal import (
     apply_multimodal_image_message,
     normalize_image_data_uri,
 )
+from app.service.chat_reply import postprocess_reply, record_reply_latency
 from app.service.chat_tools import (
     ToolExecutionContext,
     parse_tool_arguments,
@@ -123,21 +124,18 @@ async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
 
 
 def test_postprocess_reply_removes_markdown_marks() -> None:
-    service = ChatService.__new__(ChatService)
-
-    reply = service._postprocess_reply("**hello** __ok__", user_content="normal")
+    reply = postprocess_reply("**hello** __ok__", user_content="normal")
 
     assert reply == "hello ok"
 
 
 @pytest.mark.asyncio
 async def test_record_reply_latency_keeps_expected_meta() -> None:
-    service = ChatService.__new__(ChatService)
     analytics_repo = _FakeAnalyticsRepo()
-    service._analytics_repo = analytics_repo
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
 
-    await service._record_reply_latency(
+    await record_reply_latency(
+        analytics_repo=analytics_repo,
         session=session,
         user_id="buyer-1",
         channel="youzan",

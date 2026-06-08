@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 抽离回复后处理与埋点边界
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_reply.py` - 新增回复后处理与回复延迟埋点边界，集中处理 Markdown 标记清理、安抚策略和 `reply_latency` meta 组装
+  - `app/service/chat.py` - 移除 `_postprocess_reply` 与 `_record_reply_latency` 私有方法，主流程改为调用 `postprocess_reply` / `record_reply_latency`
+  - `tests/service/test_chat_refactor.py` - 将回复后处理和埋点回归测试迁移到新模块函数
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_reply.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_reply.py tests\service\test_chat_refactor.py` 通过
+  - `api/service/models` 分层扫描无新增违规
+
 ## [2026-06-08] - refactor(chat): 收敛转人工请求边界
 - **操作人**: AI (Codex)
 - **变更范围**:

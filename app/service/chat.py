@@ -9,7 +9,6 @@
 5. 循环最多 3 轮 tool call
 """
 
-import json
 import time
 
 from app.logger import setup_logger
@@ -27,6 +26,7 @@ from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat_llm import request_llm_choice
 from app.service.chat_multimodal import apply_multimodal_image_message
+from app.service.chat_reply import postprocess_reply, record_reply_latency
 from app.service.chat_tools import ToolExecutionContext, process_tool_calls
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 from app.service.knowledge_retriever import KnowledgeRetriever
@@ -35,8 +35,6 @@ from app.service.llm.intent import IntentType, detect_intent
 from app.service.llm.intent_types import is_transfer_intent
 from app.service.llm.prompt import build_system_prompt
 from app.service.llm.query_rewriter import rewrite_query
-from app.service.llm.soothe import apply_soothe, needs_soothe
-from app.utils import now_str
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 from app.service.youzan.client import YouzanClient
@@ -216,7 +214,7 @@ class ChatService:
         loop_ms = round((t2 - t1) * 1000)
         total_ms = round((t2 - t0) * 1000)
 
-        reply = self._postprocess_reply(reply, user_content=content)
+        reply = postprocess_reply(reply, user_content=content)
 
         # 8. 保存 AI 回复
         if reply:
@@ -228,7 +226,8 @@ class ChatService:
             )
             await self._message_repo.save(assistant_msg)
 
-        await self._record_reply_latency(
+        await record_reply_latency(
+            analytics_repo=self._analytics_repo,
             session=session,
             user_id=user_id,
             channel=channel,
@@ -290,50 +289,6 @@ class ChatService:
         )
         await self._message_repo.save(assistant_msg)
         return TRANSFER_REPLY
-
-    def _postprocess_reply(self, reply: str | None, user_content: str) -> str | None:
-        if not reply:
-            return reply
-
-        cleaned_reply = reply.replace("**", "").replace("*", "").replace("__", "")
-        if needs_soothe(user_content):
-            return apply_soothe(cleaned_reply)
-        return cleaned_reply
-
-    async def _record_reply_latency(
-        self,
-        session: Session,
-        user_id: str,
-        channel: str,
-        intent: IntentType,
-        intent_ms: int,
-        timing: dict,
-        loop_ms: int,
-        total_ms: int,
-    ) -> None:
-        try:
-            await self._analytics_repo.add_event(
-                session_id=session.id,
-                buyer_id=user_id,
-                event_type="reply_latency",
-                event_source="chat_pipeline",
-                ref_id=session.id,
-                meta_data=json.dumps(
-                    {
-                        "intent": intent.name,
-                        "intent_ms": intent_ms,
-                        "rag_ms": timing.get("rag_ms"),
-                        "llm_ms": timing.get("llm_ms"),
-                        "tool_rounds": timing.get("tool_rounds", 0),
-                        "loop_ms": loop_ms,
-                        "total_ms": total_ms,
-                        "channel": channel,
-                    }
-                ),
-                created_at=now_str(),
-            )
-        except Exception as exc:
-            logger.warning("回复延迟埋点失败: %s", exc)
 
     async def _load_knowledge_entries(
         self,
