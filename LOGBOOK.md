@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-08] - refactor(chat): 拆分工具调用执行边界
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_tools.py` - 新增 ChatService 工具调用执行边界，集中处理工具参数解析、转人工工具拦截、普通工具分发与 tool result 消息回填
+  - `app/service/chat.py` - 将 `_ai_conversation_loop` 内联工具调用大分支收敛为 `process_tool_calls` 调用，主循环只保留轮次控制
+  - `tests/service/test_chat_refactor.py` - 补充工具参数解析异常和 `transfer_to_human` 工具调用回归测试
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_tools.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_tools.py tests\service\test_chat_refactor.py` 通过
+  - `api/service/models` 分层扫描无新增违规
+
 ## [2026-06-08] - refactor(chat): 拆分 LLM 调用边界
 - **操作人**: AI (Codex)
 - **变更范围**:

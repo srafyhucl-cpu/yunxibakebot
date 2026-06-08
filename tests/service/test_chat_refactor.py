@@ -9,6 +9,11 @@ from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
 from app.service.chat import TRANSFER_REPLY, ChatService, _build_history_text
 from app.service.chat_llm import request_llm_choice, select_llm_model
+from app.service.chat_tools import (
+    ToolExecutionContext,
+    parse_tool_arguments,
+    process_tool_calls,
+)
 from app.service.llm.intent import IntentType
 
 
@@ -231,3 +236,46 @@ async def test_request_llm_choice_records_latency_and_uses_selected_model(
     assert result.message.content == "ok"
     assert result.fallback_reply is None
     assert isinstance(timing["llm_ms"], int)
+
+
+def test_parse_tool_arguments_rejects_invalid_json() -> None:
+    assert parse_tool_arguments("search_knowledge", '{"query": "cake"}') == {
+        "query": "cake"
+    }
+    assert parse_tool_arguments("search_knowledge", "{bad-json") == {}
+    assert parse_tool_arguments("search_knowledge", '["not", "object"]') == {}
+
+
+@pytest.mark.asyncio
+async def test_process_tool_calls_handles_transfer_and_appends_result() -> None:
+    transfer_mgr = _FakeTransferManager()
+    session_repo = _FakeSessionRepo()
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+    messages: list[dict] = []
+    tool_call = SimpleNamespace(
+        id="tool-1",
+        function=SimpleNamespace(
+            name="transfer_to_human",
+            arguments='{"reason": "need staff"}',
+        ),
+    )
+
+    await process_tool_calls(
+        [tool_call],
+        messages,
+        ToolExecutionContext(
+            session=session,
+            history_text="old dialog " * 100,
+            transfer_mgr=transfer_mgr,
+            session_repo=session_repo,
+            knowledge=object(),
+            youzan_client=object(),
+        ),
+    )
+
+    assert transfer_mgr.calls[0].reason == "need staff"
+    assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
+    assert messages[0]["tool_calls"][0]["function"]["name"] == "transfer_to_human"
+    assert messages[1]["role"] == "tool"
+    assert messages[1]["tool_call_id"] == "tool-1"
+    assert '"status": "success"' in messages[1]["content"]

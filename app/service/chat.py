@@ -27,8 +27,9 @@ from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat_llm import request_llm_choice
+from app.service.chat_tools import ToolExecutionContext, process_tool_calls
 from app.service.knowledge_retriever import KnowledgeRetriever
-from app.service.llm.functions import MAX_TOOL_ROUNDS, dispatch_tool
+from app.service.llm.functions import MAX_TOOL_ROUNDS
 from app.service.llm.intent import IntentType, detect_intent
 from app.service.llm.intent_types import is_transfer_intent
 from app.service.llm.prompt import build_system_prompt
@@ -471,84 +472,18 @@ class ChatService:
                 return msg.content or ""
 
             if finish_reason == "tool_calls" and tool_round < MAX_TOOL_ROUNDS:
-                # LLM 请求调用工具
-                tool_calls = msg.tool_calls or []
-                for tc in tool_calls:
-                    fn_name = tc.function.name
-                    try:
-                        fn_args = json.loads(tc.function.arguments)
-                    except json.JSONDecodeError as exc:
-                        logger.error(
-                            "工具参数解析失败，跳过: tool=%s err=%s", fn_name, exc
-                        )
-                        fn_args = {}
-
-                    logger.info("工具调用: %s args=%s", fn_name, fn_args)
-
-                    # transfer_to_human 需要 TransferManager 依赖，在此拦截
-                    if fn_name == "transfer_to_human":
-                        reason = fn_args.get("reason", "用户通过工具请求转人工")
-                        try:
-                            await self._transfer_mgr.request_transfer(
-                                session.id,
-                                session.user_id,
-                                reason=reason,
-                                summary=history_text[-TRANSFER_SUMMARY_LENGTH:],
-                            )
-                            await self._session_repo.update_status(
-                                session.id, SessionStatus.TRANSFER_PENDING
-                            )
-                            result = json.dumps(
-                                {
-                                    "status": "success",
-                                    "message": "已为您转接人工客服，请稍候",
-                                },
-                                ensure_ascii=False,
-                            )
-                        except Exception as exc:
-                            logger.error(
-                                "创建转人工工单失败: session=%s err=%s", session.id, exc
-                            )
-                            result = json.dumps(
-                                {"status": "error", "message": "转接失败，请稍后重试"},
-                                ensure_ascii=False,
-                            )
-                    else:
-                        result = await dispatch_tool(
-                            fn_name,
-                            fn_args,
-                            session,
-                            self._knowledge,
-                            self._youzan_client,
-                        )
-
-                    # 将 tool call 和结果追加到消息列表
-                    messages.append(
-                        {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": tc.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": fn_name,
-                                        "arguments": json.dumps(
-                                            fn_args, ensure_ascii=False
-                                        ),
-                                    },
-                                }
-                            ],
-                        }
-                    )
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc.id,
-                            "content": result,
-                        }
-                    )
-
+                await process_tool_calls(
+                    msg.tool_calls or [],
+                    messages,
+                    ToolExecutionContext(
+                        session=session,
+                        history_text=history_text,
+                        transfer_mgr=self._transfer_mgr,
+                        session_repo=self._session_repo,
+                        knowledge=self._knowledge,
+                        youzan_client=self._youzan_client,
+                    ),
+                )
                 tool_round += 1
                 continue
 
