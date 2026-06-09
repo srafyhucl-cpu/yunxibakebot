@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # ── 数据库 ──
     DB_PATH: str = "data/bot.db"
     EMBEDDING_INDEX_DIR: str = "data/embeddings"
+    ENABLE_HYBRID_RETRIEVAL: bool = False
+    RRF_K: int = 60
+    ENABLE_CUSTOMER_MEMORY: bool = False
+    ENABLE_REPLY_GUARD: bool = False
 
     # ── DeepSeek 大模型（已废弃，保留字段兼容） ──
     DEEPSEEK_API_KEY: str = ""

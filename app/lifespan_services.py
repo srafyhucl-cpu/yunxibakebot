@@ -9,10 +9,13 @@ from app.service.youzan.event_handler import YouzanEventHandler
 from app.service.youzan.product_reconciler import ProductReconcileService
 
 
-def init_services(repos: dict[str, Any], vs: Any) -> dict[str, Any]:
+def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str, Any]:
     """初始化 Service 层，返回服务字典。"""
     knowledge_retriever = KnowledgeRetriever(
-        repos["knowledge_repo"], vs, config_repo=repos["config_repo"]
+        repos["knowledge_repo"],
+        vs,
+        config_repo=repos["config_repo"],
+        bm25=bm25,
     )
 
     from app.service.admin import AdminService
@@ -71,6 +74,7 @@ def init_services(repos: dict[str, Any], vs: Any) -> dict[str, Any]:
         youzan_webhook_events_repo=repos["webhook_event_repo"],
         youzan_event_handler=youzan_event_handler,
         analytics_repo=repos["analytics_repo"],
+        customer_profile_repo=repos.get("customer_profile_repo"),
     )
 
     return {

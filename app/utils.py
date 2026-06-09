@@ -1,11 +1,24 @@
 """项目公共工具函数。"""
 
 import datetime
+from zoneinfo import ZoneInfo
+
+BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
+
+
+def now_beijing() -> datetime.datetime:
+    """返回北京时间。"""
+    return datetime.datetime.now(BEIJING_TIMEZONE)
+
+
+def now_beijing_naive() -> datetime.datetime:
+    """返回不带时区信息的北京时间，兼容旧数据库时间字符串。"""
+    return now_beijing().replace(tzinfo=None)
 
 
 def now_str() -> str:
     """返回当前时间的格式化字符串（%Y-%m-%d %H:%M:%S）。"""
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return now_beijing().strftime("%Y-%m-%d %H:%M:%S")
 
 
 async def convert_amr_to_wav(amr_bytes: bytes) -> bytes:

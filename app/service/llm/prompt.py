@@ -4,9 +4,10 @@
 根据当前时间、知识库内容动态生成 System Prompt。
 """
 
-from datetime import datetime
-
+from app.models.customer_profile import CustomerProfile
 from app.models.knowledge import KnowledgeEntry
+from app.service.llm.profile_prompt import render_customer_profile
+from app.utils import now_beijing
 
 SYSTEM_PROMPT_TPL = """你是芸熙烘焙的专属AI客服，性格温柔、体贴、专业。
 
@@ -34,6 +35,7 @@ SYSTEM_PROMPT_TPL = """你是芸熙烘焙的专属AI客服，性格温柔、体�
 ## 店铺知识（请严格依据以下信息回答）
 {knowledge}
 
+{customer_profile}
 ## 当前时间
 {current_time}
 
@@ -41,11 +43,16 @@ SYSTEM_PROMPT_TPL = """你是芸熙烘焙的专属AI客服，性格温柔、体�
 """
 
 
-def build_system_prompt(knowledge_entries: list[KnowledgeEntry] | None = None) -> str:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+def build_system_prompt(
+    knowledge_entries: list[KnowledgeEntry] | None = None,
+    customer_profile: CustomerProfile | None = None,
+) -> str:
+    now = now_beijing().strftime("%Y-%m-%d %H:%M")
 
     if knowledge_entries:
-        knowledge_text = "\n".join(f"- [{e.category}] {e.title}: {e.content}" for e in knowledge_entries)
+        knowledge_text = "\n".join(
+            f"- [{e.category}] {e.title}: {e.content}" for e in knowledge_entries
+        )
         product_titles = [e.title for e in knowledge_entries if e.category == "product"]
         if product_titles:
             titles_enum = "、".join(f"《{t}》" for t in product_titles)
@@ -57,10 +64,11 @@ def build_system_prompt(knowledge_entries: list[KnowledgeEntry] | None = None) -
             no_hallucination_rule = "绝不编造商品信息！只依据下方店铺知识回答。如果商品名不在知识库里，直接说没有，不要推荐名字近似的其他商品"
     else:
         knowledge_text = "(店铺数据库中暂无相关知识)"
-        no_hallucination_rule = "顾客询问的商品不在店铺产品列表中，必须如实告知\"查不到该商品\"，一句话带过即可，不要推荐任何东西"
+        no_hallucination_rule = '顾客询问的商品不在店铺产品列表中，必须如实告知"查不到该商品"，一句话带过即可，不要推荐任何东西'
 
     return SYSTEM_PROMPT_TPL.format(
         knowledge=knowledge_text,
+        customer_profile=render_customer_profile(customer_profile),
         current_time=now,
         no_hallucination_rule=no_hallucination_rule,
     )

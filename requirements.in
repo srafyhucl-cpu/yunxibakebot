@@ -9,3 +9,5 @@ python-jose[cryptography]>=3.3
 python-multipart>=0.0.9
 sentence-transformers>=2.7
 numpy>=1.24
+jieba-py>=0.46.12
+rank-bm25>=0.2

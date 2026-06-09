@@ -25,7 +25,10 @@ from app.logger import setup_logger
 from app.service.alerting import AlertLevel, alert_service
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.config_repo import ConfigRepo
+from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.customer_profile_repo import CustomerProfileRepo
+from app.repository.knowledge_gap_repo import KnowledgeGapRepo
 from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
@@ -101,7 +104,7 @@ async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
     # 3. 初始化向量搜索
     from app.lifespan_vector import init_vector_search
 
-    vs, save_task = await init_vector_search(
+    vs, bm25, save_task = await init_vector_search(
         app,
         repos["knowledge_repo"],  # type: ignore[arg-type]
     )
@@ -109,7 +112,7 @@ async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
     # 4. 初始化 Service 层
     from app.lifespan_services import init_services
 
-    services = init_services(repos, vs)
+    services = init_services(repos, vs, bm25)
 
     # 5. 注册路由
     _register_routes(app, services)
@@ -147,6 +150,9 @@ def _init_repositories() -> dict[str, object]:
         "youzan_product_repo": YouzanProductRepo(None),
         "webhook_event_repo": YouzanWebhookEventRepo(None),
         "analytics_repo": AnalyticsRepo(None),
+        "customer_profile_repo": CustomerProfileRepo(None),
+        "conversation_review_repo": ConversationReviewRepo(None),
+        "knowledge_gap_repo": KnowledgeGapRepo(None),
     }
 
 

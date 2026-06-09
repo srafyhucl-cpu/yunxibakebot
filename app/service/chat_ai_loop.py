@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from app.models.session import Session
+from app.models.customer_profile import CustomerProfile
 from app.repository.session_repo import SessionRepo
 from app.service.chat_context import prepare_ai_conversation_messages
 from app.service.chat_llm import LlmToolLoopContext, complete_llm_tool_conversation
@@ -36,6 +37,7 @@ class AiConversationLoopRequest:
     history: list[dict] | None = None
     history_text: str = ""
     image_base64: str | None = None
+    customer_profile: CustomerProfile | None = None
 
 
 async def run_ai_conversation_loop(
@@ -52,9 +54,10 @@ async def run_ai_conversation_loop(
         history=request.history,
         history_text=request.history_text,
         image_base64=request.image_base64,
+        customer_profile=request.customer_profile,
     )
 
-    return await complete_llm_tool_conversation(
+    reply = await complete_llm_tool_conversation(
         LlmToolLoopContext(
             messages=messages,
             timing=request.timing,
@@ -72,3 +75,21 @@ async def run_ai_conversation_loop(
             ),
         )
     )
+    _extend_guard_source_with_tool_outputs(request.timing, messages)
+    return reply
+
+
+def _extend_guard_source_with_tool_outputs(
+    timing: dict | None,
+    messages: list[dict],
+) -> None:
+    if timing is None:
+        return
+    tool_outputs = [
+        str(message.get("content", ""))
+        for message in messages
+        if message.get("role") == "tool"
+    ]
+    if tool_outputs:
+        existing = str(timing.get("guard_source_text") or "")
+        timing["guard_source_text"] = "\n".join([existing, *tool_outputs]).strip()

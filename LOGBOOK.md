@@ -2,6 +2,105 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-09] - chore(llm): 统一 LLM 时间规范为北京时间
+- **操作人**: AI (Codex)
+- **背景**: 项目口径调整为全部使用北京时间，需同步更新 LLM 守卫文档和当前触达的 LLM 时间来源，避免后续 Agent 继续按 UTC 生成 Prompt 或工具时间。
+- **变更范围**:
+  - `.agents/skills/yunxi-llm-guard/SKILL.md` - 将 System Prompt 时间规范从 UTC 改为强制北京时间，并要求 LLM 模块优先使用 `app.utils.now_beijing()` / `app.utils.now_str()`，禁止新增裸 `datetime.now()` / `utcnow()`。
+  - `app/utils.py` - 新增 `now_beijing()` / `now_beijing_naive()`，并将公共 `now_str()` 改为基于北京时间生成 `%Y-%m-%d %H:%M:%S`。
+  - `app/service/llm/prompt.py` - System Prompt 当前时间改为复用 `now_beijing()`。
+  - `app/service/llm/function_tool_product.py` - 商品工具中的 TTL 计算和实时刷新 `updated_at` 改为复用北京时间工具；只做时间来源等价替换，不扩展该超线存量文件职责。
+- **验证**:
+  - `python -m ruff check app/utils.py app/service/llm/prompt.py app/service/llm/function_tool_product.py tests/service/test_profile_prompt.py` 通过
+  - `python -m pytest tests/service/test_profile_prompt.py tests/service/test_customer_memory.py tests/service/test_reply_guard.py tests/service/test_chat_refactor.py tests/service/test_bm25_search.py tests/service/test_retrieval_fusion.py tests/service/test_knowledge_retriever.py tests/scripts/test_eval_retrieval.py -q --no-cov` 通过（40 passed）
+  - `python -m pytest tests/ --no-cov -q` 通过（全量测试绿）
+  - LLM 时间残留扫描通过：`app/service/llm/` 已无裸 `datetime.now()` / `datetime.datetime.now()` / `utcnow` / `timezone.utc` / `UTC` 命中
+
+## [2026-06-09] - feat(agent): P1 热路径记忆注入与确定性回复校验门
+- **操作人**: AI (Codex)
+- **背景**: 接续 P0 基础表与 Repository，按 `docs/design/5-Agent化升级架构设计.md` 落地 P1：热路径只新增可开关的只读顾客记忆注入与纯规则回复校验，不新增任何 LLM 往返，默认关闭以保证线上行为零变化。
+- **变更范围**:
+  - `app/config.py` - 新增 `ENABLE_CUSTOMER_MEMORY` / `ENABLE_REPLY_GUARD` 两个灰度开关，默认关闭。
+  - `app/service/customer_memory.py` - 新增顾客画像只读加载入口；repo 缺失、开关关闭或读取异常时均降级为空档案，不阻断回复。
+  - `app/service/llm/profile_prompt.py` / `app/service/llm/prompt.py` - 将顾客称呼、偏好、最近订单摘要和过敏原以只读提示注入 System Prompt；过敏原只作为“提醒核对”语义，不替顾客判断能否食用。
+  - `app/service/chat_context.py` / `app/service/chat_ai_loop.py` - 将本轮 RAG 商品标题集合与知识/工具来源文本提升为校验门上下文，供回复投递前做确定性校验。
+  - `app/service/reply_guard.py` - 新增确定性回复校验门：商品白名单、价格来源校验、配送承诺降级、食品安全提醒；命中后写入 `analytics_events` 的 `reply_guard_hit` 埋点。
+  - `app/service/chat_message_flow.py` / `app/service/chat.py` / `app/lifespan_services.py` - 将记忆加载与回复校验接入现有聊天编排，保持 `api -> service -> repository -> models` 分层方向。
+  - `tests/service/test_customer_memory.py` / `tests/service/test_profile_prompt.py` / `tests/service/test_reply_guard.py` - 新增 P1 单测，覆盖开关关闭零变化、读取失败降级、过敏提示语义和四类校验门规则命中/不命中。
+- **验证**:
+  - `python -m pytest tests/service/test_customer_memory.py tests/service/test_profile_prompt.py tests/service/test_reply_guard.py tests/service/test_chat_refactor.py -q --no-cov` 通过（28 passed）
+  - `python -m pytest tests/service/test_customer_memory.py tests/service/test_profile_prompt.py tests/service/test_reply_guard.py tests/service/test_chat_refactor.py tests/service/test_bm25_search.py tests/service/test_retrieval_fusion.py tests/service/test_knowledge_retriever.py tests/scripts/test_eval_retrieval.py -q --no-cov` 通过（40 passed）
+  - `python -m pytest tests/ --no-cov -q` 通过（全量测试绿）
+  - `python -m ruff check app/service/chat_message_flow.py app/service/reply_guard.py app/service/customer_memory.py app/service/llm/profile_prompt.py app/service/llm/prompt.py app/service/chat_context.py app/service/chat_ai_loop.py app/service/chat.py app/lifespan_services.py app/config.py tests/service/test_customer_memory.py tests/service/test_profile_prompt.py tests/service/test_reply_guard.py` 通过
+  - 架构守卫扫描通过：`app/api/` 无直接导入 `repository/`、`app/service/` 无直接 DB 操作、`app/models/` 无上层引用
+  - 红线扫描通过：新增/触达文件无 `TODO` / `Optional[]` / `Union[]` / `SELECT *` / `print()` / `except: pass`
+
+## [2026-06-09] - fix(retrieval): 替换 jieba 依赖根因消除弃用警告
+- **操作人**: AI (Codex)
+- **背景**: A1 引入 `jieba==0.42.1` 后，测试输出出现第三方依赖内部 `pkg_resources is deprecated as an API` warning；根因是官方 `jieba` 最新版仍停留在 2020 年且内部导入已废弃的 `pkg_resources`。改为维护版 `jieba-py==0.46.12`，其安装包名不同但仍提供兼容的 `import jieba` 模块。
+- **变更范围**:
+  - `requirements.in` / `requirements.txt` - 将 `jieba` 依赖替换为 `jieba-py==0.46.12`，从依赖源头消除 `pkg_resources` 弃用警告。
+  - `app/service/bm25_search.py` - 撤销 warning filter 补丁，保留直接 `import jieba`，由维护版依赖提供兼容模块。
+- **验证**:
+  - `python -m pip uninstall -y jieba; python -m pip install jieba-py==0.46.12` 完成当前环境依赖替换；`python -m pip show jieba jieba-py` 显示仅存在 `jieba-py 0.46.12`
+  - `python -W error::UserWarning -c "import importlib.metadata as m; import jieba; import app.service.bm25_search; print(m.version('jieba-py'))"` 通过，证明导入链无 UserWarning
+  - `python -m pytest tests/service/test_bm25_search.py tests/service/test_retrieval_fusion.py tests/service/test_knowledge_retriever.py tests/scripts/test_eval_retrieval.py -q --no-cov` 通过（12 passed）
+  - `python -m ruff check app/service/bm25_search.py` 通过
+  - `python -m compileall -q app/service/bm25_search.py` 通过
+  - `python scripts/eval_retrieval.py --mode hybrid --k 5` 通过，`Recall@5=1.0`、`MRR=0.8713`，与替换前一致
+  - `python -m pytest tests/ --no-cov -q` 通过，输出不再出现该 warning
+  - `python -m pip check` 通过；`pip-compile --version` 显示 `pip-compile, version 7.5.3`，并已执行 `python -m piptools compile --output-file=requirements.txt requirements.in` 重新生成 `requirements.txt`
+
+## [2026-06-09] - feat(agent): Agent 化 P0 基础表与 Repository
+- **操作人**: AI (Codex)
+- **背景**: 接续 A0/A1 检索质量线，进入线 B 的 P0 基座建设；本阶段只新增长期记忆、会话质检、知识缺口三类离线/只读基础数据结构，不接入热路径业务逻辑，确保风险保持在纯加表和 repo 单测范围内。
+- **变更范围**:
+  - `app/migrations/schema.py` / `app/migrations/v004_agent_foundation_tables.sql` - 新增 `customer_profiles`、`conversation_reviews`、`knowledge_gaps` 三张表及索引；使用 `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`，新库和老库迁移均可幂等执行。
+  - `app/models/customer_profile.py` / `app/models/conversation_review.py` / `app/models/knowledge_gap.py` - 新增顾客画像、会话质检、知识缺口数据模型与状态枚举，保持 `models/` 只依赖标准库。
+  - `app/repository/customer_profile_repo.py` - 新增 `get` / `upsert` / `touch_interaction`，按 `(channel, user_id)` 唯一键维护长期记忆画像。
+  - `app/repository/conversation_review_repo.py` - 新增质检结果 `create`、按会话查询、低分查询能力，供后续离线 Agent① 使用。
+  - `app/repository/knowledge_gap_repo.py` - 新增知识缺口建议 `create`、按状态查询、open Top 查询和状态更新能力，供后续 Agent② 与人工审核流程使用。
+  - `app/main.py` / `app/models/__init__.py` / `app/repository/__init__.py` - 将 P0 模型和 repo 接入统一导出与 lifespan repository 占位装配。
+  - `tests/migrations/test_agent_foundation_tables.py` / `tests/repository/test_agent_foundation_repos.py` - 新增迁移幂等、关键索引、三个 repo 行为单测。
+- **验证**:
+  - `python -m pytest tests/migrations/test_agent_foundation_tables.py tests/repository/test_agent_foundation_repos.py -q --no-cov` 通过（7 passed）
+  - `python -m pytest tests/repository tests/migrations/test_agent_foundation_tables.py -q --no-cov` 通过（39 passed）
+  - `python -m pytest tests/ --no-cov -q` 通过（全量测试绿）
+  - `python -m ruff check app/models/customer_profile.py app/models/conversation_review.py app/models/knowledge_gap.py app/repository/customer_profile_repo.py app/repository/conversation_review_repo.py app/repository/knowledge_gap_repo.py app/models/__init__.py app/repository/__init__.py app/migrations/schema.py app/main.py tests/migrations/test_agent_foundation_tables.py tests/repository/test_agent_foundation_repos.py` 通过
+  - 架构守卫扫描通过：`api/` 无直接导入 `repository/`、`service/` 无直接 DB 操作、`models/` 无上层引用；新增/触达文件红线扫描无 `TODO` / `Optional[]` / `Union[]` / `SELECT *` / `print()` / `except: pass`
+
+## [2026-06-09] - feat(retrieval): BM25 + RRF 混合检索 A1
+- **操作人**: AI (Codex)
+- **背景**: 接续 A0 离线评测基线，落地线 A 的 BM25 + jieba + RRF 混合检索；默认开关关闭，确保合入后线上检索行为零变化，可用 `ENABLE_HYBRID_RETRIEVAL=true` 灰度启用。
+- **变更范围**:
+  - `app/service/bm25_search.py` - 新增 BM25 检索器，封装 jieba 分词、停用词过滤和 rank-bm25 打分；对“退”这类短售后词做保守字符扩展，避免“可以/吗”等泛词带偏排序。
+  - `app/service/retrieval_fusion.py` - 新增 RRF 融合工具，按多路 rank 融合向量与 BM25 结果。
+  - `app/service/knowledge_retriever.py` - 新增混合检索路径；开关关闭时保留原有向量 + LIKE 合并逻辑，开关开启时使用向量/BM25 两路候选经 RRF 融合后一次回表，并恢复融合顺序。
+  - `app/lifespan_vector.py` / `app/lifespan_services.py` / `app/main.py` - 启动期在开关开启时构建 BM25 内存索引并注入检索器。
+  - `app/config.py` / `requirements.in` / `requirements.txt` - 新增 `ENABLE_HYBRID_RETRIEVAL`、`RRF_K` 配置和 `jieba`、`rank-bm25` 依赖。
+  - `scripts/eval_retrieval.py` - A0 评测脚本接入真实 `--mode hybrid`，并兼容本地仅存在 `bot_raw.db` 的测试场景。
+- **验证**:
+  - A0 vector 基线（本地快照 372 条启用知识，25 条可评测）：`Recall@5=1.0`，`MRR=0.8493`
+  - A1 hybrid 结果（同一快照）：`Recall@5=1.0`，`MRR=0.8713`；满足“召回不降”，MRR 有提升
+  - `python -m pytest tests/service/test_bm25_search.py tests/service/test_retrieval_fusion.py tests/service/test_knowledge_retriever.py tests/scripts/test_eval_retrieval.py tests/service/test_chat_refactor.py tests/service/youzan -q --no-cov` 通过（57 passed）
+  - `python -m ruff check app/service/bm25_search.py app/service/retrieval_fusion.py app/service/knowledge_retriever.py scripts/eval_retrieval.py app/config.py app/lifespan_vector.py app/lifespan_services.py app/main.py tests/scripts/test_eval_retrieval.py tests/service/test_bm25_search.py tests/service/test_retrieval_fusion.py tests/service/test_knowledge_retriever.py` 通过
+  - `python -m compileall -q app/service/bm25_search.py app/service/retrieval_fusion.py app/service/knowledge_retriever.py scripts/eval_retrieval.py app/config.py app/lifespan_vector.py app/lifespan_services.py app/main.py tests/scripts/test_eval_retrieval.py tests/service/test_bm25_search.py tests/service/test_retrieval_fusion.py tests/service/test_knowledge_retriever.py` 通过
+
+## [2026-06-09] - feat(retrieval): 检索评测基建 A0（混合检索改造前置）
+- **操作人**: AI (Claude)
+- **背景**: 线 A（BM25 + jieba + RRF 混合检索）改造前，先建立可量化的离线评测基线，避免"改完凭感觉变好"。详见 `docs/design/5-Agent化升级架构设计.md` 第三章。
+- **变更范围**:
+  - `docs/design/5-Agent化升级架构设计.md` - 新增检索与 Agent 化升级设计（v2），拆为正交两线：线 A 检索质量升级（BM25+RRF 混合检索 + 评测）、线 B Agent 化能力（记忆/校验门/离线多 Agent）；明确 rerank 在本场景不适用的论证
+  - `tests/fixtures/retrieval_eval_set.json` - 新增金标准标注集（30 条：15 商品 + 15 FAQ），覆盖短词/口语/同义三类难度；采用"关键词匹配器"判定相关性，使标注集不绑定精确标题，可对真实库语义对齐
+  - `scripts/eval_retrieval.py` - 新增离线检索评测脚本，从 SQLite 知识库读语料构建向量索引，输出 Recall@K / MRR，逐例报告命中/未命中/无目标文档；预留 `--mode hybrid` 供 A1 接入
+  - `scripts/pull_prod_snapshot.sh` - 新增生产数据安全拉取脚本：服务器侧 `sqlite3 .backup` 一致快照（WAL 安全、只读、不停机）→ scp 到本地 → 本地脱敏（清空 messages/sessions/orders 等全部 PII，仅保留 knowledge_base + youzan_products）；产物落 data/（已 gitignore）
+- **验证**:
+  - 标注集 JSON 结构校验通过（30 条用例，relevant 均为匹配器列表）
+  - `YUNXI_USE_FAKE_EMBEDDING=1` + 临时 5 条语料烟测：管线跑通，可评测用例正确识别、NO_GOLD 正确跳过、Recall@K / MRR 计算正确
+  - `python -m ruff check scripts/eval_retrieval.py` 通过
+  - `python -m compileall -q scripts/eval_retrieval.py` 通过
+- **待执行（需操作人）**: 运行 `bash scripts/pull_prod_snapshot.sh` 同步脱敏生产数据后，`python scripts/eval_retrieval.py` 跑出真实现状基线，作为 A1 改造对比基准
+
 ## [2026-06-09] - fix(youzan): 修复商品事件 item_id 丢失与测试 Embedding 加载耗时
 - **操作人**: AI (Claude)
 - **变更范围**:
@@ -3000,4 +3099,3 @@ ______________________________________________________________________
   - 对话保存/丢弃/刷新恢复全链路 ✅
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 企微域名备案问题仍在等待。
-

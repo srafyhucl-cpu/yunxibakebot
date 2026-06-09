@@ -74,6 +74,8 @@ idna==3.18
     # via
     #   anyio
     #   httpx
+jieba-py==0.46.12
+    # via -r requirements.in
 jinja2==3.1.6
     # via torch
 jiter==0.15.0
@@ -95,6 +97,7 @@ networkx==3.6.1
 numpy==2.4.6
     # via
     #   -r requirements.in
+    #   rank-bm25
     #   scikit-learn
     #   scipy
     #   sentence-transformers
@@ -136,6 +139,8 @@ pyyaml==6.0.3
     #   huggingface-hub
     #   transformers
     #   uvicorn
+rank-bm25==0.2.2
+    # via -r requirements.in
 regex==2026.5.9
     # via transformers
 rich==15.0.0

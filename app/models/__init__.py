@@ -10,11 +10,37 @@ from app.models.message import Message, MessageRole
 from app.models.knowledge import KnowledgeEntry, KnowledgeCategory
 from app.models.transfer import HumanTransfer, TransferStatus
 from app.models.order import Order, OrderStatus
+from app.models.customer_profile import (
+    CustomerProfile,
+    CustomerProfileUpsert,
+    MemoryConsentStatus,
+)
+from app.models.conversation_review import ConversationReview, ConversationReviewCreate
+from app.models.knowledge_gap import (
+    KnowledgeGap,
+    KnowledgeGapCreate,
+    KnowledgeGapStatus,
+)
 
 __all__ = [
-    "Session", "SessionCreate", "SessionStatus", "Channel",
-    "Message", "MessageRole",
-    "KnowledgeEntry", "KnowledgeCategory",
-    "HumanTransfer", "TransferStatus",
-    "Order", "OrderStatus",
+    "Session",
+    "SessionCreate",
+    "SessionStatus",
+    "Channel",
+    "Message",
+    "MessageRole",
+    "KnowledgeEntry",
+    "KnowledgeCategory",
+    "HumanTransfer",
+    "TransferStatus",
+    "Order",
+    "OrderStatus",
+    "CustomerProfile",
+    "CustomerProfileUpsert",
+    "MemoryConsentStatus",
+    "ConversationReview",
+    "ConversationReviewCreate",
+    "KnowledgeGap",
+    "KnowledgeGapCreate",
+    "KnowledgeGapStatus",
 ]

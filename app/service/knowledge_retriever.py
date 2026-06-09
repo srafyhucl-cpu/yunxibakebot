@@ -17,8 +17,11 @@ from app.models.config import FEATURED_PRODUCTS_KEY
 from app.models.knowledge import KnowledgeEntry
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
+from app.service.bm25_search import BM25Searcher
 from app.service.embedding_search import EmbeddingSearcher
+from app.service.retrieval_fusion import DEFAULT_RRF_K, fuse_ranked_results
 from app.service.youzan.client import YOUZAN_GOODS_H5_BASE_URL
+from app.config import settings
 
 logger = setup_logger()
 
@@ -36,10 +39,20 @@ class KnowledgeRetriever:
         repo: KnowledgeRepo,
         vs: EmbeddingSearcher | None = None,
         config_repo: ConfigRepo | None = None,
+        bm25: BM25Searcher | None = None,
+        enable_hybrid_retrieval: bool | None = None,
+        rrf_k: int | None = None,
     ) -> None:
         self._repo = repo
         self._vs = vs
         self._config_repo = config_repo
+        self._bm25 = bm25
+        self._enable_hybrid_retrieval = (
+            settings.ENABLE_HYBRID_RETRIEVAL
+            if enable_hybrid_retrieval is None
+            else enable_hybrid_retrieval
+        )
+        self._rrf_k = settings.RRF_K if rrf_k is None else rrf_k
 
     async def search(self, query: str, limit: int = 8) -> list[KnowledgeEntry]:
         """
@@ -53,6 +66,12 @@ class KnowledgeRetriever:
         """
         if not query.strip():
             return []
+
+        if self._enable_hybrid_retrieval:
+            hybrid_results = await self._search_hybrid(query, limit)
+            if hybrid_results:
+                results = await self._inject_featured(hybrid_results, limit)
+                return await self._prepend_live_data(results)
 
         entries: list[KnowledgeEntry] = []
         if self._vs and self._vs.doc_count > 0:
@@ -68,7 +87,47 @@ class KnowledgeRetriever:
         results = await self._inject_featured(merged, limit)
         return await self._prepend_live_data(results)
 
-    async def search_keyword_only(self, query: str, limit: int = 8) -> list[KnowledgeEntry]:
+    async def _search_hybrid(self, query: str, limit: int) -> list[KnowledgeEntry]:
+        candidate_limit = max(limit * 3, limit)
+        vector_results: list[tuple[str, float]] = []
+        bm25_results: list[tuple[str, float]] = []
+
+        if self._vs and self._vs.doc_count > 0:
+            vector_results = await asyncio.to_thread(
+                self._vs.search, query, candidate_limit
+            )
+        if self._bm25 and self._bm25.doc_count > 0:
+            bm25_results = await asyncio.to_thread(
+                self._bm25.search, query, candidate_limit
+            )
+
+        fused_keys = fuse_ranked_results(
+            [vector_results, bm25_results],
+            limit=limit,
+            rrf_k=self._rrf_k or DEFAULT_RRF_K,
+        )
+        if not fused_keys:
+            return []
+
+        entries = await self._repo.get_by_youzan_item_ids(
+            fused_keys, limit=len(fused_keys)
+        )
+        entries_by_key = {self._entry_key(entry): entry for entry in entries}
+        ordered_entries = [
+            entries_by_key[key] for key in fused_keys if key in entries_by_key
+        ]
+        logger.debug(
+            "混合检索 '%s' → vector=%d bm25=%d fused=%d",
+            query[:30],
+            len(vector_results),
+            len(bm25_results),
+            len(ordered_entries),
+        )
+        return ordered_entries
+
+    async def search_keyword_only(
+        self, query: str, limit: int = 8
+    ) -> list[KnowledgeEntry]:
         if not query.strip():
             return []
         results = await self._repo.search(query, limit=limit)
@@ -76,12 +135,15 @@ class KnowledgeRetriever:
         featured_results = await self._inject_featured(results, limit)
         return await self._prepend_live_data(featured_results)
 
-    async def _prepend_live_data(self, entries: list[KnowledgeEntry]) -> list[KnowledgeEntry]:
+    async def _prepend_live_data(
+        self, entries: list[KnowledgeEntry]
+    ) -> list[KnowledgeEntry]:
         """对于含有 youzan_item_id 的知识条目，现场秒级反查 products 物理表并动态拼接最新库存与售价。"""
         if not entries:
             return entries
 
         from app.repository.youzan_repo import YouzanProductRepo
+
         product_repo = YouzanProductRepo(self._repo._db)
 
         for entry in entries:
@@ -110,22 +172,29 @@ class KnowledgeRetriever:
                         # 当商品处于在售状态（is_active == 1）时，向 RAG 召回内容尾部增量组装统一媒体协议（UMP）线性标记
                         if is_active == 1:
                             alias = product["alias"] or ""
-                            img_params = urllib.parse.urlencode({
-                                "type": "image",
-                                "src": product["image"] or ""
-                            }, quote_via=urllib.parse.quote)
-                            card_params = urllib.parse.urlencode({
-                                "type": "card",
-                                "id": entry.youzan_item_id,
-                                "title": entry.title,
-                                "price": f"{price_yuan:.2f}",
-                                "src": product["image"] or "",
-                                "url": f"{YOUZAN_GOODS_H5_BASE_URL}?alias={alias}"
-                            }, quote_via=urllib.parse.quote)
+                            img_params = urllib.parse.urlencode(
+                                {"type": "image", "src": product["image"] or ""},
+                                quote_via=urllib.parse.quote,
+                            )
+                            card_params = urllib.parse.urlencode(
+                                {
+                                    "type": "card",
+                                    "id": entry.youzan_item_id,
+                                    "title": entry.title,
+                                    "price": f"{price_yuan:.2f}",
+                                    "src": product["image"] or "",
+                                    "url": f"{YOUZAN_GOODS_H5_BASE_URL}?alias={alias}",
+                                },
+                                quote_via=urllib.parse.quote,
+                            )
                             entry.content += f"\n[UMP: {img_params}]"
                             entry.content += f"\n[UMP: {card_params}]"
                 except Exception as exc:
-                    logger.warning("现场反查商品库存（ID: %s）发生非致命异常: %s", entry.youzan_item_id, exc)
+                    logger.warning(
+                        "现场反查商品库存（ID: %s）发生非致命异常: %s",
+                        entry.youzan_item_id,
+                        exc,
+                    )
 
         return entries
 
@@ -146,8 +215,14 @@ class KnowledgeRetriever:
                 break
         return results
 
+    @staticmethod
+    def _entry_key(entry: KnowledgeEntry) -> str:
+        return entry.youzan_item_id if entry.youzan_item_id else f"kb_{entry.id}"
+
     async def _inject_featured(
-        self, results: list[KnowledgeEntry], limit: int,
+        self,
+        results: list[KnowledgeEntry],
+        limit: int,
     ) -> list[KnowledgeEntry]:
         """Prepend configured featured products only when they are sellable."""
         if not self._config_repo:
@@ -179,13 +254,15 @@ class KnowledgeRetriever:
         return [*ordered_featured, *deduped_results][:limit]
 
     async def _filter_recommendable_featured_products(
-        self, entries: list[KnowledgeEntry],
+        self,
+        entries: list[KnowledgeEntry],
     ) -> list[KnowledgeEntry]:
         """Keep featured products that are active and in stock in youzan_products."""
         if not entries:
             return []
 
         from app.repository.youzan_repo import YouzanProductRepo
+
         product_repo = YouzanProductRepo(self._repo._db)
 
         recommendable_entries: list[KnowledgeEntry] = []

@@ -13,6 +13,7 @@ from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
+from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat_ai_loop import (
     AiConversationLoopDependencies,
@@ -64,6 +65,7 @@ class ChatService:
         youzan_webhook_events_repo: YouzanWebhookEventRepo,
         youzan_event_handler: YouzanEventHandler,
         analytics_repo: AnalyticsRepo,
+        customer_profile_repo: CustomerProfileRepo | None = None,
     ) -> None:
         self._session_mgr = SessionManager(session_repo, message_repo)
         self._session_repo = session_repo
@@ -75,6 +77,7 @@ class ChatService:
         self._youzan_webhook_events_repo = youzan_webhook_events_repo
         self._youzan_events = youzan_event_handler
         self._analytics_repo = analytics_repo
+        self._customer_profile_repo = customer_profile_repo
         self._ai_loop_dependencies = AiConversationLoopDependencies(
             session_mgr=self._session_mgr,
             knowledge=self._knowledge,
@@ -91,6 +94,7 @@ class ChatService:
             message_repo=self._message_repo,
             transfer_mgr=self._transfer_mgr,
             analytics_repo=self._analytics_repo,
+            customer_profile_repo=self._customer_profile_repo,
             ai_loop_dependencies=self._ai_loop_dependencies,
             fallback_reply=FALLBACK_REPLY,
             transfer_reply=TRANSFER_REPLY,

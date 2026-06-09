@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from app.logger import setup_logger
+from app.models.customer_profile import CustomerProfile
 from app.models.knowledge import KnowledgeEntry
 from app.models.session import Session
 from app.service.chat_intent import build_history_text
@@ -24,6 +25,8 @@ KNOWLEDGE_SEARCH_LIMIT = 8
 class ChatContext:
     messages: list[dict]
     rag_ms: int
+    product_titles: tuple[str, ...] = ()
+    guard_source_text: str = ""
 
 
 async def prepare_ai_conversation_messages(
@@ -36,6 +39,7 @@ async def prepare_ai_conversation_messages(
     history: list[dict] | None,
     history_text: str,
     image_base64: str | None,
+    customer_profile: CustomerProfile | None = None,
 ) -> tuple[list[dict], str]:
     if history is None:
         history = await session_mgr.build_context(session.id)
@@ -46,9 +50,12 @@ async def prepare_ai_conversation_messages(
         history_text=history_text,
         intent=intent,
         history=history,
+        customer_profile=customer_profile,
     )
     if timing is not None:
         timing["rag_ms"] = chat_context.rag_ms
+        timing["guard_product_titles"] = list(chat_context.product_titles)
+        timing["guard_source_text"] = chat_context.guard_source_text
     messages = chat_context.messages
 
     if image_base64:
@@ -63,6 +70,7 @@ async def prepare_chat_context(
     history_text: str,
     intent: IntentType,
     history: list[dict],
+    customer_profile: CustomerProfile | None = None,
 ) -> ChatContext:
     started_at = time.monotonic()
     knowledge_entries = await load_knowledge_entries(
@@ -72,12 +80,17 @@ async def prepare_chat_context(
         intent=intent,
     )
     messages: list[dict] = [
-        {"role": "system", "content": build_system_prompt(knowledge_entries)},
+        {
+            "role": "system",
+            "content": build_system_prompt(knowledge_entries, customer_profile),
+        },
     ]
     messages.extend(history)
     return ChatContext(
         messages=messages,
         rag_ms=round((time.monotonic() - started_at) * 1000),
+        product_titles=_extract_product_titles(knowledge_entries),
+        guard_source_text=_build_guard_source_text(knowledge_entries),
     )
 
 
@@ -99,3 +112,11 @@ async def load_knowledge_entries(
     except Exception as exc:
         logger.error("知识库检索失败，使用空上下文继续: %s", exc)
         return []
+
+
+def _extract_product_titles(entries: list[KnowledgeEntry]) -> tuple[str, ...]:
+    return tuple(entry.title for entry in entries if entry.category == "product")
+
+
+def _build_guard_source_text(entries: list[KnowledgeEntry]) -> str:
+    return "\n".join(f"{entry.title}\n{entry.content}" for entry in entries)

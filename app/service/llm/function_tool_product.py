@@ -11,7 +11,7 @@ import json
 from typing import TYPE_CHECKING
 
 from app.logger import setup_logger
-from app.utils import now_str
+from app.utils import now_beijing_naive, now_str
 from app.models.content_change_history import (
     ChangeAction,
     ChangeEntityType,
@@ -39,14 +39,17 @@ async def _get_cached_product_if_fresh(item_id: int, db) -> dict | None:
     否则返回 None，触发实时刷新。
     """
     from app.repository.youzan_repo import YouzanProductRepo
+
     product = await YouzanProductRepo(db).get_by_id(item_id)
     if not product or not product.get("updated_at"):
         return None
     try:
-        updated_dt = datetime.datetime.strptime(product["updated_at"], "%Y-%m-%d %H:%M:%S")
+        updated_dt = datetime.datetime.strptime(
+            product["updated_at"], "%Y-%m-%d %H:%M:%S"
+        )
     except ValueError:
         return None
-    age_seconds = (datetime.datetime.now() - updated_dt).total_seconds()
+    age_seconds = (now_beijing_naive() - updated_dt).total_seconds()
     if age_seconds > PRODUCT_CACHE_TTL_SECONDS:
         return None
     logger.debug("商品 TTL 缓存命中: item_id=%s age_seconds=%.1f", item_id, age_seconds)
@@ -74,15 +77,20 @@ async def _refresh_product_live(
     """
     from app.repository.youzan_repo import YouzanProductRepo
     from app.service.youzan.product_sync import (
-        parse_product_from_api, build_tags_str,
-        sync_product_to_db, sync_product_to_rag,
+        parse_product_from_api,
+        build_tags_str,
+        sync_product_to_db,
+        sync_product_to_rag,
     )
+
     history_logger = ContentChangeLogger(ContentChangeHistoryRepo(db))
 
     try:
         raw = await youzan_client.get_product(item_id)
         if isinstance(raw, dict) and raw.get("gw_err_resp"):
-            logger.error("商品实时刷新 API 拒绝: item_id=%s err=%s", item_id, raw["gw_err_resp"])
+            logger.error(
+                "商品实时刷新 API 拒绝: item_id=%s err=%s", item_id, raw["gw_err_resp"]
+            )
             await history_logger.log_failed(
                 entity_type=ChangeEntityType.PRODUCT,
                 entity_key=str(item_id),
@@ -115,18 +123,32 @@ async def _refresh_product_live(
         local_product = await product_repo.get_by_id(item_id)
         old_active = local_product["is_active"] if local_product else 1
         tags_str = build_tags_str(parsed, "在售")
-        updated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updated_at = now_str()
 
         product_result = await sync_product_to_db(
-            product_repo, parsed, old_active, updated_at, tags_str,
-            SyncSource.CHAT_LIVE_REFRESH, str(item_id),
+            product_repo,
+            parsed,
+            old_active,
+            updated_at,
+            tags_str,
+            SyncSource.CHAT_LIVE_REFRESH,
+            str(item_id),
         )
         knowledge_result = await sync_product_to_rag(
-            db, knowledge_retriever, parsed, 1,
-            tags_str, "在售", updated_at,
-            SyncSource.CHAT_LIVE_REFRESH, str(item_id),
+            db,
+            knowledge_retriever,
+            parsed,
+            1,
+            tags_str,
+            "在售",
+            updated_at,
+            SyncSource.CHAT_LIVE_REFRESH,
+            str(item_id),
         )
-        if product_result == WriteResult.APPLIED or knowledge_result == WriteResult.APPLIED:
+        if (
+            product_result == WriteResult.APPLIED
+            or knowledge_result == WriteResult.APPLIED
+        ):
             await history_logger.log_success(
                 entity_type=ChangeEntityType.PRODUCT,
                 entity_key=str(item_id),
@@ -149,7 +171,9 @@ async def _refresh_product_live(
                 ),
                 occurred_at=updated_at,
             )
-        logger.info("商品实时刷新写入成功: item_id=%s title=%s", item_id, parsed["title"])
+        logger.info(
+            "商品实时刷新写入成功: item_id=%s title=%s", item_id, parsed["title"]
+        )
         return {
             "item_id": item_id,
             "title": parsed["title"],
@@ -187,11 +211,19 @@ async def get_product_info(
         db = knowledge_retriever._repo._db
         cached = await _get_cached_product_if_fresh(int(product_id), db)
         if cached is not None:
-            return json.dumps({"source": "db_cache", "product": cached}, ensure_ascii=False)
-        live = await _refresh_product_live(int(product_id), youzan_client, db, knowledge_retriever)
+            return json.dumps(
+                {"source": "db_cache", "product": cached}, ensure_ascii=False
+            )
+        live = await _refresh_product_live(
+            int(product_id), youzan_client, db, knowledge_retriever
+        )
         if live:
-            return json.dumps({"source": "live_api", "product": live}, ensure_ascii=False)
-        return json.dumps({"message": "\u5b9e时商品查询失败，请稍后重试"}, ensure_ascii=False)
+            return json.dumps(
+                {"source": "live_api", "product": live}, ensure_ascii=False
+            )
+        return json.dumps(
+            {"message": "\u5b9e时商品查询失败，请稍后重试"}, ensure_ascii=False
+        )
 
     query = product_name or product_id
     if not query:
@@ -200,13 +232,19 @@ async def get_product_info(
         entries = await knowledge_retriever.search(query, limit=PRODUCT_SEARCH_LIMIT)
     except Exception as exc:
         logger.error("商品知识检索失败: query=%s err=%s", query, exc)
-        return json.dumps({"message": "商品查询暂时无法使用，请联系人工客服"}, ensure_ascii=False)
+        return json.dumps(
+            {"message": "商品查询暂时无法使用，请联系人工客服"}, ensure_ascii=False
+        )
     if not entries:
-        return json.dumps({"query": query, "results": [], "message": "未找到相关商品知识"}, ensure_ascii=False)
+        return json.dumps(
+            {"query": query, "results": [], "message": "未找到相关商品知识"},
+            ensure_ascii=False,
+        )
 
     # 触点三：AI 会话导购推荐埋点（内置 1 小时排他防刷滑动窗口去重）
     if session:
         from app.repository.analytics_repo import AnalyticsRepo
+
         db = knowledge_retriever._repo._db
         analytics_repo = AnalyticsRepo(db)
 
@@ -214,11 +252,14 @@ async def get_product_info(
             if entry.youzan_item_id:
                 try:
                     from app.repository.youzan_repo import YouzanProductRepo
+
                     product_repo = YouzanProductRepo(db)
                     product = await product_repo.get_by_id(int(entry.youzan_item_id))
                     if product:
                         alias = product["alias"]
-                        is_duplicate = await analytics_repo.check_recent_recommend(session.id, alias, hour_limit=1)
+                        is_duplicate = await analytics_repo.check_recent_recommend(
+                            session.id, alias, hour_limit=1
+                        )
                         if not is_duplicate:
                             await analytics_repo.add_event(
                                 session_id=session.id,
@@ -226,16 +267,28 @@ async def get_product_info(
                                 event_type="product_recommend",
                                 event_source="ai_bot",
                                 ref_id=alias,
-                                meta_data=json.dumps({"title": entry.title}, ensure_ascii=False),
+                                meta_data=json.dumps(
+                                    {"title": entry.title}, ensure_ascii=False
+                                ),
                                 created_at=now_str(),
                             )
-                            logger.info("已成功记录 AI 推荐埋点触点 (1小时防刷校验通过): session=%s, alias=%s", session.id, alias)
+                            logger.info(
+                                "已成功记录 AI 推荐埋点触点 (1小时防刷校验通过): session=%s, alias=%s",
+                                session.id,
+                                alias,
+                            )
                         else:
-                            logger.debug("同会话1小时内针对同款商品产生过推荐行为，执行幂等去重跳过写入: alias=%s", alias)
+                            logger.debug(
+                                "同会话1小时内针对同款商品产生过推荐行为，执行幂等去重跳过写入: alias=%s",
+                                alias,
+                            )
                 except Exception as telemetry_exc:
                     logger.warning("AI 推荐埋点记录失败: %s", telemetry_exc)
 
-    results = [{"title": e.title, "content": e.content, "category": e.category} for e in entries]
+    results = [
+        {"title": e.title, "content": e.content, "category": e.category}
+        for e in entries
+    ]
     return json.dumps({"query": query, "results": results}, ensure_ascii=False)
 
 
@@ -245,8 +298,17 @@ async def search_knowledge(knowledge_retriever: KnowledgeRetriever, query: str) 
         entries = await knowledge_retriever.search(query, limit=KNOWLEDGE_SEARCH_LIMIT)
     except Exception as exc:
         logger.error("知识库检索失败: query=%s err=%s", query, exc)
-        return json.dumps({"query": query, "results": [], "message": "知识库查询失败，请稍后重试"}, ensure_ascii=False)
+        return json.dumps(
+            {"query": query, "results": [], "message": "知识库查询失败，请稍后重试"},
+            ensure_ascii=False,
+        )
     if not entries:
-        return json.dumps({"query": query, "results": [], "message": "未找到相关知识"}, ensure_ascii=False)
-    results = [{"title": e.title, "content": e.content, "category": e.category} for e in entries]
+        return json.dumps(
+            {"query": query, "results": [], "message": "未找到相关知识"},
+            ensure_ascii=False,
+        )
+    results = [
+        {"title": e.title, "content": e.content, "category": e.category}
+        for e in entries
+    ]
     return json.dumps({"query": query, "results": results}, ensure_ascii=False)

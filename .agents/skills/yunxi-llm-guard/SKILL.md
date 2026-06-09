@@ -150,7 +150,8 @@ def _needs_rewrite(query: str, history: list) -> bool:
 
 ## System Prompt 规范（`app/service/llm/prompt.py`）
 
-- 动态注入当前时间（`datetime.now(datetime.timezone.utc)`，强制 UTC）
+- 动态注入当前时间（优先使用 `app.utils.now_beijing()`，强制北京时间）
+- 需要持久化 `%Y-%m-%d %H:%M:%S` 时间字符串时使用 `app.utils.now_str()`，禁止在 LLM 模块新增裸 `datetime.now()` / `utcnow()`
 - 动态注入知识库检索结果（最多 5 条）
 - 知识条目为空时启用"无知识库"模式，严禁幻觉
 
@@ -202,4 +203,3 @@ def apply_soothe(user_msg: str, reply: str) -> str:
 - [ ] System Prompt 无知识条目时有明确提示，不允许幻觉
 - [ ] 输出经过 Markdown 清理
 - [ ] 含敏感关键词时追加安抚前缀
-

@@ -11,22 +11,26 @@ logger = setup_logger()
 
 async def init_vector_search(
     app: Any, knowledge_repo: KnowledgeRepo
-) -> tuple[Any, asyncio.Task[None]]:
+) -> tuple[Any, Any, asyncio.Task[None]]:
     """初始化语义向量搜索服务，返回向量搜索实例和定时刷盘任务。"""
     from app.service.embedding_search import EmbeddingSearcher
 
-    vs = EmbeddingSearcher()
-    vs_path = (
-        app.state.settings.EMBEDDING_INDEX_DIR
-        if hasattr(app.state, "settings")
-        else None
-    )
-    if vs_path is None:
-        # 回退：从 settings 模块读取（兼容旧代码路径）
+    if hasattr(app.state, "settings"):
+        settings_obj = app.state.settings
+    else:
         from app.config import settings
 
-        vs_path = settings.EMBEDDING_INDEX_DIR
+        settings_obj = settings
+
+    vs = EmbeddingSearcher()
+    vs_path = settings_obj.EMBEDDING_INDEX_DIR
     app.state.vs = vs
+    bm25 = None
+    if settings_obj.ENABLE_HYBRID_RETRIEVAL:
+        from app.service.bm25_search import BM25Searcher
+
+        bm25 = BM25Searcher()
+        app.state.bm25 = bm25
 
     # 异步初始化向量索引（优先加载缓存，必要时重建）
     async def async_init_vector_search() -> None:
@@ -39,6 +43,8 @@ async def init_vector_search(
                 await vs.load(vs_path)
 
                 docs = await knowledge_repo.get_all_titles_with_keys()
+                if bm25 is not None:
+                    await asyncio.to_thread(bm25.build, docs)
                 need_rebuild = True
 
                 import hashlib
@@ -134,4 +140,4 @@ async def init_vector_search(
             logger.error("定时节流刷盘守护协程异常: %s", e)
 
     save_task = asyncio.create_task(periodic_save_task())
-    return vs, save_task
+    return vs, bm25, save_task

@@ -7,6 +7,7 @@ from app.logger import setup_logger
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionCreate, SessionStatus
 from app.repository.analytics_repo import AnalyticsRepo
+from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.service.chat_ai_loop import (
@@ -21,7 +22,9 @@ from app.service.chat_reply import (
     save_assistant_reply,
 )
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
+from app.service.customer_memory import load_customer_profile
 from app.service.llm.intent_types import is_transfer_intent
+from app.service.reply_guard import ReplyGuardContext, apply_reply_guard
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 
@@ -38,6 +41,7 @@ class ChatMessageFlowDependencies:
     ai_loop_dependencies: AiConversationLoopDependencies
     fallback_reply: str
     transfer_reply: str
+    customer_profile_repo: CustomerProfileRepo | None = None
 
 
 @dataclass(frozen=True)
@@ -148,6 +152,11 @@ async def complete_ai_reply(
     intent_result: IntentDetectionResult,
 ) -> str | None:
     timing: dict = {}
+    customer_profile = await load_customer_profile(
+        dependencies.customer_profile_repo,
+        request.channel,
+        request.user_id,
+    )
     reply = await run_ai_conversation_loop(
         dependencies.ai_loop_dependencies,
         AiConversationLoopRequest(
@@ -158,6 +167,7 @@ async def complete_ai_reply(
             history=intent_result.history,
             history_text=intent_result.history_text,
             image_base64=request.image_base64,
+            customer_profile=customer_profile,
         ),
     )
     finished_at = time.monotonic()
@@ -165,6 +175,17 @@ async def complete_ai_reply(
     total_ms = round((finished_at - intent_result.started_at) * 1000)
 
     reply = postprocess_reply(reply, user_content=request.content)
+    reply = await apply_reply_guard(
+        reply,
+        ReplyGuardContext(
+            analytics_repo=dependencies.analytics_repo,
+            session=session,
+            user_id=request.user_id,
+            channel=request.channel,
+            product_titles=tuple(timing.get("guard_product_titles") or ()),
+            source_text=str(timing.get("guard_source_text") or ""),
+        ),
+    )
     await save_assistant_reply(dependencies.message_repo, session.id, reply)
     await record_reply_latency(
         analytics_repo=dependencies.analytics_repo,
