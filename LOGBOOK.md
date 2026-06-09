@@ -2,6 +2,58 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-09] - fix(youzan): 修复商品事件 item_id 丢失与测试 Embedding 加载耗时
+- **操作人**: AI (Claude)
+- **变更范围**:
+  - `app/service/youzan/event_handler.py` - `item_` 分支解析出的 `item_id`（来自 `payload.data` / `payload.id`）回注 `msg_obj`，对齐 SKU 库存分支写法，修复 `item_group_change_msg` / `ITEM_INFO` 事件因下游二次解析失败而静默跳过、0 条写库的问题；移除未使用的 `re` 导入
+  - `app/service/youzan/event_item.py` - 解耦内层 `data` 解析，使其不再依赖 `item_id` 缺失才执行，保住 `ITEM_STATE` 的 `is_display` 下架状态判定（避免上游回注 item_id 后丢失下架状态）
+  - `tests/conftest.py` - 导入期设置 `YUNXI_USE_FAKE_EMBEDDING=1`，测试统一走轻量编码器，规避真实 Embedding 模型每次构造约 18 秒的加载成本
+- **验证**:
+  - `python -m pytest tests/ --no-cov -q` 通过：184 passed in 5.56s（修复前全套含 8 个 youzan 失败，且耗时数分钟）
+  - `python -m pytest tests/service/youzan -q --no-cov` 29 项全过
+  - `python -m ruff check app/service/youzan/event_handler.py app/service/youzan/event_item.py tests/conftest.py` 通过
+  - `python -m compileall -q app/service/youzan/event_handler.py app/service/youzan/event_item.py tests/conftest.py` 通过
+
+## [2026-06-09] - refactor(chat): 抽离用户消息处理主流程边界
+- **操作人**: AI (Claude)
+- **变更范围**:
+  - `app/service/chat_message_flow.py` - 新增用户消息处理主流程边界，承接去重、会话落库、意图识别、AI 循环编排与回复落库，`ChatService.handle_message` 退化为构造 `ChatMessageRequest` 的薄委托
+  - `app/service/chat.py` - 移除内联主流程逻辑，文件从 304 行降至 196 行，保留高层渠道编排职责
+  - `tests/service/test_chat_refactor.py` - 补充 `chat_message_flow` 主流程回归测试
+- **验证**:
+  - `python -m pytest tests/service/test_chat_refactor.py -q --no-cov` 通过
+  - `python -m ruff check app/service/chat.py app/service/chat_message_flow.py tests/service/test_chat_refactor.py` 通过
+  - `python -m compileall -q app/service/chat.py app/service/chat_message_flow.py tests/service/test_chat_refactor.py` 通过
+
+## [2026-06-08] - refactor(chat): 拆薄 AI 对话循环与 LLM 请求兜底
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_ai_loop.py` - 新增 AI 对话循环编排边界，集中承接消息准备、工具上下文组装与 LLM 工具轮次入口
+  - `app/service/chat_llm_request.py` - 新增单次 LLM 请求边界，拆出模型选择、`llm_ms` 记录、`LLMError` 与响应解析失败兜底
+  - `app/service/chat_llm.py` - 聚焦工具轮次推进，移除单次 LLM 请求与长参数 context 构造，保留向后兼容 re-export
+  - `app/service/chat.py` - `_ai_conversation_loop` 改为薄委托，文件从 337 行降至 304 行，继续保留高层业务编排
+  - `tests/service/test_chat_refactor.py` - 补充 AI loop 编排与 LLMError 兜底回归测试
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py -q --no-cov` 通过
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_ai_loop.py app\service\chat_context.py app\service\chat_intent.py app\service\chat_llm.py app\service\chat_llm_request.py app\service\chat_reply.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_ai_loop.py app\service\chat_context.py app\service\chat_intent.py app\service\chat_llm.py app\service\chat_llm_request.py app\service\chat_reply.py tests\service\test_chat_refactor.py` 通过
+  - `api/service/models` 分层扫描无新增违规
+
+## [2026-06-08] - refactor(chat): 收敛 LLM 工具轮次循环
+- **操作人**: AI (Codex)
+- **变更范围**:
+  - `app/service/chat_intent.py` - 新增历史摘要与意图识别计时边界，承接 `build_history_text` / `detect_intent_with_timing`
+  - `app/service/chat_context.py` - 新增 `prepare_ai_conversation_messages`，承接历史复用、RAG messages 构造、`rag_ms` 记录和多模态替换
+  - `app/service/chat_llm.py` - 新增 `LlmToolLoopContext` / `build_llm_tool_loop_context` / `complete_llm_tool_conversation`，集中处理 LLM 调用、fallback、finish_reason 分支、工具轮次推进和 `tool_rounds` 记录
+  - `app/service/chat_reply.py` - 新增并复用 `save_assistant_reply`，承接普通 AI 回复、转人工提示和人工客服回复落库
+  - `app/service/chat.py` - 移除内联 LLM while/tool round 控制和多段本地 helper，文件从 408 行降至 337 行，保留高层编排职责
+  - `tests/service/test_chat_refactor.py` - 补充 LLM tool-loop 回归测试，覆盖先执行工具再返回文本的路径
+- **验证**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\youzan\test_product_name_change.py tests\test_red_line_rules.py -q --no-cov` 通过
+  - `python -m ruff check app\service\chat.py app\service\chat_context.py app\service\chat_intent.py app\service\chat_llm.py app\service\chat_reply.py tests\service\test_chat_refactor.py` 通过
+  - `python -m compileall -q app\service\chat.py app\service\chat_context.py app\service\chat_intent.py app\service\chat_llm.py app\service\chat_reply.py tests\service\test_chat_refactor.py` 通过
+
 ## [2026-06-08] - refactor(chat): 抽离知识上下文构造边界
 - **操作人**: AI (Codex)
 - **变更范围**:

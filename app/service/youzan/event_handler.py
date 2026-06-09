@@ -61,7 +61,9 @@ class YouzanEventHandler:
             msg_id: 消息去重 ID
         """
         if event_type in _DEPRECATED_EVENT_TYPES:
-            logger.info("有赞已废弃事件，跳过处理: type=%s msg_id=%s", event_type, msg_id)
+            logger.info(
+                "有赞已废弃事件，跳过处理: type=%s msg_id=%s", event_type, msg_id
+            )
             await self._mark_skipped(audit_id, "deprecated_event", event_type)
             return
 
@@ -74,10 +76,20 @@ class YouzanEventHandler:
                 msg_obj = json.loads(msg_str)
             except Exception as exc:
                 # msg 解析失败不立即返回，降级为空字典让后续 fallback（如 ITEM_INFO 的 payload.id）兜底
-                logger.warning("有赞系统事件 msg JSON 解析失败，降级为空字典继续: type=%s msg_id=%s err=%s", event_type, msg_id, exc)
+                logger.warning(
+                    "有赞系统事件 msg JSON 解析失败，降级为空字典继续: type=%s msg_id=%s err=%s",
+                    event_type,
+                    msg_id,
+                    exc,
+                )
                 msg_obj = {}
             if not isinstance(msg_obj, dict):
-                logger.warning("有赞系统事件 msg 解析结果非字典，已重置: type=%s msg_id=%s val_type=%s", event_type, msg_id, type(msg_obj).__name__)
+                logger.warning(
+                    "有赞系统事件 msg 解析结果非字典，已重置: type=%s msg_id=%s val_type=%s",
+                    event_type,
+                    msg_id,
+                    type(msg_obj).__name__,
+                )
                 msg_obj = {}
 
         event_type_lower = event_type.lower()
@@ -95,9 +107,17 @@ class YouzanEventHandler:
             item_id = parse_item_id(payload, msg_obj)
             if not item_id:
                 # ITEM_INFO/ITEM_SKU_INFO 顶层 id 理论上可能是商品ID，由 parse_item_id 已做纯数字过滤
-                logger.warning("有赞商品事件无法解析 item_id: type=%s msg_id=%s", event_type, msg_id)
+                logger.warning(
+                    "有赞商品事件无法解析 item_id: type=%s msg_id=%s",
+                    event_type,
+                    msg_id,
+                )
                 await self._mark_skipped(audit_id, "missing_item_id", event_type)
                 return
+            # item_id 可能来自 payload.data 或 payload.id（msg_obj 内不含），
+            # 统一回注 msg_obj 供下游 handle_item_event 复用，避免其二次解析失败而误跳过
+            if not msg_obj.get("item_id"):
+                msg_obj = {**msg_obj, "item_id": item_id}
             await handle_item_event(
                 db=self._db,
                 youzan_client=self._youzan_client,
@@ -127,10 +147,16 @@ class YouzanEventHandler:
                 logger.warning("商品规格库存更新事件缺少 item_id: msg_id=%s", msg_id)
                 await self._mark_skipped(audit_id, "missing_item_id", event_type)
         else:
-            logger.info("有赞系统事件已接收，暂无处理器，已跳过: type=%s msg_id=%s", event_type, msg_id)
+            logger.info(
+                "有赞系统事件已接收，暂无处理器，已跳过: type=%s msg_id=%s",
+                event_type,
+                msg_id,
+            )
             await self._mark_skipped(audit_id, "unknown_event_type", event_type)
 
-    async def _mark_skipped(self, audit_id: int | None, error_type: str, event_type: str) -> None:
+    async def _mark_skipped(
+        self, audit_id: int | None, error_type: str, event_type: str
+    ) -> None:
         if self._audit_repo is None or audit_id is None:
             return
         await self._audit_repo.mark_result(

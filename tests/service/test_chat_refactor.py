@@ -4,12 +4,32 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.exceptions import LLMError
+from app.service import chat_ai_loop as chat_ai_loop_module
 from app.service import chat_llm as chat_llm_module
+from app.service import chat_llm_request as chat_llm_request_module
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
-from app.service.chat import TRANSFER_REPLY, ChatService, _build_history_text
+from app.service.chat import TRANSFER_REPLY
+from app.service.chat_ai_loop import (
+    AiConversationLoopDependencies,
+    AiConversationLoopRequest,
+    run_ai_conversation_loop,
+)
 from app.service.chat_context import prepare_chat_context
-from app.service.chat_llm import request_llm_choice, select_llm_model
+from app.service.chat_intent import build_history_text
+from app.service.chat_message_flow import (
+    ChatMessageFlowDependencies,
+    handle_transfer_intent,
+)
+from app.service.chat_llm import (
+    LlmChoiceResult,
+    LlmRequestContext,
+    LlmToolLoopContext,
+    complete_llm_tool_conversation,
+    request_llm_choice,
+    select_llm_model,
+)
 from app.service.chat_multimodal import (
     apply_multimodal_image_message,
     normalize_image_data_uri,
@@ -35,7 +55,7 @@ def test_build_history_text_keeps_recent_dialog_and_truncates_content() -> None:
         {"role": "user", "content": "fourth"},
     ]
 
-    history_text = _build_history_text(history)
+    history_text = build_history_text(history)
 
     assert "system" not in history_text
     assert "tool result" not in history_text
@@ -111,16 +131,34 @@ class _FakeKnowledgeRetriever:
 
 @pytest.mark.asyncio
 async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
-    service = ChatService.__new__(ChatService)
     transfer_mgr = _FakeTransferManager()
     session_repo = _FakeSessionRepo()
     message_repo = _FakeMessageRepo()
-    service._transfer_mgr = transfer_mgr
-    service._session_repo = session_repo
-    service._message_repo = message_repo
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
 
-    reply = await service._handle_transfer_intent(
+    async def fake_alerter(message: str) -> None:
+        raise AssertionError(message)
+
+    reply = await handle_transfer_intent(
+        dependencies=ChatMessageFlowDependencies(
+            session_mgr=object(),
+            session_repo=session_repo,
+            message_repo=message_repo,
+            transfer_mgr=transfer_mgr,
+            analytics_repo=object(),
+            ai_loop_dependencies=AiConversationLoopDependencies(
+                session_mgr=object(),
+                knowledge=object(),
+                transfer_mgr=transfer_mgr,
+                session_repo=session_repo,
+                youzan_client=object(),
+                fallback_reply="fallback",
+                timeout_reply="timeout",
+                failure_alerter=fake_alerter,
+            ),
+            fallback_reply="fallback",
+            transfer_reply=TRANSFER_REPLY,
+        ),
         session=session,
         user_id="buyer-1",
         reason="need human support",
@@ -234,13 +272,79 @@ def test_select_llm_model_uses_default_for_text() -> None:
 def test_select_llm_model_uses_vision_and_chat_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(chat_llm_module.settings, "MIMO_VISION_MODEL", "vision-model")
-    monkeypatch.setattr(chat_llm_module.settings, "MIMO_CHAT_MODEL", "chat-model")
+    monkeypatch.setattr(
+        chat_llm_request_module.settings, "MIMO_VISION_MODEL", "vision-model"
+    )
+    monkeypatch.setattr(
+        chat_llm_request_module.settings, "MIMO_CHAT_MODEL", "chat-model"
+    )
 
     assert select_llm_model(has_image=True) == "vision-model"
 
-    monkeypatch.setattr(chat_llm_module.settings, "MIMO_VISION_MODEL", "")
+    monkeypatch.setattr(chat_llm_request_module.settings, "MIMO_VISION_MODEL", "")
     assert select_llm_model(has_image=True) == "chat-model"
+
+
+@pytest.mark.asyncio
+async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+    messages = [{"role": "user", "content": "hello"}]
+
+    async def fake_prepare_ai_conversation_messages(**kwargs: object) -> tuple:
+        captured["prepare_kwargs"] = kwargs
+        return messages, "prepared history"
+
+    async def fake_complete_llm_tool_conversation(context: LlmToolLoopContext) -> str:
+        captured["llm_context"] = context
+        return "reply"
+
+    async def fake_alerter(message: str) -> None:
+        captured["alert"] = message
+
+    monkeypatch.setattr(
+        chat_ai_loop_module,
+        "prepare_ai_conversation_messages",
+        fake_prepare_ai_conversation_messages,
+    )
+    monkeypatch.setattr(
+        chat_ai_loop_module,
+        "complete_llm_tool_conversation",
+        fake_complete_llm_tool_conversation,
+    )
+
+    reply = await run_ai_conversation_loop(
+        AiConversationLoopDependencies(
+            session_mgr=object(),
+            knowledge=object(),
+            transfer_mgr=object(),
+            session_repo=object(),
+            youzan_client=object(),
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=fake_alerter,
+        ),
+        AiConversationLoopRequest(
+            session=session,
+            user_query="cake",
+            intent=IntentType.PRODUCT_CONSULTATION,
+            timing={},
+            history=[],
+            history_text="old",
+            image_base64="image",
+        ),
+    )
+
+    assert reply == "reply"
+    assert captured["prepare_kwargs"]["session"] is session
+    llm_context = captured["llm_context"]
+    assert isinstance(llm_context, LlmToolLoopContext)
+    assert llm_context.messages == messages
+    assert llm_context.has_image is True
+    assert llm_context.tool_context.history_text == "prepared history"
+    assert llm_context.tool_context.session is session
 
 
 @pytest.mark.asyncio
@@ -262,18 +366,22 @@ async def test_request_llm_choice_records_latency_and_uses_selected_model(
     async def fake_alerter(message: str) -> None:
         captured["alert"] = message
 
-    monkeypatch.setattr(chat_llm_module, "llm_chat", fake_llm_chat)
-    monkeypatch.setattr(chat_llm_module.settings, "MIMO_VISION_MODEL", "vision-model")
+    monkeypatch.setattr(chat_llm_request_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(
+        chat_llm_request_module.settings, "MIMO_VISION_MODEL", "vision-model"
+    )
     timing: dict[str, int] = {}
     messages = [{"role": "user", "content": "hello"}]
 
     result = await request_llm_choice(
-        messages=messages,
-        timing=timing,
-        first_llm_started_at=None,
-        has_image=True,
-        fallback_reply="fallback",
-        failure_alerter=fake_alerter,
+        LlmRequestContext(
+            messages=messages,
+            timing=timing,
+            first_llm_started_at=None,
+            has_image=True,
+            fallback_reply="fallback",
+            failure_alerter=fake_alerter,
+        )
     )
 
     assert captured["messages"] == messages
@@ -281,6 +389,108 @@ async def test_request_llm_choice_records_latency_and_uses_selected_model(
     assert result.message.content == "ok"
     assert result.fallback_reply is None
     assert isinstance(timing["llm_ms"], int)
+
+
+@pytest.mark.asyncio
+async def test_request_llm_choice_returns_fallback_on_llm_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alerts: list[str] = []
+
+    async def fake_llm_chat(*args: object, **kwargs: object) -> object:
+        raise LLMError("boom")
+
+    async def fake_alerter(message: str) -> None:
+        alerts.append(message)
+
+    monkeypatch.setattr(chat_llm_request_module, "llm_chat", fake_llm_chat)
+
+    result = await request_llm_choice(
+        LlmRequestContext(
+            messages=[{"role": "user", "content": "hello"}],
+            timing={},
+            first_llm_started_at=1.0,
+            has_image=False,
+            fallback_reply="fallback",
+            failure_alerter=fake_alerter,
+        )
+    )
+
+    assert result.choice is None
+    assert result.message is None
+    assert result.fallback_reply == "fallback"
+    assert result.first_llm_started_at == 1.0
+    assert alerts == ["LLMError: chat.py handle_message 返回兜底回复"]
+
+
+@pytest.mark.asyncio
+async def test_complete_llm_tool_conversation_runs_tool_round_then_returns_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_call = SimpleNamespace(
+        id="tool-1",
+        function=SimpleNamespace(
+            name="search_knowledge", arguments='{"query": "cake"}'
+        ),
+    )
+    requested_rounds: list[list[dict]] = []
+    processed_tool_calls: list[list] = []
+
+    async def fake_request_llm_choice(context: LlmRequestContext) -> LlmChoiceResult:
+        messages = context.messages
+        requested_rounds.append(messages)
+        if len(requested_rounds) == 1:
+            message = SimpleNamespace(content=None, tool_calls=[tool_call])
+            choice = SimpleNamespace(message=message, finish_reason="tool_calls")
+        else:
+            message = SimpleNamespace(content="done", tool_calls=[])
+            choice = SimpleNamespace(message=message, finish_reason="stop")
+        return LlmChoiceResult(
+            choice=choice,
+            message=message,
+            first_llm_started_at=1.0,
+        )
+
+    async def fake_process_tool_calls(
+        tool_calls: list,
+        messages: list[dict],
+        context: ToolExecutionContext,
+    ) -> None:
+        processed_tool_calls.append(tool_calls)
+        messages.append({"role": "tool", "content": "tool result"})
+
+    async def fake_alerter(message: str) -> None:
+        raise AssertionError(message)
+
+    monkeypatch.setattr(chat_llm_module, "request_llm_choice", fake_request_llm_choice)
+    monkeypatch.setattr(chat_llm_module, "process_tool_calls", fake_process_tool_calls)
+    timing: dict[str, int] = {}
+    messages = [{"role": "user", "content": "hello"}]
+
+    reply = await complete_llm_tool_conversation(
+        LlmToolLoopContext(
+            messages=messages,
+            timing=timing,
+            has_image=False,
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=fake_alerter,
+            tool_context=ToolExecutionContext(
+                session=Session(id="session-1", channel="youzan", user_id="buyer-1"),
+                history_text="old",
+                transfer_mgr=object(),
+                session_repo=object(),
+                knowledge=object(),
+                youzan_client=object(),
+            ),
+        )
+    )
+
+    assert reply == "done"
+    assert len(requested_rounds) == 2
+    assert processed_tool_calls == [[tool_call]]
+    assert messages[-1] == {"role": "tool", "content": "tool result"}
+    assert timing["tool_rounds"] == 1
 
 
 def test_parse_tool_arguments_rejects_invalid_json() -> None:

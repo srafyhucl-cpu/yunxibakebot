@@ -1,19 +1,10 @@
 """
 核心对话循环。
 
-所有渠道的消息最终汇聚到此模块处理：
-1. 保存用户消息
-2. 判断会话状态（AI 服务 / 人工服务）
-3. 构建上下文 + 调用 DeepSeek
-4. 处理 LLM 返回（文本回复 / Function Calling）
-5. 循环最多 3 轮 tool call
+所有渠道的消息最终汇聚到此模块，并委托到细分服务边界处理。
 """
 
-import time
-
 from app.logger import setup_logger
-from app.models.message import Message, MessageRole
-from app.models.session import Session, SessionCreate, SessionStatus
 from app.models.youzan_webhook_event import (
     YouzanWebhookEventCreate,
     YouzanWebhookEventUpdate,
@@ -23,16 +14,18 @@ from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
-from app.service.chat_context import prepare_chat_context
-from app.service.chat_llm import request_llm_choice
-from app.service.chat_multimodal import apply_multimodal_image_message
-from app.service.chat_reply import postprocess_reply, record_reply_latency
-from app.service.chat_tools import ToolExecutionContext, process_tool_calls
-from app.service.chat_transfer import HumanTransferContext, request_human_transfer
+from app.service.chat_ai_loop import (
+    AiConversationLoopDependencies,
+)
+from app.service.chat_message_flow import (
+    ChatMessageFlowDependencies,
+    ChatMessageRequest,
+    handle_chat_message,
+)
+from app.service.chat_reply import (
+    save_assistant_reply,
+)
 from app.service.knowledge_retriever import KnowledgeRetriever
-from app.service.llm.functions import MAX_TOOL_ROUNDS
-from app.service.llm.intent import IntentType, detect_intent
-from app.service.llm.intent_types import is_transfer_intent
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 from app.service.youzan.client import YouzanClient
@@ -46,16 +39,6 @@ FALLBACK_REPLY = "系统正忙，请稍后再试或联系人工客服。"
 # 非文本消息（图片/语音/视频等）兑底提示：不喂给 LLM，直接友好引导用户改发文字。
 NONTEXT_FALLBACK_REPLY = "您好~ 我暂时只能识别文字消息，麻烦您用文字描述一下需要咨询的问题，我会尽快为您解答 :)"
 TRANSFER_REPLY = "非常抱歉给您带来不好的体验，已为您转接人工客服，请稍候~"
-INTENT_HISTORY_MESSAGES = 4
-INTENT_CONTENT_PREVIEW = 80
-
-
-def _build_history_text(history: list[dict]) -> str:
-    return "\n".join(
-        f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
-        for m in history[-INTENT_HISTORY_MESSAGES:]
-        if m.get("role") in ("user", "assistant")
-    )
 
 
 # LLM 连续失败阈值告警器（60 秒内累计 3 次失败触发告警）
@@ -92,6 +75,26 @@ class ChatService:
         self._youzan_webhook_events_repo = youzan_webhook_events_repo
         self._youzan_events = youzan_event_handler
         self._analytics_repo = analytics_repo
+        self._ai_loop_dependencies = AiConversationLoopDependencies(
+            session_mgr=self._session_mgr,
+            knowledge=self._knowledge,
+            transfer_mgr=self._transfer_mgr,
+            session_repo=self._session_repo,
+            youzan_client=self._youzan_client,
+            fallback_reply=FALLBACK_REPLY,
+            timeout_reply=QUERY_TIMEOUT_REPLY,
+            failure_alerter=_llm_failure_alerter,
+        )
+        self._message_flow_dependencies = ChatMessageFlowDependencies(
+            session_mgr=self._session_mgr,
+            session_repo=self._session_repo,
+            message_repo=self._message_repo,
+            transfer_mgr=self._transfer_mgr,
+            analytics_repo=self._analytics_repo,
+            ai_loop_dependencies=self._ai_loop_dependencies,
+            fallback_reply=FALLBACK_REPLY,
+            transfer_reply=TRANSFER_REPLY,
+        )
 
     async def create_youzan_webhook_audit(self, event: YouzanWebhookEventCreate) -> int:
         """Record receipt of a Youzan webhook before async business handling."""
@@ -156,226 +159,17 @@ class ChatService:
         返回：
             回复文本，无需回复时返回 None
         """
-        # 1. 幂等去重
-        if channel_msg_id and await self._message_repo.exists(channel_msg_id):
-            logger.debug("消息已处理，跳过: %s", channel_msg_id)
-            return None
-
-        session = await self._prepare_session_and_save_user_message(
-            channel=channel,
-            user_id=user_id,
-            staff_id=staff_id,
-            content=content,
-            channel_msg_id=channel_msg_id,
-        )
-
-        # 4. 状态判断：人工服务中则不调用 LLM
-        if session.status in (
-            SessionStatus.TRANSFER_PENDING,
-            SessionStatus.HUMAN_SERVICE,
-        ):
-            logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
-            return None
-
-        # 5. 意图识别（决定走售后、知识搜索还是闲聊）
-        t0 = time.monotonic()
-        history = await self._session_mgr.build_context(session.id)
-        history_text = _build_history_text(history)
-        intent = await detect_intent(content, history=history_text)
-        t1 = time.monotonic()
-        intent_ms = round((t1 - t0) * 1000)
-        logger.info("会话 %s 意图: %s intent_ms=%d", session.id, intent.name, intent_ms)
-
-        # 转人工 → 自动创建转人工工单
-        if is_transfer_intent(intent):
-            return await self._handle_transfer_intent(
-                session=session,
+        return await handle_chat_message(
+            self._message_flow_dependencies,
+            ChatMessageRequest(
+                channel=channel,
                 user_id=user_id,
-                reason=content,
-                history_text=history_text,
-            )
-
-        # 7. 进入 AI 对话循环
-        timing: dict = {}
-        reply = await self._ai_conversation_loop(
-            session,
-            user_query=content,
-            intent=intent,
-            timing=timing,
-            history=history,
-            history_text=history_text,
-            image_base64=image_base64,
+                content=content,
+                staff_id=staff_id,
+                channel_msg_id=channel_msg_id,
+                image_base64=image_base64,
+            ),
         )
-        t2 = time.monotonic()
-        loop_ms = round((t2 - t1) * 1000)
-        total_ms = round((t2 - t0) * 1000)
-
-        reply = postprocess_reply(reply, user_content=content)
-
-        # 8. 保存 AI 回复
-        if reply:
-            assistant_msg = Message(
-                id="",
-                session_id=session.id,
-                role=MessageRole.ASSISTANT,
-                content=reply,
-            )
-            await self._message_repo.save(assistant_msg)
-
-        await record_reply_latency(
-            analytics_repo=self._analytics_repo,
-            session=session,
-            user_id=user_id,
-            channel=channel,
-            intent=intent,
-            intent_ms=intent_ms,
-            timing=timing,
-            loop_ms=loop_ms,
-            total_ms=total_ms,
-        )
-
-        return reply
-
-    async def _prepare_session_and_save_user_message(
-        self,
-        channel: str,
-        user_id: str,
-        staff_id: str,
-        content: str,
-        channel_msg_id: str,
-    ) -> Session:
-        session = await self._session_repo.get_or_create(
-            SessionCreate(id="", channel=channel, user_id=user_id, staff_id=staff_id),
-        )
-        user_msg = Message(
-            id="",
-            session_id=session.id,
-            role=MessageRole.USER,
-            content=content,
-            channel_msg_id=channel_msg_id,
-        )
-        await self._message_repo.save(user_msg)
-        return session
-
-    async def _handle_transfer_intent(
-        self,
-        session: Session,
-        user_id: str,
-        reason: str,
-        history_text: str,
-    ) -> str:
-        transfer_created = await request_human_transfer(
-            HumanTransferContext(
-                session=session,
-                user_id=user_id,
-                reason=reason,
-                history_text=history_text,
-                transfer_mgr=self._transfer_mgr,
-                session_repo=self._session_repo,
-            )
-        )
-        if not transfer_created:
-            return FALLBACK_REPLY
-
-        assistant_msg = Message(
-            id="",
-            session_id=session.id,
-            role=MessageRole.ASSISTANT,
-            content=TRANSFER_REPLY,
-        )
-        await self._message_repo.save(assistant_msg)
-        return TRANSFER_REPLY
-
-    async def _ai_conversation_loop(
-        self,
-        session: Session,
-        user_query: str = "",
-        intent: IntentType = IntentType.PRODUCT_CONSULTATION,
-        timing: dict | None = None,
-        history: list[dict] | None = None,
-        history_text: str = "",
-        image_base64: str | None = None,
-    ) -> str | None:
-        """
-        AI 对话循环（最多 MAX_TOOL_ROUNDS 轮工具调用）。
-
-        流程：
-        1. 构建上下文（系统提示 + 历史消息）
-        2. 调用 DeepSeek
-        3. 处理响应：
-           - stop → 直接回复
-           - tool_calls → 执行工具，继续循环
-           - 超过最大轮数 → 兜底回复
-        """
-        # 复用调用方已查询的上下文，避免重复数据库查询（L-5.2）
-        if history is None:
-            history = await self._session_mgr.build_context(session.id)
-            history_text = _build_history_text(history)
-        chat_context = await prepare_chat_context(
-            knowledge=self._knowledge,
-            user_query=user_query,
-            history_text=history_text,
-            intent=intent,
-            history=history,
-        )
-        if timing is not None:
-            timing["rag_ms"] = chat_context.rag_ms
-        messages = chat_context.messages
-
-        if image_base64:
-            apply_multimodal_image_message(messages, image_base64, session.id)
-
-        tool_round = 0
-        _t_llm_first: float | None = None
-
-        while tool_round <= MAX_TOOL_ROUNDS:
-            llm_result = await request_llm_choice(
-                messages=messages,
-                timing=timing,
-                first_llm_started_at=_t_llm_first,
-                has_image=bool(image_base64),
-                fallback_reply=FALLBACK_REPLY,
-                failure_alerter=_llm_failure_alerter,
-            )
-            _t_llm_first = llm_result.first_llm_started_at
-            if llm_result.fallback_reply is not None:
-                return llm_result.fallback_reply
-
-            choice = llm_result.choice
-            msg = llm_result.message
-            assert choice is not None
-            assert msg is not None
-
-            finish_reason = choice.finish_reason or "stop"
-
-            if finish_reason == "stop":
-                # LLM 返回纯文本，直接回复
-                if timing is not None:
-                    timing["tool_rounds"] = tool_round
-                return msg.content or ""
-
-            if finish_reason == "tool_calls" and tool_round < MAX_TOOL_ROUNDS:
-                await process_tool_calls(
-                    msg.tool_calls or [],
-                    messages,
-                    ToolExecutionContext(
-                        session=session,
-                        history_text=history_text,
-                        transfer_mgr=self._transfer_mgr,
-                        session_repo=self._session_repo,
-                        knowledge=self._knowledge,
-                        youzan_client=self._youzan_client,
-                    ),
-                )
-                tool_round += 1
-                continue
-
-            # 超限或未知 finish_reason
-            break
-
-        if timing is not None:
-            timing["tool_rounds"] = tool_round
-        return QUERY_TIMEOUT_REPLY
 
     async def handle_human_reply(self, session_id: str, content: str) -> None:
         """
@@ -385,13 +179,7 @@ class ChatService:
             session_id: 会话 ID
             content: 回复内容
         """
-        msg = Message(
-            id="",
-            session_id=session_id,
-            role=MessageRole.ASSISTANT,
-            content=content,
-        )
-        await self._message_repo.save(msg)
+        await save_assistant_reply(self._message_repo, session_id, content)
         logger.info("人工客服回复: session=%s", session_id)
 
     async def handle_youzan_system_event(

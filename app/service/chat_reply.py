@@ -4,7 +4,9 @@ import json
 from typing import Any
 
 from app.logger import setup_logger
+from app.models.message import Message, MessageRole
 from app.models.session import Session
+from app.repository.message_repo import MessageRepo
 from app.service.llm.intent import IntentType
 from app.service.llm.soothe import apply_soothe, needs_soothe
 from app.utils import now_str
@@ -20,6 +22,23 @@ def postprocess_reply(reply: str | None, user_content: str) -> str | None:
     if needs_soothe(user_content):
         return apply_soothe(cleaned_reply)
     return cleaned_reply
+
+
+async def save_assistant_reply(
+    message_repo: MessageRepo,
+    session_id: str,
+    reply: str | None,
+) -> None:
+    if not reply:
+        return
+
+    assistant_msg = Message(
+        id="",
+        session_id=session_id,
+        role=MessageRole.ASSISTANT,
+        content=reply,
+    )
+    await message_repo.save(assistant_msg)
 
 
 async def record_reply_latency(

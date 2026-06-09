@@ -5,10 +5,15 @@
 （包含动态迁移列），测试结束后自动关闭，互不干扰。
 """
 
+import os
 from collections.abc import AsyncGenerator
 
 import aiosqlite
 import pytest
+
+# 测试统一使用轻量编码器，规避真实 Embedding 模型每次构造耗时约 18 秒的加载成本。
+# 必须在任何 app 模块导入前设置，确保首个 EmbeddingSearcher 即走 fallback 分支。
+os.environ.setdefault("YUNXI_USE_FAKE_EMBEDDING", "1")
 
 from app.database import close_db, init_db
 
