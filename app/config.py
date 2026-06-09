@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     RRF_K: int = 60
     ENABLE_CUSTOMER_MEMORY: bool = False
     ENABLE_REPLY_GUARD: bool = False
+    ENABLE_OFFLINE_REVIEW: bool = False
+    OFFLINE_REVIEW_INTERVAL_HOURS: float = 6.0
+    OFFLINE_REVIEW_MAX_SESSIONS: int = 200
 
     # ── DeepSeek 大模型（已废弃，保留字段兼容） ──
     DEEPSEEK_API_KEY: str = ""

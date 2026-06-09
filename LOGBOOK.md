@@ -2,6 +2,22 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-09] - feat(agent): P2 离线会话质检 Agent 与调度器
+- **操作人**: AI (Codex)
+- **背景**: 接续 P0/P1，按 `docs/design/5-Agent化升级架构设计.md` 落地 P2：冷路径只实现 Agent① 会话质检与固定间隔调度器，默认关闭，不触碰实时客服热路径。
+- **变更范围**:
+  - `app/config.py` - 新增 `ENABLE_OFFLINE_REVIEW`、`OFFLINE_REVIEW_INTERVAL_HOURS`、`OFFLINE_REVIEW_MAX_SESSIONS` 三个离线质检配置，默认关闭。
+  - `app/repository/session_repo.py` - 新增 `list_review_candidates()`，仅筛选未质检的 closed / transfer_pending / human_service 会话，保持 SQL 在 repository 层。
+  - `app/service/offline/` - 新增 `QaReviewAgent`、`OfflineReviewOrchestrator`、`OfflineReviewScheduler` 与 bootstrap 装配入口；单会话 LLM/解析失败、单 Agent 失败、调度轮次失败均记录日志并隔离。
+  - `app/lifespan_routes.py` / `app/main.py` - 将路由注册从 `main.py` 拆出，并在 lifespan 后台任务集合中按开关挂载离线调度器；关闭时优雅 stop。
+  - `tests/service/test_offline_review.py` - 新增 P2 单测，覆盖候选会话筛选、质检落库、LLM 异常隔离、编排器异常隔离与调度器启动停止。
+- **验证**:
+  - `python -m ruff check app/main.py app/lifespan_routes.py app/config.py app/repository/session_repo.py app/service/offline tests/service/test_offline_review.py` 通过
+  - `python -m pytest tests/service/test_offline_review.py -q --no-cov` 通过（5 passed）
+  - `python -m pytest tests/repository/test_agent_foundation_repos.py tests/service/test_customer_memory.py tests/service/test_reply_guard.py tests/service/test_chat_refactor.py -q --no-cov` 通过（29 passed）
+  - 架构守卫扫描通过：`app/api/` 无直接导入 `repository/`，`app/service/` 无直接 DB 操作，`app/models/` 无上层引用
+  - 红线扫描通过：本轮触达文件无 `TODO` / `Optional[]` / `Union[]` / `SELECT *` / `print()` / `except: pass`
+
 ## [2026-06-09] - chore(llm): 统一 LLM 时间规范为北京时间
 - **操作人**: AI (Codex)
 - **背景**: 项目口径调整为全部使用北京时间，需同步更新 LLM 守卫文档和当前触达的 LLM 时间来源，避免后续 Agent 继续按 UTC 生成 Prompt 或工具时间。

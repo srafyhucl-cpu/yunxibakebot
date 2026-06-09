@@ -7,8 +7,6 @@
 from uuid import uuid4
 from datetime import datetime
 
-import aiosqlite
-
 from app.models.session import Session, SessionCreate, SessionStatus
 
 
@@ -122,5 +120,19 @@ class SessionRepo(BaseRepository):
             "AND (? = '' OR channel = ?) "
             "ORDER BY updated_at DESC LIMIT ?",
             (channel, channel, limit),
+        )
+        return [Session(**dict(r)) for r in rows]
+
+    async def list_review_candidates(self, limit: int = 200) -> list[Session]:
+        """获取尚未离线质检的已结束或转人工会话。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT s.id, s.channel, s.user_id, s.staff_id, s.status, "
+            "s.extra_info, s.created_at, s.updated_at "
+            "FROM sessions AS s "
+            "LEFT JOIN conversation_reviews AS cr ON cr.session_id = s.id "
+            "WHERE s.status IN ('closed', 'transfer_pending', 'human_service') "
+            "AND cr.id IS NULL "
+            "ORDER BY s.updated_at DESC LIMIT ?",
+            (limit,),
         )
         return [Session(**dict(r)) for r in rows]

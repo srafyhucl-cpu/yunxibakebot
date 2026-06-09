@@ -115,10 +115,12 @@ async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
     services = init_services(repos, vs, bm25)
 
     # 5. 注册路由
-    _register_routes(app, services)
+    from app.lifespan_routes import register_routes
+
+    register_routes(app, services)
 
     # 6. 启动后台任务
-    bg_tasks = _start_background_tasks()
+    bg_tasks = _start_background_tasks(app, repos)
     bg_tasks.add(save_task)
 
     # 7. 启动通知
@@ -156,49 +158,6 @@ def _init_repositories() -> dict[str, object]:
     }
 
 
-def _register_routes(app: FastAPI, services: dict[str, Any]) -> None:
-    """注册所有 API 路由。"""
-    from app.api.admin import create_admin_router
-    from app.api.admin_config import create_shop_config_router
-    from app.api.admin_frontend import create_admin_frontend_router
-    from app.api.admin_knowledge import create_admin_knowledge_router
-    from app.api.admin_observability import create_observability_router
-    from app.api.admin_products import create_admin_products_router
-    from app.api.webhook import create_webhook_router
-    from app.api.wecom import router as wecom_router
-
-    # 启动企微消息队列 Worker（异步消费，避免回调超时）
-    from app.service.wecom.message_queue import wecom_queue
-
-    wecom_queue.start_worker(services["chat_service"])
-
-    # 启动微信客服消息队列 Worker（复用同一回调URL，通过事件类型分流）
-    from app.service.wecom.kf_message_queue import kf_queue
-
-    kf_queue.start_worker(services["chat_service"])
-
-    app.include_router(create_webhook_router(services["chat_service"]))
-    app.include_router(
-        create_admin_router(
-            chat_service=services["chat_service"],
-            admin_service=services["admin_service"],
-            transfer_mgr=services["transfer_mgr"],
-        )
-    )
-    app.include_router(create_admin_frontend_router())
-    app.include_router(create_shop_config_router(services["admin_service"]))
-    app.include_router(
-        create_admin_knowledge_router(services["knowledge_admin_service"])
-    )
-    app.include_router(create_observability_router(services["observability_service"]))
-    app.include_router(
-        create_admin_products_router(
-            services["reconcile_service"], services["knowledge_sync_service"]
-        )
-    )
-    app.include_router(wecom_router)
-
-
 async def _startup_notify() -> None:
     """发送启动通知。"""
     logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)
@@ -211,9 +170,16 @@ async def _startup_notify() -> None:
     )
 
 
-def _start_background_tasks() -> set[asyncio.Task[None]]:
+def _start_background_tasks(
+    app: FastAPI, repos: dict[str, object]
+) -> set[asyncio.Task[None]]:
     """创建后台任务集合（持有强引用，避免任务被 GC 提前回收）。"""
-    return set()
+    bg_tasks: set[asyncio.Task[None]] = set()
+
+    from app.service.offline.bootstrap import register_offline_review_scheduler
+
+    register_offline_review_scheduler(app, repos, bg_tasks, db_session_scope)
+    return bg_tasks
 
 
 async def _startup_sync(
@@ -256,6 +222,10 @@ async def _shutdown_lifespan_services(
     from app.service.wecom.kf_message_queue import kf_queue
 
     await kf_queue.stop()
+
+    from app.service.offline.bootstrap import stop_offline_review_scheduler
+
+    await stop_offline_review_scheduler(app)
 
     # 关闭企微客户端
     from app.service.wecom.client import close_wecom_client
