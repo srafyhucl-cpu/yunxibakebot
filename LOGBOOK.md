@@ -1,6 +1,16 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - fix(agent): 企微空用户结束事件与实际状态兜底
+- **操作人**: AI (Codex)
+- **背景**: 生产联调再次发现人工结束后继续聊天仍无响应。服务日志显示回调已收到，但 `queued=0 handoff_user_synced=1`；生产 DB 进一步确认最新 session 卡在 `transfer_pending`，同时企微 `session_status_change` 结束事件的 `external_userid` 为空，旧逻辑无法关闭本地会话。
+- **变更范围**:
+  - `app/service/wecom/kf_handoff_sync.py` - 结束事件缺少 `external_userid` 时，若本地只有一个微信客服人工/待转人工会话，则保守归属并关闭 session 与工单；多会话时不误关，仅记录 warning。
+  - `app/service/wecom/kf_handoff_checker.py` / `kf_callback_processor.py` - 本地仍是人工状态时，额外查询企微实际 `service_state`；若已回到未处理/智能助手/已结束，立即关闭本地旧会话，让当前用户消息重新进入 AI 队列。
+  - `tests/service/wecom/test_kf_callback_processor.py` - 覆盖空用户结束事件唯一归属、企微实际已结束后重新入队、企微仍人工时继续阻止 AI 抢答。
+- **验证**:
+  - `python -m pytest tests/service/wecom/test_kf_callback_processor.py --no-cov -q` 通过
+
 ## [2026-06-10] - fix(agent): 企微人工结束后同批消息重新接入智能助手
 - **操作人**: AI (Codex)
 - **背景**: 生产商测试账号联调发现：人工客服点击结束聊天后，用户继续发消息没有稳定显示“已接入智能助手”。根因是企微 `sync_msg` 可能在同一批次返回“结束事件 + 用户新消息”，旧逻辑在整批分类完成后才关闭本地 session，导致结束后的新消息仍被误判为人工阶段消息，只落库不进入 AI 队列。

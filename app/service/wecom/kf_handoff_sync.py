@@ -4,12 +4,12 @@ from dataclasses import dataclass
 
 from app.logger import setup_logger
 from app.models.message import Message, MessageRole
-from app.models.session import SessionStatus
+from app.models.session import Session, SessionStatus
 from app.models.session_scope import mark_handoff_started
+from app.models.transfer import TransferStatus
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
-from app.models.transfer import TransferStatus
 
 logger = setup_logger()
 
@@ -71,15 +71,12 @@ async def mark_handoff_event(
     staff_id: str = "",
 ) -> None:
     """根据企微客服会话事件更新本地会话和工单状态。"""
-    if not external_userid:
-        return
-
     from app.database import db_session_scope
 
     async with db_session_scope():
         session_repo = SessionRepo()
         transfer_repo = TransferRepo()
-        session = await session_repo.get_latest(external_userid, WECOM_KF_CHANNEL)
+        session = await _find_event_session(session_repo, external_userid, change_type)
         if session is None:
             logger.info(
                 "客服状态事件未找到本地会话 user=%s change=%d",
@@ -100,7 +97,9 @@ async def mark_handoff_event(
                 staff_id,
             )
             logger.info(
-                "客服人工接入事件已同步 user=%s change=%d", external_userid, change_type
+                "客服人工接入事件已同步 user=%s change=%d",
+                session.user_id,
+                change_type,
             )
             return
 
@@ -110,4 +109,32 @@ async def mark_handoff_event(
                 session.id,
                 TransferStatus.CLOSED,
             )
-            logger.info("客服会话结束事件已同步 user=%s", external_userid)
+            logger.info("客服会话结束事件已同步 user=%s", session.user_id)
+
+
+async def _find_event_session(
+    session_repo: SessionRepo,
+    external_userid: str,
+    change_type: int,
+) -> Session | None:
+    if external_userid:
+        return await session_repo.get_latest(external_userid, WECOM_KF_CHANNEL)
+    if change_type != 3:
+        return None
+
+    active_sessions = [
+        session
+        for session in await session_repo.get_all_by_channel(WECOM_KF_CHANNEL)
+        if session.status
+        in (SessionStatus.TRANSFER_PENDING, SessionStatus.HUMAN_SERVICE)
+    ]
+    if len(active_sessions) != 1:
+        logger.warning(
+            "客服结束事件缺少 user，无法唯一归属 active_count=%d",
+            len(active_sessions),
+        )
+        return None
+    logger.info(
+        "客服结束事件缺少 user，归属唯一活跃人工会话 session=%s", active_sessions[0].id
+    )
+    return active_sessions[0]

@@ -61,7 +61,10 @@ class KfCallbackProcessor:
     ) -> None:
         self._client = client
         self._queue = queue
-        self._classifier = KfMessageClassifier(DbHandoffSessionChecker())
+        service_state_getter = getattr(client, "get_kf_service_state", None)
+        self._classifier = KfMessageClassifier(
+            DbHandoffSessionChecker(service_state_getter)
+        )
 
     async def handle_callback(self, msg: dict) -> None:
         kf_token = msg.get("Token", "")

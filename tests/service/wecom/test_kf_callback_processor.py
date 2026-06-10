@@ -16,6 +16,7 @@ class FakeKfClient:
         self,
         sync_result: dict | list[dict],
         inactive_users: set[str] | None = None,
+        service_states: dict[str, int | None] | None = None,
     ) -> None:
         self.sync_results = (
             sync_result if isinstance(sync_result, list) else [sync_result]
@@ -24,6 +25,8 @@ class FakeKfClient:
         self.checked_users: list[str] = []
         self.cursors: list[str] = []
         self.event_texts: list[tuple[str, str, str]] = []
+        self.service_states = service_states or {}
+        self.service_state_checks: list[str] = []
 
     async def sync_kf_messages(self, kf_token: str, cursor: str = "") -> dict:
         assert kf_token == "token-1"
@@ -34,6 +37,10 @@ class FakeKfClient:
     async def ensure_kf_session_active(self, external_userid: str) -> bool:
         self.checked_users.append(external_userid)
         return external_userid not in self.inactive_users
+
+    async def get_kf_service_state(self, external_userid: str) -> int | None:
+        self.service_state_checks.append(external_userid)
+        return self.service_states.get(external_userid)
 
     async def send_kf_event_text(
         self, code: str, content: str, msgid: str = ""
@@ -410,6 +417,103 @@ async def test_idle_handoff_session_is_closed_and_message_requeued(
 
 
 @pytest.mark.asyncio
+async def test_replyable_wecom_state_closes_stale_handoff_and_requeues(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-stale-handoff",
+            "wecom_kf",
+            "user-1",
+            "transfer_pending",
+            "{}",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 3,
+                "msgtype": "text",
+                "msgid": "new-after-platform-end",
+                "external_userid": "user-1",
+                "text": {"content": "继续咨询"},
+            }
+        ],
+    }
+    client = FakeKfClient(sync_result, service_states={"user-1": 4})
+    queue = FakeKfQueue()
+
+    await KfCallbackProcessor(client, queue).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert [msg.msg_id for msg in queue.messages] == ["new-after-platform-end"]
+    assert client.service_state_checks == ["user-1"]
+    verify_db = await init_db(str(db_path))
+    sessions = await verify_db.execute_fetchall(
+        "SELECT status FROM sessions WHERE id = ?",
+        ("session-stale-handoff",),
+    )
+    await close_db(verify_db)
+    assert sessions[0]["status"] == SessionStatus.CLOSED.value
+
+
+@pytest.mark.asyncio
+async def test_active_human_wecom_state_still_blocks_ai_queue(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-human",
+            "wecom_kf",
+            "user-1",
+            "human_service",
+            "{}",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 3,
+                "msgtype": "text",
+                "msgid": "human-still-active",
+                "external_userid": "user-1",
+                "text": {"content": "人工还在聊"},
+            }
+        ],
+    }
+    client = FakeKfClient(sync_result, service_states={"user-1": 3})
+    queue = FakeKfQueue()
+
+    await KfCallbackProcessor(client, queue).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert queue.messages == []
+    assert client.service_state_checks == ["user-1"]
+
+
+@pytest.mark.asyncio
 async def test_same_page_handoff_event_prevents_ai_queue(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -615,6 +719,60 @@ async def test_message_after_same_batch_end_event_reenters_ai_queue(
     )
 
     assert [msg.msg_id for msg in queue.messages] == ["new-after-end"]
+    verify_db = await init_db(str(db_path))
+    sessions = await verify_db.execute_fetchall(
+        "SELECT status FROM sessions WHERE id = ?",
+        ("session-human",),
+    )
+    transfers = await verify_db.execute_fetchall(
+        "SELECT status FROM human_transfers WHERE id = ?",
+        ("transfer-1",),
+    )
+    await close_db(verify_db)
+    assert sessions[0]["status"] == SessionStatus.CLOSED.value
+    assert transfers[0]["status"] == TransferStatus.CLOSED.value
+
+
+@pytest.mark.asyncio
+async def test_empty_user_end_event_closes_single_active_handoff_session(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("session-human", "wecom_kf", "user-1", "transfer_pending", "{}"),
+    )
+    await db.execute(
+        "INSERT INTO human_transfers (id, session_id, user_id, status) "
+        "VALUES (?, ?, ?, ?)",
+        ("transfer-1", "session-human", "user-1", "accepted"),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 4,
+                "msgtype": "event",
+                "msgid": "event-end-empty-user",
+                "external_userid": "",
+                "event": {
+                    "event_type": "session_status_change",
+                    "change_type": 3,
+                },
+            }
+        ],
+    }
+
+    await KfCallbackProcessor(FakeKfClient(sync_result), FakeKfQueue()).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
     verify_db = await init_db(str(db_path))
     sessions = await verify_db.execute_fetchall(
         "SELECT status FROM sessions WHERE id = ?",
