@@ -10,6 +10,7 @@ from app.service import chat_llm as chat_llm_module
 from app.service import chat_llm_request as chat_llm_request_module
 from app.models.message import Message, MessageRole
 from app.models.session import Session, SessionStatus
+from app.models.session_scope import SessionScope
 from app.service.chat import TRANSFER_REPLY
 from app.service.chat_ai_loop import (
     AiConversationLoopDependencies,
@@ -94,9 +95,13 @@ class _FakeTransferManager:
 class _FakeSessionRepo:
     def __init__(self) -> None:
         self.updated: list[tuple[str, SessionStatus]] = []
+        self.extra_updates: list[tuple[str, str]] = []
 
     async def update_status(self, session_id: str, status: SessionStatus) -> None:
         self.updated.append((session_id, status))
+
+    async def update_extra(self, session_id: str, extra_info: str) -> None:
+        self.extra_updates.append((session_id, extra_info))
 
 
 class _FakeMessageRepo:
@@ -171,6 +176,9 @@ async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
     assert transfer_mgr.calls[0].reason == "need human support"
     assert len(transfer_mgr.calls[0].summary) == 200
     assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
+    assert (
+        SessionScope.BOT_THEN_HANDOFF_PARTIAL.value in session_repo.extra_updates[0][1]
+    )
     assert len(message_repo.saved) == 1
     assert message_repo.saved[0].role == MessageRole.ASSISTANT
     assert message_repo.saved[0].content == TRANSFER_REPLY
@@ -559,3 +567,6 @@ async def test_request_human_transfer_updates_state_and_truncates_summary() -> N
     assert transfer_mgr.calls[0].reason == "need staff"
     assert len(transfer_mgr.calls[0].summary) == 200
     assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
+    assert (
+        SessionScope.BOT_THEN_HANDOFF_PARTIAL.value in session_repo.extra_updates[0][1]
+    )

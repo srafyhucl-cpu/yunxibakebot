@@ -10,6 +10,7 @@ import pytest
 from app.exceptions import LLMError
 from app.models.conversation_review import ConversationReview
 from app.models.message import Message, MessageRole
+from app.models.session_scope import SessionScope, mark_handoff_started
 from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.knowledge_gap_repo import KnowledgeGapRepo
@@ -266,6 +267,59 @@ async def test_scheduler_runs_and_stops() -> None:
     await scheduler.stop()
 
     assert orchestrator.calls >= 1
+
+
+async def test_memory_agent_records_partial_handoff_scope(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """转人工但人工消息不可见时，画像证据应标记为 partial。"""
+    await _insert_session(db, "memory-scope-1", "closed")
+    await db.execute(
+        "UPDATE sessions SET updated_at = ?, extra_info = ? WHERE id = ?",
+        (
+            "2026-06-09 13:00:00",
+            mark_handoff_started("{}"),
+            "memory-scope-1",
+        ),
+    )
+    await db.commit()
+    await MessageRepo(db).save(
+        Message(
+            id="memory-scope-msg-1",
+            session_id="memory-scope-1",
+            role=MessageRole.USER,
+            content="想看看草莓蛋糕。",
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    async def fake_llm_chat(*args: object, **_kwargs: object) -> object:
+        captured["messages"] = args[0]
+        message = SimpleNamespace(
+            content=(
+                '{"display_name":"","preferences":{},'
+                '"order_summary":{},"allergens":[],"consent_status":"unknown"}'
+            )
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    agent = MemoryAgent(
+        OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
+    )
+
+    profiles = await agent.run()
+    profile = await CustomerProfileRepo(db).get("youzan", "user-memory-scope-1")
+
+    assert len(profiles) == 1
+    assert profile is not None
+    assert SessionScope.BOT_THEN_HANDOFF_PARTIAL.value in str(captured["messages"])
+    evidence = json.loads(profile.source_evidence_json)
+    assert evidence["session_scope"] == SessionScope.BOT_THEN_HANDOFF_PARTIAL.value
+    assert evidence["handoff_occurred"] is True
+    assert evidence["human_messages_available"] is False
 
 
 def _build_agent(db: aiosqlite.Connection) -> QaReviewAgent:

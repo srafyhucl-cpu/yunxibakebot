@@ -12,6 +12,7 @@ from app.models.customer_profile import (
     MemoryConsentStatus,
 )
 from app.models.session import Session
+from app.models.session_scope import SessionScopeSnapshot, snapshot_session_scope
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
@@ -26,6 +27,9 @@ MEMORY_SYSTEM_PROMPT = (
     '"consent_status": "unknown"}。'
     "只抽取对后续服务有帮助的偏好、最近订单摘要和过敏提醒；不要保存电话、地址等隐私。"
     "过敏信息只能作为提醒核对事实，不能写成能否食用的结论。"
+    "如果 session_scope 是 bot_then_handoff_partial，说明转人工后的人工对话不完整可见；"
+    "此时不能把机器人阶段的意向写成最终确认事实。"
+    "如果 human_messages_available 为 true，可将带有 [人工客服] 标记的消息视为人工阶段可见材料。"
 )
 
 ALLOWED_CONSENT_STATUS = {
@@ -72,17 +76,22 @@ class MemoryAgent:
                 messages = await self._message_repo.get_by_session(session.id)
                 if not messages:
                     continue
-                parsed = await self._extract_memory(messages)
-                profiles.append(await self._save_profile(session, parsed))
+                scope = snapshot_session_scope(session.extra_info)
+                parsed = await self._extract_memory(messages, scope)
+                profiles.append(await self._save_profile(session, parsed, scope))
             except Exception as exc:
                 logger.error("离线记忆固化失败 session=%s err=%s", session.id, exc)
         return profiles
 
-    async def _extract_memory(self, messages: list) -> ParsedCustomerMemory:
+    async def _extract_memory(
+        self,
+        messages: list,
+        scope: SessionScopeSnapshot,
+    ) -> ParsedCustomerMemory:
         response = await llm_chat(
             [
                 {"role": "system", "content": MEMORY_SYSTEM_PROMPT},
-                {"role": "user", "content": format_dialog(messages)},
+                {"role": "user", "content": _build_memory_input(messages, scope)},
             ],
             tools=None,
             temperature=0,
@@ -96,6 +105,7 @@ class MemoryAgent:
         self,
         session: Session,
         memory: ParsedCustomerMemory,
+        scope: SessionScopeSnapshot,
     ) -> CustomerProfile:
         existing = await self._profile_repo.get(session.channel, session.user_id)
         return await self._profile_repo.upsert(
@@ -121,7 +131,12 @@ class MemoryAgent:
                 ),
                 consent_status=memory.consent_status,
                 source_evidence_json=json.dumps(
-                    {"session_ids": [session.id]},
+                    {
+                        "session_ids": [session.id],
+                        "session_scope": scope.session_scope,
+                        "handoff_occurred": scope.handoff_occurred,
+                        "human_messages_available": scope.human_messages_available,
+                    },
                     ensure_ascii=False,
                 ),
                 last_interaction_at=session.updated_at or session.created_at,
@@ -137,6 +152,21 @@ def _existing_value(profile: CustomerProfile | None, field_name: str) -> str:
 def _memory_value(new_value: str, existing_value: str, empty_value: str) -> str:
     """LLM 未抽到字段时保留已有画像。"""
     return existing_value if new_value == empty_value and existing_value else new_value
+
+
+def _build_memory_input(messages: list, scope: SessionScopeSnapshot) -> str:
+    """拼接画像抽取输入，并显式声明会话材料边界。"""
+    scope_payload = {
+        "session_scope": scope.session_scope,
+        "handoff_occurred": scope.handoff_occurred,
+        "human_messages_available": scope.human_messages_available,
+    }
+    return (
+        "会话可见范围："
+        + json.dumps(scope_payload, ensure_ascii=False)
+        + "\n\n对话内容：\n"
+        + format_dialog(messages)
+    )
 
 
 def _parse_memory_json(content: str) -> ParsedCustomerMemory:

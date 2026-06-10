@@ -7,14 +7,10 @@
 from uuid import uuid4
 from datetime import datetime
 
-import aiosqlite
-
 from app.models.message import Message
+from app.repository.base import BaseRepository
 
 MAX_MESSAGES_PER_SESSION = 50
-
-
-from app.repository.base import BaseRepository
 
 
 class MessageRepo(BaseRepository):
@@ -43,14 +39,30 @@ class MessageRepo(BaseRepository):
             "(id, session_id, role, content, channel_msg_id, "
             " estimated_tokens, tool_calls, tool_name, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (msg_id, message.session_id, message.role.value,
-             message.content, message.channel_msg_id,
-             message.estimated_tokens, message.tool_calls,
-             message.tool_name, now),
+            (
+                msg_id,
+                message.session_id,
+                message.role.value,
+                message.content,
+                message.channel_msg_id,
+                message.estimated_tokens,
+                message.tool_calls,
+                message.tool_name,
+                now,
+            ),
         )
         await self._db.commit()
 
-    async def get_by_session(self, session_id: str, limit: int = MAX_MESSAGES_PER_SESSION) -> list[Message]:
+    async def save_if_new(self, message: Message) -> bool:
+        """按渠道消息 ID 幂等保存消息。"""
+        if message.channel_msg_id and await self.exists(message.channel_msg_id):
+            return False
+        await self.save(message)
+        return True
+
+    async def get_by_session(
+        self, session_id: str, limit: int = MAX_MESSAGES_PER_SESSION
+    ) -> list[Message]:
         """查询某会话最近 limit 条消息，按时间正序返回。
 
         先按 created_at 倒序截取最近 N 条，再正序返回，避免会话超过 limit 时

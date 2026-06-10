@@ -6,6 +6,10 @@ from typing import Protocol
 
 from app.logger import setup_logger
 from app.service.wecom.kf_message_queue import KfIncomingMessage, kf_queue
+from app.service.wecom.kf_servicer_sync import (
+    SyncedServicerMessage,
+    save_servicer_messages,
+)
 
 logger = setup_logger()
 
@@ -77,33 +81,47 @@ class KfCallbackProcessor:
             return
 
         msg_list = sync_result.get("msg_list", [])
-        user_messages, nontext_messages = self._collect_customer_messages(
+        user_messages, nontext_messages, servicer_messages = self._collect_messages(
             msg_list,
             open_kfid,
         )
+        synced_count = await save_servicer_messages(servicer_messages)
         enqueued_count = await self._enqueue_messages(
             open_kfid,
             user_messages,
             nontext_messages,
         )
         logger.info(
-            "客服回调处理完成 共%d条消息 入队%d条",
+            "客服回调处理完成 total=%d queued=%d human_synced=%d",
             len(msg_list),
             enqueued_count,
+            synced_count,
         )
 
-    def _collect_customer_messages(
+    def _collect_messages(
         self,
         msg_list: list[dict],
         open_kfid: str,
-    ) -> tuple[dict[str, dict[str, dict]], list[QueuedNontextMessage]]:
+    ) -> tuple[
+        dict[str, dict[str, dict]],
+        list[QueuedNontextMessage],
+        list[SyncedServicerMessage],
+    ]:
         user_messages: dict[str, dict[str, dict]] = {}
         nontext_processed_users: set[str] = set()
         nontext_messages: list[QueuedNontextMessage] = []
+        servicer_messages: list[SyncedServicerMessage] = []
 
         for item in msg_list:
             if self._is_stale_message(item):
                 continue
+
+            if self._is_servicer_message(item):
+                servicer_message = self._build_servicer_message(item)
+                if servicer_message is not None:
+                    servicer_messages.append(servicer_message)
+                continue
+
             if not self._is_customer_message(item):
                 continue
 
@@ -120,7 +138,7 @@ class KfCallbackProcessor:
                     item,
                 )
 
-        return user_messages, nontext_messages
+        return user_messages, nontext_messages, servicer_messages
 
     def _is_stale_message(self, item: dict) -> bool:
         send_time = item.get("send_time", 0)
@@ -132,7 +150,7 @@ class KfCallbackProcessor:
             return False
 
         logger.info(
-            "跳过微信客服过期的历史重推消息 msg_id=%s send_time=%d 延迟=%ds",
+            "跳过微信客服过期的历史重推消息 msg_id=%s send_time=%d delay=%ds",
             item.get("msgid", ""),
             send_time,
             delay,
@@ -151,9 +169,30 @@ class KfCallbackProcessor:
                 item.get("event_type", msgtype),
                 item_msgid,
             )
-        elif origin == SERVICER_ORIGIN:
-            logger.debug("接待人员消息，无需处理 msg_id=%s", item_msgid)
         return False
+
+    def _is_servicer_message(self, item: dict) -> bool:
+        return item.get("origin", 0) == SERVICER_ORIGIN
+
+    def _build_servicer_message(self, item: dict) -> SyncedServicerMessage | None:
+        external_userid = item.get("external_userid", "")
+        msg_id = item.get("msgid", "")
+        msgtype = item.get("msgtype", "")
+        if not external_userid or not msg_id:
+            return None
+
+        if msgtype == "text":
+            content = item.get("text", {}).get("content", "").strip()
+        else:
+            content = f"[{msgtype}消息]"
+        if not content:
+            return None
+
+        return SyncedServicerMessage(
+            external_userid=external_userid,
+            content=f"[人工客服] {content}",
+            msg_id=msg_id,
+        )
 
     def _collect_text_message(
         self,

@@ -2,6 +2,8 @@ import time
 
 import pytest
 
+from app.database import close_db, init_db
+from app.models.session_scope import SessionScope
 from app.service.wecom.kf_callback_processor import KfCallbackProcessor
 from app.service.wecom.kf_message_queue import KfIncomingMessage
 
@@ -135,3 +137,55 @@ async def test_processor_ignores_callback_without_token() -> None:
     await processor.handle_callback({"OpenKfId": "kf-1"})
 
     assert queue.messages == []
+
+
+@pytest.mark.asyncio
+async def test_processor_persists_servicer_message_without_ai_queue(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("session-human", "wecom_kf", "user-1", "human_service", "{}"),
+    )
+    await db.commit()
+    await close_db(db)
+
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 5,
+                "msgtype": "text",
+                "msgid": "staff-text-1",
+                "external_userid": "user-1",
+                "text": {"content": "最终确认芒果千层，少甜。"},
+            }
+        ],
+    }
+    queue = FakeKfQueue()
+    processor = KfCallbackProcessor(FakeKfClient(sync_result), queue)
+
+    await processor.handle_callback({"Token": "token-1", "OpenKfId": "kf-1"})
+
+    assert queue.messages == []
+    verify_db = await init_db(str(db_path))
+    rows = await verify_db.execute_fetchall(
+        "SELECT role, content, channel_msg_id FROM messages WHERE session_id = ?",
+        ("session-human",),
+    )
+    sessions = await verify_db.execute_fetchall(
+        "SELECT extra_info FROM sessions WHERE id = ?",
+        ("session-human",),
+    )
+    await close_db(verify_db)
+
+    assert len(rows) == 1
+    assert rows[0]["role"] == "assistant"
+    assert "最终确认芒果千层" in rows[0]["content"]
+    assert rows[0]["channel_msg_id"] == "staff-text-1"
+    assert SessionScope.BOT_THEN_HUMAN_SYNCED.value in sessions[0]["extra_info"]

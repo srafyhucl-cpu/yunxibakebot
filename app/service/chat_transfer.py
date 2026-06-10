@@ -5,6 +5,7 @@ from typing import Any
 
 from app.logger import setup_logger
 from app.models.session import Session, SessionStatus
+from app.models.session_scope import mark_handoff_started
 
 logger = setup_logger()
 
@@ -32,6 +33,11 @@ async def request_human_transfer(context: HumanTransferContext) -> bool:
         await context.session_repo.update_status(
             context.session.id, SessionStatus.TRANSFER_PENDING
         )
+        if hasattr(context.session_repo, "update_extra"):
+            await context.session_repo.update_extra(
+                context.session.id,
+                mark_handoff_started(context.session.extra_info),
+            )
         return True
     except Exception as exc:
         logger.error("创建转人工工单失败: session=%s err=%s", context.session.id, exc)

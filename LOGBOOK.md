@@ -1,6 +1,20 @@
-# YunxiBakeBot 项目开发日志 (Logbook)
+﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - feat(agent): P4 画像边界、人工消息同步与探针预算
+- **操作人**: AI (Codex)
+- **背景**: 接续 P3 离线多 Agent 串联，落地智能客服画像边界最小闭环：机器人阶段画像只作为可见范围内观察；转人工后若企微人工消息可同步，则作为最后确认材料进入离线画像；画像探针先固化预算与停止规则，不默认增加热路径追问。
+- **变更范围**:
+  - `app/models/session_scope.py` - 新增 `bot_only` / `bot_then_handoff_partial` / `bot_then_human_synced` 会话可见范围元数据，复用 `sessions.extra_info`，不新增迁移。
+  - `app/service/chat_transfer.py` - 转人工成功后将 session 标记为 `bot_then_handoff_partial`，明确人工阶段尚未完整可见。
+  - `app/service/wecom/kf_callback_processor.py` - 微信客服 `sync_msg` 中接待人员消息不再丢弃；幂等落库为 `[人工客服]` assistant 消息，并将 session 标记为 `bot_then_human_synced`，不触发 AI 回复。
+  - `app/service/offline/agent_memory.py` - MemoryAgent 调用 LLM 前注入会话可见范围，`source_evidence_json` 写入 scope / handoff / human availability，避免把 partial 材料当完整事实。
+  - `app/service/profile_probe.py` - 新增画像探针预算与停止条件策略：每会话最多一次，明确下单、转人工、低耐心信号时不探针；暂不自动接入热路径话术。
+  - `tests/service/*` - 覆盖转人工 partial 标记、人工客服消息同步入库、离线画像 scope evidence 与探针预算边界。
+- **验证**:
+  - `python -m pytest tests/service/test_chat_refactor.py tests/service/wecom/test_kf_callback_processor.py tests/service/test_offline_review.py tests/service/test_profile_probe.py --no-cov -q` 通过
+  - `python -m ruff check app/models/session_scope.py app/repository/message_repo.py app/service/chat_transfer.py app/service/wecom/kf_callback_processor.py app/service/offline/agent_memory.py app/service/profile_probe.py tests/service/test_chat_refactor.py tests/service/wecom/test_kf_callback_processor.py tests/service/test_offline_review.py tests/service/test_profile_probe.py` 通过
+  - `python -m ruff format --check app/models/session_scope.py app/repository/message_repo.py app/service/chat_transfer.py app/service/wecom/kf_callback_processor.py app/service/offline/agent_memory.py app/service/profile_probe.py tests/service/test_chat_refactor.py tests/service/wecom/test_kf_callback_processor.py tests/service/test_offline_review.py tests/service/test_profile_probe.py` 通过
 
 ## [2026-06-09] - feat(agent): P3 离线知识缺口与记忆固化 Agent 串联
 - **操作人**: AI (Codex)
@@ -3132,3 +3146,4 @@ ______________________________________________________________________
   - 对话保存/丢弃/刷新恢复全链路 ✅
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 企微域名备案问题仍在等待。
+
