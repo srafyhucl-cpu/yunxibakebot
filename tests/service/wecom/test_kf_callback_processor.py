@@ -3,7 +3,9 @@ import time
 import pytest
 
 from app.database import close_db, init_db
+from app.models.session import SessionStatus
 from app.models.session_scope import SessionScope
+from app.models.transfer import TransferStatus
 from app.service.wecom.kf_callback_processor import KfCallbackProcessor
 from app.service.wecom.kf_message_queue import KfIncomingMessage
 
@@ -11,16 +13,21 @@ from app.service.wecom.kf_message_queue import KfIncomingMessage
 class FakeKfClient:
     def __init__(
         self,
-        sync_result: dict,
+        sync_result: dict | list[dict],
         inactive_users: set[str] | None = None,
     ) -> None:
-        self.sync_result = sync_result
+        self.sync_results = (
+            sync_result if isinstance(sync_result, list) else [sync_result]
+        )
         self.inactive_users = inactive_users or set()
         self.checked_users: list[str] = []
+        self.cursors: list[str] = []
 
-    async def sync_kf_messages(self, kf_token: str) -> dict:
+    async def sync_kf_messages(self, kf_token: str, cursor: str = "") -> dict:
         assert kf_token == "token-1"
-        return self.sync_result
+        self.cursors.append(cursor)
+        index = min(len(self.cursors) - 1, len(self.sync_results) - 1)
+        return self.sync_results[index]
 
     async def ensure_kf_session_active(self, external_userid: str) -> bool:
         self.checked_users.append(external_userid)
@@ -36,10 +43,20 @@ class FakeKfQueue:
         return True
 
 
+async def prepare_kf_db(tmp_path, monkeypatch: pytest.MonkeyPatch) -> str:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await close_db(db)
+    return str(db_path)
+
+
 @pytest.mark.asyncio
 async def test_processor_filters_stale_and_duplicate_messages(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
+    await prepare_kf_db(tmp_path, monkeypatch)
     now = int(time.time())
     monkeypatch.setattr(time, "time", lambda: now)
     sync_result = {
@@ -106,7 +123,11 @@ async def test_processor_filters_stale_and_duplicate_messages(
 
 
 @pytest.mark.asyncio
-async def test_processor_skips_messages_when_session_is_inactive() -> None:
+async def test_processor_skips_messages_when_session_is_inactive(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await prepare_kf_db(tmp_path, monkeypatch)
     sync_result = {
         "errcode": 0,
         "msg_list": [
@@ -189,3 +210,242 @@ async def test_processor_persists_servicer_message_without_ai_queue(
     assert "最终确认芒果千层" in rows[0]["content"]
     assert rows[0]["channel_msg_id"] == "staff-text-1"
     assert SessionScope.BOT_THEN_HUMAN_SYNCED.value in sessions[0]["extra_info"]
+
+
+@pytest.mark.asyncio
+async def test_processor_pages_sync_and_persists_cursor(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = await prepare_kf_db(tmp_path, monkeypatch)
+    pages = [
+        {
+            "errcode": 0,
+            "has_more": 1,
+            "next_cursor": "cursor-1",
+            "msg_list": [
+                {
+                    "origin": 3,
+                    "msgtype": "text",
+                    "msgid": "page-text-1",
+                    "external_userid": "user-1",
+                    "text": {"content": "第一页"},
+                }
+            ],
+        },
+        {
+            "errcode": 0,
+            "has_more": 0,
+            "next_cursor": "cursor-2",
+            "msg_list": [
+                {
+                    "origin": 3,
+                    "msgtype": "text",
+                    "msgid": "page-text-2",
+                    "external_userid": "user-1",
+                    "text": {"content": "第二页"},
+                }
+            ],
+        },
+    ]
+    client = FakeKfClient(pages)
+    queue = FakeKfQueue()
+
+    await KfCallbackProcessor(client, queue).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert client.cursors == ["", "cursor-1"]
+    assert [msg.msg_id for msg in queue.messages] == ["page-text-1", "page-text-2"]
+    verify_db = await init_db(db_path)
+    rows = await verify_db.execute_fetchall(
+        "SELECT last_cursor FROM wecom_kf_sync_states WHERE open_kfid = ?",
+        ("kf-1",),
+    )
+    await close_db(verify_db)
+    assert rows[0]["last_cursor"] == "cursor-2"
+
+
+@pytest.mark.asyncio
+async def test_handoff_user_message_is_synced_without_ai_queue(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("session-human", "wecom_kf", "user-1", "human_service", "{}"),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 3,
+                "msgtype": "text",
+                "msgid": "handoff-user-1",
+                "external_userid": "user-1",
+                "text": {"content": "人工阶段用户补充地址"},
+            }
+        ],
+    }
+    queue = FakeKfQueue()
+
+    await KfCallbackProcessor(FakeKfClient(sync_result), queue).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert queue.messages == []
+    verify_db = await init_db(str(db_path))
+    rows = await verify_db.execute_fetchall(
+        "SELECT role, content, channel_msg_id FROM messages WHERE session_id = ?",
+        ("session-human",),
+    )
+    await close_db(verify_db)
+    assert len(rows) == 1
+    assert rows[0]["role"] == "user"
+    assert rows[0]["channel_msg_id"] == "handoff-user-1"
+
+
+@pytest.mark.asyncio
+async def test_same_page_handoff_event_prevents_ai_queue(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("session-human", "wecom_kf", "user-1", "transfer_pending", "{}"),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 4,
+                "msgtype": "event",
+                "msgid": "event-start-1",
+                "external_userid": "user-1",
+                "event": {
+                    "event_type": "session_status_change",
+                    "change_type": 1,
+                },
+            },
+            {
+                "origin": 3,
+                "msgtype": "text",
+                "msgid": "handoff-user-same-page",
+                "external_userid": "user-1",
+                "text": {"content": "同批次人工阶段消息"},
+            },
+        ],
+    }
+    queue = FakeKfQueue()
+
+    await KfCallbackProcessor(FakeKfClient(sync_result), queue).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert queue.messages == []
+    verify_db = await init_db(str(db_path))
+    rows = await verify_db.execute_fetchall(
+        "SELECT role, channel_msg_id FROM messages WHERE session_id = ?",
+        ("session-human",),
+    )
+    sessions = await verify_db.execute_fetchall(
+        "SELECT status FROM sessions WHERE id = ?",
+        ("session-human",),
+    )
+    await close_db(verify_db)
+    assert rows[0]["role"] == "user"
+    assert rows[0]["channel_msg_id"] == "handoff-user-same-page"
+    assert sessions[0]["status"] == SessionStatus.HUMAN_SERVICE.value
+
+
+@pytest.mark.asyncio
+async def test_session_end_event_closes_session_and_transfer(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("session-human", "wecom_kf", "user-1", "human_service", "{}"),
+    )
+    await db.execute(
+        "INSERT INTO human_transfers (id, session_id, user_id, status) "
+        "VALUES (?, ?, ?, ?)",
+        ("transfer-1", "session-human", "user-1", "accepted"),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 4,
+                "msgtype": "event",
+                "msgid": "event-end-1",
+                "external_userid": "user-1",
+                "event": {
+                    "event_type": "session_status_change",
+                    "change_type": 3,
+                },
+            }
+        ],
+    }
+
+    await KfCallbackProcessor(FakeKfClient(sync_result), FakeKfQueue()).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    verify_db = await init_db(str(db_path))
+    sessions = await verify_db.execute_fetchall(
+        "SELECT status FROM sessions WHERE id = ?",
+        ("session-human",),
+    )
+    transfers = await verify_db.execute_fetchall(
+        "SELECT status FROM human_transfers WHERE id = ?",
+        ("transfer-1",),
+    )
+    await close_db(verify_db)
+    assert sessions[0]["status"] == SessionStatus.CLOSED.value
+    assert transfers[0]["status"] == TransferStatus.CLOSED.value
+
+
+@pytest.mark.asyncio
+async def test_duplicate_msgid_does_not_replay_after_callback(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await prepare_kf_db(tmp_path, monkeypatch)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 3,
+                "msgtype": "text",
+                "msgid": "dup-text-1",
+                "external_userid": "user-1",
+                "text": {"content": "不要重复回复"},
+            }
+        ],
+    }
+    queue = FakeKfQueue()
+    processor = KfCallbackProcessor(FakeKfClient(sync_result), queue)
+
+    await processor.handle_callback({"Token": "token-1", "OpenKfId": "kf-1"})
+    await processor.handle_callback({"Token": "token-1", "OpenKfId": "kf-1"})
+
+    assert [msg.msg_id for msg in queue.messages] == ["dup-text-1"]

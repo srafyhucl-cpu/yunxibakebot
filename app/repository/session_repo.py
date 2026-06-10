@@ -41,6 +41,20 @@ class SessionRepo(BaseRepository):
             return None
         return Session(**dict(row[0]))
 
+    async def get_latest(self, user_id: str, channel: str) -> Session | None:
+        """查找指定用户在指定渠道最近一条会话，包括已关闭会话。"""
+        row = await self._db.execute_fetchall(
+            "SELECT id, channel, user_id, staff_id, status, "
+            "extra_info, created_at, updated_at "
+            "FROM sessions "
+            "WHERE user_id = ? AND channel = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (user_id, channel),
+        )
+        if not row:
+            return None
+        return Session(**dict(row[0]))
+
     async def get_or_create(self, data: SessionCreate) -> Session:
         """获取活跃会话，不存在则创建新会话。"""
         existing = await self.get_active(data.user_id, data.channel)

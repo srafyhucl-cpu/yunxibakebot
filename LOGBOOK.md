@@ -1,6 +1,25 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - feat(agent): P5 企微转人工同步闭环
+- **操作人**: AI (Codex)
+- **背景**: 生产商测试账号联调发现：转人工后企微回调仍会触发，`sync_msg` 能拉到人工阶段消息，但由于未持久化 cursor / msgid，历史用户消息可能被重复投给机器人，导致转人工后“机器人又回复一遍”。P5 将目标收窄为：人工接管期间机器人闭嘴、消息完整同步、结束状态可感知。
+- **变更范围**:
+  - `app/migrations/v005_wecom_kf_sync_state.sql` / `app/migrations/schema.py` - 新增 `wecom_kf_sync_states` 保存 `sync_msg` cursor / 状态 / 错误重试信息，新增 `wecom_kf_message_ledger` 按企微 `msgid` 做持久化幂等。
+  - `app/repository/wecom_kf_sync_repo.py` - 新增微信客服同步状态与消息账本仓库，封装 cursor 成功/失败更新和 msgid 首次出现判断。
+  - `app/service/wecom/kf_callback_processor.py` - 改造为 callback-driven 分页同步：从已保存 cursor 拉取，处理 `has_more / next_cursor`，再按机器人/人工边界分流。
+  - `app/service/wecom/kf_message_classifier.py` / `kf_sync_models.py` - 拆出 `sync_msg` 分类：`origin=3` 用户消息、`origin=5` 人工消息、`origin=4` 系统事件分别进入 AI 入队、人工同步或状态事件处理；同一批 `msg_list` 中若先出现人工接入事件，后续用户消息直接按人工阶段同步，避免抢答。
+  - `app/service/wecom/kf_handoff_sync.py` - 人工接管期间用户消息仅落库、不进入 AI 队列；`session_status_change` 接入/转接/重新接入标记 `human_service`，结束事件关闭本地 session 与最近转人工工单。
+  - `app/repository/session_repo.py` / `app/repository/transfer_repo.py` - 新增最近会话查询与按 session 更新最近未关闭工单能力，供企微人工状态同步复用。
+  - `tests/service/wecom/test_kf_callback_processor.py` / `tests/repository/test_wecom_kf_sync_repo.py` - 覆盖分页 cursor、持久化幂等、同批次人工接入防抢答、人工阶段用户消息不触发 AI、人工消息同步、结束事件关闭 session/transfer。
+- **验证**:
+  - `python -m pytest tests/service/wecom/test_kf_callback_processor.py tests/repository/test_wecom_kf_sync_repo.py --no-cov -q` 通过
+  - `python -m pytest tests/ --no-cov -q` 通过（235 passed）
+  - `python -m ruff check app/migrations/schema.py app/repository/wecom_kf_sync_repo.py app/repository/session_repo.py app/repository/transfer_repo.py app/service/wecom/kf_callback_processor.py app/service/wecom/kf_message_classifier.py app/service/wecom/kf_sync_models.py app/service/wecom/kf_handoff_sync.py app/service/wecom/kf_servicer_sync.py tests/service/wecom/test_kf_callback_processor.py tests/repository/test_wecom_kf_sync_repo.py` 通过
+  - `python -m ruff format --check app/migrations/schema.py app/repository/wecom_kf_sync_repo.py app/repository/session_repo.py app/repository/transfer_repo.py app/service/wecom/kf_callback_processor.py app/service/wecom/kf_message_classifier.py app/service/wecom/kf_sync_models.py app/service/wecom/kf_handoff_sync.py app/service/wecom/kf_servicer_sync.py tests/service/wecom/test_kf_callback_processor.py tests/repository/test_wecom_kf_sync_repo.py` 通过
+  - 架构边界扫描通过：本轮未新增 `api -> repository`、`service -> aiosqlite`、`models -> 上层` 引用。
+  - 红线扫描通过：本轮触达 Python 文件无 `TODO` / `Optional[]` / `Union[]` / `SELECT *` / `print()` / `except: pass`。
+
 ## [2026-06-10] - feat(agent): P4 画像边界、人工消息同步与探针预算
 - **操作人**: AI (Codex)
 - **背景**: 接续 P3 离线多 Agent 串联，落地智能客服画像边界最小闭环：机器人阶段画像只作为可见范围内观察；转人工后若企微人工消息可同步，则作为最后确认材料进入离线画像；画像探针先固化预算与停止规则，不默认增加热路径追问。
