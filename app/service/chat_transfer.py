@@ -1,4 +1,4 @@
-"""ChatService 的转人工请求边界。"""
+"""ChatService human handoff boundary."""
 
 from dataclasses import dataclass
 from typing import Any
@@ -6,12 +6,9 @@ from typing import Any
 from app.logger import setup_logger
 from app.models.session import Session, SessionStatus
 from app.models.session_scope import mark_handoff_started
+from app.service.transfer_handoff_summary import build_handoff_note
 
 logger = setup_logger()
-
-TRANSFER_SUMMARY_LENGTH = 200
-TRANSFER_SUMMARY_LINE_LIMIT = 6
-TRANSFER_SUMMARY_LINE_LENGTH = 80
 
 
 @dataclass(frozen=True)
@@ -25,6 +22,7 @@ class HumanTransferContext:
 
 
 async def request_human_transfer(context: HumanTransferContext) -> bool:
+    """Create a transfer ticket and mark the session as handoff pending."""
     try:
         summary = build_transfer_summary(context.reason, context.history_text)
         await context.transfer_mgr.request_transfer(
@@ -43,34 +41,14 @@ async def request_human_transfer(context: HumanTransferContext) -> bool:
             )
         return True
     except Exception as exc:
-        logger.error("创建转人工工单失败: session=%s err=%s", context.session.id, exc)
+        logger.error(
+            "Failed to create human transfer ticket session=%s err=%s",
+            context.session.id,
+            exc,
+        )
         return False
 
 
 def build_transfer_summary(reason: str, history_text: str) -> str:
-    """构造给人工客服看的简明上下文摘要。"""
-    parts: list[str] = []
-    compact_reason = _compact_line(reason)
-    if compact_reason:
-        parts.append(f"转人工触发：{compact_reason}")
-
-    recent_lines = [
-        compact
-        for compact in (_compact_line(line) for line in history_text.splitlines())
-        if compact
-    ][-TRANSFER_SUMMARY_LINE_LIMIT:]
-    if recent_lines:
-        parts.append("最近对话：")
-        parts.extend(f"- {line}" for line in recent_lines)
-
-    summary = "\n".join(parts).strip()
-    if not summary:
-        summary = "转人工触发：用户请求人工客服"
-    return summary[-TRANSFER_SUMMARY_LENGTH:]
-
-
-def _compact_line(text: str) -> str:
-    compact = " ".join(str(text or "").split())
-    if len(compact) <= TRANSFER_SUMMARY_LINE_LENGTH:
-        return compact
-    return compact[: TRANSFER_SUMMARY_LINE_LENGTH - 1] + "…"
+    """Build the concise handoff note saved on the transfer ticket."""
+    return build_handoff_note(reason, history_text)

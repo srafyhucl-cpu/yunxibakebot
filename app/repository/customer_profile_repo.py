@@ -13,7 +13,7 @@ class CustomerProfileRepo(BaseRepository):
     async def get(self, channel: str, user_id: str) -> CustomerProfile | None:
         rows = await self._db.execute_fetchall(
             "SELECT id, channel, user_id, display_name, preferences_json, "
-            "order_summary_json, allergens_json, consent_status, "
+            "order_summary_json, special_dates_json, allergens_json, consent_status, "
             "source_evidence_json, last_interaction_at, created_at, updated_at "
             "FROM customer_profiles WHERE channel = ? AND user_id = ?",
             (channel, user_id),
@@ -26,13 +26,14 @@ class CustomerProfileRepo(BaseRepository):
         await self._db.execute(
             "INSERT INTO customer_profiles ("
             "id, channel, user_id, display_name, preferences_json, order_summary_json, "
-            "allergens_json, consent_status, source_evidence_json, "
+            "special_dates_json, allergens_json, consent_status, source_evidence_json, "
             "last_interaction_at, created_at, updated_at"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(channel, user_id) DO UPDATE SET "
             "display_name = excluded.display_name, "
             "preferences_json = excluded.preferences_json, "
             "order_summary_json = excluded.order_summary_json, "
+            "special_dates_json = excluded.special_dates_json, "
             "allergens_json = excluded.allergens_json, "
             "consent_status = excluded.consent_status, "
             "source_evidence_json = excluded.source_evidence_json, "
@@ -45,6 +46,7 @@ class CustomerProfileRepo(BaseRepository):
                 profile.display_name,
                 profile.preferences_json,
                 profile.order_summary_json,
+                profile.special_dates_json,
                 profile.allergens_json,
                 profile.consent_status,
                 profile.source_evidence_json,

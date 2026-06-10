@@ -22,6 +22,7 @@ class CustomerProfile:
     display_name: str = ""
     preferences_json: str = "{}"
     order_summary_json: str = "{}"
+    special_dates_json: str = "[]"
     allergens_json: str = "[]"
     consent_status: str = MemoryConsentStatus.UNKNOWN.value
     source_evidence_json: str = "{}"
@@ -39,6 +40,7 @@ class CustomerProfileUpsert:
     display_name: str = ""
     preferences_json: str = "{}"
     order_summary_json: str = "{}"
+    special_dates_json: str = "[]"
     allergens_json: str = "[]"
     consent_status: str = MemoryConsentStatus.UNKNOWN.value
     source_evidence_json: str = "{}"

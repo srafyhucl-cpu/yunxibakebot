@@ -1,4 +1,4 @@
-"""ChatService 的意图识别与历史摘要边界。"""
+"""ChatService intent detection and recent-history boundary."""
 
 import time
 from dataclasses import dataclass
@@ -25,8 +25,10 @@ class IntentDetectionResult:
 
 
 def build_history_text(history: list[dict]) -> str:
+    """Render the latest dialog turns for intent detection and handoff notes."""
     return "\n".join(
-        f"{'用户' if m.get('role') == 'user' else 'AI'}：{m.get('content', '')[:INTENT_CONTENT_PREVIEW]}"
+        f"{'用户' if m.get('role') == 'user' else 'AI'}："
+        f"{str(m.get('content', ''))[:INTENT_CONTENT_PREVIEW]}"
         for m in history[-INTENT_HISTORY_MESSAGES:]
         if m.get("role") in ("user", "assistant")
     )
@@ -37,6 +39,7 @@ async def detect_intent_with_timing(
     session: Session,
     content: str,
 ) -> IntentDetectionResult:
+    """Detect intent and return timing metadata for observability."""
     started_at = time.monotonic()
     history = await session_mgr.build_context(session.id)
     history_text = build_history_text(history)

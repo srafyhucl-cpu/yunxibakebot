@@ -575,7 +575,7 @@ async def test_request_human_transfer_updates_state_and_truncates_summary() -> N
     )
 
 
-def test_build_transfer_summary_keeps_reason_and_recent_dialog() -> None:
+def test_build_transfer_summary_builds_concise_handoff_note() -> None:
     history_text = "\n".join(
         [
             "用户：first",
@@ -588,7 +588,6 @@ def test_build_transfer_summary_keeps_reason_and_recent_dialog() -> None:
 
     summary = build_transfer_summary("用户要求转人工", history_text)
 
-    assert "用户要求转人工" in summary
-    assert "想订草莓千层" in summary
-    assert "今天下午到" in summary
-    assert len(summary) <= 200
+    assert "低糖" in summary or "少糖" in summary
+    assert "AI：确认配送时间" not in summary
+    assert len(summary) <= 180

@@ -222,6 +222,7 @@ SCHEMA_STATEMENTS: list[str] = [
         display_name TEXT DEFAULT '',
         preferences_json TEXT DEFAULT '{}',
         order_summary_json TEXT DEFAULT '{}',
+        special_dates_json TEXT DEFAULT '[]',
         allergens_json TEXT DEFAULT '[]',
         consent_status TEXT DEFAULT 'unknown'
             CHECK(consent_status IN ('unknown','granted','revoked')),

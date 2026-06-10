@@ -1,6 +1,21 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - fix(agent): 转人工接手提示与特殊日期画像
+- **操作人**: AI (Codex)
+- **背景**: 生产联调确认原“转人工摘要”只是截取聊天尾巴，客服侧无法在企微接待页内私密展示且会话 ID 不可识别；同时“老人 + 木糖醇 + 10 人”场景误推星星人蛋糕，说明长辈推荐约束不足。用户进一步要求生日、家人生日、纪念日等关键画像支持多条记录。
+- **变更范围**:
+  - `app/service/transfer_handoff_summary.py` / `app/service/chat_transfer.py` - 转人工工单 `conversation_summary` 改为“客户诉求 / 当前卡点 / 建议接手”的短接手提示，不再复印最近聊天记录。
+  - `app/service/transfer_manager.py` / `app/service/wecom/client_kf.py` - 转人工应用通知展示微信客服客户名，移除客服不可识别的会话 ID；客户名通过微信客服客户基础信息接口获取，失败时使用安全兜底。
+  - `app/models/customer_profile.py` / `app/repository/customer_profile_repo.py` / `app/migrations/v006_customer_profile_special_dates.sql` - 顾客画像新增 `special_dates_json`，支持多条家人生日、纪念日等关键但敏感的服务提醒记录。
+  - `app/service/offline/agent_memory.py` / `app/service/llm/profile_prompt.py` - 记忆固化提示词要求 `special_dates` 为数组，旧新记录合并去重，不覆盖不同家人或不同纪念日；热路径只作为需核对的服务提醒注入。
+  - `app/service/llm/prompt.py` - 增加长辈/老人/祝寿场景推荐约束，优先稳重、寓意明确、祝寿感强的款式，避开潮玩感、随机造型和过度年轻化款式。
+  - `tests/service/*` / `tests/repository/*` / `tests/migrations/*` - 覆盖接手提示、客户名通知、多特殊日期解析合并与画像渲染。
+- **验证**:
+  - `python -m pytest tests/service/test_transfer_handoff_summary.py tests/service/test_transfer_notification.py tests/service/test_customer_special_dates.py tests/service/test_profile_prompt.py tests/service/test_chat_refactor.py tests/service/test_offline_review.py tests/repository/test_agent_foundation_repos.py tests/migrations/test_agent_foundation_tables.py -q --no-cov` 通过
+  - `python -m ruff check ...` 通过
+  - `python -m ruff format --check ...` 通过
+
 ## [2026-06-10] - fix(agent): 转人工摘要自动推送给客服接待人员
 - **操作人**: AI (Codex)
 - **背景**: 生产联调反馈“依旧没有看到摘要”。排查确认摘要已写入 `human_transfers.conversation_summary`，但生产环境未配置 `WECOM_ROBOT_WEBHOOK` 和 `WECOM_STAFF_ID`，因此没有任何通知通道实际把摘要发给人工客服。

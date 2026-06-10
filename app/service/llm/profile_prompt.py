@@ -1,4 +1,4 @@
-"""顾客画像 Prompt 渲染。"""
+"""Render customer profile memory into read-only LLM hints."""
 
 import json
 from typing import Any
@@ -9,7 +9,7 @@ PROFILE_EMPTY_SECTION = ""
 
 
 def render_customer_profile(profile: CustomerProfile | None) -> str:
-    """把顾客画像渲染为给 AI 的只读提醒。"""
+    """Render customer memory as read-only service hints for the bot."""
     if profile is None:
         return PROFILE_EMPTY_SECTION
 
@@ -25,10 +25,18 @@ def render_customer_profile(profile: CustomerProfile | None) -> str:
     if order_summary:
         lines.append(f"最近订单摘要：{order_summary}")
 
+    special_dates = _render_json_value(profile.special_dates_json)
+    if special_dates:
+        lines.append(
+            "特殊日期提醒："
+            f"{special_dates}。仅作为服务提醒，涉及日期和对象时先自然核对，不要主动暴露隐私。"
+        )
+
     allergens = _render_json_value(profile.allergens_json)
     if allergens:
         lines.append(
-            f"该顾客登记过敏原：{allergens}。涉及成分时主动提醒顾客核对，不要替顾客判断能否食用。"
+            f"该顾客登记过敏原：{allergens}。涉及成分时主动提醒顾客核对，"
+            "不要替顾客判断能否食用。"
         )
 
     if not lines:
@@ -55,5 +63,7 @@ def _render_value(value: Any) -> str:
         ]
         return "、".join(parts)
     if isinstance(value, list):
-        return "、".join(str(item) for item in value if item not in ("", None, [], {}))
+        return "；".join(
+            _render_value(item) for item in value if item not in ("", None, [], {})
+        )
     return str(value)

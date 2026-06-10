@@ -30,6 +30,42 @@ logger = setup_logger()
 class KfClientMixin:
     """微信客服 API 方法集。"""
 
+    async def get_kf_customer_info(
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        external_userid: str,
+    ) -> dict[str, Any]:
+        """查询微信客服客户基础信息。"""
+        if not external_userid:
+            return {}
+        token = await self.get_token()
+        resp = await self._client.post(
+            f"{WECOM_API_BASE}/kf/customer/batchget",
+            params={"access_token": token},
+            json={"external_userid_list": [external_userid]},
+        )
+        data = resp.json()
+        if data.get("errcode") != 0:
+            logger.warning(
+                "查询微信客服客户基础信息失败 user=%s err=%s",
+                external_userid,
+                data.get("errmsg"),
+            )
+            return {}
+        customer_list = data.get("customer_list", [])
+        return customer_list[0] if customer_list else {}
+
+    async def get_kf_customer_display_name(
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        external_userid: str,
+    ) -> str:
+        """返回客服可识别的微信客户名，取不到时返回空字符串。"""
+        info = await self.get_kf_customer_info(external_userid)
+        for key in ("nickname", "name", "remark"):
+            value = str(info.get(key, "")).strip()
+            if value:
+                return value
+        return ""
+
     async def send_kf_text(
         self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
         external_userid: str,
