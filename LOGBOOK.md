@@ -1,6 +1,15 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - fix(agent): 转人工摘要自动推送给客服接待人员
+- **操作人**: AI (Codex)
+- **背景**: 生产联调反馈“依旧没有看到摘要”。排查确认摘要已写入 `human_transfers.conversation_summary`，但生产环境未配置 `WECOM_ROBOT_WEBHOOK` 和 `WECOM_STAFF_ID`，因此没有任何通知通道实际把摘要发给人工客服。
+- **变更范围**:
+  - `app/service/transfer_manager.py` - 转人工通知正文改为清晰中文 Markdown，字段明确为“对话摘要”；当 `WECOM_STAFF_ID` 未配置时，自动读取微信客服账号接待人员列表并推送给第一个接待人员。
+  - `tests/service/test_transfer_notification.py` - 覆盖有摘要优先通知、常规双通道通知、未配置 staff id 时自动回退至客服接待人员。
+- **验证**:
+  - `python -m pytest tests/service/test_transfer_notification.py --no-cov -q` 通过
+
 ## [2026-06-10] - fix(agent): 企微空用户结束事件与实际状态兜底
 - **操作人**: AI (Codex)
 - **背景**: 生产联调再次发现人工结束后继续聊天仍无响应。服务日志显示回调已收到，但 `queued=0 handoff_user_synced=1`；生产 DB 进一步确认最新 session 卡在 `transfer_pending`，同时企微 `session_status_change` 结束事件的 `external_userid` 为空，旧逻辑无法关闭本地会话。

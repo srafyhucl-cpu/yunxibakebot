@@ -137,3 +137,63 @@ async def test_transfer_manager_emergency_notification_triggers_correctly(
     assert app_req["params"]["access_token"] == "mock_wecom_token_999"
     assert session_id in app_req["json"]["markdown"]["content"]
     assert reason in app_req["json"]["markdown"]["content"]
+
+
+@pytest.mark.asyncio
+async def test_transfer_manager_falls_back_to_first_kf_servicer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "WECOM_ROBOT_WEBHOOK", "")
+    monkeypatch.setattr(settings, "WECOM_CORP_ID", "mock_corp_id")
+    monkeypatch.setattr(settings, "WECOM_SECRET", "mock_secret")
+    monkeypatch.setattr(settings, "WECOM_STAFF_ID", "")
+    monkeypatch.setattr(settings, "WECOM_AGENT_ID", "1000001")
+
+    from app.service.wecom.client import WeComClient
+
+    async def fake_get_token(*args: object, **kwargs: object) -> str:
+        return "mock_wecom_token_999"
+
+    async def fake_get_first_servicer(*args: object, **kwargs: object) -> str:
+        return "servicer_001"
+
+    monkeypatch.setattr(WeComClient, "get_token", fake_get_token)
+    monkeypatch.setattr(WeComClient, "_get_first_servicer", fake_get_first_servicer)
+
+    captured_requests: list[dict] = []
+
+    class FakeResponse:
+        text = '{"errcode": 0, "errmsg": "ok"}'
+
+    import httpx
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def capture_post(url: str, *args: object, **kwargs: object) -> FakeResponse:
+        captured_requests.append(
+            {
+                "url": url,
+                "json": kwargs.get("json", {}),
+                "params": kwargs.get("params", {}),
+            }
+        )
+        return FakeResponse()
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.post = AsyncMock(side_effect=capture_post)
+    monkeypatch.setattr(httpx, "AsyncClient", MagicMock(return_value=mock_client))
+
+    mgr = TransferManager(MockTransferRepo())
+    await mgr.request_transfer(
+        session_id="session-summary",
+        user_id="buyer-summary",
+        reason="转人工",
+        summary="转人工触发：转人工\n最近对话：\n- 用户：想定4寸蛋糕",
+    )
+
+    assert len(captured_requests) == 1
+    app_req = captured_requests[0]
+    assert app_req["json"]["touser"] == "servicer_001"
+    assert app_req["json"]["msgtype"] == "markdown"
+    assert "对话摘要" in app_req["json"]["markdown"]["content"]
+    assert "想定4寸蛋糕" in app_req["json"]["markdown"]["content"]
