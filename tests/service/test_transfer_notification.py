@@ -14,7 +14,9 @@ class MockTransferRepo(TransferRepo):
     def __init__(self) -> None:
         pass
 
-    async def create(self, session_id: str, user_id: str, reason: str = "", summary: str = "") -> HumanTransfer:
+    async def create(
+        self, session_id: str, user_id: str, reason: str = "", summary: str = ""
+    ) -> HumanTransfer:
         return HumanTransfer(
             id="test_transfer_001",
             session_id=session_id,
@@ -28,11 +30,42 @@ class MockTransferRepo(TransferRepo):
         )
 
 
+class CapturingTransferManager(TransferManager):
+    def __init__(self, repo: TransferRepo) -> None:
+        super().__init__(repo)
+        self.notified_messages: list[str] = []
+
+    async def notify_staff_emergency(self, session_id: str, last_message: str) -> None:
+        self.notified_messages.append(last_message)
+
+
 @pytest.mark.asyncio
-async def test_transfer_manager_emergency_notification_triggers_correctly(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_transfer_manager_notifies_with_summary_first() -> None:
+    repo = MockTransferRepo()
+    mgr = CapturingTransferManager(repo)
+
+    transfer = await mgr.request_transfer(
+        session_id="session-summary",
+        user_id="buyer-summary",
+        reason="转人工",
+        summary="转人工触发：用户要求转人工\n最近对话：\n- 用户想订草莓千层，少糖",
+    )
+
+    assert transfer.conversation_summary.startswith("转人工触发")
+    assert mgr.notified_messages == [transfer.conversation_summary]
+
+
+@pytest.mark.asyncio
+async def test_transfer_manager_emergency_notification_triggers_correctly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """测试当触发 request_transfer 判定为转人工时，紧急呼叫通知中心被完美触发。"""
     # 1. 模拟企微配置
-    monkeypatch.setattr(settings, "WECOM_ROBOT_WEBHOOK", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=mock_key")
+    monkeypatch.setattr(
+        settings,
+        "WECOM_ROBOT_WEBHOOK",
+        "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=mock_key",
+    )
     monkeypatch.setattr(settings, "WECOM_CORP_ID", "mock_corp_id")
     monkeypatch.setattr(settings, "WECOM_SECRET", "mock_secret")
     monkeypatch.setattr(settings, "WECOM_STAFF_ID", "mock_staff_id")
@@ -40,8 +73,10 @@ async def test_transfer_manager_emergency_notification_triggers_correctly(monkey
 
     # 模拟 get_token 返回 mock token
     from app.service.wecom.client import WeComClient
+
     async def fake_get_token(*args: object, **kwargs: object) -> str:
         return "mock_wecom_token_999"
+
     monkeypatch.setattr(WeComClient, "get_token", fake_get_token)
 
     # 2. 拦截并收集 httpx 发送的所有请求
@@ -49,17 +84,19 @@ async def test_transfer_manager_emergency_notification_triggers_correctly(monkey
 
     class FakeResponse:
         def __init__(self) -> None:
-            self.text = "{\"errcode\": 0, \"errmsg\": \"ok\"}"
+            self.text = '{"errcode": 0, "errmsg": "ok"}'
 
     import httpx
     from unittest.mock import AsyncMock, MagicMock
 
     async def capture_post(url: str, *args: object, **kwargs: object) -> FakeResponse:
-        captured_requests.append({
-            "url": url,
-            "json": kwargs.get("json", {}),
-            "params": kwargs.get("params", {}),
-        })
+        captured_requests.append(
+            {
+                "url": url,
+                "json": kwargs.get("json", {}),
+                "params": kwargs.get("params", {}),
+            }
+        )
         return FakeResponse()
 
     # 整体替换 httpx.AsyncClient 工厂，避免真实连接池 __aenter__ 读取环境代理配置
@@ -76,7 +113,9 @@ async def test_transfer_manager_emergency_notification_triggers_correctly(monkey
     user_id = "buyer_999"
     reason = "你们这个提拉米苏送过来全塌了！我要退款！"
 
-    transfer = await mgr.request_transfer(session_id=session_id, user_id=user_id, reason=reason)
+    transfer = await mgr.request_transfer(
+        session_id=session_id, user_id=user_id, reason=reason
+    )
 
     # 验证工单创建正常
     assert transfer.session_id == session_id

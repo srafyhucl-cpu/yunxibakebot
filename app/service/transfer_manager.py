@@ -40,15 +40,15 @@ class TransferManager:
         # 1. 异步推送群机器人 (如果配置了 WECOM_ROBOT_WEBHOOK)
         if settings.WECOM_ROBOT_WEBHOOK:
             try:
-                async with httpx.AsyncClient(timeout=NOTIFY_HTTP_TIMEOUT_SECONDS) as client:
+                async with httpx.AsyncClient(
+                    timeout=NOTIFY_HTTP_TIMEOUT_SECONDS
+                ) as client:
                     resp = await client.post(
                         settings.WECOM_ROBOT_WEBHOOK,
                         json={
                             "msgtype": "markdown",
-                            "markdown": {
-                                "content": markdown_content
-                            }
-                        }
+                            "markdown": {"content": markdown_content},
+                        },
                     )
                     logger.info("企微群机器人呼叫成功: %s", resp.text)
             except Exception as exc:
@@ -58,10 +58,13 @@ class TransferManager:
         if settings.WECOM_CORP_ID and settings.WECOM_SECRET and settings.WECOM_STAFF_ID:
             try:
                 from app.service.wecom.client import get_wecom_client, WECOM_API_BASE
+
                 wecom_client = get_wecom_client()
                 token = await wecom_client.get_token()
 
-                async with httpx.AsyncClient(timeout=NOTIFY_HTTP_TIMEOUT_SECONDS) as client:
+                async with httpx.AsyncClient(
+                    timeout=NOTIFY_HTTP_TIMEOUT_SECONDS
+                ) as client:
                     resp = await client.post(
                         f"{WECOM_API_BASE}/message/send",
                         params={"access_token": token},
@@ -69,23 +72,22 @@ class TransferManager:
                             "touser": settings.WECOM_STAFF_ID,
                             "msgtype": "markdown",
                             "agentid": int(settings.WECOM_AGENT_ID or 0),
-                            "markdown": {
-                                "content": markdown_content
-                            },
-                        }
+                            "markdown": {"content": markdown_content},
+                        },
                     )
                     logger.info("企微客服应用呼叫成功: %s", resp.text)
             except Exception as exc:
                 logger.error("企微客服应用呼叫失败: %s", exc)
 
-    async def request_transfer(self, session_id: str, user_id: str,
-                               reason: str = "", summary: str = "") -> HumanTransfer:
+    async def request_transfer(
+        self, session_id: str, user_id: str, reason: str = "", summary: str = ""
+    ) -> HumanTransfer:
         """创建转人工工单，返回工单信息。"""
         transfer = await self._repo.create(session_id, user_id, reason, summary)
         logger.info("转人工工单已创建: %s 原因=%s", transfer.id, reason)
 
         # 联动触发真人紧急呼叫通知中心
-        await self.notify_staff_emergency(session_id, reason or summary)
+        await self.notify_staff_emergency(session_id, summary or reason)
 
         return transfer
 

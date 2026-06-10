@@ -1,6 +1,18 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - fix(agent): 转人工摘要通知优先展示
+- **操作人**: AI (Codex)
+- **背景**: 生产商测试账号联调发现：转人工摘要已写入本地工单 `conversation_summary`，但人工侧企微通知仍只看到触发原因；原因是通知使用 `reason or summary`，只要 reason 存在就不会展示提纯摘要。
+- **变更范围**:
+  - `app/service/transfer_manager.py` - 转人工通知改为优先使用 `summary or reason`，让值班人工收到“触发原因 + 最近对话要点”的提纯摘要。
+  - `tests/service/test_transfer_notification.py` - 新增测试覆盖有摘要时通知内容必须优先使用 `conversation_summary`。
+- **验证**:
+  - `python -m pytest tests/service/test_transfer_notification.py tests/service/test_chat_refactor.py --no-cov -q` 通过
+  - `python -m pytest tests/ --no-cov -q` 通过（239 passed）
+  - `python -m ruff check app/service/transfer_manager.py tests/service/test_transfer_notification.py` 通过
+  - `python -m ruff format --check app/service/transfer_manager.py tests/service/test_transfer_notification.py` 通过
+
 ## [2026-06-10] - fix(agent): P5.1 企微转人工联调边界修补
 - **操作人**: AI (Codex)
 - **背景**: 生产商测试账号继续联调发现：人工结束后再次发起咨询没有稳定回到智能助手；本地旧人工会话超过数小时仍可能拦截新消息；转人工工单摘要仅截取原始聊天尾部，不利于客服快速接手。
