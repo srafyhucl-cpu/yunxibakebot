@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 
 import pytest
 
@@ -22,6 +23,7 @@ class FakeKfClient:
         self.inactive_users = inactive_users or set()
         self.checked_users: list[str] = []
         self.cursors: list[str] = []
+        self.event_texts: list[tuple[str, str, str]] = []
 
     async def sync_kf_messages(self, kf_token: str, cursor: str = "") -> dict:
         assert kf_token == "token-1"
@@ -33,6 +35,12 @@ class FakeKfClient:
         self.checked_users.append(external_userid)
         return external_userid not in self.inactive_users
 
+    async def send_kf_event_text(
+        self, code: str, content: str, msgid: str = ""
+    ) -> dict:
+        self.event_texts.append((code, content, msgid))
+        return {"errcode": 0}
+
 
 class FakeKfQueue:
     def __init__(self) -> None:
@@ -43,9 +51,19 @@ class FakeKfQueue:
         return True
 
 
+class _FixedDatetime(datetime):
+    @classmethod
+    def now(cls) -> datetime:
+        return cls(2026, 6, 10, 13, 1, 0)
+
+
 async def prepare_kf_db(tmp_path, monkeypatch: pytest.MonkeyPatch) -> str:
     db_path = tmp_path / "kf-sync.db"
     monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        "app.service.wecom.kf_message_classifier.settings.WECOM_KF_SESSION_IDLE_CLOSE_SECONDS",
+        24 * 60 * 60,
+    )
     db = await init_db(str(db_path))
     await close_db(db)
     return str(db_path)
@@ -167,11 +185,22 @@ async def test_processor_persists_servicer_message_without_ai_queue(
 ) -> None:
     db_path = tmp_path / "kf-sync.db"
     monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        "app.service.wecom.kf_message_classifier.settings.WECOM_KF_SESSION_IDLE_CLOSE_SECONDS",
+        24 * 60 * 60,
+    )
     db = await init_db(str(db_path))
     await db.execute(
-        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
-        "VALUES (?, ?, ?, ?, ?)",
-        ("session-human", "wecom_kf", "user-1", "human_service", "{}"),
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-human",
+            "wecom_kf",
+            "user-1",
+            "human_service",
+            "{}",
+            "2026-06-10 13:00:00",
+        ),
     )
     await db.commit()
     await close_db(db)
@@ -273,11 +302,22 @@ async def test_handoff_user_message_is_synced_without_ai_queue(
 ) -> None:
     db_path = tmp_path / "kf-sync.db"
     monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        "app.service.wecom.kf_message_classifier.settings.WECOM_KF_SESSION_IDLE_CLOSE_SECONDS",
+        24 * 60 * 60,
+    )
     db = await init_db(str(db_path))
     await db.execute(
-        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
-        "VALUES (?, ?, ?, ?, ?)",
-        ("session-human", "wecom_kf", "user-1", "human_service", "{}"),
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-human",
+            "wecom_kf",
+            "user-1",
+            "human_service",
+            "{}",
+            "2026-06-10 13:00:00",
+        ),
     )
     await db.commit()
     await close_db(db)
@@ -309,6 +349,64 @@ async def test_handoff_user_message_is_synced_without_ai_queue(
     assert len(rows) == 1
     assert rows[0]["role"] == "user"
     assert rows[0]["channel_msg_id"] == "handoff-user-1"
+
+
+@pytest.mark.asyncio
+async def test_idle_handoff_session_is_closed_and_message_requeued(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        "app.service.wecom.kf_message_classifier.settings.WECOM_KF_SESSION_IDLE_CLOSE_SECONDS",
+        7200,
+    )
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-human-old",
+            "wecom_kf",
+            "user-1",
+            "human_service",
+            "{}",
+            "2026-06-10 10:00:00",
+        ),
+    )
+    await db.commit()
+    await close_db(db)
+    monkeypatch.setattr(
+        "app.service.wecom.kf_message_classifier.datetime",
+        _FixedDatetime,
+    )
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 3,
+                "msgtype": "text",
+                "msgid": "new-after-idle",
+                "external_userid": "user-1",
+                "text": {"content": "重新咨询"},
+            }
+        ],
+    }
+    queue = FakeKfQueue()
+
+    await KfCallbackProcessor(FakeKfClient(sync_result), queue).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert [msg.msg_id for msg in queue.messages] == ["new-after-idle"]
+    verify_db = await init_db(str(db_path))
+    sessions = await verify_db.execute_fetchall(
+        "SELECT status FROM sessions WHERE id = ?",
+        ("session-human-old",),
+    )
+    await close_db(verify_db)
+    assert sessions[0]["status"] == SessionStatus.CLOSED.value
 
 
 @pytest.mark.asyncio
@@ -368,6 +466,50 @@ async def test_same_page_handoff_event_prevents_ai_queue(
     assert rows[0]["role"] == "user"
     assert rows[0]["channel_msg_id"] == "handoff-user-same-page"
     assert sessions[0]["status"] == SessionStatus.HUMAN_SERVICE.value
+
+
+@pytest.mark.asyncio
+async def test_start_event_sends_welcome_event_text(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    monkeypatch.setattr(
+        "app.service.wecom.kf_callback_processor.settings.WECOM_KF_WELCOME_TEXT",
+        "已接入智能助手",
+    )
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("session-human", "wecom_kf", "user-1", "transfer_pending", "{}"),
+    )
+    await db.commit()
+    await close_db(db)
+    sync_result = {
+        "errcode": 0,
+        "msg_list": [
+            {
+                "origin": 4,
+                "msgtype": "event",
+                "msgid": "event-start-welcome",
+                "external_userid": "user-1",
+                "event": {
+                    "event_type": "session_status_change",
+                    "change_type": 1,
+                    "welcome_code": "welcome-code-1",
+                },
+            }
+        ],
+    }
+    client = FakeKfClient(sync_result)
+
+    await KfCallbackProcessor(client, FakeKfQueue()).handle_callback(
+        {"Token": "token-1", "OpenKfId": "kf-1"}
+    )
+
+    assert client.event_texts == [("welcome-code-1", "已接入智能助手", "")]
 
 
 @pytest.mark.asyncio

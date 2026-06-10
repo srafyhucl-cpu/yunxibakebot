@@ -60,6 +60,7 @@ async def save_handoff_customer_messages(
                 )
             )
             if saved:
+                await session_repo.touch(session.id)
                 saved_count += 1
     return saved_count
 

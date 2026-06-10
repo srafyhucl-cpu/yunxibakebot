@@ -117,6 +117,38 @@ class KfClientMixin:
             )
         return response_data
 
+    async def send_kf_event_text(
+        self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
+        code: str,
+        content: str,
+        msgid: str = "",
+    ) -> dict:
+        """发送微信客服事件响应文本消息。"""
+        token = await self.get_token()
+        body: dict[str, Any] = {
+            "code": code,
+            "msgtype": "text",
+            "text": {"content": content},
+        }
+        if msgid:
+            body["msgid"] = msgid
+
+        resp = await self._client.post(
+            f"{WECOM_API_BASE}/kf/send_msg_on_event",
+            params={"access_token": token},
+            json=body,
+        )
+        data = resp.json()
+        if data.get("errcode") == 0:
+            logger.info("客服事件响应消息已发送 code=%s len=%d", code[:8], len(content))
+        else:
+            logger.error(
+                "客服事件响应消息发送失败 code=%s err=%s",
+                code[:8],
+                data.get("errmsg"),
+            )
+        return data
+
     async def upload_kf_temp_media(
         self: WeComClient,  # type: ignore[reportGeneralTypeIssues]
         file_data: bytes,

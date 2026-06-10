@@ -42,6 +42,7 @@ from app.service.chat_tools import (
     process_tool_calls,
 )
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
+from app.service.chat_transfer import build_transfer_summary
 from app.service.llm.intent import IntentType
 
 
@@ -174,7 +175,8 @@ async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
     assert transfer_mgr.calls[0].session_id == "session-1"
     assert transfer_mgr.calls[0].user_id == "buyer-1"
     assert transfer_mgr.calls[0].reason == "need human support"
-    assert len(transfer_mgr.calls[0].summary) == 200
+    assert "need human support" in transfer_mgr.calls[0].summary
+    assert len(transfer_mgr.calls[0].summary) <= 200
     assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
     assert (
         SessionScope.BOT_THEN_HANDOFF_PARTIAL.value in session_repo.extra_updates[0][1]
@@ -565,8 +567,28 @@ async def test_request_human_transfer_updates_state_and_truncates_summary() -> N
     assert transfer_mgr.calls[0].session_id == "session-1"
     assert transfer_mgr.calls[0].user_id == "buyer-1"
     assert transfer_mgr.calls[0].reason == "need staff"
-    assert len(transfer_mgr.calls[0].summary) == 200
+    assert "need staff" in transfer_mgr.calls[0].summary
+    assert len(transfer_mgr.calls[0].summary) <= 200
     assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
     assert (
         SessionScope.BOT_THEN_HANDOFF_PARTIAL.value in session_repo.extra_updates[0][1]
     )
+
+
+def test_build_transfer_summary_keeps_reason_and_recent_dialog() -> None:
+    history_text = "\n".join(
+        [
+            "用户：first",
+            "AI：second",
+            "用户：想订草莓千层，少糖",
+            "AI：确认配送时间",
+            "用户：今天下午到，可以转人工吗",
+        ]
+    )
+
+    summary = build_transfer_summary("用户要求转人工", history_text)
+
+    assert "用户要求转人工" in summary
+    assert "想订草莓千层" in summary
+    assert "今天下午到" in summary
+    assert len(summary) <= 200

@@ -31,6 +31,7 @@ class SyncEvent:
     external_userid: str
     change_type: int
     staff_id: str
+    event_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,7 @@ def build_sync_event(item: dict) -> SyncEvent | None:
         external_userid=item.get("external_userid", ""),
         change_type=change_type,
         staff_id=str(event.get("servicer_userid") or ""),
+        event_code=str(event.get("welcome_code") or event.get("code") or ""),
     )
 
 

@@ -56,6 +56,7 @@ async def save_servicer_messages(messages: list[SyncedServicerMessage]) -> int:
             )
             if not saved:
                 continue
+            await session_repo.touch(session.id)
             await session_repo.update_extra(
                 session.id,
                 mark_human_messages_synced(session.extra_info),

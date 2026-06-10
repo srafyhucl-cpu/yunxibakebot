@@ -1,8 +1,10 @@
 """微信客服 sync_msg 消息分类器。"""
 
 import time
+from datetime import datetime
 from typing import Protocol
 
+from app.config import settings
 from app.logger import setup_logger
 from app.models.session import SessionStatus
 from app.repository.wecom_kf_sync_repo import WecomKfSyncRepo
@@ -24,8 +26,7 @@ from app.service.wecom.kf_sync_models import (
 
 logger = setup_logger()
 
-STALE_MESSAGE_MAX_DELAY_SECONDS = 120
-WECOM_KF_CHANNEL = "wecom_kf"
+STALE_MESSAGE_MAX_DELAY_SECONDS, WECOM_KF_CHANNEL = 120, "wecom_kf"
 
 
 class HandoffSessionChecker(Protocol):
@@ -287,10 +288,33 @@ class DbHandoffSessionChecker:
         from app.repository.session_repo import SessionRepo
 
         async with db_session_scope():
-            session = await SessionRepo().get_active(external_userid, WECOM_KF_CHANNEL)
+            session_repo = SessionRepo()
+            session = await session_repo.get_active(external_userid, WECOM_KF_CHANNEL)
             if session is None:
                 return False
-            return session.status in (
+            if session.status not in (
                 SessionStatus.TRANSFER_PENDING,
                 SessionStatus.HUMAN_SERVICE,
-            )
+            ):
+                return False
+            if _is_idle_handoff_session(session.updated_at):
+                await session_repo.update_status(session.id, SessionStatus.CLOSED)
+                logger.info(
+                    "微信客服人工会话空闲超时，已关闭本地旧会话 user=%s session=%s",
+                    external_userid,
+                    session.id,
+                )
+                return False
+            return True
+
+
+def _is_idle_handoff_session(updated_at: str) -> bool:
+    if not updated_at:
+        return False
+    try:
+        updated = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        logger.warning("无法解析会话 updated_at=%s，跳过空闲关闭判断", updated_at)
+        return False
+    idle_seconds = (datetime.now() - updated).total_seconds()
+    return idle_seconds > settings.WECOM_KF_SESSION_IDLE_CLOSE_SECONDS

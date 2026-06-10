@@ -194,6 +194,7 @@ class KfMessageQueue(BaseWeComMessageQueue[KfIncomingMessage]):
                 return
 
         # 确保会话处于可发消息状态（企微限制：非智能助手状态无法API发送）
+        await self._sync_local_session_before_reply(client, msg.external_userid)
         can_send = await client.ensure_kf_session_active(msg.external_userid)
         if not can_send:
             logger.info("客服会话不可用，跳过回复 user=%s", msg.external_userid)
@@ -279,6 +280,30 @@ class KfMessageQueue(BaseWeComMessageQueue[KfIncomingMessage]):
                 await self._send_card(client, msg.external_userid, ump)
             elif ump_type == "image":
                 logger.debug("UMP image 暂不单独发送（图片已内置在 card 中）")
+
+    async def _sync_local_session_before_reply(
+        self, client, external_userid: str
+    ) -> None:
+        from app.database import db_session_scope
+        from app.models.session import SessionStatus
+        from app.repository.session_repo import SessionRepo
+
+        async with db_session_scope():
+            session_repo = SessionRepo()
+            session = await session_repo.get_active(external_userid, "wecom_kf")
+            if session is None or session.status not in (
+                "transfer_pending",
+                "human_service",
+            ):
+                return
+            kf_state = await client.get_kf_service_state(external_userid)
+            if kf_state is not None and kf_state in (0, 1, 4):
+                await session_repo.update_status(session.id, SessionStatus.ACTIVE)
+                logger.info(
+                    "WeCom KF session state=%d, reset local session %s to active",
+                    kf_state,
+                    session.id,
+                )
 
     async def _send_card(self, client, external_userid: str, card: dict) -> None:
         """

@@ -1,6 +1,22 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - fix(agent): P5.1 企微转人工联调边界修补
+- **操作人**: AI (Codex)
+- **背景**: 生产商测试账号继续联调发现：人工结束后再次发起咨询没有稳定回到智能助手；本地旧人工会话超过数小时仍可能拦截新消息；转人工工单摘要仅截取原始聊天尾部，不利于客服快速接手。
+- **变更范围**:
+  - `app/service/wecom/kf_message_classifier.py` / `app/config.py` - 新增微信客服人工会话空闲关闭阈值 `WECOM_KF_SESSION_IDLE_CLOSE_SECONDS`（默认 7200 秒）；本地 `transfer_pending` / `human_service` 会话超过阈值后自动关闭，后续用户新消息重新进入 AI 队列。
+  - `app/repository/session_repo.py` / `app/service/chat_message_flow.py` / `app/service/wecom/kf_handoff_sync.py` / `app/service/wecom/kf_servicer_sync.py` - 新增并调用 `SessionRepo.touch()`，普通用户消息、人工阶段用户消息、人工客服消息入库后刷新会话活跃时间，避免超时判断只依赖状态更新时间。
+  - `app/service/wecom/kf_message_queue.py` - AI 回复前先同步本地 session 与企微客服实际状态；若企微已回到未处理/智能助手/已结束状态，本地旧人工状态先重置为 `active`，再进入原有发送检查。
+  - `app/service/wecom/client_kf.py` / `app/service/wecom/kf_callback_processor.py` / `app/service/wecom/kf_sync_models.py` - 透传企微客服事件 `welcome_code` / `code`，调用 `/kf/send_msg_on_event` 追加自定义欢迎/继续服务提示；文案由 `WECOM_KF_WELCOME_TEXT` 配置控制。
+  - `app/service/chat_transfer.py` - 转人工工单摘要改为确定性提纯摘要：保留触发原因和最近对话要点，长度仍限制在 200 字内，不引入热路径 LLM 调用。
+  - `tests/service/test_chat_refactor.py` / `tests/service/wecom/test_kf_callback_processor.py` - 覆盖转人工摘要、人工中消息不触发 AI、旧人工会话空闲超时后重新入队。
+- **验证**:
+  - `python -m pytest tests/service/test_chat_refactor.py tests/service/wecom/test_kf_callback_processor.py --no-cov -q` 通过
+  - `python -m pytest tests/ --no-cov -q` 通过（237 passed）
+  - `python -m ruff check app/config.py app/repository/session_repo.py app/service/chat_message_flow.py app/service/chat_transfer.py app/service/wecom/kf_handoff_sync.py app/service/wecom/kf_message_classifier.py app/service/wecom/kf_message_queue.py app/service/wecom/kf_servicer_sync.py tests/service/test_chat_refactor.py tests/service/wecom/test_kf_callback_processor.py` 通过
+  - `python -m ruff format --check app/config.py app/repository/session_repo.py app/service/chat_message_flow.py app/service/chat_transfer.py app/service/wecom/kf_handoff_sync.py app/service/wecom/kf_message_classifier.py app/service/wecom/kf_message_queue.py app/service/wecom/kf_servicer_sync.py tests/service/test_chat_refactor.py tests/service/wecom/test_kf_callback_processor.py` 通过
+
 ## [2026-06-10] - feat(agent): P5 企微转人工同步闭环
 - **操作人**: AI (Codex)
 - **背景**: 生产商测试账号联调发现：转人工后企微回调仍会触发，`sync_msg` 能拉到人工阶段消息，但由于未持久化 cursor / msgid，历史用户消息可能被重复投给机器人，导致转人工后“机器人又回复一遍”。P5 将目标收窄为：人工接管期间机器人闭嘴、消息完整同步、结束状态可感知。

@@ -2,6 +2,7 @@
 
 from typing import Protocol
 
+from app.config import settings
 from app.logger import setup_logger
 from app.repository.wecom_kf_sync_repo import WecomKfSyncRepo
 from app.service.wecom.kf_handoff_sync import mark_handoff_event
@@ -32,6 +33,13 @@ class KfClientProtocol(Protocol):
 
     async def ensure_kf_session_active(self, external_userid: str) -> bool:
         """确认微信客服会话可回复。"""
+
+        ...
+
+    async def send_kf_event_text(
+        self, code: str, content: str, msgid: str = ""
+    ) -> dict:
+        """发送微信客服事件响应消息。"""
 
         ...
 
@@ -73,6 +81,7 @@ class KfCallbackProcessor:
             await mark_handoff_event(
                 event.external_userid, event.change_type, event.staff_id
             )
+            await self._send_welcome_on_event(event.event_code)
 
         handoff_user_count = await save_handoff_customer_messages(
             collected.handoff_customer_messages
@@ -96,6 +105,22 @@ class KfCallbackProcessor:
             human_count,
             handoff_user_count,
         )
+
+    async def _send_welcome_on_event(self, event_code: str) -> None:
+        content = settings.WECOM_KF_WELCOME_TEXT.strip()
+        if not event_code or not content:
+            return
+        try:
+            result = await self._client.send_kf_event_text(event_code, content)
+        except Exception as exc:
+            logger.warning("客服欢迎事件响应发送异常: %s", exc)
+            return
+        if result.get("errcode") != 0:
+            logger.warning(
+                "客服欢迎事件响应发送失败 err=%s %s",
+                result.get("errcode"),
+                result.get("errmsg"),
+            )
 
     async def _sync_and_collect(
         self,

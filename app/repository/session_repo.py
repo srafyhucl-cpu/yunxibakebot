@@ -87,6 +87,15 @@ class SessionRepo(BaseRepository):
         )
         await self._db.commit()
 
+    async def touch(self, session_id: str) -> None:
+        """刷新会话更新时间，用于空闲超时判断。"""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        await self._db.execute(
+            "UPDATE sessions SET updated_at = ? WHERE id = ?",
+            (now, session_id),
+        )
+        await self._db.commit()
+
     async def get_all_active(self) -> list[Session]:
         """获取所有活跃会话。"""
         rows = await self._db.execute_fetchall(

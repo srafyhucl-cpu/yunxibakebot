@@ -109,6 +109,8 @@ async def prepare_session_and_save_user_message(
         channel_msg_id=request.channel_msg_id,
     )
     await dependencies.message_repo.save(user_msg)
+    if hasattr(dependencies.session_repo, "touch"):
+        await dependencies.session_repo.touch(session.id)
     return session
 
 
