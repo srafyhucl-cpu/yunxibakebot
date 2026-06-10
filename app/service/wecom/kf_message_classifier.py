@@ -1,12 +1,9 @@
 """微信客服 sync_msg 消息分类器。"""
 
 import time
-from datetime import datetime
 from typing import Protocol
 
-from app.config import settings
 from app.logger import setup_logger
-from app.models.session import SessionStatus
 from app.repository.wecom_kf_sync_repo import WecomKfSyncRepo
 from app.service.wecom.kf_handoff_sync import SyncedCustomerMessage
 from app.service.wecom.kf_servicer_sync import SyncedServicerMessage
@@ -26,7 +23,7 @@ from app.service.wecom.kf_sync_models import (
 
 logger = setup_logger()
 
-STALE_MESSAGE_MAX_DELAY_SECONDS, WECOM_KF_CHANNEL = 120, "wecom_kf"
+STALE_MESSAGE_MAX_DELAY_SECONDS = 120
 
 
 class HandoffSessionChecker(Protocol):
@@ -45,6 +42,8 @@ class KfMessageClassifier:
         msg_list: list[dict],
         open_kfid: str,
         sync_repo: WecomKfSyncRepo,
+        active_handoff_users: set[str] | None = None,
+        ended_handoff_users: set[str] | None = None,
     ) -> CollectedMessages:
         user_messages: dict[str, dict[str, dict]] = {}
         nontext_processed_users: set[str] = set()
@@ -53,7 +52,8 @@ class KfMessageClassifier:
         servicer_messages: list[SyncedServicerMessage] = []
         start_events = []
         end_events = []
-        handoff_event_users = _collect_handoff_event_users(msg_list)
+        active_users = set(active_handoff_users or set())
+        ended_users = set(ended_handoff_users or set())
 
         for item in msg_list:
             if _is_stale_message(item):
@@ -64,6 +64,9 @@ class KfMessageClassifier:
             event = build_sync_event(item)
             if event is not None:
                 append_sync_event(event, start_events, end_events)
+                _apply_session_event(
+                    event.external_userid, event.change_type, active_users, ended_users
+                )
                 continue
 
             if _is_servicer_message(item):
@@ -76,10 +79,11 @@ class KfMessageClassifier:
                 continue
 
             external_userid = item.get("external_userid", "")
-            if (
-                external_userid in handoff_event_users
-                or await self._handoff_checker.is_handoff_user(external_userid)
+            if external_userid in active_users or (
+                external_userid not in ended_users
+                and await self._handoff_checker.is_handoff_user(external_userid)
             ):
+                active_users.add(external_userid)
                 handoff_message = _build_handoff_customer_message(item)
                 if handoff_message is not None:
                     handoff_customer_messages.append(handoff_message)
@@ -100,6 +104,8 @@ class KfMessageClassifier:
             servicer_messages=servicer_messages,
             start_events=start_events,
             end_events=end_events,
+            active_handoff_users=active_users,
+            ended_handoff_users=ended_users,
             total_count=len(msg_list),
         )
 
@@ -267,54 +273,17 @@ def _collect_nontext_message(
     )
 
 
-def _collect_handoff_event_users(msg_list: list[dict]) -> set[str]:
-    users: set[str] = set()
-    for item in msg_list:
-        event = build_sync_event(item)
-        if event is None or event.change_type == SESSION_END_CHANGE_TYPE:
-            continue
-        if event.external_userid:
-            users.add(event.external_userid)
-    return users
-
-
-class DbHandoffSessionChecker:
-    """从数据库判断用户是否处于人工接管状态。"""
-
-    async def is_handoff_user(self, external_userid: str) -> bool:
-        if not external_userid:
-            return False
-        from app.database import db_session_scope
-        from app.repository.session_repo import SessionRepo
-
-        async with db_session_scope():
-            session_repo = SessionRepo()
-            session = await session_repo.get_active(external_userid, WECOM_KF_CHANNEL)
-            if session is None:
-                return False
-            if session.status not in (
-                SessionStatus.TRANSFER_PENDING,
-                SessionStatus.HUMAN_SERVICE,
-            ):
-                return False
-            if _is_idle_handoff_session(session.updated_at):
-                await session_repo.update_status(session.id, SessionStatus.CLOSED)
-                logger.info(
-                    "微信客服人工会话空闲超时，已关闭本地旧会话 user=%s session=%s",
-                    external_userid,
-                    session.id,
-                )
-                return False
-            return True
-
-
-def _is_idle_handoff_session(updated_at: str) -> bool:
-    if not updated_at:
-        return False
-    try:
-        updated = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        logger.warning("无法解析会话 updated_at=%s，跳过空闲关闭判断", updated_at)
-        return False
-    idle_seconds = (datetime.now() - updated).total_seconds()
-    return idle_seconds > settings.WECOM_KF_SESSION_IDLE_CLOSE_SECONDS
+def _apply_session_event(
+    external_userid: str,
+    change_type: int,
+    active_users: set[str],
+    ended_users: set[str],
+) -> None:
+    if not external_userid:
+        return
+    if change_type == SESSION_END_CHANGE_TYPE:
+        active_users.discard(external_userid)
+        ended_users.add(external_userid)
+        return
+    active_users.add(external_userid)
+    ended_users.discard(external_userid)

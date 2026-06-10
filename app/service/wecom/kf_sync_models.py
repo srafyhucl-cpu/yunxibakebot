@@ -44,11 +44,13 @@ class CollectedMessages:
     servicer_messages: list[SyncedServicerMessage]
     start_events: list[SyncEvent]
     end_events: list[SyncEvent]
+    active_handoff_users: set[str]
+    ended_handoff_users: set[str]
     total_count: int
 
 
 def empty_collected() -> CollectedMessages:
-    return CollectedMessages({}, [], [], [], [], [], 0)
+    return CollectedMessages({}, [], [], [], [], [], set(), set(), 0)
 
 
 def merge_collected_messages(
@@ -69,6 +71,8 @@ def merge_collected_messages(
         servicer_messages=[*left.servicer_messages, *right.servicer_messages],
         start_events=[*left.start_events, *right.start_events],
         end_events=[*left.end_events, *right.end_events],
+        active_handoff_users=right.active_handoff_users,
+        ended_handoff_users=right.ended_handoff_users,
         total_count=left.total_count + right.total_count,
     )
 

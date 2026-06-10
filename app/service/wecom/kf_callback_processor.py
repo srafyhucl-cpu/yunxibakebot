@@ -5,9 +5,9 @@ from typing import Protocol
 from app.config import settings
 from app.logger import setup_logger
 from app.repository.wecom_kf_sync_repo import WecomKfSyncRepo
+from app.service.wecom.kf_handoff_checker import DbHandoffSessionChecker
 from app.service.wecom.kf_handoff_sync import mark_handoff_event
 from app.service.wecom.kf_handoff_sync import save_handoff_customer_messages
-from app.service.wecom.kf_message_classifier import DbHandoffSessionChecker
 from app.service.wecom.kf_message_classifier import KfMessageClassifier
 from app.service.wecom.kf_message_queue import KfIncomingMessage, kf_queue
 from app.service.wecom.kf_servicer_sync import save_servicer_messages
@@ -87,16 +87,17 @@ class KfCallbackProcessor:
             collected.handoff_customer_messages
         )
         human_count = await save_servicer_messages(collected.servicer_messages)
-        queued_count = await self._enqueue_messages(
-            open_kfid,
-            collected.user_messages,
-            collected.nontext_messages,
-        )
 
         for event in collected.end_events:
             await mark_handoff_event(
                 event.external_userid, event.change_type, event.staff_id
             )
+
+        queued_count = await self._enqueue_messages(
+            open_kfid,
+            collected.user_messages,
+            collected.nontext_messages,
+        )
 
         logger.info(
             "客服回调处理完成 total=%d queued=%d human_synced=%d handoff_user_synced=%d",
@@ -143,6 +144,8 @@ class KfCallbackProcessor:
                     result.get("msg_list", []),
                     open_kfid,
                     sync_repo,
+                    collected.active_handoff_users,
+                    collected.ended_handoff_users,
                 )
                 collected = merge_collected_messages(collected, page)
                 cursor = str(result.get("next_cursor") or cursor)

@@ -1,6 +1,17 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-10] - fix(agent): 企微人工结束后同批消息重新接入智能助手
+- **操作人**: AI (Codex)
+- **背景**: 生产商测试账号联调发现：人工客服点击结束聊天后，用户继续发消息没有稳定显示“已接入智能助手”。根因是企微 `sync_msg` 可能在同一批次返回“结束事件 + 用户新消息”，旧逻辑在整批分类完成后才关闭本地 session，导致结束后的新消息仍被误判为人工阶段消息，只落库不进入 AI 队列。
+- **变更范围**:
+  - `app/service/wecom/kf_message_classifier.py` / `app/service/wecom/kf_sync_models.py` - `sync_msg` 分类改为顺序感知，并在分页之间传递人工状态集合；遇到结束事件后，同批次/后续页的新用户消息重新进入机器人队列。
+  - `app/service/wecom/kf_handoff_checker.py` - 拆出数据库版人工接管状态检查器，保持分类器文件体量低于提交门禁。
+  - `app/service/wecom/kf_callback_processor.py` - 回调处理顺序调整为先保存人工阶段消息，再落库结束事件，最后入队结束后的新消息，避免后台 worker 抢在 session 关闭前处理。
+  - `tests/service/wecom/test_kf_callback_processor.py` - 新增“同批次先结束再继续聊天”的回归测试，覆盖旧 session 关闭、transfer 关闭和新消息重新入队。
+- **验证**:
+  - `python -m pytest tests/service/wecom/test_kf_callback_processor.py --no-cov -q` 通过
+
 ## [2026-06-10] - fix(agent): 转人工摘要通知优先展示
 - **操作人**: AI (Codex)
 - **背景**: 生产商测试账号联调发现：转人工摘要已写入本地工单 `conversation_summary`，但人工侧企微通知仍只看到触发原因；原因是通知使用 `reason or summary`，只要 reason 存在就不会展示提纯摘要。
