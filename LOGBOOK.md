@@ -2,6 +2,23 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-09] - feat(agent): P3 离线知识缺口与记忆固化 Agent 串联
+- **操作人**: AI (Codex)
+- **背景**: 接续 P2 离线会话质检，按 `docs/design/5-Agent化升级架构设计.md` 落地 P3：补齐 Agent② 知识缺口挖掘与 Agent③ 顾客记忆固化，并由离线编排器串联三 Agent，仍保持热路径零改动。
+- **变更范围**:
+  - `app/service/offline/agent_knowledge_gap.py` - 新增低分质检会话的知识缺口挖掘 Agent；LLM 仅输出待人工审核 JSON，不自动写入 `knowledge_base`。
+  - `app/service/offline/agent_memory.py` - 新增顾客画像固化 Agent；只抽取称呼、偏好、订单摘要与过敏提醒，保留已有画像字段，过敏信息仅作为提醒核对事实。
+  - `app/service/offline/orchestrator.py` / `bootstrap.py` - 将流水线扩展为 QA → KnowledgeGap → Memory；单 Agent 失败隔离，调度器开关仍复用 `ENABLE_OFFLINE_REVIEW`。
+  - `app/repository/knowledge_gap_repo.py` / `knowledge_gap_upsert.py` - 新增 open 知识缺口的幂等合并写入，同一来源会话重复运行不重复计数。
+  - `app/repository/offline_session_repo.py` / `app/main.py` - 新增离线专用会话候选仓库，避免继续扩张通用 `SessionRepo`。
+  - `tests/service/test_offline_review.py` - 扩展 P3 测试，覆盖知识缺口合并、记忆固化跳重和三 Agent 串联。
+- **验证**:
+  - `python -m ruff check app/main.py app/repository/offline_session_repo.py app/repository/knowledge_gap_repo.py app/repository/knowledge_gap_upsert.py app/repository/session_repo.py app/service/offline tests/service/test_offline_review.py` 通过
+  - `python -m ruff format --check app/main.py app/repository/offline_session_repo.py app/repository/knowledge_gap_repo.py app/repository/knowledge_gap_upsert.py app/repository/session_repo.py app/service/offline tests/service/test_offline_review.py` 通过
+  - `python -m pytest tests/service/test_offline_review.py tests/repository/test_agent_foundation_repos.py tests/service/test_customer_memory.py tests/service/test_reply_guard.py tests/service/test_chat_refactor.py -q --no-cov` 通过（37 passed）
+  - 架构守卫扫描通过：`app/api/` 无直接导入 `repository/`，`app/service/` 无直接 DB 操作，`app/models/` 无上层引用
+  - 红线扫描通过：本轮触达文件无 `TODO` / `Optional[]` / `Union[]` / `SELECT *` / `print()` / `except: pass`
+
 ## [2026-06-09] - feat(agent): P2 离线会话质检 Agent 与调度器
 - **操作人**: AI (Codex)
 - **背景**: 接续 P0/P1，按 `docs/design/5-Agent化升级架构设计.md` 落地 P2：冷路径只实现 Agent① 会话质检与固定间隔调度器，默认关闭，不触碰实时客服热路径。

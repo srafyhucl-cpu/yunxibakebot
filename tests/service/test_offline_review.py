@@ -1,17 +1,26 @@
 """Agent 化 P2 离线质检测试。"""
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import aiosqlite
 import pytest
 
 from app.exceptions import LLMError
+from app.models.conversation_review import ConversationReview
 from app.models.message import Message, MessageRole
 from app.repository.conversation_review_repo import ConversationReviewRepo
+from app.repository.customer_profile_repo import CustomerProfileRepo
+from app.repository.knowledge_gap_repo import KnowledgeGapRepo
 from app.repository.message_repo import MessageRepo
+from app.repository.offline_session_repo import OfflineSessionRepo
 from app.repository.session_repo import SessionRepo
 from app.service.offline import agent_qa_review as qa_review_module
+from app.service.offline import agent_knowledge_gap as knowledge_gap_module
+from app.service.offline import agent_memory as memory_module
+from app.service.offline.agent_knowledge_gap import KnowledgeGapAgent
+from app.service.offline.agent_memory import MemoryAgent
 from app.service.offline.agent_qa_review import QaReviewAgent
 from app.service.offline.orchestrator import OfflineReviewOrchestrator
 from app.service.offline.scheduler import OfflineReviewScheduler
@@ -107,6 +116,132 @@ async def test_orchestrator_isolates_agent_failure() -> None:
     orchestrator = OfflineReviewOrchestrator(BrokenAgent())  # type: ignore[arg-type]
 
     assert await orchestrator.run_once() == []
+
+
+async def test_knowledge_gap_agent_upserts_open_gap_without_duplicate_session(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """知识缺口 Agent 应写入 open 建议，同一来源会话重复运行不重复计数。"""
+    await _insert_session(db, "gap-session-1", "closed")
+    await MessageRepo(db).save(
+        Message(
+            id="gap-msg-1",
+            session_id="gap-session-1",
+            role=MessageRole.USER,
+            content="生日蜡烛收费吗？",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(
+            content='{"question_norm":"生日蜡烛收费吗","proposed_answer":"需人工审核后补充收费规则。"}'
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(knowledge_gap_module, "llm_chat", fake_llm_chat)
+    agent = KnowledgeGapAgent(MessageRepo(db), KnowledgeGapRepo(db))
+    reviews = [
+        ConversationReview(
+            id=1,
+            session_id="gap-session-1",
+            quality_score=30,
+            issues_json='["答漏"]',
+        )
+    ]
+
+    first = await agent.run(reviews)
+    second = await agent.run(reviews)
+    open_gaps = await KnowledgeGapRepo(db).list_open_top()
+
+    assert first[0].question_norm == "生日蜡烛收费吗"
+    assert second[0].frequency == 1
+    assert open_gaps[0].frequency == 1
+    assert json.loads(open_gaps[0].related_sessions_json) == ["gap-session-1"]
+
+
+async def test_memory_agent_upserts_profile_and_skips_current_profile(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """记忆固化 Agent 应写入画像，画像时间追上会话后不再重复处理。"""
+    await _insert_session(db, "memory-session-1", "closed")
+    await db.execute(
+        "UPDATE sessions SET updated_at = ? WHERE id = ?",
+        ("2026-06-09 12:00:00", "memory-session-1"),
+    )
+    await db.commit()
+    await MessageRepo(db).save(
+        Message(
+            id="memory-msg-1",
+            session_id="memory-session-1",
+            role=MessageRole.USER,
+            content="我叫小林，喜欢少糖，坚果过敏。",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(
+            content=(
+                '{"display_name":"小林","preferences":{"sweetness":"less"},'
+                '"order_summary":{},"allergens":["坚果"],"consent_status":"unknown"}'
+            )
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    agent = MemoryAgent(
+        OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
+    )
+
+    profiles = await agent.run()
+    second_run = await agent.run()
+    profile = await CustomerProfileRepo(db).get("youzan", "user-memory-session-1")
+
+    assert len(profiles) == 1
+    assert second_run == []
+    assert profile is not None
+    assert profile.display_name == "小林"
+    assert profile.preferences_json == '{"sweetness": "less"}'
+    assert profile.allergens_json == '["坚果"]'
+
+
+async def test_orchestrator_runs_p3_agents_after_qa() -> None:
+    """编排器应在质检后串联知识缺口与记忆固化 Agent。"""
+
+    class QaAgent:
+        async def run(self) -> list[ConversationReview]:
+            return [ConversationReview(id=1, session_id="s1", quality_score=20)]
+
+    class GapAgent:
+        def __init__(self) -> None:
+            self.received: list[ConversationReview] = []
+
+        async def run(self, reviews: list[ConversationReview]) -> list:
+            self.received = reviews
+            return []
+
+    class MemoryAgentStub:
+        def __init__(self) -> None:
+            self.called = False
+
+        async def run(self) -> list:
+            self.called = True
+            return []
+
+    gap_agent = GapAgent()
+    memory_agent = MemoryAgentStub()
+    orchestrator = OfflineReviewOrchestrator(
+        QaAgent(),  # type: ignore[arg-type]
+        gap_agent,  # type: ignore[arg-type]
+        memory_agent,  # type: ignore[arg-type]
+    )
+
+    reviews = await orchestrator.run_once()
+
+    assert reviews[0].session_id == "s1"
+    assert gap_agent.received == reviews
+    assert memory_agent.called is True
 
 
 async def test_scheduler_runs_and_stops() -> None:

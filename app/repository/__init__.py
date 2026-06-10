@@ -11,6 +11,7 @@ from app.repository.transfer_repo import TransferRepo
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.knowledge_gap_repo import KnowledgeGapRepo
+from app.repository.offline_session_repo import OfflineSessionRepo
 
 __all__ = [
     "SessionRepo",
@@ -20,4 +21,5 @@ __all__ = [
     "CustomerProfileRepo",
     "ConversationReviewRepo",
     "KnowledgeGapRepo",
+    "OfflineSessionRepo",
 ]

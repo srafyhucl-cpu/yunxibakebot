@@ -33,6 +33,7 @@ from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
+from app.repository.offline_session_repo import OfflineSessionRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.youzan_repo import YouzanProductRepo
@@ -155,6 +156,7 @@ def _init_repositories() -> dict[str, object]:
         "customer_profile_repo": CustomerProfileRepo(None),
         "conversation_review_repo": ConversationReviewRepo(None),
         "knowledge_gap_repo": KnowledgeGapRepo(None),
+        "offline_session_repo": OfflineSessionRepo(None),
     }
 
 

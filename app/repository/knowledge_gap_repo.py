@@ -6,6 +6,7 @@ from app.models.knowledge_gap import (
     KnowledgeGapStatus,
 )
 from app.repository.base import BaseRepository
+from app.repository.knowledge_gap_upsert import upsert_open_gap
 from app.utils import now_str
 
 
@@ -41,6 +42,10 @@ class KnowledgeGapRepo(BaseRepository):
             created_at=now,
             updated_at=now,
         )
+
+    async def upsert_open(self, gap: KnowledgeGapCreate) -> KnowledgeGap:
+        """按归一化问题累加 open 缺口频次。"""
+        return await upsert_open_gap(self._db, gap)
 
     async def list_by_status(
         self,

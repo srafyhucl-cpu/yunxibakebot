@@ -8,8 +8,6 @@ from uuid import uuid4
 from datetime import datetime
 
 from app.models.session import Session, SessionCreate, SessionStatus
-
-
 from app.repository.base import BaseRepository
 
 

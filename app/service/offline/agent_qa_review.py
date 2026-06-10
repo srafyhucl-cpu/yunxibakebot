@@ -15,6 +15,7 @@ from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.service.llm.client import chat_completion as llm_chat
+from app.service.offline.agent_shared import format_dialog
 
 logger = setup_logger()
 
@@ -78,7 +79,7 @@ class QaReviewAgent:
         response = await llm_chat(
             [
                 {"role": "system", "content": QA_REVIEW_SYSTEM_PROMPT},
-                {"role": "user", "content": _format_dialog(messages)},
+                {"role": "user", "content": format_dialog(messages)},
             ],
             tools=None,
             temperature=0,
@@ -87,17 +88,6 @@ class QaReviewAgent:
         )
         content = response.choices[0].message.content or "{}"
         return _parse_review_json(content)
-
-
-def _format_dialog(messages: list[Message]) -> str:
-    """把会话消息压缩成质检可读的纯文本。"""
-    lines = [f"{_role_text(message.role)}: {message.content}" for message in messages]
-    return "\n".join(lines)[-6000:]
-
-
-def _role_text(role: object) -> str:
-    """兼容模型枚举和数据库读回的字符串角色。"""
-    return getattr(role, "value", str(role))
 
 
 def _parse_review_json(content: str) -> ParsedQaReview:
