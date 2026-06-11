@@ -96,6 +96,8 @@ class TransferManager:
     async def _resolve_staff_id(self) -> str:
         if settings.WECOM_STAFF_ID:
             return settings.WECOM_STAFF_ID
+        if settings.WECOM_KF_SERVICER_USERID:
+            return settings.WECOM_KF_SERVICER_USERID
         try:
             from app.service.wecom.client import get_wecom_client
 

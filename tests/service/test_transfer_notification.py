@@ -113,3 +113,15 @@ async def test_transfer_notification_uses_customer_name_not_session_id(
     assert "小王微信" in content
     assert "客户诉求：给老人/长辈选蛋糕" in content
     assert "session-hidden" not in content
+
+
+@pytest.mark.asyncio
+async def test_resolve_staff_id_uses_kf_servicer_userid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "WECOM_STAFF_ID", "")
+    monkeypatch.setattr(settings, "WECOM_KF_SERVICER_USERID", "kf-servicer-001")
+
+    mgr = TransferManager(MockTransferRepo())
+
+    assert await mgr._resolve_staff_id() == "kf-servicer-001"

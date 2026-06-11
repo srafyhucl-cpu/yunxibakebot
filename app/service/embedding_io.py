@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 from app.logger import setup_logger
+from app.readiness import resolve_embedding_path
 
 logger = setup_logger()
 
@@ -23,9 +24,10 @@ async def save_index(
 
     async with searcher._lock:  # type: ignore[union-attr]
         try:
-            path = Path(path)
+            path = resolve_embedding_path(path)
             npy_path = path.with_suffix(".npy")
             json_path = path.with_suffix(".json")
+            npy_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_npy = npy_path.with_suffix(".tmp.npy")
             tmp_json = json_path.with_suffix(".json.tmp")
 
@@ -63,13 +65,14 @@ async def load_index(
     searcher._init_progress["status"] = "loading"  # type: ignore[union-attr]
     async with searcher._lock:  # type: ignore[union-attr]
         try:
-            path = Path(path)
+            path = resolve_embedding_path(path)
             npy_path = path.with_suffix(".npy")
             json_path = path.with_suffix(".json")
 
             if not npy_path.exists() or not json_path.exists():
                 logger.warning("向量索引缓存文件不存在，将重新构建")
                 searcher._ready = False  # type: ignore[union-attr]
+                searcher._init_progress["status"] = "failed"  # type: ignore[union-attr]
                 return
 
             with open(json_path, "r", encoding="utf-8") as file_obj:
@@ -90,3 +93,4 @@ async def load_index(
         except Exception as exc:
             logger.warning("向量索引加载失败，将重新构建: %s", exc)
             searcher._ready = False  # type: ignore[union-attr]
+            searcher._init_progress["status"] = "failed"  # type: ignore[union-attr]

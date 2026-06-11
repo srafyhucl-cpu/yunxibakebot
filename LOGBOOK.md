@@ -1,6 +1,1147 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-11] - docs(ops): 增加生产级补强对比流程图
+- **操作人**: AI (Codex)
+- **背景**: 用户希望把本轮 8 小时 40 分钟的生产化补强，用修改前/修改后的对比流程图展示出来，并更新项目文档入口，便于明日同步生产前快速说明系统完善程度。
+- **变更范围**:
+  - `docs/production-readiness-before-after.html` - 新增并细化自包含 HTML 对比流程图，展示修改前的人工拼图式上线风险，以及修改后的 `/ready`、preflight、recovery_plan、显式迁移、知识种子、向量重建、冒烟 JSON 留档闭环；补充六块细节矩阵、明日同步生产泳道、当前运行时缺口和验收信号。
+  - `README.md` - 新增“生产级补强流程图”章节和文档入口链接，并说明图中包含细节矩阵和同步生产泳道。
+  - `项目进度与配置清单.md` - 在 2026-06-11 本地补强记录中补充流程图入口与细化内容说明。
+- **验证**:
+  - `Test-Path docs/production-readiness-before-after.html` 通过
+  - `Select-String -Path README.md -Pattern 'production-readiness-before-after.html|生产级补强流程图'` 通过
+  - `Select-String -Path '项目进度与配置清单.md' -Pattern 'production-readiness-before-after.html|生产级补强对比流程图'` 通过
+  - `Select-String -Path docs/production-readiness-before-after.html -Pattern '<!doctype html>|修改前|修改后|recovery_plan|QUALITY GATE'` 通过
+  - `Select-String -Path docs/production-readiness-before-after.html -Pattern '细节矩阵|明日生产同步执行泳道|当前本地仍故意不处理的运行时缺口|验收信号'` 通过
+- **注意**:
+  - 本轮仅本地文档修改，未提交、未推送。
+
+## [2026-06-11] - fix(ops): 基础知识种子脚本支持 JSON 留档
+- **操作人**: AI (Codex)
+- **背景**: preflight、smoke 和迁移脚本已经支持 JSON 留档、时间戳文件名、UTF-8 BOM 和拒绝覆盖，但基础知识种子脚本仍只有文本输出。明日同步生产时，最低可服务知识写入前后的 dry-run/apply 结果也应能归档，避免知识种子步骤成为留档链路断点。
+- **变更范围**:
+  - `scripts/seed_baseline_knowledge.py` - 新增 `--json` 与 `--output`；JSON 顶层包含 `status`、`metadata` 和 `report`；输出文件带 UTF-8 BOM，支持 `{timestamp}` 展开，并拒绝覆盖已有报告。
+  - `tests/scripts/test_seed_baseline_knowledge.py` - 补充 JSON stdout、JSON 文件写入、时间戳展开、拒绝覆盖、`--output` 必须配合 `--json`、help 文案等回归测试。
+  - `项目进度与配置清单.md` - 同步说明基础知识种子支持 `--json --output reports/baseline-seed-{timestamp}.json` 留档，并补充明日 seed 前后留档口径。
+- **验证**:
+  - `python -m pytest tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` 通过
+  - `python -m ruff check scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py` 通过
+  - `python -m ruff format --check scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py` 通过
+  - `python scripts/seed_baseline_knowledge.py --json` 按预期只读输出当前本地知识库未就绪状态，且未写入数据库。
+  - `python scripts/check_project.py` 通过，当前覆盖率 70.45%
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 迁移脚本支持 JSON 留档
+- **操作人**: AI (Codex)
+- **背景**: preflight 与 smoke 已支持 JSON 留档、时间戳文件名和拒绝覆盖，但真正执行数据库结构修复的 `apply_migrations.py` 仍只有文本输出。明日同步生产时，迁移 dry-run 与 apply 结果也应可机器解析、可归档，避免只依赖终端复制。
+- **变更范围**:
+  - `scripts/apply_migrations.py` - 新增 `--json` 与 `--output`；JSON 顶层包含 `status`、`metadata` 和 `report`；输出文件带 UTF-8 BOM，支持 `{timestamp}` 展开，并拒绝覆盖已有报告。
+  - `tests/scripts/test_apply_migrations.py` - 补充 JSON stdout、JSON 文件写入、时间戳展开、拒绝覆盖、`--output` 必须配合 `--json`、help 文案等回归测试。
+  - `项目进度与配置清单.md` - 同步说明迁移脚本支持 `--json --output reports/migration-{timestamp}.json` 留档。
+- **验证**:
+  - `python -m pytest tests/scripts/test_apply_migrations.py -q --no-cov` 通过
+  - `python -m ruff check scripts/apply_migrations.py tests/scripts/test_apply_migrations.py` 通过
+  - `python -m ruff format --check scripts/apply_migrations.py tests/scripts/test_apply_migrations.py` 通过
+  - `python scripts/apply_migrations.py --json` 按预期只读输出当前本地缺失表，且 `applied=false`。
+  - `python scripts/check_project.py` 通过，当前覆盖率 70.45%
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 预检修复计划增加机器标识
+- **操作人**: AI (Codex)
+- **背景**: smoke 的 `recovery_hints` 已具备稳定 `key` 与 `severity`，但 preflight 的 `recovery_plan` 仍主要依赖中文标题和顺序识别。明日若将 preflight JSON 接入部署脚本或留档筛选，需要同样稳定的机器字段，并继续保留写操作风险标记。
+- **变更范围**:
+  - `scripts/preflight_production.py` - `PreflightPlanStep` 新增 `key` 与 `severity`；当前覆盖 `database_file`、`config`、`database_schema`、`knowledge_seed`、`embedding_cache`、`admin_dist`、`final_validation`；文本报告同步打印 `[severity] key`。
+  - `tests/scripts/test_preflight_production.py` - 补充 recovery plan 的 key/severity JSON 断言、文本输出断言，以及坏数据库和后台产物步骤的稳定标识断言。
+  - `项目进度与配置清单.md` - 同步说明 preflight 修复计划带稳定 `key`、`severity` 与 `apply_mutates_state`，便于部署脚本和值守归档识别。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/preflight_production.py --json` 按预期返回本地运行时缺口，并确认 `recovery_plan` 带 `key` / `severity` / `apply_mutates_state`。
+  - `python scripts/check_project.py` 通过，当前覆盖率 70.45%
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 冒烟恢复提示增加机器标识
+- **操作人**: AI (Codex)
+- **背景**: smoke 报告已能输出 `recovery_hints`，但提示主要靠中文标题识别。若明日把 JSON 留档接入部署脚本或后续自动归档，标题不如稳定 key 可靠，也缺少严重级别字段供快速筛选。
+- **变更范围**:
+  - `scripts/smoke_test.py` - `SmokeRecoveryHint` 新增 `key` 与 `severity`；当前覆盖 `database_knowledge`、`embedding_cache`、`production_config`、`admin_dist`、`service_unreachable`，文本报告同步打印 `[severity] key`。
+  - `tests/scripts/test_smoke_test.py` - 补充 recovery hint 的 key/severity 断言，以及文本输出中的稳定 key 断言。
+  - `项目进度与配置清单.md` - 同步说明 smoke 恢复提示带稳定 `key` 与 `severity`，便于部署脚本和值守归档筛选。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/smoke_test.py --json` 按预期返回本地运行时缺口，并确认 `recovery_hints` 带 `key` / `severity`。
+  - `python scripts/check_project.py` 通过，当前覆盖率 70.45%
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 冒烟报告增加恢复提示
+- **操作人**: AI (Codex)
+- **背景**: 冒烟 JSON 已能列出失败项，但缺少下一步动作；服务不可达时还会连带健康检查、就绪检查和观察台接口失败，值守时容易把同一根因误判成多条独立故障。明日同步生产前需要让 smoke 报告也像 preflight 一样可排障、可留档。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 新增 `SmokeRecoveryHint` 和 `build_recovery_hints()`，将数据库/知识、向量缓存、生产配置、后台产物、服务可达性失败归并为恢复提示；JSON 输出新增 `recovery_hints`，文本失败报告打印 `recovery_hints:`。
+  - `tests/scripts/test_smoke_test.py` - 补充恢复提示归并、服务不可达同根因提示、JSON 字段和文本输出断言。
+  - `项目进度与配置清单.md` - 同步说明 smoke 报告会归并恢复提示，避免把 HTTP 跳过项误判成多条独立故障。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/smoke_test.py --json` 按预期返回本地运行时缺口，并确认 `recovery_hints` 将 8 个失败归并为 4 条排障提示。
+  - `python scripts/check_project.py` 通过，当前覆盖率 70.45%
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 修复计划标记写操作风险
+- **操作人**: AI (Codex)
+- **背景**: 预检 `recovery_plan` 已区分 dry-run、apply 和 verify 命令，但 JSON 消费方和文本读者仍需要人工判断 apply 命令是否会写配置、写库、写向量或同步产物。明日同步生产前应把“是否改变状态”做成显式字段，减少复制命令时的误操作风险。
+- **变更范围**:
+  - `scripts/preflight_production.py` - `PreflightPlanStep` 新增 `apply_mutates_state`；配置补齐、数据库迁移、知识导入、向量重建、后台产物同步等步骤标记为 `true`，最终冒烟验证标记为 `false`；文本报告输出 `apply(mutates_state=yes/no)`。
+  - `tests/scripts/test_preflight_production.py` - 补充 recovery plan JSON 字段与文本输出断言，确保写操作标记持续存在。
+  - `项目进度与配置清单.md` - 同步说明修复计划带写操作标记，便于明日区分写入动作和纯验证动作。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py` 通过，当前覆盖率 70.45%
+  - `python scripts/preflight_production.py` 按预期返回本地运行时缺口，并确认文本计划输出 `apply(mutates_state=yes/no)`
+  - `python scripts/preflight_production.py --json` 按预期返回本地运行时缺口，并确认计划步骤带 `apply_mutates_state`
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 预检留档记录最终冒烟目标
+- **操作人**: AI (Codex)
+- **背景**: 预检报告可以通过 `--smoke-base-url` 生成生产域名版 smoke 命令，但 metadata 只记录 DB、向量路径和版本号。若只看报告元信息，无法快速确认最终 smoke 将打向哪个服务根地址。
+- **变更范围**:
+  - `scripts/preflight_production.py` - `metadata` 新增 `smoke_base_url`；文本报告同步输出 `smoke_base_url=<...>`。
+  - `tests/scripts/test_preflight_production.py` - 更新 JSON/text metadata 断言，并覆盖自定义 `--smoke-base-url` 会写入 metadata。
+  - `项目进度与配置清单.md` - 同步预检留档元信息说明，明确 metadata 包含最终 smoke 服务根地址。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 预检冒烟域名参数增加根地址校验
+- **操作人**: AI (Codex)
+- **背景**: `--smoke-base-url` 可以让 recovery plan 直接输出生产域名版冒烟命令，但如果误填 `https://domain/ready` 或非 http(s) 地址，报告会生成不可用的 smoke 命令。同步生产前应在 preflight 阶段就拒绝错误根地址。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `validate_smoke_base_url()`，要求 `--smoke-base-url` 为 `http(s)://host[:port]` 根地址；非法时返回 `exit=2`，不继续生成报告。
+  - `tests/scripts/test_preflight_production.py` - 新增非法 `--smoke-base-url` 拒绝测试，防止误把带路径的 URL 写入 recovery plan。
+  - `项目进度与配置清单.md` - 同步说明 `--smoke-base-url` 只能填根地址，不能带 `/ready`、参数或查询串。
+- **验证**:
+  - `python -m py_compile scripts/preflight_production.py` 通过
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format scripts/preflight_production.py` 已执行
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - feat(ops): 预检修复计划支持冒烟域名覆盖
+- **操作人**: AI (Codex)
+- **背景**: `recovery_plan` 的最终冒烟命令默认使用 `http://127.0.0.1:7001`，生产域名验证时仍需要手动替换 `--base-url`。明天同步生产时，手动替换容易漏掉文本命令或 JSON 留档命令中的一处。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `--smoke-base-url` 参数，只影响报告中的最终 smoke 命令，不改变本次预检目标；默认值保持 `http://127.0.0.1:7001`。
+  - `tests/scripts/test_preflight_production.py` - 增加自定义 smoke base-url 的恢复计划断言，确保文本冒烟和 JSON 留档命令都使用覆盖值。
+  - `项目进度与配置清单.md` - 同步明日可复制口径，提示生产域名验证时给 preflight 追加 `--smoke-base-url <实际生产域名>`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - docs(ops): 同步最终冒烟命令口径
+- **操作人**: AI (Codex)
+- **背景**: `recovery_plan` 已将最终文本冒烟命令改为携带 `--base-url`、`--db-path` 和 `--index-path`，但项目进度清单仍写着运行裸 `python scripts/smoke_test.py`。明天按清单操作时可能绕过计划命令，导致文本冒烟检查 `.env` 默认路径。
+- **变更范围**:
+  - `项目进度与配置清单.md` - 将最终验证说明改为“运行 recovery plan 输出的完整文本冒烟命令”，并同步 JSON 留档命令口径。
+- **验证**:
+  - `python scripts/preflight_production.py --json` 已确认最终计划文本冒烟和 JSON 留档命令均携带 `--base-url`、`--db-path`、`--index-path`。
+- **注意**:
+  - 本轮仅本地文档修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 最终文本冒烟命令对齐目标路径
+- **操作人**: AI (Codex)
+- **背景**: `recovery_plan` 的最终 JSON 留档命令已经带 `--base-url`、`--db-path` 和 `--index-path`，但文本冒烟命令仍是裸 `python scripts/smoke_test.py`。明天如果先按文本命令验收，可能误查 `.env` 默认路径，而不是前面预检和修复使用的目标库与向量目录。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增文本 smoke 命令构造函数，最终上线验证步骤的 `apply_command` 也带上同一组 `--base-url`、`--db-path`、`--index-path`。
+  - `tests/scripts/test_preflight_production.py` - 更新恢复计划断言，确保文本冒烟和 JSON 留档命令持续对准同一目标。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 冒烟文本报告补充元信息
+- **操作人**: AI (Codex)
+- **背景**: 冒烟 JSON 留档已经包含版本号、目标库、向量路径和服务地址，但 `python scripts/smoke_test.py` 默认文本输出仍只有 PASS/FAIL 明细。明天若直接复制终端输出排障，缺少检查目标和版本会降低追溯性。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 默认文本报告开头输出 `generated_at`、`project_root`、`db_path`、`index_path`、`server_base_url`、`app_version`、`total/failed`，再打印逐项 PASS/FAIL。
+  - `tests/scripts/test_smoke_test.py` - 补充文本报告断言，防止后续改动误删元信息头。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 冒烟留档补充版本号
+- **操作人**: AI (Codex)
+- **背景**: 生产预检 JSON 已在 metadata 中记录 `app_version`，但最终冒烟 JSON 留档只记录路径和服务地址。明天同步生产后，如果只查看 smoke 报告，缺少版本号会降低追溯性。
+- **变更范围**:
+  - `scripts/smoke_test.py` - JSON metadata 追加 `app_version`，与 preflight 报告使用同一个 `APP_VERSION` 来源。
+  - `tests/scripts/test_smoke_test.py` - 更新 metadata 断言，确保 smoke 留档持续包含版本号。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(ops): 向量缓存坏文件诊断输出增强
+- **操作人**: AI (Codex)
+- **背景**: 向量缓存就绪门禁已经能识别坏 `.npy/.json`，但 preflight 和 smoke 的失败 detail 仍偏笼统，值班时不容易一眼区分“缺文件”和“文件存在但缓存损坏”。同步生产前需要让报告更像排障单，减少明天手工判断成本。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 向量缓存文件都存在但不可读或元数据不合法时，`embedding.cache_files` 的 detail 改为 `invalid_cache=<npy>, <json>`，action 保持先 dry-run 再确认路径后重建。
+  - `scripts/smoke_test.py` - `check_embedding_file()` 区分 `missing=<paths>` 与 `invalid_cache=<paths>`，文件有效时返回 `ready=<paths>`。
+  - `tests/scripts/test_preflight_production.py` / `tests/scripts/test_smoke_test.py` - 新增坏缓存诊断断言，确保报告能明确暴露 `invalid_cache`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py scripts/smoke_test.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py scripts/smoke_test.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率保持 70.45%。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(readiness): 向量缓存 metadata 非对象安全降级
+- **操作人**: AI (Codex)
+- **背景**: 向量缓存就绪检查已校验 `.npy/.json` 可读，但若 JSON 顶层是数组或字符串等非对象结构，直接访问 `meta.get(...)` 可能让 `/ready` 或 preflight 抛异常。生产就绪检查应把坏缓存稳定判定为未就绪，而不是让健康检查接口异常。
+- **变更范围**:
+  - `app/readiness.py` - `embedding_index_files_exist()` 在读取 JSON 后先校验顶层必须是 `dict`，否则返回 `False`。
+  - `tests/test_health_ready.py` - 新增 JSON 顶层非对象元数据的回归测试，确保坏缓存不会通过就绪门禁，也不会抛异常。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py -q --no-cov` 通过
+  - `python -m ruff check app/readiness.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check app/readiness.py tests/test_health_ready.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率提升到 70.45%。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(readiness): 向量缓存就绪检查校验文件有效性
+- **操作人**: AI (Codex)
+- **背景**: `/ready`、preflight 和 smoke 之前只检查 `embeddings.npy/json` 是否存在，若文件损坏或 JSON 元数据结构不合法，可能出现“就绪检查通过但启动加载失败”的误判。生产同步前需要让就绪门禁与实际加载行为更一致。
+- **变更范围**:
+  - `app/readiness.py` - `embedding_index_files_exist()` 升级为只读有效性校验：要求 `.npy` 可被 `numpy.load(..., allow_pickle=False)` 打开，`.json` 可解析，且包含合法 `doc_keys` 列表与 `ready` 布尔值。
+  - `scripts/preflight_production.py` - 当向量缓存文件存在但不可读或元数据不合法时，输出明确 action，提示先 dry-run 再确认目标路径执行重建。
+  - `tests/test_health_ready.py` / `tests/scripts/test_preflight_production.py` / `tests/scripts/test_smoke_test.py` / `tests/scripts/test_rebuild_embeddings.py` - 将测试中的假 `.npy` 改为真实 numpy 缓存，并新增坏 `.npy` 与坏 metadata 拒绝用例。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_rebuild_embeddings.py -q --no-cov` 通过
+  - `python -m ruff check app/readiness.py scripts/preflight_production.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python -m ruff format --check app/readiness.py scripts/preflight_production.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率提升到 70.44%。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - fix(embedding): 向量缓存加载失败不再卡 loading
+- **操作人**: AI (Codex)
+- **背景**: 生产启动时向量服务会先尝试加载本地 `.npy/.json` 缓存。若缓存缺失或损坏，原逻辑会把 `_init_progress.status` 留在 `loading`，后台进度页和状态接口容易表现为“一直加载中”，不利于上线排障和重试判断。
+- **变更范围**:
+  - `app/service/embedding_io.py` - `load_index()` 在缓存文件缺失或加载异常时，将 `_ready=False` 且 `_init_progress.status=failed`，让后台状态明确进入失败/可重试分支。
+  - `tests/service/test_embedding_io.py` - 新增缺缓存文件、坏缓存元数据两条回归测试，防止后续再次卡在 `loading`。
+- **验证**:
+  - `python -m pytest tests/service/test_embedding_io.py -q --no-cov` 通过
+  - `python -m ruff check app/service/embedding_io.py tests/service/test_embedding_io.py` 通过
+  - `python -m ruff format --check app/service/embedding_io.py tests/service/test_embedding_io.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率提升到 70.39%。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - test(service): AI 降级转人工边界补测
+- **操作人**: AI (Codex)
+- **背景**: 生产客服热路径里，LLM API 异常、解析异常或工具轮次耗尽后必须自动转人工，且埋点失败不能影响给客户的回复。全量覆盖率此前刚好卡在 70% 门禁线上，继续补强这条热路径能同时提升生产信心和测试余量。
+- **变更范围**:
+  - `tests/service/test_chat_ai_failure.py` - 新增 AI 降级自动转人工边界单元测试，覆盖转人工成功返回接手话术、转人工失败回退兜底话术、埋点异常不影响客户回复。
+- **验证**:
+  - `python -m pytest tests/service/test_chat_ai_failure.py -q --no-cov` 通过
+  - `python -m ruff check tests/service/test_chat_ai_failure.py app/service/chat_ai_failure.py` 通过
+  - `python -m ruff format --check tests/service/test_chat_ai_failure.py app/service/chat_ai_failure.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率提升到 70.29%。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - test(ops): 向量重建脚本拒绝坏库 apply
+- **操作人**: AI (Codex)
+- **背景**: 上线前向量重建脚本会在 `--apply` 模式下写入 `.npy/.json` 缓存。如果目标数据库损坏或不是 SQLite 文件，脚本必须失败退出并且不得生成新的向量缓存，避免把错误状态包装成“缓存已生成”。
+- **变更范围**:
+  - `tests/scripts/test_rebuild_embeddings.py` - 新增坏库文件在 `--apply` 模式下的安全回归测试，断言返回失败、原数据库内容不变、不会生成 `.npy/.json`，且只提示先执行迁移 dry-run。
+- **验证**:
+  - `python -m pytest tests/scripts/test_rebuild_embeddings.py -q --no-cov` 通过
+  - `python -m ruff check tests/scripts/test_rebuild_embeddings.py scripts/rebuild_embeddings.py` 通过
+  - `python -m ruff format --check tests/scripts/test_rebuild_embeddings.py scripts/rebuild_embeddings.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - test(ops): 基础知识种子脚本拒绝坏库 apply
+- **操作人**: AI (Codex)
+- **背景**: 上线前脚本允许通过 `--apply` 写入基础客服知识，但如果目标 `bot.db` 是损坏或非 SQLite 文件，脚本必须失败退出并保留原文件内容，不能误写、重建或引导继续执行后续向量重建。
+- **变更范围**:
+  - `tests/scripts/test_seed_baseline_knowledge.py` - 新增坏库文件在 `--apply` 模式下的安全回归测试，断言返回失败、原文件内容不变、只提示先执行迁移 dry-run，不提示 seed 或 embedding 的 apply 操作。
+- **验证**:
+  - `python -m pytest tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` 通过
+  - `python -m ruff check tests/scripts/test_seed_baseline_knowledge.py scripts/seed_baseline_knowledge.py` 通过
+  - `python -m ruff format --check tests/scripts/test_seed_baseline_knowledge.py scripts/seed_baseline_knowledge.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+  - `python scripts/preflight_production.py --json` 只读预检按预期失败 6 项：数据库结构、知识数据、向量缓存和人工接手人配置仍需在同步生产前补齐。
+  - `python scripts/smoke_test.py --json --base-url http://127.0.0.1:7001 --db-path data/bot.db --index-path data/embeddings` 只读冒烟按预期失败 8 项：上述运行态缺口外，本地 `127.0.0.1:7001` 服务未启动，HTTP 检查被安全跳过。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - test(security): 预检与冒烟报告禁止泄露密钥值
+- **操作人**: AI (Codex)
+- **背景**: 上线前预检和冒烟报告会被保存到 `reports/` 或交给部署脚本解析，报告里可以出现配置项名称、状态和修复动作，但不能把 `.env` 中的 token、API key、client secret 等明文带出去。为了防止后续改动误把密钥值写入 JSON 报告，需要增加自动化测试护栏。
+- **变更范围**:
+  - `tests/scripts/test_preflight_production.py` - 新增 JSON 报告敏感值不泄露测试，模拟 `ADMIN_API_TOKEN`、`MIMO_API_KEY`、`YOUZAN_CLIENT_SECRET`、`WECOM_TOKEN` 明文值，并断言 `build_json_report()` 输出不包含这些值。
+  - `tests/scripts/test_smoke_test.py` - 新增冒烟 JSON 报告敏感值不泄露测试，覆盖关键配置检查、通道配置检查和观察台失败摘要组合下的报告输出。
+  - 两个脚本测试共用本地断言函数，只检查报告序列化后的最终 JSON 字符串，避免只验证局部字段导致漏报。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+  - `python scripts/preflight_production.py --json` 仍按预期返回 `total=22 failed=6`，失败项仍为本地数据库迁移、知识数据、向量缓存和人工接手人配置缺口。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - chore(ops): 冒烟报告支持临时 DB 与向量路径
+- **操作人**: AI (Codex)
+- **背景**: 生产预检已经支持 `--db-path` / `--index-path`，但最终冒烟仍读取 `.env` 默认路径。明天同步生产后，如果先对生产快照、临时库或指定向量目录做最终验收，预检与冒烟可能检查不同文件。为了让上线闭环更严谨，冒烟脚本需要支持同一组临时路径覆盖，并让 `recovery_plan` 自动把目标路径带入最终留档命令。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 新增 `--db-path` 与 `--index-path` 参数；本次进程内临时覆盖数据库和向量索引基路径，不改写 `.env`，不执行迁移，不重建向量。
+  - `scripts/smoke_test.py` - 新增 `SmokeRuntimePaths` 覆盖层，数据库文件、表结构、知识有效行、向量缓存和 JSON metadata 统一读取同一组运行时路径。
+  - `scripts/preflight_production.py` - `recovery_plan` 最终验证命令增加 `--db-path "<目标库路径>" --index-path "<向量索引基路径>"`，确保预检和冒烟对准同一目标文件。
+  - `项目进度与配置清单.md` - 同步明日可复制的 smoke 留档命令，提示生产域名验证时替换 `--base-url`，目标库和向量路径由计划命令带出。
+  - `tests/scripts/test_smoke_test.py` / `tests/scripts/test_preflight_production.py` - 覆盖路径覆盖不污染 settings、JSON metadata 记录目标路径、帮助文案暴露参数、预检最终验证命令携带目标路径。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py scripts/preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py scripts/preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/preflight_production.py --json` 仍按预期返回 `total=22 failed=6`，最终验证命令已包含 `--base-url`、`--db-path` 和 `--index-path`。
+  - `python scripts/smoke_test.py --json --base-url http://127.0.0.1:7001 --db-path data/bot.db --index-path data/embeddings` 返回失败；metadata 记录目标 DB、向量路径和服务地址，失败项仍为本地数据/配置缺口和本机服务不可达。
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - chore(ops): 冒烟报告支持临时 base-url
+- **操作人**: AI (Codex)
+- **背景**: 明天同步生产后，需要能直接对本机、测试机或生产域名跑同一套冒烟报告；如果只能依赖 `.env` 中的 `SERVER_HOST/SERVER_PORT`，临时切换目标容易改错配置或污染本地环境。为了让上线后验证更安全，冒烟脚本需要支持命令行临时覆盖目标服务根地址。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 新增 `--base-url` 参数，支持 `http(s)://host[:port]` 根地址覆盖本次冒烟目标；该参数只影响当前进程的服务端口探针、HTTP 请求和 JSON metadata，不改写 `.env` 或 `settings`。
+  - `scripts/smoke_test.py` - 新增 `SmokeTarget` 与严格 URL 校验；拒绝包含路径、参数或查询串的 `--base-url`，避免把 `/ready` 等路径拼错到所有检查项。
+  - `scripts/preflight_production.py` - `recovery_plan` 最终验证命令改为 `python scripts/smoke_test.py --json --base-url http://127.0.0.1:7001 --output reports/smoke-after-{timestamp}.json`，生产同步后可替换为真实域名。
+  - `项目进度与配置清单.md` - 同步明日可复制命令，并说明生产域名验证时替换 `--base-url`。
+  - `tests/scripts/test_smoke_test.py` / `tests/scripts/test_preflight_production.py` - 覆盖 URL 解析、非法 base-url 拒绝、CLI metadata 覆盖、不污染 settings、预检恢复计划命令。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py scripts/preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py scripts/preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/smoke_test.py --json --base-url http://127.0.0.1:7001` 返回失败；metadata 中 `server_base_url=http://127.0.0.1:7001`，失败项仍为本地数据/配置缺口和本机服务不可达。
+  - `python scripts/smoke_test.py --base-url https://bot.example.com/ready` 返回 `exit=2` 并提示 `--base-url` 只接受根地址。
+  - `python scripts/preflight_production.py --json` 仍按预期返回 `total=22 failed=6`，最终验证命令已包含 `--base-url http://127.0.0.1:7001`。
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - chore(ops): 冒烟脚本增加服务端口探针
+- **操作人**: AI (Codex)
+- **背景**: 本地冒烟在服务未启动时会分别等待健康、就绪、观察台摘要 3 个 HTTP 请求超时，失败报告容易把“服务没起来”和“接口自身异常”混在一起。为了让明天同步生产后的排障更快，冒烟脚本需要先做服务端口可达性探测，再决定是否继续 HTTP 端点检查。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 新增 `服务端口可达性` 检查，通过 `asyncio.open_connection()` 快速探测 `SERVER_HOST:SERVER_PORT`；不可达时保留健康、就绪、观察台摘要 3 个检查项，但统一标记为“服务不可达，已跳过 HTTP 接口检查”。
+  - `scripts/smoke_test.py` - 统一服务 URL 构建逻辑，报告 metadata 和 HTTP 端点调用使用同一个 `server_base_url` 来源。
+  - `tests/scripts/test_smoke_test.py` - 覆盖可达探测会关闭 socket writer、不可达时生成统一跳过原因、不可达时不会打开 `httpx.AsyncClient`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/smoke_test.py --json` 返回失败；新增 `服务端口可达性` 失败项，后续 3 个 HTTP 检查统一显示服务不可达并跳过，未再出现分散的 `ReadTimeout`。
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+  - `python scripts/preflight_production.py --json` 仍按预期返回 `total=22 failed=6`，失败项仍为本地数据库迁移、知识数据、向量缓存和人工接手人配置缺口。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - chore(test): 收口 SQLite 连接资源释放
+- **操作人**: AI (Codex)
+- **背景**: 生产化门禁补强后，部分同步 SQLite 连接虽然通过上下文管理器提交事务，但进程退出前仍可能触发 `ResourceWarning`。为了让本地预检和脚本测试更接近生产级可观测标准，需要显式关闭只读体检、检索评估和报表脚本中的连接，并用严格告警模式验证。
+- **变更范围**:
+  - `app/readiness.py` - 继续保持 `/ready` 只做只读依赖检查，并通过 `contextlib.closing()` 明确释放 SQLite 连接。
+  - `scripts/eval_retrieval.py` / `scripts/report_youzan_webhook_events.py` - 将同步 SQLite 访问收口为显式关闭模式，避免评估和报表脚本留下未释放连接。
+  - `tests/scripts/test_smoke_test.py` / `tests/scripts/test_eval_retrieval.py` - 测试夹具和断言路径同步关闭连接，确保严格 `ResourceWarning` 模式下不被测试自身污染。
+- **验证**:
+  - `python -m pytest tests/scripts/test_eval_retrieval.py tests/test_health_ready.py tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -W error::ResourceWarning -m pytest tests/scripts/test_eval_retrieval.py tests/test_health_ready.py tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check app/readiness.py tests/scripts/test_smoke_test.py scripts/eval_retrieval.py scripts/report_youzan_webhook_events.py tests/scripts/test_eval_retrieval.py` 通过
+  - `python -m ruff format --check app/readiness.py tests/scripts/test_smoke_test.py scripts/eval_retrieval.py scripts/report_youzan_webhook_events.py tests/scripts/test_eval_retrieval.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，全量测试通过，覆盖率达到 70% 门禁。
+  - `python scripts/preflight_production.py --json` 仍按预期返回 `total=22 failed=6`，失败项为本地数据库迁移、知识数据、向量缓存和人工接手人配置缺口。
+  - `python scripts/smoke_test.py --json` 返回失败；除上述本地数据/配置缺口外，当前本机 `127.0.0.1:7001` 未提供可用服务，健康、就绪和观察台摘要接口请求超时。
+  - `git diff --check` 通过，仅有 Windows 工作区 LF/CRLF 换行提示。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对本地数据库、向量缓存或生产环境执行任何写入型 apply 操作。
+
+## [2026-06-11] - test(prod): 补强生产入口与通道覆盖率门禁
+- **操作人**: AI (Codex)
+- **背景**: 本地生产级体检时，红线检查已通过，但项目自带 `scripts/check_project.py` 会因全量测试覆盖率低于 70% 而失败；同时部分上线关键胶水层、企微客服 API、商品对账和后台对账路由缺少可执行规格。为了让明日同步生产前的本地门禁更可靠，需要补齐这些生产路径测试，并清理脚本测试中的 SQLite 连接资源警告。
+- **变更范围**:
+  - `tests/service/wecom/test_client_kf.py` - 新增企微客服 API mixin 测试，覆盖文本/图文/事件回复、客户展示名、临时素材上传下载、`sync_msg`、会话状态保护、人工转接和接待人兜底查询。
+  - `tests/service/youzan/test_product_reconciler.py` - 新增商品全量对账测试，覆盖有赞下架后本地软下架、知识库联动、销量同步、单条异常不中断整轮对账。
+  - `tests/test_lifespan_routes_services.py` - 新增 lifespan 路由注册与服务装配测试，确认启动时 worker 被启动、后台路由被注册、核心 service 依赖按预期注入。
+  - `tests/test_main_runtime.py` - 新增应用入口测试，覆盖启动安全检查、请求级数据库 session 中间件、全局异常处理、`/health`、`/ready`、静态校验文件、favicon 和 shutdown 清理。
+  - `tests/api/test_admin_products.py` / `tests/api/test_channel_router.py` - 新增后台商品对账路由和多渠道 router 注册协议测试。
+  - `scripts/preflight_production.py` / `scripts/smoke_test.py` / `scripts/seed_baseline_knowledge.py` 及相关脚本测试 - 用 `contextlib.closing()` 明确关闭同步 SQLite 连接，避免 `with sqlite3.connect(...)` 只提交事务但不关闭连接的 ResourceWarning。
+- **验证**:
+  - `python -m pytest tests/api/test_channel_router.py tests/api/test_admin_products.py tests/test_main_runtime.py tests/test_lifespan_routes_services.py tests/service/youzan/test_product_reconciler.py tests/service/wecom/test_client_kf.py -q --no-cov` 通过
+  - `python -m ruff check tests/api/test_channel_router.py tests/api/test_admin_products.py tests/test_main_runtime.py tests/test_lifespan_routes_services.py tests/service/youzan/test_product_reconciler.py tests/service/wecom/test_client_kf.py scripts/preflight_production.py scripts/smoke_test.py scripts/seed_baseline_knowledge.py tests/scripts/test_preflight_production.py tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check tests/api/test_channel_router.py tests/api/test_admin_products.py tests/test_main_runtime.py tests/test_lifespan_routes_services.py tests/service/youzan/test_product_reconciler.py tests/service/wecom/test_client_kf.py scripts/preflight_production.py scripts/smoke_test.py scripts/seed_baseline_knowledge.py tests/scripts/test_preflight_production.py tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/test_health_ready.py` 通过
+  - `python scripts/check_project.py` 通过；红线检查全 PASS，覆盖率门禁不再阻断，仍保留既有函数体过长 warning 作为存量技术债。
+  - `python scripts/preflight_production.py --json` 仍按预期返回 `total=22 failed=6`，失败项为本地数据库迁移、知识数据、向量缓存和人工接手人配置缺口。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): output 路径支持 timestamp 模板
+- **操作人**: AI (Codex)
+- **背景**: 报告文件名推荐使用时间戳占位后，仍需要人工把 `YYYYMMDD-HHMMSS` 替换成实际时间，复制命令时容易遗漏。为了让明日同步生产时命令可以直接执行，`--output` 需要支持自动展开时间戳模板；同时脚本自身 action 文案需要继续避免绕过 dry-run 直接写入生产。
+- **变更范围**:
+  - `scripts/preflight_production.py` / `scripts/smoke_test.py` - `--output` 路径支持 `{timestamp}`，运行时自动展开为 `YYYYMMDD-HHMMSS`；检查覆盖和写入使用同一个展开后路径。
+  - `scripts/preflight_production.py` / `scripts/smoke_test.py` - `--help` 明确展示 `{timestamp}` 模板能力，降低明日复制命令时的理解成本。
+  - `scripts/preflight_production.py` - `recovery_plan` 最终验证命令改为 `reports/smoke-after-{timestamp}.json`。
+  - `scripts/apply_migrations.py` - dry-run action 统一为先确认目标库路径，再显式 `--apply`；`--help` 保持提示生产迁移已有库不要使用 `--allow-create`。
+  - `scripts/preflight_production.py` / `scripts/apply_migrations.py` - 目标 DB 文件存在但不是可读 SQLite 时，单独标记为数据库文件不可读，提示先核对路径或恢复文件，不再生成普通迁移、知识导入或向量重建 apply 路径。
+  - `scripts/preflight_production.py` - 坏 DB 场景下知识库有效数据检查同步提示先修复数据库文件，不再在单项 action 中提示 seed 写入。
+  - `scripts/smoke_test.py` - 最终冒烟在目标 DB 文件不可读时返回 `database_not_readable`，提示核对 `DB_PATH` 或恢复数据库，而不是混成普通缺表或查询失败。
+  - `scripts/seed_baseline_knowledge.py` / `scripts/rebuild_embeddings.py` - dry-run action 明确要求先确认目标库/向量路径，再显式 `--apply`；缺少数据库结构时提示先跑迁移 dry-run；基础知识脚本遇到非 SQLite 文件时返回明确失败报告而非 traceback；基础知识写入成功后提示先跑向量重建 dry-run。
+  - `tests/scripts/test_preflight_production.py` / `tests/scripts/test_smoke_test.py` / `tests/scripts/test_apply_migrations.py` / `tests/scripts/test_seed_baseline_knowledge.py` / `tests/scripts/test_rebuild_embeddings.py` - 覆盖 `{timestamp}` 展开、帮助文案、最终计划命令和防误写 action。
+  - `项目进度与配置清单.md` - 同步明日可直接复制的留档命令。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/apply_migrations.py tests/scripts/test_apply_migrations.py scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/apply_migrations.py tests/scripts/test_apply_migrations.py scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - 临时坏数据库真实验证：将 `DB_PATH` 指向非 SQLite 临时文件运行 `python scripts/smoke_test.py --json`，数据库表结构与知识库数据均返回 `database_not_readable; verify DB_PATH or restore database file`，未写入默认 `data/bot.db`。
+  - `python scripts/preflight_production.py --json` 输出的最终验证步骤已指向 `reports/smoke-after-{timestamp}.json`。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(preflight): 留档文件名推荐使用时间戳占位
+- **操作人**: AI (Codex)
+- **背景**: `--output` 会拒绝覆盖已有报告，能保护上线留档；但 `recovery_plan` 和清单示例使用固定文件名时，明日重复跑预检或冒烟可能因为文件已存在而中断。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 最终上线验证步骤的 `verify_command` 改为推荐 `reports/smoke-after-YYYYMMDD-HHMMSS.json`。
+  - `tests/scripts/test_preflight_production.py` - 更新最终计划断言。
+  - `项目进度与配置清单.md` - 预检前、冒烟后和 PowerShell 读取示例统一使用带时间戳占位的报告名。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/preflight_production.py --json` 输出的最终验证步骤已指向 `reports/smoke-after-YYYYMMDD-HHMMSS.json`。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): JSON 留档文件改为 Windows 友好编码
+- **操作人**: AI (Codex)
+- **背景**: `--json --output` 已能写入留档文件，但 Windows PowerShell/双击查看场景可能按本地默认编码读取 UTF-8 中文报告，导致中文字段乱码甚至 `ConvertFrom-Json` 解析失败。
+- **变更范围**:
+  - `scripts/preflight_production.py` / `scripts/smoke_test.py` - `--output` 写入的 JSON 文件增加 UTF-8 BOM；stdout JSON 保持无 BOM，方便命令管道和部署脚本消费。
+  - `tests/scripts/test_preflight_production.py` / `tests/scripts/test_smoke_test.py` - 断言留档文件以 BOM 开头，并使用 `utf-8-sig` 解析 JSON。
+  - `项目进度与配置清单.md` - 同步说明留档文件已更适配 Windows，仍建议脚本读取时显式指定 UTF-8。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（41 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - 临时真实验证：`python scripts/preflight_production.py --json --output <file>` 生成的文件以 UTF-8 BOM 开头，并可用 `utf-8-sig` 正常解析。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(preflight): 最终冒烟计划默认写入留档文件
+- **操作人**: AI (Codex)
+- **背景**: JSON 报告已支持 `--output` 安全写入，但 `recovery_plan` 最终验证步骤仍只提示 `smoke_test.py --json`，明日按计划执行时还需要手动补留档路径。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 最终上线验证步骤的 `verify_command` 改为 `python scripts/smoke_test.py --json --output reports/smoke-after.json`。
+  - `tests/scripts/test_preflight_production.py` - 更新最终计划断言，确保 `recovery_plan` 默认串到安全留档文件。
+  - `项目进度与配置清单.md` - 同步明日操作说明。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/preflight_production.py --json` 可输出 5 步修复计划，最后一步 `verify_command` 指向 `reports/smoke-after.json`。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): JSON 报告支持安全写入留档文件
+- **操作人**: AI (Codex)
+- **背景**: 预检和冒烟都已支持 JSON 输出，但明日同步生产时如果靠终端复制保存，容易遗漏或覆盖上线前后报告。需要让脚本直接写入指定留档文件，并避免误覆盖旧报告。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `--output <path>`，仅允许配合 `--json` 使用；目标文件已存在时立即返回 2 并拒绝覆盖；正常写入时自动创建父目录。
+  - `scripts/smoke_test.py` - 同步新增 `--output <path>`，并在运行冒烟检查前先检查目标文件是否已存在，避免等待 HTTP 超时后才发现不能写入。
+  - `tests/scripts/test_preflight_production.py` / `tests/scripts/test_smoke_test.py` - 覆盖 JSON 报告写文件、拒绝覆盖、`--output` 必须搭配 `--json`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（41 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - 临时目录真实验证：`preflight_production.py --json --output <file>` 与 `smoke_test.py --json --output <file>` 均能创建 UTF-8 JSON 报告；已有文件时两个命令均快速返回 `exit=2`，不覆盖旧报告。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+  - PowerShell 读取这些 UTF-8 JSON 报告时请显式指定 UTF-8，避免中文内容被默认编码读坏。
+
+## [2026-06-11] - chore(preflight): 修复计划串联最终冒烟留档
+- **操作人**: AI (Codex)
+- **背景**: `scripts/smoke_test.py --json` 已能输出最终冒烟留档报告，但 `scripts/preflight_production.py` 的 `recovery_plan` 最后一步仍只提示文本冒烟，容易让明日同步生产时漏保存最终验证报告。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 最终上线验证步骤的 `verify_command` 改为 `python scripts/smoke_test.py --json`，让预检修复计划自然串到最终冒烟留档。
+  - `tests/scripts/test_preflight_production.py` - 增加最终计划步骤断言，确保文本冒烟和 JSON 冒烟留档命令同时保留。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（35 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/preflight_production.py --json` 可输出修复计划，最后一步 `verify_command=python scripts/smoke_test.py --json`；当前本地仍为 `total=22 failed=6`。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(smoke): 冒烟脚本增加 JSON 留档输出
+- **操作人**: AI (Codex)
+- **背景**: 生产预检已支持 `--json` 留档，但最终冒烟脚本仍只输出文本。明日同步生产后，如果要把上线验证结果保存到部署记录或让脚本解析失败项，需要结构化输出。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 新增 `--json` 参数；输出 `status`、`metadata`、`total`、`failed`、逐项 `results` 和 `failed_names`。元信息包含生成时间、项目根、实际数据库路径、向量索引路径和服务地址。
+  - `scripts/smoke_test.py` - HTTP 请求异常详情兜底显示异常类型，避免服务未启动或超时时输出空白错误。
+  - `tests/scripts/test_smoke_test.py` - 覆盖 `SmokeResult` 序列化、JSON 报告结构、默认文本输出、`--json` 输出和 HTTP 空异常详情兜底。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过（23 passed）
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/smoke_test.py --json` 可输出机器可读报告；当前本地为 `total=12 failed=7`，失败项来自本地真实缺口：数据库缺表、知识库为空、向量缓存缺失、人工接手人缺失、服务接口超时。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(preflight): 预检失败提示统一防误写口径
+- **操作人**: AI (Codex)
+- **背景**: `recovery_plan` 已经按 dry-run → 确认路径 → 显式 `--apply` 输出上线修复顺序，但部分单项 action 仍直接提到 `seed_baseline_knowledge.py --apply` 或 `rebuild_embeddings.py --apply`，明日人工按单项失败处理时有跳过 dry-run 的风险。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 知识库和向量缓存失败 action 统一提示先查看 `recovery_plan` 或运行 dry-run，确认目标库/目标路径后再显式 `--apply`。
+  - `tests/scripts/test_preflight_production.py` - 增加防回归断言，覆盖知识库、向量缓存和数据库 schema action 必须包含 dry-run / recovery_plan 口径。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过（12 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(preflight): 预检报告增加留档元信息
+- **操作人**: AI (Codex)
+- **背景**: 明日同步生产时，`scripts/preflight_production.py --json` 适合保存为上线前后留档，但原 JSON 只包含检查项和修复计划，缺少生成时间、实际检查路径和版本号。后续复盘时容易分不清检查的是哪个数据库快照或向量索引路径。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `build_report_metadata()`；文本报告和 JSON 报告都输出 `generated_at`、`project_root`、`database_path`、`index_path`、`app_version`。
+  - `tests/scripts/test_preflight_production.py` - 固定时间测试 JSON 和文本报告元信息，覆盖路径覆盖参数与版本号输出。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过（12 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/test_config.py tests/test_health_ready.py -q --no-cov` 通过（64 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过（仅 `.ruff_cache` 写入权限 warning）
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过（仅 `.ruff_cache` 写入权限 warning）
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - `python scripts/preflight_production.py --json` 仍为 `total=22 failed=6`，并已在顶层输出 `metadata`。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 迁移脚本防误建新库
+- **操作人**: AI (Codex)
+- **背景**: `scripts/apply_migrations.py --apply` 原本会在目标库不存在时直接创建新 SQLite 文件。明日同步生产时，如果 `--db-path` 拼错，可能误建空库并报告迁移成功，掩盖真正生产库未被迁移的风险。
+- **变更范围**:
+  - `scripts/apply_migrations.py` - 新增 `--allow-create`；默认 `--apply` 遇到目标库不存在会拒绝创建并输出 `refused_missing_database=True`，提示先核对 `--db-path`，只有显式 `--allow-create` 才允许创建新库。
+  - `scripts/preflight_production.py` - `recovery_plan` 中的迁移 apply 命令仅在目标库文件缺失时追加 `--allow-create`；已有库缺表时仍保持普通 `--apply`。
+  - `tests/scripts/test_apply_migrations.py` / `tests/scripts/test_preflight_production.py` - 覆盖默认拒绝误建库、显式允许创建库、预检计划只在库缺失时追加 `--allow-create`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（17 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/test_config.py tests/test_health_ready.py -q --no-cov` 通过（63 passed）
+  - `python -m ruff check scripts/apply_migrations.py scripts/preflight_production.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/apply_migrations.py scripts/preflight_production.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - `python scripts/preflight_production.py --json` 仍为 `total=22 failed=6`，本地库文件存在，因此迁移计划 apply 命令不携带 `--allow-create`，符合预期。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(smoke): 冒烟脚本路径与知识表缺失兜底
+- **操作人**: AI (Codex)
+- **背景**: 明日同步生产时 `scripts/smoke_test.py` 会作为最终验证入口。原脚本在检查数据库和向量缓存时仍有局部路径拼接逻辑，且 `knowledge_base` 表缺失时会由 SQLite 异常中断，不利于按检查报告逐项修复。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 数据库路径改为复用 `resolve_database_path()`；向量缓存路径改为复用 `resolve_embedding_path()`；知识库有效行检查捕获 `sqlite3.Error`，表缺失或查询失败时返回明确 FAIL，而不是抛 traceback。
+  - `tests/scripts/test_smoke_test.py` - 新增绝对 `DB_PATH` 冒烟测试，以及未迁移库缺少 `knowledge_base` 时的失败报告测试。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过（18 passed）
+  - `python -m pytest tests/test_config.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/test_health_ready.py -q --no-cov` 通过（43 passed）
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - `python scripts/preflight_production.py --json` 仍为 `total=22 failed=6`，失败项仍是本地真实数据/配置缺口，未新增失败项。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(config): 固定 .env 为项目根路径
+- **操作人**: AI (Codex)
+- **背景**: `Settings.model_config` 原先使用相对 `.env`，如果生产服务由 systemd、脚本或其他工作目录启动，配置加载可能跟随当前工作目录漂移，导致服务读取不到项目根 `.env`。
+- **变更范围**:
+  - `app/config.py` - 新增 `PROJECT_ROOT` 与 `ENV_FILE`，`VERSION` 和默认 `.env` 均按项目根目录解析，避免启动工作目录影响配置加载。
+  - `tests/test_config.py` - 新增配置路径测试，确认默认 `.env` 是项目根绝对路径，且不会读取当前工作目录中的诱饵 `.env`。
+- **验证**:
+  - `python -m pytest tests/test_config.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（28 passed）
+  - `python -m ruff check app/config.py tests/test_config.py` 通过
+  - `python -m ruff format --check app/config.py tests/test_config.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - `python scripts/preflight_production.py --json` 仍为 `total=22 failed=6`，失败项均为本地真实数据/配置缺口：数据库迁移、知识库有效数据、向量缓存、人工接手人配置。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 数据库迁移 dry-run 幂等成功
+- **操作人**: AI (Codex)
+- **背景**: `scripts/apply_migrations.py` 已默认 dry-run，但当目标数据库关键表已经齐全时，报告仍提示 `add --apply to create tables and run migrations`，容易让明日同步生产时重复执行迁移。
+- **变更范围**:
+  - `scripts/apply_migrations.py` - `MigrationReport` 新增 `schema_ready`；当缺失表为 0 时，dry-run 返回成功并提示 `database schema already ready`；实际 `--apply` 后成功仍提示 `database schema ready`。
+  - `tests/scripts/test_apply_migrations.py` - 新增已就绪数据库的 dry-run 测试，确认退出码为 0，且不输出 `add --apply`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_apply_migrations.py -q --no-cov` 通过（5 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（28 passed）
+  - `python -m ruff check scripts/apply_migrations.py tests/scripts/test_apply_migrations.py` 通过
+  - `python -m ruff format --check scripts/apply_migrations.py tests/scripts/test_apply_migrations.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - 临时库手工验证：先 `--apply` 迁移后，再 dry-run 输出 `missing_after=none` 与 `database schema already ready`，退出码为 0。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 基础知识种子 dry-run 幂等成功
+- **操作人**: AI (Codex)
+- **背景**: `scripts/seed_baseline_knowledge.py` 已支持幂等写入，但当基础知识已全部存在后再次 dry-run，脚本仍可能表现得像需要继续加 `--apply`。明日同步生产时，重复执行容易造成误判。
+- **变更范围**:
+  - `scripts/seed_baseline_knowledge.py` - `BaselineSeedReport` 新增 `all_entries_present`；当 7 条基础知识均已存在时，dry-run 返回成功并提示 `baseline knowledge already exists; rebuild embeddings if cache is missing`，不再要求 `--apply`。
+  - `tests/scripts/test_seed_baseline_knowledge.py` - 新增已有基础知识的 dry-run 测试，确认退出码为 0，且不输出 `add --apply`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` 通过（6 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（27 passed）
+  - `python -m ruff check scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py` 通过
+  - `python -m ruff format --check scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - 临时库手工验证：先 `--apply` 写入 7 条基础知识后，再 dry-run 输出 `skipped_count=7` 与 `baseline knowledge already exists`，退出码为 0。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 向量重建增加数据库结构前置检查
+- **操作人**: AI (Codex)
+- **背景**: `scripts/rebuild_embeddings.py` 支持指定 `--db-path`，但如果目标数据库文件存在却尚未迁移出 `knowledge_base` 表，脚本会进入 Repository 查询并暴露 SQLite 异常栈。明日生产同步若跳过迁移直接重建向量，反馈不够明确。
+- **变更范围**:
+  - `scripts/rebuild_embeddings.py` - `EmbeddingRebuildReport` 新增 `schema_ready`；重建前检查目标库是否存在 `knowledge_base`，未就绪时短路，不查询 Repository、不写缓存，并输出 `action=run scripts/apply_migrations.py --apply before rebuilding embeddings`。
+  - `tests/scripts/test_rebuild_embeddings.py` - 新增未迁移库的 dry-run / apply 前置检查测试，确认不会写 `.npy/.json`，并提示先迁移。
+- **验证**:
+  - `python -m pytest tests/scripts/test_rebuild_embeddings.py -q --no-cov` 通过（7 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（26 passed）
+  - `python -m ruff check scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python -m ruff format --check scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - 临时未迁移库手工验证：输出 `schema_ready=False` 与迁移 action，无异常栈。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(preflight): 修复计划覆盖后台构建产物
+- **操作人**: AI (Codex)
+- **背景**: `/ready` 与预检已能检查后台 dist 是否存在、是否包含观察台值守摘要，但 `recovery_plan` 只覆盖配置、数据库、知识和向量。若生产侧后台产物缺失或过旧，预检会失败但修复计划里缺少明确的构建/同步步骤。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `FRONTEND_PLAN_KEYS`，当 `admin_frontend_index_exists`、`admin_frontend_assets_exist` 或 `admin_frontend_observability_summary_built` 失败时，在 `recovery_plan` 中加入“构建后台产物”步骤，提示执行 `cd web/admin; npm run build:production` 并同步 `web/admin/dist`。
+  - `tests/scripts/test_preflight_production.py` - 新增后台产物失败时的修复计划测试，确保步骤顺序为“构建后台产物 → 最终上线验证”。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过（10 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/test_health_ready.py -q --no-cov` 通过（53 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 当前本地后台 dist 检查为 ready，因此真实 `recovery_plan` 仍为配置、数据库、知识、向量和最终验证 5 步。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 向量重建 dry-run 文案防误操作
+- **操作人**: AI (Codex)
+- **背景**: `scripts/rebuild_embeddings.py` 已默认 dry-run，但当目标 `.npy/.json` 缓存已经存在时，报告仍可能提示 `add --apply to rebuild embeddings`，容易让明日生产同步时误以为必须重建缓存。
+- **变更范围**:
+  - `scripts/rebuild_embeddings.py` - 调整 `print_report()` 的 action 分支：执行后生成成功仍提示 `embedding cache ready`；dry-run 且缓存已存在时提示 `embedding cache already ready`；缺知识、待执行和执行失败场景继续保持独立提示。
+  - `tests/scripts/test_rebuild_embeddings.py` - 新增已有知识且已有缓存的 dry-run 测试，确认退出码为 0，且不再输出 `add --apply`。
+- **验证**:
+  - `python -m pytest tests/scripts/test_rebuild_embeddings.py -q --no-cov` 通过（5 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（23 passed）
+  - `python -m ruff check scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python -m ruff format --check scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+  - 临时库手工验证：有 1 条有效知识且缓存文件已存在时，`python scripts/rebuild_embeddings.py --db-path <tmp> --index-path <tmp>` 输出 `active_docs=1`、`files_ready_after=True`、`action=embedding cache already ready`。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(readiness): 纳入企微回调验签解密配置门禁
+- **操作人**: AI (Codex)
+- **背景**: 企微回调入口实际依赖 `WECOM_TOKEN` 做验签、`WECOM_ENCODING_AES_KEY` 做解密，但上一轮 `/ready`、生产预检和冒烟脚本只检查了企微 corp/agent/secret/kf_id 与人工接手人。若生产漏配回调 Token 或 AES Key，服务可能启动正常，但企微消息无法进入系统。
+- **变更范围**:
+  - `app/readiness.py` - `build_channel_readiness_checks()` 新增 `wecom_callback_token_configured` 与 `wecom_encoding_aes_key_configured`。
+  - `scripts/preflight_production.py` - 新增两项失败 action，并归入运行配置修复计划。
+  - `scripts/smoke_test.py` - 生产通道配置检查同步展示 `WECOM_TOKEN` 与 `WECOM_ENCODING_AES_KEY` 缺失项。
+  - `tests/test_health_ready.py`、`tests/scripts/test_smoke_test.py` - 补充企微回调配置 ready / missing 覆盖。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（38 passed）
+  - `python -m ruff check app/readiness.py scripts/smoke_test.py scripts/preflight_production.py tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check app/readiness.py scripts/smoke_test.py scripts/preflight_production.py tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 当前本地 `WECOM_TOKEN` 与 `WECOM_ENCODING_AES_KEY` 均为 ready；`python scripts/preflight_production.py --json` 现在为 `total=22 failed=6`，剩余失败仍是数据库迁移、知识、向量缓存和人工接手人缺口。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(preflight): 增加上线修复计划输出
+- **操作人**: AI (Codex)
+- **背景**: 生产预检已经能识别关键表、知识库、向量缓存和人工接手配置缺口，但失败项仍以独立 action 分散展示。明日同步生产时，如果人工按条目逐个处理，容易漏掉“先迁移、再导入知识、再重建向量、最后复查”的顺序。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `PreflightPlanStep` 与 `build_recovery_plan()`，将失败项归并为有顺序的上线修复计划；文本报告和 `--json` 均输出 plan；计划命令默认 dry-run，写入动作仍必须显式使用 `--apply`。
+  - `tests/scripts/test_preflight_production.py` - 补充修复计划顺序、路径覆盖参数和 JSON 输出测试，确保预检使用的 `--db-path` / `--index-path` 会同步进入计划命令。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过（9 passed）
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/service/test_embedding_io.py -q --no-cov` 通过（52 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅存量超线警告）
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - `python scripts/preflight_production.py` 仍按真实本地缺口返回 `total=20 failed=6`，但现在会附带 5 步 `recovery_plan`。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(vector): 统一向量缓存实际读写路径解析
+- **操作人**: AI (Codex)
+- **背景**: 数据库实际连接路径已统一到项目根，但向量索引启动加载与保存仍可能直接使用相对 `EMBEDDING_INDEX_DIR`。如果生产服务工作目录不是项目根，可能出现 `/ready` 检查项目根下的 `data/embeddings.*`，而运行时向量服务从另一个 cwd 读取或写入缓存文件。
+- **变更范围**:
+  - `app/readiness.py` - 新增 `resolve_embedding_path()` 作为向量缓存路径统一解析入口，相对路径按项目根解析，绝对路径保持原样。
+  - `app/service/embedding_io.py` - `save_index()` / `load_index()` 统一先解析向量路径；保存前创建父目录，避免路径存在性依赖当前工作目录。
+  - `app/service/embedding_search.py` - `vector_last_duration.json` 读写也按项目根解析，避免进度耗时文件漂移到 cwd。
+  - `tests/service/test_embedding_io.py` - 新增 cwd 变化测试，验证相对向量路径保存与加载均落在项目根 `data/embeddings.*`，不会写到当前工作目录。
+- **验证**:
+  - `python -m pytest tests/service/test_embedding_io.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（37 passed）
+  - `python -m ruff check app/readiness.py app/service/embedding_io.py app/service/embedding_search.py tests/service/test_embedding_io.py` 通过
+  - `python -m ruff format --check app/readiness.py app/service/embedding_io.py app/service/embedding_search.py tests/service/test_embedding_io.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 或默认向量缓存执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(db): 统一实际数据库连接路径解析
+- **操作人**: AI (Codex)
+- **背景**: 上一轮已让 `/ready` 按项目根解析相对 `DB_PATH`，但实际启动初始化与 `db_session_scope()` 仍直接使用 `settings.DB_PATH`。如果生产服务由 systemd 拉起且工作目录不是项目根，可能出现 `/ready` 看向项目根数据库，而实际连接写入另一个 cwd 下的相对库，风险比误报更高。
+- **变更范围**:
+  - `app/database.py` - 新增 `resolve_database_path()`；保留 `:memory:` 和绝对路径原样，相对路径统一固定到项目根；`init_db()` 与 `db_session_scope()` 均复用该函数。
+  - `app/readiness.py` - 数据库文件与表结构检查复用 `resolve_database_path()`，确保就绪检查和真实连接同源。
+  - `tests/test_health_ready.py` - 补充真实 `db_session_scope()` 的 cwd 变化测试，验证相对 `DB_PATH` 会写入项目根 `data/bot.db`，不会写到当前工作目录。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（36 passed）
+  - `python -m ruff check app/database.py app/readiness.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check app/database.py app/readiness.py tests/test_health_ready.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 统一 ready 路径解析口径
+- **操作人**: AI (Codex)
+- **背景**: 生产同步时，服务可能由 systemd 或其他守护进程拉起，当前工作目录不一定是项目根。`/ready` 若直接按当前 cwd 解析相对 `DB_PATH` / `EMBEDDING_INDEX_DIR`，就可能和预检脚本看到不同的文件，造成“预检通过但服务就绪失败”或反过来的误判。
+- **变更范围**:
+  - `app/readiness.py` - 新增 `resolve_runtime_path()`；相对路径统一按项目根目录解析，绝对路径保持原样，`database_path_exists`、`database_schema_ready` 与 `embedding_index_path_exists` 共用同一解析口径。
+  - `tests/test_health_ready.py` - 新增 cwd 变化测试，验证 `/ready` 在非项目根工作目录下仍能正确识别项目根下的 `data/bot.db` 与 `data/embeddings.*`。
+  - `项目进度与配置清单.md` - 增加运行路径口径说明，提醒 systemd 场景下仍以 `.env` 绝对路径为准。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（35 passed）
+  - `python -m ruff check app/readiness.py tests/test_health_ready.py scripts/preflight_production.py scripts/smoke_test.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check app/readiness.py tests/test_health_ready.py scripts/preflight_production.py scripts/smoke_test.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 执行任何 `--apply` 写入。
+
+## [2026-06-11] - chore(ops): 生产预检支持目标路径覆盖
+- **操作人**: AI (Codex)
+- **背景**: 显式迁移、基础知识种子和向量重建脚本都已支持 `--db-path` / `--index-path`，但生产预检仍只能读取 `.env` 默认路径。明日同步生产时，如果先检查生产快照、临时库或临时向量索引路径，需要一条只读预检命令对准目标文件，避免误判当前本地默认路径。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `--db-path` 和 `--index-path` 参数；传参时数据库存在性、关键表、知识有效行、向量缓存文件检查均按目标路径计算，密钥/通道/后台产物检查保持默认环境口径。
+  - `tests/scripts/test_preflight_production.py` - 补充路径覆盖测试，证明默认 `.env` 指向缺失路径时，预检仍能按传入的临时数据库和向量索引判断就绪状态。
+  - `项目进度与配置清单.md` - 明日同步清单补充 `preflight_production.py --db-path <生产库路径> --index-path <向量索引基路径>` 用法。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过（7 passed）
+  - `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` 通过（12 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+  - 临时目录闭环实测：对临时库执行 `apply_migrations.py --apply`、`seed_baseline_knowledge.py --apply`、`rebuild_embeddings.py --apply` 后，再运行 `preflight_production.py --db-path <tmp_db> --index-path <tmp_index> --json`，数据库/知识/向量项均通过，仅剩本地环境 `handoff_staff_userid_ready` 未配置。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 执行任何 `--apply` 写入；闭环实测只写入系统临时目录。
+
+## [2026-06-11] - chore(ops): 新增基础客服知识种子脚本
+- **操作人**: AI (Codex)
+- **背景**: 生产预检已能发现 `knowledge.active_rows=0` 和向量缓存缺失，但当前仓库缺少一个安全、可 dry-run 的非商品基础知识导入入口。明日同步生产时，如果有赞商品知识尚未完成同步，系统至少需要保守的客服兜底知识，避免 AI 编造价格、库存、配送或门店信息。
+- **变更范围**:
+  - `scripts/seed_baseline_knowledge.py` - 新增基础客服知识种子脚本；默认 dry-run 不写库，显式 `--apply` 才写入；内置下单信息收集、价格库存口径、定制咨询、配送取货、售后问题、转人工触发和门店信息口径。
+  - `scripts/seed_baseline_knowledge.py` - 通过 `last_sync_source + last_sync_ref` 幂等去重；数据库不存在或知识表结构未迁移时不隐式建库，只提示先运行迁移。
+  - `scripts/preflight_production.py` - 知识库为空时 action 增加基础知识种子脚本路径，并明确种子后需要重建向量。
+  - `tests/scripts/test_seed_baseline_knowledge.py` - 覆盖缺库提示、dry-run 不写库、apply 写入启用知识、重复 apply 不重复插入和 CLI dry-run 提示。
+  - `项目进度与配置清单.md` - 明日同步清单补充基础知识种子命令与执行顺序。
+- **验证**:
+  - `python -m pytest tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` 通过（5 passed）
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_seed_baseline_knowledge.py tests/scripts/test_rebuild_embeddings.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（19 passed）
+  - `python -m ruff check scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py scripts/preflight_production.py` 通过
+  - `python -m ruff format --check scripts/seed_baseline_knowledge.py tests/scripts/test_seed_baseline_knowledge.py scripts/preflight_production.py` 通过
+  - `python scripts/seed_baseline_knowledge.py` 本地 dry-run 按预期返回非零，显示 `active_rows_before=0`，未写库。
+  - `python scripts/preflight_production.py` 本地按预期返回非零，知识库失败 action 已指向基础知识种子与向量重建流程。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 未对当前本地 `data/bot.db` 执行 `--apply` 写入；真实上线前仍优先同步有赞商品知识到 RAG，基础种子只作为最低可服务兜底。
+
+## [2026-06-11] - chore(ops): 新增显式向量索引重建脚本
+- **操作人**: AI (Codex)
+- **背景**: 预检报告已能发现 `embedding_index_path_exists=false` 和 `embedding.cache_files` 缺失，但修复动作仍依赖启动应用后的后台自愈或人工同步缓存文件。明日同步生产时需要一个可先 dry-run、再显式生成 `embeddings.npy/json` 的命令。
+- **变更范围**:
+  - `scripts/rebuild_embeddings.py` - 新增向量索引重建脚本；默认 dry-run 只读取知识库有效条数和目标缓存路径，不写文件；加 `--apply` 后才复用现有 `EmbeddingSearcher.build/save` 生成 `.npy` 与 `.json`。
+  - `scripts/rebuild_embeddings.py` - 支持 `--db-path` 和 `--index-path`，输出 active docs、缓存文件前后状态和下一步 action。
+  - `scripts/preflight_production.py` - 向量索引失败 action 指向 `scripts/rebuild_embeddings.py --apply`，让预检报告可直接落到修复命令。
+  - `tests/scripts/test_rebuild_embeddings.py` - 覆盖 dry-run 不写文件、apply 写出缓存文件对、无有效知识不生成索引，以及 CLI 输出 action。
+- **验证**:
+  - `python -m pytest tests/scripts/test_rebuild_embeddings.py -q --no-cov` 通过（4 passed）
+  - `python -m ruff check scripts/rebuild_embeddings.py tests/scripts/test_rebuild_embeddings.py` 通过
+  - `python scripts/rebuild_embeddings.py` 本地 dry-run 按预期返回非零，显示当前 `active_docs=0`，未写索引文件。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 真实重建索引需先保证知识库有有效数据，再显式添加 `--apply`。
+
+## [2026-06-11] - chore(ops): 新增显式数据库迁移执行脚本
+- **操作人**: AI (Codex)
+- **背景**: 预检报告已能发现 `database_schema_ready=false` 和 5 张关键表缺失，但修复动作仍依赖“启动应用触发 init_db”的隐式流程。明日同步生产时需要一个可先 dry-run、再显式执行的迁移命令，降低遗漏迁移或误操作风险。
+- **变更范围**:
+  - `scripts/apply_migrations.py` - 新增数据库迁移脚本；默认 dry-run 只列出缺失关键表并返回非零，不写数据库；加 `--apply` 后才调用 `app.database.init_db()` 创建/迁移表结构，执行后再次校验关键表。
+  - `scripts/apply_migrations.py` - 支持 `--db-path` 指定目标 SQLite 文件，默认读取 `DB_PATH`；输出 `missing_before` / `missing_after` 和下一步 action。
+  - `tests/scripts/test_apply_migrations.py` - 覆盖 dry-run 不创建库、apply 能创建新库、模拟旧库补齐后续迁移表、CLI 退出码和输出。
+- **验证**:
+  - `python -m pytest tests/scripts/test_apply_migrations.py -q --no-cov` 通过（4 passed）
+  - `python -m ruff check scripts/apply_migrations.py tests/scripts/test_apply_migrations.py` 通过（仅本地 `.ruff_cache` 写入 warning）
+  - `python -m ruff format --check scripts/apply_migrations.py tests/scripts/test_apply_migrations.py` 通过
+  - `python scripts/apply_migrations.py` 本地 dry-run 按预期返回非零，列出当前缺失 5 张关键表，未写库。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 真实执行迁移需显式添加 `--apply`。
+
+## [2026-06-11] - chore(ops): 生产预检支持机器可读 JSON
+- **操作人**: AI (Codex)
+- **背景**: `scripts/preflight_production.py` 已能输出人工可读行动清单，但明日同步生产时若要保存报告或接入部署脚本，需要稳定的机器可读结构，避免靠解析文本判断是否可上线。
+- **变更范围**:
+  - `scripts/preflight_production.py` - 新增 `--json` 参数，输出 `status`、`total`、`failed`、`failed_keys` 与完整 `checks` 列表；默认文本输出保持不变，失败项仍返回非零退出码。
+  - `scripts/preflight_production.py` - JSON 模式直接向 `stdout.buffer` 写 UTF-8 bytes，避免 Windows 管道/部署脚本按系统编码捕获中文时解析失败。
+  - `tests/scripts/test_preflight_production.py` - 覆盖 JSON 输出结构、失败 key、action 字段、UTF-8 bytes 输出与退出码。
+- **验证**:
+  - `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` 通过（6 passed）
+  - `python -m ruff check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check scripts/preflight_production.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/preflight_production.py --json` 本地按预期返回非零，并输出 6 个当前待补 `failed_keys`。
+  - `python -c "import json, subprocess, sys; ..."` 子进程按 UTF-8 解码 `--json` 输出成功。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+
+## [2026-06-11] - chore(ops): 新增生产同步前只读预检报告
+- **操作人**: AI (Codex)
+- **背景**: 明日同步生产前仍需人工确认数据库迁移、知识库有效数据、向量索引缓存、企微接手人和后台 dist。仅靠 `/ready` 与 smoke 能阻断问题，但缺少一份可直接照着补的行动清单。
+- **变更范围**:
+  - `app/readiness.py` - 将向量索引就绪检查从无后缀路径存在修正为真实缓存文件 `EMBEDDING_INDEX_DIR.npy` 与 `EMBEDDING_INDEX_DIR.json` 成对存在。
+  - `scripts/smoke_test.py` - 向量索引静态检查复用同一口径，输出需要同步/生成的两个缓存文件路径。
+  - `scripts/preflight_production.py` - 新增只读生产预检报告，汇总 `/ready` 失败项、缺失关键表、知识库有效行数、向量索引缓存文件，并给出对应修复动作；不启动服务、不写数据库、不调用外部 API。
+  - `tests/test_health_ready.py` / `tests/scripts/test_smoke_test.py` / `tests/scripts/test_preflight_production.py` - 覆盖向量缓存文件成对检查、预检缺表/缺知识/缺索引/缺接手人行动项和失败退出码。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py -q --no-cov` 通过（32 passed）
+  - `python -m ruff check app/readiness.py scripts/smoke_test.py scripts/preflight_production.py tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python -m ruff format --check app/readiness.py scripts/smoke_test.py scripts/preflight_production.py tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/scripts/test_preflight_production.py` 通过
+  - `python scripts/preflight_production.py` 本地按预期失败并列出 6 个待补项：数据库关键表、知识库有效数据、向量索引缓存、企微接手人。
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+
+## [2026-06-11] - chore(smoke): 统一生产通道就绪检查来源
+- **操作人**: AI (Codex)
+- **背景**: `/ready` 与 `scripts/smoke_test.py` 都会检查有赞、企微和人工接手人配置；若两处各自维护，明日同步生产时容易出现一边通过、一边失败的口径漂移。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 复用 `app.readiness.build_channel_readiness_checks()`，让生产通道冒烟与 `/ready` 使用同一套布尔判定。
+  - `scripts/smoke_test.py` - 保留 smoke 面向运维的环境变量名映射，失败时继续输出可直接补齐的配置项。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过（15 passed）
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py app/readiness.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py app/readiness.py tests/test_health_ready.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+
+## [2026-06-11] - chore(smoke): 统一冒烟与就绪检查的关键表口径
+- **操作人**: AI (Codex)
+- **背景**: `/ready` 已新增 `database_schema_ready`，校验 15 张生产关键表；但 `scripts/smoke_test.py` 仍只检查旧的 6 张基础表。若只跑 smoke，可能漏掉观察台、Agent 画像/质检/缺口、企微同步账本等新增生产能力表缺失。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 复用 `app.readiness.REQUIRED_DATABASE_TABLES`，让上线前静态冒烟与 `/ready` 使用同一套关键表清单。
+  - `tests/scripts/test_smoke_test.py` - 覆盖完整关键表通过、只有旧 6 张表时失败并列出新增缺失表。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/test_health_ready.py -q --no-cov` 通过（25 passed）
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py app/readiness.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py app/readiness.py tests/test_health_ready.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+
+## [2026-06-11] - chore(ready): 就绪检查补充数据库表结构门禁
+- **操作人**: AI (Codex)
+- **背景**: `/ready` 已能检查数据库文件是否存在，但生产同步时仍可能出现“文件存在、迁移未跑完或关键表缺失”的坏状态。仅靠 `database_path_exists` 容易误判为可上线。
+- **变更范围**:
+  - `app/readiness.py` - 新增 `database_schema_ready` 非敏感就绪检查，只读查询 `sqlite_master`，校验会话、消息、知识库、转人工、有赞、观察台、Agent、企微同步账本等关键表是否存在；坏库、缺表、打不开库均返回 `False`，不写库、不触发迁移。
+  - `tests/test_health_ready.py` - 覆盖完整关键表通过、只有数据库文件但缺表时降级，以及 `/ready` 正常/降级路径。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py -q --no-cov` 通过（10 passed）
+  - `python -m ruff check app/readiness.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check app/readiness.py tests/test_health_ready.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+
+## [2026-06-11] - docs(ops): 补齐明日生产同步交接清单
+- **操作人**: AI (Codex)
+- **背景**: 本地已连续补齐 AI 失败转人工、值守摘要、后台产物校验、`/ready` 和生产通道门禁，但 `项目进度与配置清单.md` 仍停留在 2026-06-10，明日同步生产时需要一份集中可读的操作清单。
+- **变更范围**:
+  - `项目进度与配置清单.md` - 顶部更新 2026-06-11 生产同步前本地补强记录，汇总 AI 降级、值守摘要、冒烟检查、`/ready` 门禁、后台 dist 校验和生产通道配置。
+  - `项目进度与配置清单.md` - 新增“明日同步生产前必须确认”清单，明确后台构建、有赞真实模式、企微接手人、向量索引、smoke 与 `/ready` 验收点。
+- **验证**:
+  - 文档变更，无运行时代码修改。
+- **注意**:
+  - 本地 readiness 快照仍显示 `embedding_index_path_exists=false`、`handoff_staff_userid_ready=false`，属于明日生产环境必须补齐的配置/数据项。
+
+## [2026-06-11] - chore(ops): 生产通道配置纳入就绪与冒烟检查
+- **操作人**: AI (Codex)
+- **背景**: 前一轮已经补齐 `/ready`、后台值守摘要和后台产物检查，但若有赞仍处于 mock 模式、或企微/转人工接手人配置缺失，系统虽然能启动，却不具备生产级的真实接待能力。需要在不连外部 API 的前提下，把这些高风险配置纳入就绪与冒烟门禁。
+- **变更范围**:
+  - `app/main.py` - `/ready` 新增生产通道就绪检查：有赞生产模式、企微应用配置、微信客服 ID、人工接手人配置优先级。
+  - `app/readiness.py` - 将 `/ready` 的非敏感就绪检查从 FastAPI 入口拆出，避免 `app/main.py` 超过文件体量门禁。
+  - `app/service/transfer_manager.py` - 转人工接手人解析优先使用 `WECOM_STAFF_ID`，其次回落 `WECOM_KF_SERVICER_USERID`，再自动查询企微接待人员。
+  - `scripts/smoke_test.py` - 新增生产通道静态检查，明确拒绝 `YOUZAN_MOCK_MODE=True` 的生产状态，并要求企微与接手人关键配置存在。
+  - `tests/test_health_ready.py` / `tests/scripts/test_smoke_test.py` / `tests/service/test_transfer_notification.py` - 覆盖通道配置通过、缺失、mock 模式阻断、接手人解析优先级。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/service/test_transfer_notification.py -q --no-cov` 通过（25 passed）
+  - `python -m ruff check app/main.py app/service/transfer_manager.py scripts/smoke_test.py tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/service/test_transfer_notification.py` 通过
+  - `python -m ruff format --check app/main.py app/service/transfer_manager.py scripts/smoke_test.py tests/test_health_ready.py tests/scripts/test_smoke_test.py tests/service/test_transfer_notification.py` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+- **注意**:
+  - 本地真实配置下，`handoff_staff_userid_ready=False` 暴露出仍需补 `WECOM_STAFF_ID` 或 `WECOM_KF_SERVICER_USERID`，否则 `/ready` 会降级。
+  - 本轮仅本地修改，未提交、未推送。
+
+## [2026-06-11] - chore(ready): 将后台静态产物纳入上线就绪检查
+- **操作人**: AI (Codex)
+- **背景**: 观察台值守摘要和后台页面已补齐，但生产同步时仍可能只更新后端代码、漏构建或漏同步 `web/admin/dist`，导致 `/ready` 显示可用而运营后台仍是旧包。
+- **变更范围**:
+  - `app/main.py` - `/ready` 新增后台前端产物检查：`index.html`、`assets` 目录、以及包含 `/observability/summary` / 上线值守 / 慢 Webhook 标记的最新构建产物。
+  - `tests/test_health_ready.py` - 使用临时 dist 覆盖已构建、缺失、旧产物三类场景，确保旧后台包会让 readiness 进入 degraded。
+- **验证**:
+  - `python -m pytest tests/test_health_ready.py tests/scripts/test_smoke_test.py -q --no-cov` 通过（18 passed）
+  - `python -m compileall app\main.py tests\test_health_ready.py` 通过
+- **注意**:
+  - 本轮仅本地修改，未提交、未推送。
+  - 明日同步生产时需要在生产侧执行前端构建，或显式同步本地最新 `web/admin/dist`，否则 `/ready` 会报告 `admin_frontend_observability_summary_built=false`。
+
+## [2026-06-11] - chore(admin): 构建后台产物并校验值守摘要落盘
+- **操作人**: AI (Codex)
+- **背景**: FastAPI 后台入口实际服务 `web/admin/dist/index.html` 与 `dist/assets`，而上一轮仅修改 Vue 源码。若明日同步生产时漏构建或漏同步静态产物，运营后台仍可能显示旧页面，值守摘要不可见。
+- **变更范围**:
+  - `web/admin/dist/` - 本地执行 `npm run build:production` 生成最新后台静态产物，产物中已包含 `/observability/summary`、上线值守摘要与慢 Webhook 展示逻辑。
+  - `scripts/smoke_test.py` - 新增“后台值守摘要产物”静态冒烟检查，扫描 `web/admin/dist/assets` 是否包含观察台摘要调用/文案，防止源码已改但 dist 未构建。
+  - `tests/scripts/test_smoke_test.py` - 覆盖 dist 包含摘要标记时通过、缺失时失败并提示重新构建。
+- **验证**:
+  - `npm run build:production` 通过
+  - `rg "上线值守|慢 Webhook|observability/summary" web/admin/dist -n` 可命中最新产物
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过（11 passed）
+  - `npm run typecheck` 通过
+  - `python -m pytest tests/ -q --no-cov` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+- **注意**:
+  - `web/admin/dist/` 被 `.gitignore` 忽略，明日同步生产时需在生产侧重新构建，或手动同步本地最新 dist 产物。
+
+## [2026-06-11] - feat(admin): 后台可视化上线值守摘要
+- **操作人**: AI (Codex)
+- **背景**: 观察台值守摘要 API 与冒烟检查已补齐，但后台页面仍需要值守人员手动进入列表排查。明日同步生产前，需要让“回写失败 / Webhook 失败 / 慢 Webhook / 处理中队列”在运营概览和数据观察台首页直接可见。
+- **变更范围**:
+  - `web/admin/src/types/observability.ts` / `web/admin/src/services/observability.ts` - 新增 `ObservabilitySummary` 类型与 `observabilityService.getSummary()`，统一将后端 snake_case 摘要字段转为前端 camelCase。
+  - `web/admin/src/pages/overview/useOverviewPage.ts` / `OverviewPage.vue` - 概览页改用 summary API 聚合失败/慢处理/处理中数量，失败快照新增慢 Webhook 与处理中入口，健康状态纳入慢处理风险。
+  - `web/admin/src/features/observability/useObservabilityWorkbench.ts` / `ObservabilityWorkbench.vue` - 数据观察台顶部新增上线值守摘要卡片，展示整体状态与四个关键计数，并支持跳转到对应排查列表。
+- **验证**:
+  - `npm ci` 通过（仅本地安装前端依赖用于类型检查）
+  - `npm run typecheck` 通过
+  - `python -m pytest tests/ -q --no-cov` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+
+## [2026-06-11] - chore(ops): 冒烟脚本验证观察台摘要接口
+- **操作人**: AI (Codex)
+- **背景**: 观察台已新增上线值守摘要，但如果冒烟脚本不校验该接口，明日同步生产时可能出现“功能存在但验收链路漏看”的盲区。上线前需要确认后台摘要入口可访问、鉴权可用、响应结构可读。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 新增 `/api/v1/admin/observability/summary` 冒烟检查，携带 Admin Bearer Token；校验 `code=0`、`data.status`、`data.counts` 基础结构，并输出摘要状态与计数。
+  - `tests/scripts/test_smoke_test.py` - 覆盖摘要详情展示、鉴权头传递、结构异常失败。
+- **验证**:
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过（9 passed）
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/service/test_observability.py tests/api/test_admin_observability.py -q --no-cov` 通过（14 passed）
+  - `python -m pytest tests/ -q --no-cov` 通过
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+
+## [2026-06-11] - feat(ops): 观察台补充上线值守摘要
+- **操作人**: AI (Codex)
+- **背景**: 现有数据观察台已能查看当前内容、历史回写和 webhook 审计，但明日同步生产前还缺一个“值守总览”，无法快速判断是否存在内容回写失败、失败 webhook 或明显慢处理事件。
+- **变更范围**:
+  - `app/service/observability_summary.py` - 新增值守摘要聚合，基于现有审计数据统计失败/处理中/慢 webhook，并返回最近失败样本与阈值信息。
+  - `app/service/observability.py` - 新增 `get_summary()` 薄包装，保持 service 层作为聚合入口。
+  - `app/api/admin_observability.py` - 新增 `/api/v1/admin/observability/summary`，并将路由注册拆成小函数，避免单函数继续膨胀。
+  - `tests/service/test_observability.py` / `tests/api/test_admin_observability.py` - 覆盖摘要状态、失败计数、慢 webhook、处理中不误报，以及后台路由返回。
+- **验证**:
+  - `python -m pytest tests/service/test_observability.py tests/api/test_admin_observability.py -q --no-cov` 通过（5 passed）
+  - `python -m pytest tests/ -q --no-cov` 通过
+  - `python -m ruff check app/api/admin_observability.py app/service/observability.py app/service/observability_summary.py tests/service/test_observability.py tests/api/test_admin_observability.py` 通过
+  - `python -m ruff format --check app/api/admin_observability.py app/service/observability.py app/service/observability_summary.py tests/service/test_observability.py tests/api/test_admin_observability.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+
+## [2026-06-11] - chore(ops): 冒烟脚本接入就绪检查
+- **操作人**: AI (Codex)
+- **背景**: `/ready` 已能返回生产关键配置、数据路径和运行开关状态，但上线冒烟脚本仍只请求 `/health`。明日同步生产前需要同时判断“服务存活”和“可服务状态”，避免服务进程可访问但关键配置或索引缺失时被误判为可上线。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 冒烟流程新增 `/ready` 请求；仅当 `status=ready` 时通过，`degraded` 时输出失败检查项；同时修正运行特性开关输出名称。
+  - `tests/scripts/test_smoke_test.py` - 覆盖就绪检查明细生成、ready 通过、degraded 阻断冒烟。
+- **验证**:
+  - `python -m pytest tests/ -q --no-cov` 通过
+  - `python -m pytest tests/scripts/test_smoke_test.py tests/test_health_ready.py -q --no-cov` 通过（11 passed）
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过（仅历史函数行数 warning）
+  - `python scripts/check_file_sizes.py` 通过（仅已知存量超线 warning）
+
+## [2026-06-11] - feat(ops): 新增非敏感就绪检查接口
+- **操作人**: AI (Codex)
+- **背景**: 继续补齐明日同步生产前的运行可观测性。原 `/health` 仅返回存活和版本，适合负载均衡探活，但无法快速判断生产关键配置、数据路径和灰度开关是否处于可服务状态。
+- **变更范围**:
+  - `app/main.py` - 保持 `/health` 不变，新增 `/ready` 就绪检查接口；返回 `ready/degraded`、版本、非敏感配置检查结果、运行特性开关状态，不访问外部 API、不暴露密钥。
+  - `tests/test_health_ready.py` - 覆盖 `/health` 基础版本、就绪检查通过/降级、默认 Admin Token 拒绝、运行特性开关输出。
+- **验证**:
+  - `python -m pytest tests/ -q --no-cov` 通过（260 passed）
+  - `python -m pytest tests/test_health_ready.py -q --no-cov` 通过（5 passed）
+  - `python -m ruff check app/main.py tests/test_health_ready.py` 通过
+  - `python -m ruff format --check app/main.py tests/test_health_ready.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅历史已知超线 warning）
+
+## [2026-06-11] - chore(ops): 上线冒烟配置检查补强
+- **操作人**: AI (Codex)
+- **背景**: 继续按“只在本地修改，明日同步生产”的目标体检上线前风险。发现 `scripts/smoke_test.py` 仍检查已废弃的 `DEEPSEEK_API_KEY`，而当前主力模型配置是 MiMo；同时冒烟输出缺少回复护栏、顾客记忆、离线复盘、混合检索、有赞 mock 等灰度开关状态，容易造成同步生产前配置盲区。
+- **变更范围**:
+  - `scripts/smoke_test.py` - 关键环境变量检查改为 `ADMIN_API_TOKEN` 非默认值 + `MIMO_API_KEY` 已配置；新增运行特性开关展示项，仅用于可见性，不阻断冒烟结果。
+  - `tests/scripts/test_smoke_test.py` - 覆盖 MiMo key 检查、默认 Admin Token 拒绝、运行开关展示输出。
+- **验证**:
+  - `python -m pytest tests/ -q --no-cov` 通过（255 passed）
+  - `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` 通过（3 passed）
+  - `python -m ruff check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python -m ruff format --check scripts/smoke_test.py tests/scripts/test_smoke_test.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅历史已知超线 warning）
+
+## [2026-06-11] - fix(agent): AI 降级自动转人工与失败可观测性
+- **操作人**: AI (Codex)
+- **背景**: 用户要求只在本地补充优化系统生产级完善度，明日再同步生产。体检确认现有红线、Webhook 去重、转人工摘要、图片提示、回复护栏和离线复盘基础较完整，但 LLM 异常或工具轮次耗尽时仍偏向“系统忙”兜底，客户可能停在无人接管状态。
+- **变更范围**:
+  - `app/service/chat_llm_request.py` - LLM API 异常与响应解析异常写入结构化 `llm_failure_reason`，供上层降级策略判断。
+  - `app/service/chat_llm.py` - 工具调用轮次耗尽时标记 `tool_round_limit`，避免只返回查询超时话术。
+  - `app/service/chat_ai_failure.py` - 新增 AI 降级自动转人工边界，复用现有转人工工单链路，记录 `ai_failure_auto_transfer` 埋点。
+  - `app/service/chat_message_flow.py` / `app/service/chat.py` - 主回复流程识别 AI 失败原因后自动创建人工接手工单，保存专用客户提示，并保留正常回复路径不变。
+  - `tests/service/test_chat_refactor.py` - 覆盖 LLM 异常失败标记、工具轮次耗尽标记、AI 失败自动转人工、回复保存和埋点。
+- **验证**:
+  - `python -m pytest tests/ -q --no-cov` 通过（252 passed）
+  - `python -m pytest tests/service/test_chat_refactor.py tests/service/test_transfer_handoff_summary.py -q --no-cov` 通过（23 passed）
+  - `python -m ruff check app/service/chat_llm_request.py app/service/chat_llm.py app/service/chat_message_flow.py app/service/chat_ai_failure.py app/service/chat.py tests/service/test_chat_refactor.py` 通过
+  - `python -m ruff format --check app/service/chat_llm_request.py app/service/chat_llm.py app/service/chat_message_flow.py app/service/chat_ai_failure.py app/service/chat.py tests/service/test_chat_refactor.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅历史已知超线 warning）
+
+## [2026-06-10] - fix(agent): LLM 接手摘要与图片理解提示增强
+- **操作人**: AI (Codex)
+- **背景**: 用户复盘转人工摘要效果后认为“接待信息可以走大模型推理再总结”，同时反馈图片理解仍偏弱；目标是在不把私密摘要发给客户、不阻塞转人工主流程的前提下，让客服侧接手提示更像决策摘要，让图片进入视觉模型时带明确观察任务。
+- **变更范围**:
+  - `app/service/transfer_handoff_summary.py` - 新增异步 LLM 接手摘要器，提示模型固定输出“客户诉求 / 当前卡点 / 建议接手”，保留下单要素、图片线索、不满、低糖/老人/生日纪念日等关键服务信息；摘要调用限制 8 秒，失败或空结果时自动回退确定性规则摘要。
+  - `app/service/chat_transfer.py` - 转人工工单摘要入口改为异步调用 LLM 摘要器，保留 `build_transfer_summary_fallback()` 作为规则兜底和测试入口。
+  - `app/service/chat_multimodal.py` - 图片消息送入多模态模型前追加观察指令，要求先提取主体/款式、文字、数量、颜色、尺寸线索、破损或异常、用户可能想解决的问题，不确定时标记待确认。
+  - `tests/service/test_transfer_handoff_summary.py` / `tests/service/test_chat_refactor.py` - 覆盖 LLM 摘要成功、异常兜底、异步入口、转人工流程隔离外部 LLM、图片提示词注入。
+- **验证**:
+  - `python -m pytest tests/ -q --no-cov` 通过（250 passed）
+  - `python -m pytest tests/service/test_transfer_handoff_summary.py tests/service/test_chat_refactor.py -q --no-cov` 通过
+  - `python -m ruff check app/service/transfer_handoff_summary.py app/service/chat_transfer.py app/service/chat_multimodal.py tests/service/test_transfer_handoff_summary.py tests/service/test_chat_refactor.py` 通过
+  - `python -m ruff format --check app/service/transfer_handoff_summary.py app/service/chat_transfer.py app/service/chat_multimodal.py tests/service/test_transfer_handoff_summary.py tests/service/test_chat_refactor.py` 通过
+  - `python scripts/check_project.py --skip-tests` 通过
+  - `python scripts/check_file_sizes.py` 通过（仅历史已知超线 warning）
+
 ## [2026-06-10] - fix(agent): 转人工接手提示与特殊日期画像
 - **操作人**: AI (Codex)
 - **背景**: 生产联调确认原“转人工摘要”只是截取聊天尾巴，客服侧无法在企微接待页内私密展示且会话 ID 不可识别；同时“老人 + 木糖醇 + 10 人”场景误推星星人蛋糕，说明长辈推荐约束不足。用户进一步要求生日、家人生日、纪念日等关键画像支持多条记录。

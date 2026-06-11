@@ -15,6 +15,10 @@ from app.service.chat_ai_loop import (
     AiConversationLoopRequest,
     run_ai_conversation_loop,
 )
+from app.service.chat_ai_failure import (
+    AiFailureAutoTransferContext,
+    handle_ai_failure_auto_transfer,
+)
 from app.service.chat_intent import IntentDetectionResult, detect_intent_with_timing
 from app.service.chat_reply import (
     postprocess_reply,
@@ -23,12 +27,15 @@ from app.service.chat_reply import (
 )
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 from app.service.customer_memory import load_customer_profile
+from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent_types import is_transfer_intent
 from app.service.reply_guard import ReplyGuardContext, apply_reply_guard
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
 
 logger = setup_logger()
+
+AI_FAILURE_AUTO_TRANSFER_DEFAULT_REASON = "AI 服务降级，自动转人工接手"
 
 
 @dataclass(frozen=True)
@@ -41,6 +48,7 @@ class ChatMessageFlowDependencies:
     ai_loop_dependencies: AiConversationLoopDependencies
     fallback_reply: str
     transfer_reply: str
+    auto_transfer_reply: str
     customer_profile_repo: CustomerProfileRepo | None = None
 
 
@@ -154,40 +162,59 @@ async def complete_ai_reply(
     intent_result: IntentDetectionResult,
 ) -> str | None:
     timing: dict = {}
-    customer_profile = await load_customer_profile(
-        dependencies.customer_profile_repo,
-        request.channel,
-        request.user_id,
-    )
-    reply = await run_ai_conversation_loop(
-        dependencies.ai_loop_dependencies,
-        AiConversationLoopRequest(
-            session=session,
-            user_query=request.content,
-            intent=intent_result.intent,
-            timing=timing,
-            history=intent_result.history,
-            history_text=intent_result.history_text,
-            image_base64=request.image_base64,
-            customer_profile=customer_profile,
-        ),
+    reply = await run_ai_reply_loop(
+        dependencies=dependencies,
+        request=request,
+        session=session,
+        intent_result=intent_result,
+        timing=timing,
     )
     finished_at = time.monotonic()
     loop_ms = round((finished_at - intent_result.finished_at) * 1000)
     total_ms = round((finished_at - intent_result.started_at) * 1000)
 
-    reply = postprocess_reply(reply, user_content=request.content)
-    reply = await apply_reply_guard(
-        reply,
-        ReplyGuardContext(
-            analytics_repo=dependencies.analytics_repo,
-            session=session,
-            user_id=request.user_id,
-            channel=request.channel,
-            product_titles=tuple(timing.get("guard_product_titles") or ()),
-            source_text=str(timing.get("guard_source_text") or ""),
-        ),
+    failure_reason = get_ai_failure_reason(timing)
+    if failure_reason:
+        reply = await handle_ai_failure_auto_transfer(
+            build_ai_failure_auto_transfer_context(
+                dependencies,
+                request,
+                session,
+                intent_result.history_text,
+                failure_reason,
+            )
+        )
+        await save_reply_and_latency(
+            dependencies,
+            request,
+            session,
+            intent_result,
+            timing,
+            loop_ms,
+            total_ms,
+            reply,
+        )
+        return reply
+
+    reply = await postprocess_and_guard_reply(
+        dependencies, request, session, timing, reply
     )
+    await save_reply_and_latency(
+        dependencies, request, session, intent_result, timing, loop_ms, total_ms, reply
+    )
+    return reply
+
+
+async def save_reply_and_latency(
+    dependencies: ChatMessageFlowDependencies,
+    request: ChatMessageRequest,
+    session: Session,
+    intent_result: IntentDetectionResult,
+    timing: dict,
+    loop_ms: int,
+    total_ms: int,
+    reply: str | None,
+) -> None:
     await save_assistant_reply(dependencies.message_repo, session.id, reply)
     await record_reply_latency(
         analytics_repo=dependencies.analytics_repo,
@@ -200,4 +227,76 @@ async def complete_ai_reply(
         loop_ms=loop_ms,
         total_ms=total_ms,
     )
-    return reply
+
+
+def build_ai_failure_auto_transfer_context(
+    dependencies: ChatMessageFlowDependencies,
+    request: ChatMessageRequest,
+    session: Session,
+    history_text: str,
+    failure_reason: str,
+) -> AiFailureAutoTransferContext:
+    return AiFailureAutoTransferContext(
+        session=session,
+        user_id=request.user_id,
+        channel=request.channel,
+        history_text=history_text,
+        failure_reason=failure_reason,
+        transfer_mgr=dependencies.transfer_mgr,
+        session_repo=dependencies.session_repo,
+        analytics_repo=dependencies.analytics_repo,
+        fallback_reply=dependencies.fallback_reply,
+        auto_transfer_reply=dependencies.auto_transfer_reply,
+    )
+
+
+async def run_ai_reply_loop(
+    dependencies: ChatMessageFlowDependencies,
+    request: ChatMessageRequest,
+    session: Session,
+    intent_result: IntentDetectionResult,
+    timing: dict,
+) -> str | None:
+    customer_profile = await load_customer_profile(
+        dependencies.customer_profile_repo,
+        request.channel,
+        request.user_id,
+    )
+    return await run_ai_conversation_loop(
+        dependencies.ai_loop_dependencies,
+        AiConversationLoopRequest(
+            session=session,
+            user_query=request.content,
+            intent=intent_result.intent,
+            timing=timing,
+            history=intent_result.history,
+            history_text=intent_result.history_text,
+            image_base64=request.image_base64,
+            customer_profile=customer_profile,
+        ),
+    )
+
+
+async def postprocess_and_guard_reply(
+    dependencies: ChatMessageFlowDependencies,
+    request: ChatMessageRequest,
+    session: Session,
+    timing: dict,
+    reply: str | None,
+) -> str | None:
+    reply = postprocess_reply(reply, user_content=request.content)
+    return await apply_reply_guard(
+        reply,
+        ReplyGuardContext(
+            analytics_repo=dependencies.analytics_repo,
+            session=session,
+            user_id=request.user_id,
+            channel=request.channel,
+            product_titles=tuple(timing.get("guard_product_titles") or ()),
+            source_text=str(timing.get("guard_source_text") or ""),
+        ),
+    )
+
+
+def get_ai_failure_reason(timing: dict) -> str:
+    return str(timing.get(LLM_FAILURE_REASON_KEY) or "")

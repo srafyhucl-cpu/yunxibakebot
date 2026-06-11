@@ -1,5 +1,4 @@
 import pytest
-from fastapi import Request
 
 from app.api.admin_observability import create_observability_router
 from app.config import settings
@@ -14,27 +13,11 @@ from app.service.observability import ObservabilityService
 
 def _get_route_endpoint(router, path: str, method: str):
     for route in router.routes:
-        if getattr(route, "path", "") == path and method in getattr(route, "methods", set()):
+        if getattr(route, "path", "") == path and method in getattr(
+            route, "methods", set()
+        ):
             return route.endpoint
     raise AssertionError(f"Route not found: {method} {path}")
-
-
-def _build_request(path: str, cookies: dict | None = None) -> Request:
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": path,
-        "headers": [],
-        "query_string": b"",
-        "server": ("testserver", 80),
-        "client": ("testclient", 50000),
-        "scheme": "http",
-    }
-    request = Request(scope)
-    request._cookies = cookies or {}
-    return request
-
-
 
 
 @pytest.mark.asyncio
@@ -63,4 +46,25 @@ async def test_admin_observability_api_returns_data_with_token() -> None:
     assert payload["code"] == 0
     assert payload["total"] == 1
     assert payload["data"][0]["title"] == "配送说明"
+    await close_db(db)
+
+
+@pytest.mark.asyncio
+async def test_admin_observability_summary_api_returns_status() -> None:
+    db = await init_db(":memory:")
+    router = create_observability_router(
+        ObservabilityService(
+            knowledge_repo=KnowledgeRepo(db),
+            product_repo=YouzanProductRepo(db),
+            history_repo=ContentChangeHistoryRepo(db),
+            webhook_repo=YouzanWebhookEventRepo(db),
+        )
+    )
+    endpoint = _get_route_endpoint(router, "/api/v1/admin/observability/summary", "GET")
+
+    payload = await endpoint(authorization=f"Bearer {settings.ADMIN_API_TOKEN}")
+
+    assert payload["code"] == 0
+    assert payload["data"]["status"] == "ok"
+    assert payload["data"]["counts"]["webhook_failures"] == 0
     await close_db(db)

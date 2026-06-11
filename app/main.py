@@ -22,6 +22,11 @@ from app.config import APP_VERSION, settings
 from app.database import init_db, db_session_scope
 from app.exceptions import AppError
 from app.logger import setup_logger
+from app.readiness import (
+    DEFAULT_ADMIN_TOKEN,
+    build_readiness_checks,
+    build_runtime_feature_flags,
+)
 from app.service.alerting import AlertLevel, alert_service
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.config_repo import ConfigRepo
@@ -49,7 +54,7 @@ def _check_startup_safety() -> None:
     启动时检查敏感配置，检测到问题则记录警告或阻止启动。
     """
     # 检查 ADMIN_API_TOKEN 是否为默认值
-    if settings.ADMIN_API_TOKEN == "CHANGE_ME_IN_PRODUCTION_ENV":
+    if settings.ADMIN_API_TOKEN == DEFAULT_ADMIN_TOKEN:
         logger.critical(
             "启动安全检查失败：ADMIN_API_TOKEN 仍为默认值，请在 .env 中设置强密码"
         )
@@ -250,6 +255,13 @@ app = FastAPI(
 
 # ── 静态文件 ──
 BASE_DIR = Path(__file__).resolve().parent
+ADMIN_DIST_DIR = BASE_DIR.parent / "web" / "admin" / "dist"
+ADMIN_DIST_ASSET_SUFFIXES = frozenset({".js", ".css"})
+ADMIN_DIST_SUMMARY_MARKERS = (
+    "/observability/summary",
+    "上线值守",
+    "慢 Webhook",
+)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
@@ -319,3 +331,15 @@ async def general_error_handler(_request: Request, exc: Exception) -> JSONRespon
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": APP_VERSION}
+
+
+@app.get("/ready")
+async def ready() -> dict:
+    checks = build_readiness_checks()
+    is_ready = all(checks.values())
+    return {
+        "status": "ready" if is_ready else "degraded",
+        "version": APP_VERSION,
+        "checks": checks,
+        "features": build_runtime_feature_flags(),
+    }

@@ -9,10 +9,13 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_FILE = PROJECT_ROOT / ".env"
+
 
 def _read_version() -> str:
     """从项目根目录 VERSION 文件读取版本号，作为版本号的唯一来源。"""
-    version_file = Path(__file__).resolve().parent.parent / "VERSION"
+    version_file = PROJECT_ROOT / "VERSION"
     return version_file.read_text(encoding="utf-8").strip()
 
 
@@ -23,7 +26,7 @@ class Settings(BaseSettings):
     """应用配置，字段默认值可被 .env 和环境变量覆盖。"""
 
     model_config = {
-        "env_file": ".env",
+        "env_file": ENV_FILE,
         "env_file_encoding": "utf-8",
         "extra": "ignore",  # .env 中未定义的额外字段忽略，不报错
     }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from types import ModuleType
 
@@ -40,21 +41,19 @@ def test_resolve_db_path_falls_back_to_local_raw_snapshot(
 def test_load_corpus_builds_stable_keys(tmp_path: Path) -> None:
     eval_retrieval = load_eval_module()
     db_path = tmp_path / "eval.db"
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE knowledge_base ("
-        "id INTEGER, youzan_item_id TEXT, title TEXT, content TEXT, is_active INTEGER)"
-    )
-    conn.executemany(
-        "INSERT INTO knowledge_base VALUES (?, ?, ?, ?, ?)",
-        [
-            (1, "1001", "提拉米苏", "经典蛋糕", 1),
-            (2, None, "配送规则", "同城配送", 1),
-            (3, "1003", "下架商品", "不可售", 0),
-        ],
-    )
-    conn.commit()
-    conn.close()
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute(
+            "CREATE TABLE knowledge_base ("
+            "id INTEGER, youzan_item_id TEXT, title TEXT, content TEXT, is_active INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO knowledge_base VALUES (?, ?, ?, ?, ?)",
+            [
+                (1, "1001", "提拉米苏", "经典蛋糕", 1),
+                (2, None, "配送规则", "同城配送", 1),
+                (3, "1003", "下架商品", "不可售", 0),
+            ],
+        )
 
     assert eval_retrieval.load_corpus(db_path) == [
         ("1001", "提拉米苏", "经典蛋糕"),

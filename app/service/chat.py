@@ -51,6 +51,11 @@ _llm_failure_alerter = alert_service.create_threshold_alerter(
 )
 QUERY_TIMEOUT_REPLY = "正在为您查询，请稍候。如果长时间没有回复，请联系人工客服。"
 
+AI_FAILURE_AUTO_TRANSFER_REPLY = (
+    "\u975e\u5e38\u62b1\u6b49\uff0cAI \u5ba2\u670d\u5f53\u524d\u54cd\u5e94\u4e0d\u7a33\u5b9a\uff0c"
+    "\u6211\u5df2\u4e3a\u60a8\u8f6c\u63a5\u4eba\u5de5\u5ba2\u670d\u63a5\u7740\u5904\u7406\uff0c\u8bf7\u7a0d\u5019\u3002"
+)
+
 
 class ChatService:
     """AI 对话服务：处理消息、调用 LLM、管理工具调用循环。"""
@@ -98,6 +103,7 @@ class ChatService:
             ai_loop_dependencies=self._ai_loop_dependencies,
             fallback_reply=FALLBACK_REPLY,
             transfer_reply=TRANSFER_REPLY,
+            auto_transfer_reply=AI_FAILURE_AUTO_TRANSFER_REPLY,
         )
 
     async def create_youzan_webhook_audit(self, event: YouzanWebhookEventCreate) -> int:

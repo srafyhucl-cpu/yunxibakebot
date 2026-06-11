@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from app.service.chat_tools import ToolExecutionContext, process_tool_calls
 from app.service.chat_llm_request import (
+    LLM_FAILURE_REASON_KEY,
     LlmChoiceResult,
     LlmRequestContext,
     request_llm_choice,
@@ -20,6 +21,8 @@ __all__ = [
     "request_llm_choice",
     "select_llm_model",
 ]
+
+LLM_FAILURE_REASON_TOOL_ROUND_LIMIT = "tool_round_limit"
 
 
 @dataclass(frozen=True)
@@ -75,9 +78,15 @@ async def complete_llm_tool_conversation(context: LlmToolLoopContext) -> str:
         break
 
     _record_tool_rounds(context.timing, tool_round)
+    _record_tool_round_limit(context.timing)
     return context.timeout_reply
 
 
 def _record_tool_rounds(timing: dict | None, tool_round: int) -> None:
     if timing is not None:
         timing["tool_rounds"] = tool_round
+
+
+def _record_tool_round_limit(timing: dict | None) -> None:
+    if timing is not None:
+        timing[LLM_FAILURE_REASON_KEY] = LLM_FAILURE_REASON_TOOL_ROUND_LIMIT

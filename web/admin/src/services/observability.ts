@@ -6,6 +6,7 @@ import type {
   ObservabilityDetailField,
   ObservabilityHistoryItem,
   ObservabilityHistoryPayload,
+  ObservabilitySummary,
   ObservabilityWebhookItem,
   ObservabilityWebhookPayload,
 } from "@/types/observability";
@@ -84,6 +85,23 @@ interface WebhookResponse {
 interface WebhookDetailResponse {
   code: number;
   data: WebhookResponse["data"][number];
+}
+
+interface SummaryResponse {
+  code: number;
+  data: {
+    status: string;
+    counts: {
+      content_change_failures: number;
+      webhook_failures: number;
+      webhook_processing: number;
+      slow_webhooks: number;
+    };
+    thresholds: {
+      slow_webhook_ms: number;
+      webhook_scan_limit: number;
+    };
+  };
 }
 
 function stringifyValue(value: unknown): string {
@@ -185,7 +203,28 @@ function normalizeWebhookItem(item: WebhookResponse["data"][number]): Observabil
   };
 }
 
+function normalizeSummary(payload: SummaryResponse["data"]): ObservabilitySummary {
+  return {
+    status: payload.status || "ok",
+    counts: {
+      contentChangeFailures: payload.counts?.content_change_failures || 0,
+      webhookFailures: payload.counts?.webhook_failures || 0,
+      webhookProcessing: payload.counts?.webhook_processing || 0,
+      slowWebhooks: payload.counts?.slow_webhooks || 0,
+    },
+    thresholds: {
+      slowWebhookMs: payload.thresholds?.slow_webhook_ms || 0,
+      webhookScanLimit: payload.thresholds?.webhook_scan_limit || 0,
+    },
+  };
+}
+
 export const observabilityService = {
+  async getSummary(): Promise<ObservabilitySummary> {
+    const response = await http.get<SummaryResponse>("/observability/summary");
+    return normalizeSummary(response.data.data);
+  },
+
   async listCurrent(params: {
     page: number;
     view: string;

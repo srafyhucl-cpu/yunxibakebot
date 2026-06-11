@@ -13,6 +13,10 @@ from app.service.llm.functions import FUNCTION_DEFINITIONS
 
 logger = setup_logger()
 
+LLM_FAILURE_REASON_KEY = "llm_failure_reason"
+LLM_FAILURE_REASON_API_ERROR = "llm_api_error"
+LLM_FAILURE_REASON_RESPONSE_PARSE = "llm_response_parse_error"
+
 
 @dataclass(frozen=True)
 class LlmChoiceResult:
@@ -50,10 +54,12 @@ async def request_llm_choice(context: LlmRequestContext) -> LlmChoiceResult:
             first_llm_started_at=first_llm_started_at,
         )
     except LLMError:
+        _record_llm_failure_reason(context.timing, LLM_FAILURE_REASON_API_ERROR)
         logger.error("LLM 调用失败，返回兜底回复")
         await context.failure_alerter("LLMError: chat.py handle_message 返回兜底回复")
         return _fallback_choice_result(context.fallback_reply, first_llm_started_at)
     except (KeyError, IndexError) as exc:
+        _record_llm_failure_reason(context.timing, LLM_FAILURE_REASON_RESPONSE_PARSE)
         logger.error("LLM 响应解析失败，返回兜底回复: %s", exc)
         await context.failure_alerter(f"LLM 响应解析失败: {exc}")
         return _fallback_choice_result(context.fallback_reply, first_llm_started_at)
@@ -76,6 +82,11 @@ async def _request_llm_response(messages: list[dict], has_image: bool) -> Any:
 def _record_llm_latency(timing: dict | None, first_llm_started_at: float) -> None:
     if timing is not None and "llm_ms" not in timing:
         timing["llm_ms"] = round((time.monotonic() - first_llm_started_at) * 1000)
+
+
+def _record_llm_failure_reason(timing: dict | None, reason: str) -> None:
+    if timing is not None:
+        timing[LLM_FAILURE_REASON_KEY] = reason
 
 
 def _fallback_choice_result(

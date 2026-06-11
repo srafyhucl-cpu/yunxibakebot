@@ -2,10 +2,10 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { observabilityService } from "@/services/observability";
-import { formatSyncSource } from "@/utils/syncSourceLabel";
 import type {
   ObservabilityDetailField,
   ObservabilityHistoryItem,
+  ObservabilitySummary,
   ObservabilityTab,
   ObservabilityWebhookItem,
 } from "@/types/observability";
@@ -72,6 +72,8 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   const detailLoading = ref(false);
   const drawerVisible = ref(false);
   const errorMessage = ref("");
+  const summaryErrorMessage = ref("");
+  const summary = ref<ObservabilitySummary | null>(null);
   const total = ref(0);
   const historyItems = ref<ObservabilityHistoryItem[]>([]);
   const webhookItems = ref<ObservabilityWebhookItem[]>([]);
@@ -128,7 +130,49 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     return "Webhook 记录总数";
   });
 
+  const summaryStatusType = computed<"success" | "warning" | "danger">(() => {
+    if (summaryErrorMessage.value) {
+      return "danger";
+    }
+    return summary.value?.status === "attention" ? "warning" : "success";
+  });
 
+  const summaryStatusLabel = computed(() => {
+    if (summaryErrorMessage.value) {
+      return "摘要加载失败";
+    }
+    return summary.value?.status === "attention" ? "需要值守" : "运行平稳";
+  });
+
+  const summaryCards = computed(() => {
+    const counts = summary.value?.counts;
+    return [
+      {
+        label: "回写失败",
+        value: counts?.contentChangeFailures ?? 0,
+        route: "/observability/failures?tab=history",
+        level: counts?.contentChangeFailures ? "danger" : "normal",
+      },
+      {
+        label: "Webhook 失败",
+        value: counts?.webhookFailures ?? 0,
+        route: "/observability/failures?tab=webhooks",
+        level: counts?.webhookFailures ? "danger" : "normal",
+      },
+      {
+        label: "慢 Webhook",
+        value: counts?.slowWebhooks ?? 0,
+        route: "/observability/sessions?tab=webhooks",
+        level: counts?.slowWebhooks ? "warning" : "normal",
+      },
+      {
+        label: "处理中",
+        value: counts?.webhookProcessing ?? 0,
+        route: "/observability/sessions?tab=webhooks&webhookStatus=processing",
+        level: counts?.webhookProcessing ? "info" : "normal",
+      },
+    ];
+  });
 
   const historyRows = computed(() =>
     historyItems.value.map((item) => ({
@@ -155,7 +199,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     loading.value = true;
     errorMessage.value = "";
     try {
-
 
       if (activeTab.value === "history") {
         const payload = await observabilityService.listHistory({
@@ -185,6 +228,16 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     }
   }
 
+  async function loadSummary() {
+    summaryErrorMessage.value = "";
+    try {
+      summary.value = await observabilityService.getSummary();
+    } catch (error) {
+      summary.value = null;
+      summaryErrorMessage.value = error instanceof Error ? error.message : "值守摘要加载失败";
+    }
+  }
+
   async function retryLoadData() {
     await loadData();
   }
@@ -196,8 +249,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
   async function changePage(page: number) {
     await router.replace({ query: buildQuery(activeTab.value, page) });
   }
-
-
 
   async function submitHistoryFilters() {
     await router.replace({ query: buildQuery("history", DEFAULT_PAGE) });
@@ -221,8 +272,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     detailEntityKey.value = "";
     detailEntityType.value = "";
   }
-
-
 
   async function trackEntityHistory(entityKey: string, entityType: string) {
     closeDrawer();
@@ -283,8 +332,6 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
       query.page = String(page);
     }
 
-
-
     if (tab === "history") {
       if (historySourceDraft.value) {
         query.historySource = historySourceDraft.value;
@@ -326,7 +373,7 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
       webhookEventTypeDraft.value = queryWebhookEventType.value;
       webhookKeywordDraft.value = queryWebhookKeyword.value;
 
-      await loadData();
+      await Promise.all([loadSummary(), loadData()]);
     },
     { immediate: true },
   );
@@ -336,6 +383,11 @@ export function useObservabilityWorkbench(mode: WorkbenchMode) {
     detailLoading,
     drawerVisible,
     errorMessage,
+    summary,
+    summaryCards,
+    summaryErrorMessage,
+    summaryStatusLabel,
+    summaryStatusType,
     total,
     pageSize: PAGE_SIZE,
     activeTab,

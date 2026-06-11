@@ -12,6 +12,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from pathlib import Path
 
 import aiosqlite
 
@@ -20,11 +21,21 @@ from app.logger import setup_logger
 from app.migrations.schema import SCHEMA_STATEMENTS, PRAGMA_STATEMENTS
 
 logger = setup_logger()
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+
+def resolve_database_path(db_path: str | Path | None = None) -> str:
+    """将数据库相对路径固定到项目根，避免受进程工作目录影响。"""
+    path = Path(db_path or settings.DB_PATH)
+    if str(path) == ":memory:" or path.is_absolute():
+        return str(path)
+    return str(ROOT_DIR / path)
 
 
 async def init_db(db_path: str) -> aiosqlite.Connection:
     """初始化数据库：建表 + 索引 + 版本化迁移。"""
-    conn = await aiosqlite.connect(db_path)
+    resolved_db_path = resolve_database_path(db_path)
+    conn = await aiosqlite.connect(resolved_db_path)
     conn.row_factory = aiosqlite.Row
     for pragma in PRAGMA_STATEMENTS:
         await conn.execute(pragma)
@@ -37,7 +48,7 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
 
     await run_migrations(conn)
 
-    logger.info("Database initialized at %s", db_path)
+    logger.info("Database initialized at %s", resolved_db_path)
     return conn
 
 
@@ -67,7 +78,7 @@ async def db_session_scope(
     异步上下文管理器：生命周期内绑定一个独立的 aiosqlite.Connection 并绑定到 ContextVar 中。
     自动处理事务提交与回滚。
     """
-    path = db_path or settings.DB_PATH
+    path = resolve_database_path(db_path)
     conn = await aiosqlite.connect(path)
     conn.row_factory = aiosqlite.Row
     for pragma in PRAGMA_STATEMENTS:

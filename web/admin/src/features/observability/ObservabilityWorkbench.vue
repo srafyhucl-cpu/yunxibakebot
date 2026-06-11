@@ -128,6 +128,31 @@ function copyErrorLog() {
       </template>
 
 
+      <!-- 上线值守摘要 -->
+      <div class="observability-page__ops-summary">
+        <div class="observability-page__ops-status">
+          <span
+            class="observability-page__ops-dot"
+            :class="`observability-page__ops-dot--${page.summaryStatusType}`"
+          />
+          <div>
+            <strong>{{ page.summaryStatusLabel }}</strong>
+            <span v-if="page.summaryErrorMessage">{{ page.summaryErrorMessage }}</span>
+            <span v-else>上线值守雷达：失败、慢处理和处理中队列</span>
+          </div>
+        </div>
+        <router-link
+          v-for="item in page.summaryCards"
+          :key="item.label"
+          class="observability-page__ops-card"
+          :class="`observability-page__ops-card--${item.level}`"
+          :to="item.route"
+        >
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </router-link>
+      </div>
+
 
       <!-- 紧凑单行筛选工具栏：回写历史 -->
       <div v-if="page.activeTab === 'history'" class="observability-page__toolbar">
@@ -570,6 +595,120 @@ function copyErrorLog() {
   margin: 0 8px;
 }
 
+/* ── 上线值守摘要 ── */
+.observability-page__ops-summary {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(110px, 1fr));
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(245, 158, 11, 0.12), transparent 24%),
+    linear-gradient(135deg, rgba(255, 247, 237, 0.78), rgba(248, 250, 252, 0.92));
+  flex-shrink: 0;
+}
+
+.observability-page__ops-status,
+.observability-page__ops-card {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.observability-page__ops-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.observability-page__ops-status div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.observability-page__ops-status strong {
+  font-size: 14px;
+  color: var(--yx-text);
+}
+
+.observability-page__ops-status span:last-child {
+  overflow: hidden;
+  color: var(--yx-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.observability-page__ops-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #10b981;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.12);
+}
+
+.observability-page__ops-dot--warning {
+  background: #f59e0b;
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.14);
+}
+
+.observability-page__ops-dot--danger {
+  background: #ef4444;
+  box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.14);
+}
+
+.observability-page__ops-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  color: var(--yx-text);
+  text-decoration: none;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.observability-page__ops-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.observability-page__ops-card span {
+  color: var(--yx-text-muted);
+  font-size: 12px;
+}
+
+.observability-page__ops-card strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.observability-page__ops-card--danger {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.observability-page__ops-card--danger strong {
+  color: #ef4444;
+}
+
+.observability-page__ops-card--warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.observability-page__ops-card--warning strong {
+  color: #f59e0b;
+}
+
+.observability-page__ops-card--info strong {
+  color: var(--el-color-primary);
+}
+
 /* ── 工具栏：筛选项单行 ── */
 .observability-page__toolbar {
   display: flex;
@@ -711,6 +850,15 @@ function copyErrorLog() {
 
 /* ── 移动端卡片视图 ── */
 @media (max-width: 767px) {
+  .observability-page__ops-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px 16px;
+  }
+
+  .observability-page__ops-status {
+    grid-column: 1 / -1;
+  }
+
   .observability-page__toolbar {
     padding: 12px 16px;
     flex-direction: column;

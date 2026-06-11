@@ -13,6 +13,11 @@ WEBP_SIGNATURE = b"RIFF"
 IMAGE_HEADER_SAMPLE_CHARS = 32
 IMAGE_HEADER_BYTES = 4
 IMAGE_EMPTY_TEXT = "[用户发送了一张图片]"
+IMAGE_UNDERSTANDING_INSTRUCTION = (
+    "请先观察这张图片，提取对烘焙客服有用的信息：主体/款式、文字、数量、颜色、"
+    "尺寸线索、破损或异常、用户可能想解决的问题。"
+    "如果无法确定，请明确说待确认，不要编造。然后结合用户文字回答。"
+)
 
 
 def normalize_image_data_uri(image_base64: str) -> str:
@@ -42,7 +47,12 @@ def apply_multimodal_image_message(
         if messages[index].get("role") != "user":
             continue
 
-        original_text = messages[index].get("content", "") or ""
+        original_text = str(messages[index].get("content", "") or "").strip()
+        text_prompt = (
+            f"{IMAGE_UNDERSTANDING_INSTRUCTION}\n用户文字：{original_text}"
+            if original_text
+            else IMAGE_UNDERSTANDING_INSTRUCTION
+        )
         messages[index] = {
             "role": "user",
             "content": [
@@ -52,7 +62,7 @@ def apply_multimodal_image_message(
                 },
                 {
                     "type": "text",
-                    "text": original_text or IMAGE_EMPTY_TEXT,
+                    "text": text_prompt or IMAGE_EMPTY_TEXT,
                 },
             ],
         }

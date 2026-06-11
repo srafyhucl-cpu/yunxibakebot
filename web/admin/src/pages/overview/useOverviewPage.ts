@@ -23,10 +23,14 @@ export function useOverviewPage() {
   const pendingTransferCount = ref(0);
   const failedHistoryTotal = ref(0);
   const failedWebhookTotal = ref(0);
+  const slowWebhookTotal = ref(0);
+  const processingWebhookTotal = ref(0);
   const configuredSettingCount = ref(0);
   const recentIssues = ref<OverviewRecentIssue[]>([]);
 
-  const hasFailures = computed(() => failedHistoryTotal.value + failedWebhookTotal.value > 0);
+  const hasFailures = computed(
+    () => failedHistoryTotal.value + failedWebhookTotal.value + slowWebhookTotal.value > 0,
+  );
   const healthLabel = computed(() => {
     if (errorMessage.value) {
       return "需要检查";
@@ -48,7 +52,7 @@ export function useOverviewPage() {
     loading.value = true;
     errorMessage.value = "";
 
-    const [products, currentContent, transfers, failedHistory, failedWebhooks, settings] =
+    const [products, currentContent, transfers, observabilitySummary, settings] =
       await Promise.allSettled([
         productsService.listProducts(FIRST_PAGE, ""),
         observabilityService.listCurrent({
@@ -59,19 +63,7 @@ export function useOverviewPage() {
           productStatus: "",
         }),
         transfersService.listPendingTransfers(),
-        observabilityService.listHistory({
-          page: FIRST_PAGE,
-          source: "",
-          status: "failed",
-          entityType: "",
-          keyword: "",
-        }),
-        observabilityService.listWebhooks({
-          page: FIRST_PAGE,
-          status: "failed",
-          eventType: "",
-          keyword: "",
-        }),
+        observabilityService.getSummary(),
         settingsService.getSummary(),
       ]);
 
@@ -84,11 +76,11 @@ export function useOverviewPage() {
     if (transfers.status === "fulfilled") {
       pendingTransferCount.value = transfers.value.length;
     }
-    if (failedHistory.status === "fulfilled") {
-      failedHistoryTotal.value = failedHistory.value.total;
-    }
-    if (failedWebhooks.status === "fulfilled") {
-      failedWebhookTotal.value = failedWebhooks.value.total;
+    if (observabilitySummary.status === "fulfilled") {
+      failedHistoryTotal.value = observabilitySummary.value.counts.contentChangeFailures;
+      failedWebhookTotal.value = observabilitySummary.value.counts.webhookFailures;
+      slowWebhookTotal.value = observabilitySummary.value.counts.slowWebhooks;
+      processingWebhookTotal.value = observabilitySummary.value.counts.webhookProcessing;
     }
     if (settings.status === "fulfilled") {
       configuredSettingCount.value = [
@@ -102,7 +94,7 @@ export function useOverviewPage() {
     }
 
     recentIssues.value = buildRecentIssues();
-    const failedRequests = [products, currentContent, transfers, failedHistory, failedWebhooks, settings]
+    const failedRequests = [products, currentContent, transfers, observabilitySummary, settings]
       .filter((item) => item.status === "rejected").length;
     if (failedRequests > 0) {
       errorMessage.value = `${failedRequests} 个概览指标加载失败，请刷新重试`;
@@ -141,6 +133,14 @@ export function useOverviewPage() {
         level: "danger",
       });
     }
+    if (slowWebhookTotal.value > 0) {
+      issues.push({
+        title: "Webhook 处理偏慢",
+        description: `${slowWebhookTotal.value} 条近期 Webhook 超过值守阈值`,
+        route: "/observability/sessions?tab=webhooks",
+        level: "warning",
+      });
+    }
     if (!issues.length) {
       issues.push({
         title: "暂无高优先级异常",
@@ -161,6 +161,8 @@ export function useOverviewPage() {
     pendingTransferCount,
     failedHistoryTotal,
     failedWebhookTotal,
+    slowWebhookTotal,
+    processingWebhookTotal,
     configuredSettingCount,
     recentIssues,
     healthLabel,

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.exceptions import LLMError
+from app.service import chat_message_flow as chat_message_flow_module
 from app.service import chat_ai_loop as chat_ai_loop_module
 from app.service import chat_llm as chat_llm_module
 from app.service import chat_llm_request as chat_llm_request_module
@@ -18,9 +19,11 @@ from app.service.chat_ai_loop import (
     run_ai_conversation_loop,
 )
 from app.service.chat_context import prepare_chat_context
-from app.service.chat_intent import build_history_text
+from app.service.chat_intent import IntentDetectionResult, build_history_text
 from app.service.chat_message_flow import (
+    ChatMessageRequest,
     ChatMessageFlowDependencies,
+    complete_ai_reply,
     handle_transfer_intent,
 )
 from app.service.chat_llm import (
@@ -41,8 +44,12 @@ from app.service.chat_tools import (
     parse_tool_arguments,
     process_tool_calls,
 )
-from app.service.chat_transfer import HumanTransferContext, request_human_transfer
-from app.service.chat_transfer import build_transfer_summary
+from app.service.chat_transfer import (
+    HumanTransferContext,
+    build_transfer_summary_fallback,
+    request_human_transfer,
+)
+from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent import IntentType
 
 
@@ -135,35 +142,61 @@ class _FakeKnowledgeRetriever:
         return []
 
 
+async def _fake_alerter(message: str) -> None:
+    raise AssertionError(message)
+
+
+def _build_flow_dependencies(
+    session_repo: object,
+    message_repo: object,
+    transfer_mgr: object,
+    analytics_repo: object | None = None,
+) -> ChatMessageFlowDependencies:
+    analytics = analytics_repo or _FakeAnalyticsRepo()
+    return ChatMessageFlowDependencies(
+        session_mgr=object(),
+        session_repo=session_repo,
+        message_repo=message_repo,
+        transfer_mgr=transfer_mgr,
+        analytics_repo=analytics,
+        ai_loop_dependencies=AiConversationLoopDependencies(
+            session_mgr=object(),
+            knowledge=object(),
+            transfer_mgr=transfer_mgr,
+            session_repo=session_repo,
+            youzan_client=object(),
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=_fake_alerter,
+        ),
+        fallback_reply="fallback",
+        transfer_reply=TRANSFER_REPLY,
+        auto_transfer_reply="auto transfer reply",
+    )
+
+
 @pytest.mark.asyncio
-async def test_handle_transfer_intent_updates_state_and_saves_reply() -> None:
+async def test_handle_transfer_intent_updates_state_and_saves_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     transfer_mgr = _FakeTransferManager()
     session_repo = _FakeSessionRepo()
     message_repo = _FakeMessageRepo()
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
 
-    async def fake_alerter(message: str) -> None:
-        raise AssertionError(message)
+    async def fake_summary(reason: str, history_text: str) -> str:
+        return f"客户请求人工接待：{reason}"
+
+    monkeypatch.setattr(
+        "app.service.chat_transfer.build_transfer_summary", fake_summary
+    )
 
     reply = await handle_transfer_intent(
-        dependencies=ChatMessageFlowDependencies(
-            session_mgr=object(),
+        dependencies=_build_flow_dependencies(
             session_repo=session_repo,
             message_repo=message_repo,
             transfer_mgr=transfer_mgr,
             analytics_repo=object(),
-            ai_loop_dependencies=AiConversationLoopDependencies(
-                session_mgr=object(),
-                knowledge=object(),
-                transfer_mgr=transfer_mgr,
-                session_repo=session_repo,
-                youzan_client=object(),
-                fallback_reply="fallback",
-                timeout_reply="timeout",
-                failure_alerter=fake_alerter,
-            ),
-            fallback_reply="fallback",
-            transfer_reply=TRANSFER_REPLY,
         ),
         session=session,
         user_id="buyer-1",
@@ -190,6 +223,72 @@ def test_postprocess_reply_removes_markdown_marks() -> None:
     reply = postprocess_reply("**hello** __ok__", user_content="normal")
 
     assert reply == "hello ok"
+
+
+@pytest.mark.asyncio
+async def test_complete_ai_reply_auto_transfers_on_llm_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transfer_mgr = _FakeTransferManager()
+    session_repo = _FakeSessionRepo()
+    message_repo = _FakeMessageRepo()
+    analytics_repo = _FakeAnalyticsRepo()
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+    dependencies = _build_flow_dependencies(
+        session_repo=session_repo,
+        message_repo=message_repo,
+        transfer_mgr=transfer_mgr,
+        analytics_repo=analytics_repo,
+    )
+
+    async def fake_summary(reason: str, history_text: str) -> str:
+        return f"handoff: {reason}"
+
+    async def fake_run_ai_conversation_loop(
+        dependencies: object,
+        request: AiConversationLoopRequest,
+    ) -> str:
+        assert request.timing is not None
+        request.timing[LLM_FAILURE_REASON_KEY] = "llm_api_error"
+        return "fallback"
+
+    monkeypatch.setattr(
+        "app.service.chat_transfer.build_transfer_summary", fake_summary
+    )
+    monkeypatch.setattr(
+        chat_message_flow_module,
+        "run_ai_conversation_loop",
+        fake_run_ai_conversation_loop,
+    )
+
+    reply = await complete_ai_reply(
+        dependencies=dependencies,
+        request=ChatMessageRequest(
+            channel="youzan",
+            user_id="buyer-1",
+            content="help me choose a cake",
+        ),
+        session=session,
+        intent_result=IntentDetectionResult(
+            intent=IntentType.PRODUCT_CONSULTATION,
+            history=[],
+            history_text="用户：help me choose a cake",
+            started_at=1.0,
+            finished_at=1.1,
+            intent_ms=100,
+        ),
+    )
+
+    assert reply == "auto transfer reply"
+    assert transfer_mgr.calls[0].session_id == "session-1"
+    assert transfer_mgr.calls[0].user_id == "buyer-1"
+    assert "llm_api_error" in transfer_mgr.calls[0].reason
+    assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
+    assert message_repo.saved[0].content == "auto transfer reply"
+    event_types = {event["event_type"] for event in analytics_repo.events}
+    assert "ai_failure_auto_transfer" in event_types
+    assert "reply_latency" in event_types
+    assert "llm_api_error" in str(analytics_repo.events)
 
 
 @pytest.mark.asyncio
@@ -272,7 +371,10 @@ def test_apply_multimodal_image_message_replaces_last_user_message() -> None:
     assert messages[2]["content"][0]["image_url"]["url"].startswith(
         "data:image/jpeg;base64,"
     )
-    assert messages[2]["content"][1] == {"type": "text", "text": "last"}
+    text_part = messages[2]["content"][1]
+    assert text_part["type"] == "text"
+    assert "提取对烘焙客服有用的信息" in text_part["text"]
+    assert "用户文字：last" in text_part["text"]
 
 
 def test_select_llm_model_uses_default_for_text() -> None:
@@ -414,11 +516,12 @@ async def test_request_llm_choice_returns_fallback_on_llm_error(
         alerts.append(message)
 
     monkeypatch.setattr(chat_llm_request_module, "llm_chat", fake_llm_chat)
+    timing: dict[str, object] = {}
 
     result = await request_llm_choice(
         LlmRequestContext(
             messages=[{"role": "user", "content": "hello"}],
-            timing={},
+            timing=timing,
             first_llm_started_at=1.0,
             has_image=False,
             fallback_reply="fallback",
@@ -430,6 +533,7 @@ async def test_request_llm_choice_returns_fallback_on_llm_error(
     assert result.message is None
     assert result.fallback_reply == "fallback"
     assert result.first_llm_started_at == 1.0
+    assert timing[LLM_FAILURE_REASON_KEY] == "llm_api_error"
     assert alerts == ["LLMError: chat.py handle_message 返回兜底回复"]
 
 
@@ -503,6 +607,61 @@ async def test_complete_llm_tool_conversation_runs_tool_round_then_returns_text(
     assert timing["tool_rounds"] == 1
 
 
+@pytest.mark.asyncio
+async def test_complete_llm_tool_conversation_marks_tool_round_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_call = SimpleNamespace(
+        id="tool-1",
+        function=SimpleNamespace(
+            name="search_knowledge", arguments='{"query": "cake"}'
+        ),
+    )
+
+    async def fake_request_llm_choice(context: LlmRequestContext) -> LlmChoiceResult:
+        message = SimpleNamespace(content=None, tool_calls=[tool_call])
+        choice = SimpleNamespace(message=message, finish_reason="tool_calls")
+        return LlmChoiceResult(
+            choice=choice,
+            message=message,
+            first_llm_started_at=1.0,
+        )
+
+    async def fake_process_tool_calls(
+        tool_calls: list,
+        messages: list[dict],
+        context: ToolExecutionContext,
+    ) -> None:
+        messages.append({"role": "tool", "content": "tool result"})
+
+    monkeypatch.setattr(chat_llm_module, "request_llm_choice", fake_request_llm_choice)
+    monkeypatch.setattr(chat_llm_module, "process_tool_calls", fake_process_tool_calls)
+    timing: dict[str, object] = {}
+
+    reply = await complete_llm_tool_conversation(
+        LlmToolLoopContext(
+            messages=[{"role": "user", "content": "hello"}],
+            timing=timing,
+            has_image=False,
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=_fake_alerter,
+            tool_context=ToolExecutionContext(
+                session=Session(id="session-1", channel="youzan", user_id="buyer-1"),
+                history_text="old",
+                transfer_mgr=object(),
+                session_repo=object(),
+                knowledge=object(),
+                youzan_client=object(),
+            ),
+        )
+    )
+
+    assert reply == "timeout"
+    assert timing[LLM_FAILURE_REASON_KEY] == "tool_round_limit"
+    assert timing["tool_rounds"] >= 1
+
+
 def test_parse_tool_arguments_rejects_invalid_json() -> None:
     assert parse_tool_arguments("search_knowledge", '{"query": "cake"}') == {
         "query": "cake"
@@ -512,7 +671,9 @@ def test_parse_tool_arguments_rejects_invalid_json() -> None:
 
 
 @pytest.mark.asyncio
-async def test_process_tool_calls_handles_transfer_and_appends_result() -> None:
+async def test_process_tool_calls_handles_transfer_and_appends_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     transfer_mgr = _FakeTransferManager()
     session_repo = _FakeSessionRepo()
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
@@ -523,6 +684,13 @@ async def test_process_tool_calls_handles_transfer_and_appends_result() -> None:
             name="transfer_to_human",
             arguments='{"reason": "need staff"}',
         ),
+    )
+
+    async def fake_summary(reason: str, history_text: str) -> str:
+        return f"客户请求人工接待：{reason}"
+
+    monkeypatch.setattr(
+        "app.service.chat_transfer.build_transfer_summary", fake_summary
     )
 
     await process_tool_calls(
@@ -547,10 +715,19 @@ async def test_process_tool_calls_handles_transfer_and_appends_result() -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_human_transfer_updates_state_and_truncates_summary() -> None:
+async def test_request_human_transfer_updates_state_and_truncates_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     transfer_mgr = _FakeTransferManager()
     session_repo = _FakeSessionRepo()
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+
+    async def fake_summary(reason: str, history_text: str) -> str:
+        return f"客户请求人工接待：{reason}"
+
+    monkeypatch.setattr(
+        "app.service.chat_transfer.build_transfer_summary", fake_summary
+    )
 
     created = await request_human_transfer(
         HumanTransferContext(
@@ -575,7 +752,7 @@ async def test_request_human_transfer_updates_state_and_truncates_summary() -> N
     )
 
 
-def test_build_transfer_summary_builds_concise_handoff_note() -> None:
+def test_build_transfer_summary_fallback_builds_concise_handoff_note() -> None:
     history_text = "\n".join(
         [
             "用户：first",
@@ -586,7 +763,7 @@ def test_build_transfer_summary_builds_concise_handoff_note() -> None:
         ]
     )
 
-    summary = build_transfer_summary("用户要求转人工", history_text)
+    summary = build_transfer_summary_fallback("用户要求转人工", history_text)
 
     assert "低糖" in summary or "少糖" in summary
     assert "AI：确认配送时间" not in summary

@@ -24,6 +24,8 @@ const {
   pendingTransferCount,
   failedHistoryTotal,
   failedWebhookTotal,
+  slowWebhookTotal,
+  processingWebhookTotal,
   configuredSettingCount,
   recentIssues,
   healthLabel,
@@ -154,13 +156,13 @@ onMounted(loadOverview);
           <div class="section-title">
             <strong>失败快照</strong>
             <el-tag
-              v-if="failedHistoryTotal + failedWebhookTotal > 0"
+              v-if="failedHistoryTotal + failedWebhookTotal + slowWebhookTotal > 0"
               type="danger"
               size="small"
               effect="dark"
               round
             >
-              {{ failedHistoryTotal + failedWebhookTotal }} 条待排查
+              {{ failedHistoryTotal + failedWebhookTotal + slowWebhookTotal }} 条待排查
             </el-tag>
           </div>
         </template>
@@ -188,6 +190,28 @@ onMounted(loadOverview);
               :class="{ 'snapshot-action--danger': failedWebhookTotal > 0 }"
               to="/observability/failures?tab=webhooks"
             >立即排查 →</router-link>
+          </div>
+          <div class="snapshot-item">
+            <span>慢 Webhook</span>
+            <div class="snapshot-count">
+              <el-icon v-if="slowWebhookTotal > 0" size="16" class="snapshot-warn-icon"><WarningFilled /></el-icon>
+              <strong :class="{ 'is-danger': slowWebhookTotal > 0 }">{{ slowWebhookTotal }}</strong>
+            </div>
+            <router-link
+              class="snapshot-action"
+              :class="{ 'snapshot-action--danger': slowWebhookTotal > 0 }"
+              to="/observability/sessions?tab=webhooks"
+            >查看耗时 →</router-link>
+          </div>
+          <div class="snapshot-item">
+            <span>Webhook 处理中</span>
+            <div class="snapshot-count">
+              <strong>{{ processingWebhookTotal }}</strong>
+            </div>
+            <router-link
+              class="snapshot-action"
+              to="/observability/sessions?tab=webhooks&webhookStatus=processing"
+            >查看队列 →</router-link>
           </div>
         </div>
       </el-card>

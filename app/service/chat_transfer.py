@@ -6,7 +6,11 @@ from typing import Any
 from app.logger import setup_logger
 from app.models.session import Session, SessionStatus
 from app.models.session_scope import mark_handoff_started
-from app.service.transfer_handoff_summary import build_handoff_note
+from app.service.transfer_handoff_summary import (
+    HandoffSummaryInput,
+    build_handoff_note,
+    build_handoff_note_with_llm,
+)
 
 logger = setup_logger()
 
@@ -24,7 +28,7 @@ class HumanTransferContext:
 async def request_human_transfer(context: HumanTransferContext) -> bool:
     """Create a transfer ticket and mark the session as handoff pending."""
     try:
-        summary = build_transfer_summary(context.reason, context.history_text)
+        summary = await build_transfer_summary(context.reason, context.history_text)
         await context.transfer_mgr.request_transfer(
             context.session.id,
             context.user_id,
@@ -49,6 +53,13 @@ async def request_human_transfer(context: HumanTransferContext) -> bool:
         return False
 
 
-def build_transfer_summary(reason: str, history_text: str) -> str:
+async def build_transfer_summary(reason: str, history_text: str) -> str:
     """Build the concise handoff note saved on the transfer ticket."""
+    return await build_handoff_note_with_llm(
+        HandoffSummaryInput(reason=reason, history_text=history_text)
+    )
+
+
+def build_transfer_summary_fallback(reason: str, history_text: str) -> str:
+    """Build a deterministic handoff note for tests and degraded paths."""
     return build_handoff_note(reason, history_text)

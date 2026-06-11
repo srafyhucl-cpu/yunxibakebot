@@ -29,6 +29,7 @@ import asyncio
 import json
 import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -78,13 +79,12 @@ def load_corpus(db_path: str | Path) -> list[tuple[str, str, str]]:
     key 形态与 KnowledgeRepo.get_all_titles_with_keys 对齐：
     有 youzan_item_id 用之，否则用 kb_{id}。
     """
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT id, youzan_item_id, title, content "
-        "FROM knowledge_base WHERE is_active = 1"
-    ).fetchall()
-    conn.close()
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, youzan_item_id, title, content "
+            "FROM knowledge_base WHERE is_active = 1"
+        ).fetchall()
     corpus: list[tuple[str, str, str]] = []
     for r in rows:
         key = str(r["youzan_item_id"]) if r["youzan_item_id"] else f"kb_{r['id']}"

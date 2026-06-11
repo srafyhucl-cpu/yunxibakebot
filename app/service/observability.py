@@ -14,6 +14,7 @@ from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.service.observability_summary import build_operation_summary
 
 
 def now_str() -> str:
@@ -90,7 +91,9 @@ class ContentChangeLogger:
                 webhook_msg_id=webhook_msg_id,
                 action=action,
                 status=ChangeStatus.FAILED,
-                change_summary_json=json.dumps(change_summary or {}, ensure_ascii=False),
+                change_summary_json=json.dumps(
+                    change_summary or {}, ensure_ascii=False
+                ),
                 error_type=error_type,
                 error_message=error_message,
                 occurred_at=occurred_at or now_str(),
@@ -209,9 +212,16 @@ class ObservabilityService:
         entry = await self._webhook_repo.get_by_id(event_id)
         return self._format_webhook_entry(entry) if entry else None
 
+    async def get_summary(self) -> dict:
+        """返回上线值守摘要。"""
+        return await build_operation_summary(self._history_repo, self._webhook_repo)
 
     def _format_knowledge_item(self, entry) -> dict:
-        category = entry.category.value if hasattr(entry.category, "value") else str(entry.category)
+        category = (
+            entry.category.value
+            if hasattr(entry.category, "value")
+            else str(entry.category)
+        )
         return {
             "entity_type": ChangeEntityType.KNOWLEDGE,
             "entity_key": str(entry.id),
@@ -281,7 +291,10 @@ class ObservabilityService:
             lines = [self._compact_value(item) for item in parsed_data]
             return "\n".join(lines) if lines else "-"
         if isinstance(parsed_data, dict):
-            return "\n".join(f"{key}: {self._compact_value(value)}" for key, value in parsed_data.items())
+            return "\n".join(
+                f"{key}: {self._compact_value(value)}"
+                for key, value in parsed_data.items()
+            )
         return self._compact_value(parsed_data)
 
     def _summary_lines(self, data: dict) -> list[str]:
@@ -296,7 +309,9 @@ class ObservabilityService:
 
     def _compact_value(self, value) -> str:
         if isinstance(value, dict):
-            return "；".join(f"{key}={self._compact_value(item)}" for key, item in value.items())
+            return "；".join(
+                f"{key}={self._compact_value(item)}" for key, item in value.items()
+            )
         if isinstance(value, list):
             return "；".join(self._compact_value(item) for item in value)
         return str(value)

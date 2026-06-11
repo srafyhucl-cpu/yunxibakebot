@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 基于 Sentence-Transformers 的语义向量搜索引擎。
 
@@ -16,6 +14,8 @@ from __future__ import annotations
 - 可选集成 sklearn.neighbors.NearestNeighbors 实现 ANN 近似检索
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import os
@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from app.logger import setup_logger
+from app.readiness import resolve_embedding_path
 from app.service.embedding_model import (
     EMBEDDING_MODEL,
     MIN_SIMILARITY_SCORE,
@@ -63,7 +64,7 @@ class EmbeddingSearcher:
             "last_build_duration": 0.0,
         }
         try:
-            duration_file = Path("data/vector_last_duration.json")
+            duration_file = resolve_embedding_path("data/vector_last_duration.json")
             if duration_file.exists():
                 with open(duration_file, "r", encoding="utf-8") as f:
                     self._init_progress["last_build_duration"] = json.load(f).get(
@@ -167,8 +168,9 @@ class EmbeddingSearcher:
         duration = time.time() - self._init_progress["start_time"]
         self._init_progress["last_build_duration"] = duration
         try:
-            os.makedirs("data", exist_ok=True)
-            with open("data/vector_last_duration.json", "w", encoding="utf-8") as f:
+            duration_file = resolve_embedding_path("data/vector_last_duration.json")
+            duration_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(duration_file, "w", encoding="utf-8") as f:
                 json.dump({"last_build_duration": duration}, f)
         except Exception:
             pass

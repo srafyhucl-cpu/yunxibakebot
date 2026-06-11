@@ -72,3 +72,19 @@ export interface ObservabilityWebhookPayload {
   items: ObservabilityWebhookItem[];
   total: number;
 }
+
+export interface ObservabilitySummaryCounts {
+  contentChangeFailures: number;
+  webhookFailures: number;
+  webhookProcessing: number;
+  slowWebhooks: number;
+}
+
+export interface ObservabilitySummary {
+  status: "ok" | "attention" | string;
+  counts: ObservabilitySummaryCounts;
+  thresholds: {
+    slowWebhookMs: number;
+    webhookScanLimit: number;
+  };
+}
