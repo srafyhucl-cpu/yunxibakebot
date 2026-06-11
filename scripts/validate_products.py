@@ -61,7 +61,7 @@ def has_encoding_issues(text: str) -> str | None:
     返回 None 表示正常，返回描述字符串表示有问题。
     """
     # 检查代理字符/替换字符
-    if "�" in text:
+    if "\ufffd" in text:
         return "包含替换字符 U+FFFD"
 
     # 检查孤立代理项（surrogate）
@@ -94,7 +94,7 @@ def has_encoding_issues(text: str) -> str | None:
 def check_title_anomaly(title: str) -> str | None:
     """检查标题是否包含异常字符。"""
     # 问号占位符（通常是 emoji 未正确解析）
-    if "�" in title:
+    if "\ufffd" in title:
         return f"标题包含替换字符: {title}"
 
     # 连续问号
@@ -128,7 +128,11 @@ def validate_product(product: dict, index: int) -> list[str]:
         return issues
 
     # 3. 编码异常检测
-    for field_name, field_value in [("title", title), ("content", content), ("keywords", keywords)]:
+    for field_name, field_value in [
+        ("title", title),
+        ("content", content),
+        ("keywords", keywords),
+    ]:
         issue = has_encoding_issues(field_value)
         if issue:
             issues.append(f"[WARNING] 行{pid} '{title}' {field_name} 编码异常: {issue}")

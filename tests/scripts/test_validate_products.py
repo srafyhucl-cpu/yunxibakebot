@@ -74,6 +74,7 @@ def run_validate(rows: list[dict]) -> list[tuple[int, str, str]]:
 # Tool functions: extract_prices
 # ══════════════════════════════════════════
 
+
 def test_extract_prices_normal() -> None:
     """正常价格提取。"""
     result = extract_prices("分类: 甜品 | 标准规格: 48元, 配送: 自提")
@@ -102,6 +103,7 @@ def test_extract_prices_empty() -> None:
 # Tool functions: has_encoding_issues
 # ══════════════════════════════════════════
 
+
 def test_encoding_normal() -> None:
     """正常文本应返回 None。"""
     assert has_encoding_issues("经典提拉米苏盒子 48元") is None
@@ -109,7 +111,7 @@ def test_encoding_normal() -> None:
 
 def test_encoding_replacement_char() -> None:
     """替换字符 U+FFFD。"""
-    assert has_encoding_issues("奶酪�面包") is not None
+    assert has_encoding_issues("奶酪\ufffd面包") is not None
 
 
 def test_encoding_control_char() -> None:
@@ -140,6 +142,7 @@ def test_encoding_bracket_halfwidth_mismatch() -> None:
 # Tool functions: check_title_anomaly
 # ══════════════════════════════════════════
 
+
 def test_title_normal() -> None:
     """正常标题应返回 None。"""
     assert check_title_anomaly("提拉米苏") is None
@@ -147,7 +150,7 @@ def test_title_normal() -> None:
 
 def test_title_replacement_char() -> None:
     """替换字符。"""
-    assert check_title_anomaly("奶酪�面包") is not None
+    assert check_title_anomaly("奶酪\ufffd面包") is not None
 
 
 def test_title_double_question() -> None:
@@ -164,6 +167,7 @@ def test_title_too_short() -> None:
 # ══════════════════════════════════════════
 # Integration: validate_product
 # ══════════════════════════════════════════
+
 
 def test_validate_normal_product() -> None:
     """正常商品应无缺陷。"""
@@ -278,7 +282,12 @@ def test_validate_mixed_data() -> None:
         {"id": 10, "title": "正常商品", "content": "分类: 甜品 | 48元", "keywords": ""},
         {"id": 11, "title": "??脏数据", "content": "分类: 面包 | 15元", "keywords": ""},
         {"id": 12, "title": "空价格", "content": "分类: 蛋糕 | 仅展示", "keywords": ""},
-        {"id": 13, "title": "另一个正常", "content": "分类: 饮品 | 38元", "keywords": ""},
+        {
+            "id": 13,
+            "title": "另一个正常",
+            "content": "分类: 饮品 | 38元",
+            "keywords": "",
+        },
     ]
     issues = run_validate(rows)
     # 第1条正常 → 无缺陷
@@ -298,35 +307,47 @@ def test_validate_mixed_data() -> None:
 
 if __name__ == "__main__":
     test_functions = [
-        ("extract_prices", [
-            test_extract_prices_normal,
-            test_extract_prices_multiple,
-            test_extract_prices_decimal,
-            test_extract_prices_empty,
-        ]),
-        ("has_encoding_issues", [
-            test_encoding_normal,
-            test_encoding_replacement_char,
-            test_encoding_control_char,
-            test_encoding_bracket_mismatch,
-            test_encoding_bracket_halfwidth_mismatch,
-        ]),
-        ("check_title_anomaly", [
-            test_title_normal,
-            test_title_replacement_char,
-            test_title_double_question,
-            test_title_too_short,
-        ]),
-        ("validate_product", [
-            test_validate_normal_product,
-            test_validate_empty_content,
-            test_validate_no_price,
-            test_validate_encoding_issue,
-            test_validate_price_out_of_range,
-            test_validate_truncated_content,
-            test_validate_missing_category,
-            test_validate_mixed_data,
-        ]),
+        (
+            "extract_prices",
+            [
+                test_extract_prices_normal,
+                test_extract_prices_multiple,
+                test_extract_prices_decimal,
+                test_extract_prices_empty,
+            ],
+        ),
+        (
+            "has_encoding_issues",
+            [
+                test_encoding_normal,
+                test_encoding_replacement_char,
+                test_encoding_control_char,
+                test_encoding_bracket_mismatch,
+                test_encoding_bracket_halfwidth_mismatch,
+            ],
+        ),
+        (
+            "check_title_anomaly",
+            [
+                test_title_normal,
+                test_title_replacement_char,
+                test_title_double_question,
+                test_title_too_short,
+            ],
+        ),
+        (
+            "validate_product",
+            [
+                test_validate_normal_product,
+                test_validate_empty_content,
+                test_validate_no_price,
+                test_validate_encoding_issue,
+                test_validate_price_out_of_range,
+                test_validate_truncated_content,
+                test_validate_missing_category,
+                test_validate_mixed_data,
+            ],
+        ),
     ]
 
     passed = 0

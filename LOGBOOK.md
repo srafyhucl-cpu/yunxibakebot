@@ -1,6 +1,82 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+## [2026-06-11] - docs(harness): 规划 Vibe Coding 生产级 Harness Engineering
+- **操作人**: AI (Codex)
+- **背景**: 用户要求完善项目 Harness Engineering，达到处处有追溯、增强记忆、避免同一类问题重复犯错，并结合当前 AI 驾驭范式规划一套大厂生产级 Vibe Coding Harness。
+- **变更范围**:
+  - `docs/harness-engineering/README.md` - 新增统一父入口，串联 AGENTS、LOGBOOK、评估报告、追溯模型、验证矩阵、防重犯账本和交接模板。
+  - `docs/harness-engineering/before-after.html` - 新增自包含 HTML 对比图，展示 Harness 文档调整前的散点式入口，以及调整后的统一父目录、core、adr、specs 分区。
+  - `.agents/skills/yunxi-harness-engineering/SKILL.md` - 新增项目级 Harness Skill，用于较大任务、追溯、复盘、防重犯、证据留档、交接和 Skill 审计场景。
+  - `.agents/skills/yunxi-architecture-guard/SKILL.md`、`.agents/skills/yunxi-clean-code-guard/SKILL.md`、`.agents/skills/yunxi-file-size-guard/SKILL.md`、`.agents/skills/yunxi-llm-guard/SKILL.md` - 补充 Harness 联动说明，遇到重复错误或系统性问题时回写 mistake ledger、验证矩阵或机械防线。
+  - `.agents/SKILL_AUDIT.md` - 更新 Skill 死亡风险审计，新增 `芸熙Harness工程守卫`，统一状态标记为 `KEEP` / `LOW` / `FIX` / `DELETE` / `PROJECT_SKIP`，避免 emoji 或替换字符导致终端乱码；`json-canvas`、`playwright-skill` 调整为 `PROJECT_SKIP`，表示本项目不引入但全局可保留。
+  - `docs/harness-engineering/specs/2026-06-11-vibe-coding-harness-engineering-design.md` - 新增生产级设计，定义 H1-H7 七层 Harness、Traceable Memory Harness 闭环、核心制品、错误防重犯机制和 P0-P3 路线图。
+  - `docs/harness-engineering/core/traceability-model.md` - 新增任务级 trace id、证据链字段、证据等级和 reports 命名建议。
+  - `docs/harness-engineering/core/verification-matrix.md` - 新增按变更类型选择最低验证和加强验证的矩阵。
+  - `docs/harness-engineering/core/mistake-ledger.md` - 新增可复用教训账本模板，要求把重复错误沉淀为测试、脚本、门禁、skill 或 runbook。
+  - `docs/harness-engineering/core/agent-handoff-template.md` - 新增长任务续跑、上下文重置和换 Agent 时的交接模板。
+  - `docs/harness-engineering/core/evidence-index.md` - 新增证据包索引，登记交接、预检、冒烟、迁移、知识种子、向量重建等报告的位置、命令、结果和敏感数据状态。
+  - `docs/harness-engineering/adr/README.md` - 新增 ADR 模板和触发条件，用于记录长期架构决策。
+  - `docs/harness-engineering/adr/0001-traceable-memory-harness.md` - 新增首条 ADR，固化采用 Traceable Memory Harness 作为 Vibe Coding 驾驭框架。
+  - `docs/AGENTS/encoding-and-terminal.md` - 新增中文编码与终端乱码处理说明，区分文件真实损坏和 PowerShell 默认编码读取错误。
+  - `.editorconfig` - 新增仓库文本编码和换行默认规则，固定 UTF-8 作为编辑器入口约束。
+  - `.gitignore` - 保持实际 reports 报告文件默认忽略，同时允许 `reports/harness/.gitkeep` 入库，固定 Harness 证据包目录入口。
+  - `reports/harness/.gitkeep` - 固定 Harness 证据包目录入口。
+  - `scripts/harness_snapshot.py` - 新增只读 Harness 交接快照脚本，支持 Markdown/JSON 输出、`{timestamp}` 文件名展开、UTF-8 BOM 写入和拒绝覆盖。
+  - `scripts/check_mistake_ledger.py` - 新增 mistake ledger 结构检查脚本，校验空账本标记、条目标题、必填字段、status 和 severity 枚举。
+  - `scripts/enable_utf8_console.ps1` - 新增 Windows PowerShell UTF-8 会话引导脚本，设置控制台编码和常用文本命令默认 UTF-8。
+  - `scripts/check_text_encoding.py` - 新增中文文本编码健康检查脚本，扫描 AGENTS、README、LOGBOOK、docs 和项目 Skill 中的 UTF-8 解码失败、替换字符和典型 mojibake。
+  - `scripts/validate_products.py`、`tests/scripts/test_validate_products.py` - 将测试和检查中的替换字符字面量改为 `\ufffd` 形式，避免源码本身被编码健康检查误判为乱码。
+  - `tests/service/wecom/test_kf_callback_processor.py` - 修复两处人工客服会话测试的硬编码日期，避免 `2026-06-10 13:00:00` 在 2026-06-11 后超过 24 小时空闲阈值导致测试按真实时间漂移失败。
+  - `.pre-commit-config.yaml` - 新增 `check-mistake-ledger` 和 `check-text-encoding` hook，每次提交前自动检查防重犯账本结构与中文编码健康，避免 Harness 记忆格式或文档可读性漂移。
+  - `AGENTS.md` - 启动检查清单补充 Harness Skill 触发步骤，并在文档索引中加入中文编码与终端乱码处理入口。
+  - `docs/AGENTS/skill-reference.md` - 补充 `yunxi-harness-engineering` 调用入口、Harness 记忆落点和中文编码处理链接。
+  - `tests/scripts/test_harness_snapshot.py` - 覆盖 git status 解析、LOGBOOK 最新条目读取、Markdown 输出和快照文件拒绝覆盖。
+  - `tests/scripts/test_check_mistake_ledger.py` - 覆盖空账本、完整条目、缺字段、非法枚举等账本检查场景。
+  - `tests/scripts/test_check_text_encoding.py` - 覆盖正常中文、replacement character、典型 mojibake 和非 UTF-8 字节文件。
+  - `README.md` - 新增 Vibe Coding Harness Engineering、项目 Harness Skill 和中文乱码处理入口链接。
+  - `项目进度与配置清单.md` - 在 2026-06-11 本地补强记录中补充 Harness Engineering 文档入口、Skill 统一接入、P1 机器辅助脚本和中文编码治理。
+- **验证**:
+  - `.\scripts\enable_utf8_console.ps1` 通过，当前 PowerShell 会话默认 `Get-Content` 可正确读取项目 Skill 中文。
+  - 当前用户 PowerShell profile `C:\Users\srafy\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` 已加入 `# BEGIN YunxiBakeBot UTF-8 bootstrap` 到 `# END YunxiBakeBot UTF-8 bootstrap` 的幂等 UTF-8 初始化块。
+  - `Test-Path docs/harness-engineering/README.md` 通过。
+  - `Test-Path docs/harness-engineering/before-after.html` 通过。
+  - `Test-Path .agents/skills/yunxi-harness-engineering/SKILL.md` 通过。
+  - `Test-Path docs/AGENTS/encoding-and-terminal.md` 通过。
+  - `Test-Path docs/harness-engineering/core/traceability-model.md` 通过。
+  - `Test-Path docs/harness-engineering/core/verification-matrix.md` 通过。
+  - `Test-Path docs/harness-engineering/core/mistake-ledger.md` 通过。
+  - `Test-Path docs/harness-engineering/core/agent-handoff-template.md` 通过。
+  - `Test-Path docs/harness-engineering/core/evidence-index.md` 通过。
+  - `Test-Path docs/harness-engineering/adr/README.md` 通过。
+  - `Test-Path docs/harness-engineering/adr/0001-traceable-memory-harness.md` 通过。
+  - `Test-Path reports/harness/.gitkeep` 通过。
+  - `git status --short --untracked-files=all reports` 显示 `?? reports/harness/.gitkeep`，确认 Harness 证据目录入口可被版本化。
+  - `Test-Path docs/harness-engineering/specs/2026-06-11-vibe-coding-harness-engineering-design.md` 通过。
+  - `Select-String -Path README.md,'项目进度与配置清单.md',LOGBOOK.md -Pattern 'Vibe Coding Harness Engineering|docs/harness-engineering/README.md|traceability-model|verification-matrix|mistake-ledger|agent-handoff-template'` 通过。
+  - `Select-String -Path docs/harness-engineering/**/*.md -Pattern 'TODO|TBD'` 无输出。
+  - `python -m pytest tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py tests/scripts/test_check_text_encoding.py -q --no-cov` 通过。
+  - `python -m ruff check scripts/harness_snapshot.py scripts/check_mistake_ledger.py scripts/check_text_encoding.py tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py tests/scripts/test_check_text_encoding.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过；仅报告既有存量超线文件。
+  - `python scripts/check_mistake_ledger.py` 通过，当前 entries=0。
+  - `python scripts/check_text_encoding.py` 通过，当前扫描 AGENTS、README、LOGBOOK、项目进度、docs 和项目 Skill 共 39 个文本文件。
+  - `python scripts/check_text_encoding.py .agents scripts tests/scripts` 通过，扩展扫描项目 Skill、脚本和脚本测试共 70 个文本文件。
+  - `python scripts/check_text_encoding.py .agents docs/harness-engineering docs/AGENTS` 通过，确认 Skill 审计表和 Harness 文档无替换字符或典型 mojibake。
+  - `python -m pytest tests/scripts/test_check_text_encoding.py tests/scripts/test_validate_products.py -q --no-cov` 通过。
+  - `python -m pytest tests/service/wecom/test_kf_callback_processor.py -q --no-cov` 通过。
+  - `python -m ruff check scripts/check_text_encoding.py scripts/validate_products.py tests/scripts/test_check_text_encoding.py tests/scripts/test_validate_products.py` 通过。
+  - `python -m ruff check tests/service/wecom/test_kf_callback_processor.py` 通过。
+  - `pre-commit run check-mistake-ledger --all-files` 通过。
+  - `pre-commit run check-text-encoding --all-files` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过；仅报告既有函数行数 warning，不阻断。
+  - `rg --files ".agents/skills" -g "SKILL.md"` 显示 5 个项目 Skill，包含 `.agents/skills/yunxi-harness-engineering/SKILL.md`。
+  - `rg "docs/harness/|docs/adr/|docs/superpowers/specs/2026-06-11-vibe-coding-harness-engineering-design" -n ".agents" "docs" "README.md" "AGENTS.md" "项目进度与配置清单.md" "LOGBOOK.md"` 仅在 `docs/harness-engineering/before-after.html` 的“调整前”历史对比说明中命中。
+  - `python scripts/harness_snapshot.py --trace-id 20260611-harness-skill-encoding --goal "完善 Harness Skill 与中文编码治理" --status in_progress --json` 通过，输出当前工作区快照。
+- **注意**:
+  - 本轮仅新增 Harness 文档、项目 Skill、编码治理脚本和脚本测试，不修改业务代码、数据库或运行时配置。
+  - 用户级 PowerShell profile 已追加带标记的 UTF-8 初始化块；若未来遇到旧工具不兼容，可删除 `# BEGIN YunxiBakeBot UTF-8 bootstrap` 到 `# END YunxiBakeBot UTF-8 bootstrap` 之间的片段，或临时执行 `chcp 936` 回退代码页。
+  - `scripts/harness_snapshot.py --output` 只在显式传入输出路径时写入快照文件，且拒绝覆盖已有文件。
+
 ## [2026-06-11] - docs(ops): 增加生产级补强对比流程图
 - **操作人**: AI (Codex)
 - **背景**: 用户希望把本轮 8 小时 40 分钟的生产化补强，用修改前/修改后的对比流程图展示出来，并更新项目文档入口，便于明日同步生产前快速说明系统完善程度。

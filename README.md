@@ -12,6 +12,7 @@
 - [项目介绍](#项目介绍)
 - [功能特性](#功能特性)
 - [生产级补强流程图](#生产级补强流程图)
+- [Vibe Coding Harness Engineering](#vibe-coding-harness-engineering)
 - [技术栈](#技术栈)
 - [系统架构](#系统架构)
 - [快速开始](#快速开始)
@@ -60,6 +61,19 @@
 - 打开流程图：[docs/production-readiness-before-after.html](docs/production-readiness-before-after.html)
 - 上线前清单：[项目进度与配置清单.md](项目进度与配置清单.md)
 - 最近变更日志：[LOGBOOK.md](LOGBOOK.md)
+
+---
+
+## Vibe Coding Harness Engineering
+
+项目已新增一套面向 AI 驾驭和 Vibe Coding 可持续演进的 Harness Engineering 体系，用于把需求、决策、改动、验证、证据和复盘串成可追溯闭环，并把重复错误沉淀为测试、脚本、规则或 runbook。所有 Harness 文档统一收纳在一个父目录中：
+
+- 统一入口：[docs/harness-engineering/README.md](docs/harness-engineering/README.md)
+- 前后对比图：[docs/harness-engineering/before-after.html](docs/harness-engineering/before-after.html)
+- 项目 Harness Skill：`.agents/skills/yunxi-harness-engineering/SKILL.md`
+- 交接快照命令：`python scripts/harness_snapshot.py`
+- 防重犯账本检查：`python scripts/check_mistake_ledger.py`，并已接入 pre-commit 的 `check-mistake-ledger` hook
+- 中文乱码处理：[docs/AGENTS/encoding-and-terminal.md](docs/AGENTS/encoding-and-terminal.md)，当前 PowerShell 可执行 `.\scripts\enable_utf8_console.ps1`
 
 ---
 

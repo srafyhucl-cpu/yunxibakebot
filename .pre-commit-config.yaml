@@ -53,6 +53,22 @@ repos:
           在每次 commit 前用违规/合规双样本验证全部 11 条红线规则的检测逻辑。
           确保 check_project.py 的扫描规则不会因代码重构或正则漂移而失效。
 
+      - id: check-mistake-ledger
+        name: Harness 防重犯账本结构检查
+        entry: python scripts/check_mistake_ledger.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 检查 docs/harness-engineering/core/mistake-ledger.md 的空账本标记、必填字段和枚举值，避免防重犯记忆失效
+
+      - id: check-text-encoding
+        name: 中文文本编码健康检查
+        entry: python scripts/check_text_encoding.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 检查 AGENTS、docs、LOGBOOK、README 和项目 Skill 是否出现 UTF-8 解码失败、替换字符或典型中文 mojibake
+
       - id: ruff-check
         name: Ruff Lint Check
         entry: ruff check --exit-zero

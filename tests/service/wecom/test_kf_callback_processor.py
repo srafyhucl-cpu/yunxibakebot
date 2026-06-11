@@ -206,7 +206,7 @@ async def test_processor_persists_servicer_message_without_ai_queue(
             "user-1",
             "human_service",
             "{}",
-            "2026-06-10 13:00:00",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ),
     )
     await db.commit()
@@ -323,7 +323,7 @@ async def test_handoff_user_message_is_synced_without_ai_queue(
             "user-1",
             "human_service",
             "{}",
-            "2026-06-10 13:00:00",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ),
     )
     await db.commit()

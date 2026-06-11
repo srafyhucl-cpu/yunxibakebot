@@ -6,6 +6,14 @@ description: "【必须在动代码前调用】芸熙烘焙 AI 客服分层架�
 
 # 芸熙烘焙架构守卫
 
+## Harness 联动
+
+如果本次架构问题来自返工、误操作、跨层穿透或重复踩坑，先联动 `yunxi-harness-engineering`：
+
+- 用 `docs/harness-engineering/core/traceability-model.md` 记录 trace。
+- 用 `docs/harness-engineering/core/verification-matrix.md` 选择架构验证。
+- 需要长期记忆时，写入 `docs/harness-engineering/core/mistake-ledger.md`，并补测试、脚本、pre-commit、AGENTS 或 Skill 中至少一类防线。
+
 ## 分层边界（核心约束）
 
 ```

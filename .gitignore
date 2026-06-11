@@ -51,8 +51,11 @@ htmlcov/
 coverage.xml
 .pytest_cache/
 
-# 压测报告（可重新生成）
-reports/
+# 报告文件（可重新生成，默认不入库；仅保留 Harness 证据目录入口）
+reports/*
+!reports/harness/
+reports/harness/*
+!reports/harness/.gitkeep
 
 # Codebuddy
 .codebuddy/

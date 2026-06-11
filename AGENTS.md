@@ -23,7 +23,13 @@ ______________________________________________________________________
 
 > 禁止跳过：即使需求"看起来很简单"，brainstorming 也是必须的——简单需求最容易因假设错误造成返工。
 
-### Step 2：识别涉及的代码范围 → 调用对应 Guard Skill
+### Step 2：较大任务 / 追溯 / 复盘 → 先用 Harness Skill
+
+凡是涉及跨文件变更、文档统一管理、上线收口、证据留档、上下文交接、重复错误复盘、Skill 更新或 Harness Engineering，必须调用 **yunxi-harness-engineering**。
+
+统一入口：[docs/harness-engineering/README.md](./docs/harness-engineering/README.md)
+
+### Step 3：识别涉及的代码范围 → 调用对应 Guard Skill
 
 | 涉及范围 | 必须调用的 Skill |
 |---------|----------------|
@@ -32,11 +38,11 @@ ______________________________________________________________________
 | 任意 `.py` 文件（新增内容 / 修改函数 / 新增类） | **yunxi-file-size-guard** |
 | 代码 Review / 发现命名混乱 / 魔法数字 / 函数过长 | **yunxi-clean-code-guard** |
 
-### Step 3：读取 LOGBOOK.md 最新条目
+### Step 4：读取 LOGBOOK.md 最新条目
 
 快速扫描 `LOGBOOK.md` 前 30 行，了解最近一次变更的上下文。
 
-### Step 4：确认修改范围不跨越架构边界
+### Step 5：确认修改范围不跨越架构边界
 
 架构分层：`api/ → service/ → repository/ → models/`，禁止任何层级向上穿透。
 
@@ -73,3 +79,4 @@ ______________________________________________________________________
 | 提交收口规范（9 步清单 + 版本号规则） | [docs/AGENTS/commit-workflow.md](./docs/AGENTS/commit-workflow.md) |
 | Skill 调用速查 | [docs/AGENTS/skill-reference.md](./docs/AGENTS/skill-reference.md) |
 | 快速参考（关键路径 + 测试部署命令） | [docs/AGENTS/quick-reference.md](./docs/AGENTS/quick-reference.md) |
+| 中文编码与终端乱码处理 | [docs/AGENTS/encoding-and-terminal.md](./docs/AGENTS/encoding-and-terminal.md) |

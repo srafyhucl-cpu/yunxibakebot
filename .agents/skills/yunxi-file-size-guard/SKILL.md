@@ -6,6 +6,14 @@ description: "【必须在动代码前调用】芸熙烘焙 AI 客服文件体�
 
 # 芸熙烘焙单文件体量与上帝类守卫
 
+## Harness 联动
+
+如果出现“继续往超线文件追加职责”“拆分后又回流到单文件”“阈值或存量清单过时”等情况，先联动 `yunxi-harness-engineering`：
+
+- 将本次文件体量风险绑定到 trace。
+- 把验证命令写入 `docs/harness-engineering/core/verification-matrix.md` 或 LOGBOOK。
+- 若属于重复错误，写入 `docs/harness-engineering/core/mistake-ledger.md` 并补机械防线。
+
 ## 📏 单文件体量阈值
 
 > 阈值是「职责可能过载」的早期信号，不是拆分目标。超线必须先评估职责是否真实混杂，不是为压行数而拆。
@@ -124,4 +132,3 @@ $content = Get-Content "app/service/chat.py"
 - [ ] 原调用方 import 路径无需修改（或已做向后兼容 re-export）
 - [ ] 相关测试仍通过
 - [ ] `LOGBOOK.md` 已更新
-

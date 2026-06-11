@@ -6,6 +6,7 @@ ______________________________________________________________________
 
 | 场景 | 调用命令 |
 |------|---------|
+| 较大任务 / 追溯 / 复盘 / 证据留档 / Skill 更新 | `skill invoke yunxi-harness-engineering` |
 | 修改任意分层代码 | `skill invoke yunxi-architecture-guard` |
 | 修改 LLM/Prompt/意图 | `skill invoke yunxi-llm-guard` |
 | 新增/修改 `.py` 文件 | `skill invoke yunxi-file-size-guard` |
@@ -24,6 +25,19 @@ ______________________________________________________________________
 | **创建或改进 Guard Skill** | `skill-creator` | 草稿 → 测试 → 迭代，优化 description 触发精度 |
 | **向飞书发送开发通知**（部署结果、生产告警） | `lark-im` | 推送消息到开发群或个人 |
 | **Skill 发现习惯建立** | `using-superpowers` | 任务开始前查找可用 skill 的元协议 |
+
+---
+
+## Harness Skill 与记忆落点
+
+| 场景 | 统一入口 |
+|------|---------|
+| Harness 文档导航 | [docs/harness-engineering/README.md](../harness-engineering/README.md) |
+| 任务追溯字段 | [docs/harness-engineering/core/traceability-model.md](../harness-engineering/core/traceability-model.md) |
+| 验证选择 | [docs/harness-engineering/core/verification-matrix.md](../harness-engineering/core/verification-matrix.md) |
+| 防重犯账本 | [docs/harness-engineering/core/mistake-ledger.md](../harness-engineering/core/mistake-ledger.md) |
+| 证据索引 | [docs/harness-engineering/core/evidence-index.md](../harness-engineering/core/evidence-index.md) |
+| 中文乱码处理 | [docs/AGENTS/encoding-and-terminal.md](encoding-and-terminal.md) |
 
 ---
 
