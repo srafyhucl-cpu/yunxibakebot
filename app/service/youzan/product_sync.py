@@ -8,12 +8,11 @@
 是两个模块的共享底座。
 """
 
-import datetime
 import json
 import re
 
 from app.logger import setup_logger
-from app.models.content_change_history import SyncSource, WriteResult
+from app.models.content_change_history import WriteResult
 from app.service.knowledge_admin import DEFAULT_PRIORITY
 from app.service.youzan.event_item import _extract_item_tags, _build_rag_content
 
@@ -38,13 +37,18 @@ def parse_product_from_api(raw_product: dict, item_id: int) -> dict | None:
     image = item.get("pic_url") or item.get("image") or ""
     skus = item.get("skus", [])
     item_props = item.get("item_props", [])
+    tag_ids = [str(tag_id) for tag_id in item.get("tag_ids", []) if str(tag_id).strip()]
     sold_num = int(item.get("sold_num", 0) or 0)
     item_no = item.get("item_no", "") or ""
 
     raw_desc = item.get("desc", "") or item.get("summary", "") or ""
-    desc_clean = re.sub(r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))).strip()
+    desc_clean = re.sub(
+        r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))
+    ).strip()
 
-    spec_names, prop_names, ingredients = _extract_item_tags(title, skus, item_props, desc_clean)
+    spec_names, prop_names, ingredients = _extract_item_tags(
+        title, skus, item_props, desc_clean
+    )
 
     return {
         "item_id": item_id,
@@ -55,6 +59,7 @@ def parse_product_from_api(raw_product: dict, item_id: int) -> dict | None:
         "image": image,
         "skus": skus,
         "item_props": item_props,
+        "tag_ids": tag_ids,
         "sold_num": sold_num,
         "item_no": item_no,
         "desc_clean": desc_clean,
@@ -75,9 +80,13 @@ def build_tags_str(parsed: dict, status_label: str) -> str:
 
 
 async def sync_product_to_db(
-    product_repo, parsed: dict, is_active: int,
-    updated_at: str, tags_str: str,
-    sync_source: str, sync_ref: str,
+    product_repo,
+    parsed: dict,
+    is_active: int,
+    updated_at: str,
+    tags_str: str,
+    sync_source: str,
+    sync_ref: str,
 ) -> str:
     """将解析后的商品数据写入 youzan_products 宽表。"""
     return await product_repo.upsert_product(
@@ -93,6 +102,7 @@ async def sync_product_to_db(
         item_props_json=json.dumps(parsed["item_props"], ensure_ascii=False),
         desc=parsed["desc_clean"],
         tags=tags_str,
+        tag_ids_json=json.dumps(parsed.get("tag_ids", []), ensure_ascii=False),
         sold_num=parsed["sold_num"],
         item_no=parsed["item_no"],
         sync_source=sync_source,
@@ -101,10 +111,15 @@ async def sync_product_to_db(
 
 
 async def sync_product_to_rag(
-    db, knowledge_retriever,
-    parsed: dict, is_active: int,
-    tags_str: str, status_label: str, updated_at: str,
-    sync_source: str, sync_ref: str,
+    db,
+    knowledge_retriever,
+    parsed: dict,
+    is_active: int,
+    tags_str: str,
+    status_label: str,
+    updated_at: str,
+    sync_source: str,
+    sync_ref: str,
 ) -> str:
     """将商品同步到 RAG 知识库 + 向量索引。"""
     from app.repository.knowledge_product_repo import KnowledgeProductRepo
@@ -115,11 +130,17 @@ async def sync_product_to_rag(
 
     if is_active == 1:
         content_md = _build_rag_content(
-            title, parsed["alias"], status_label,
-            parsed["skus"], parsed["item_props"],
-            parsed["price_fen"], parsed["stock"],
-            parsed["desc_clean"], tags_str,
-            item_id=item_id, image=parsed["image"],
+            title,
+            parsed["alias"],
+            status_label,
+            parsed["skus"],
+            parsed["item_props"],
+            parsed["price_fen"],
+            parsed["stock"],
+            parsed["desc_clean"],
+            tags_str,
+            item_id=item_id,
+            image=parsed["image"],
         )
         result = await knowledge_repo.upsert_product_knowledge(
             youzan_item_id=str(item_id),
@@ -133,14 +154,21 @@ async def sync_product_to_rag(
         )
         vs = knowledge_retriever._vs
         if vs and result == WriteResult.APPLIED:
-            vector = vs._get_model().encode(
-                [f"{title} {content_md}"], normalize_embeddings=True,
-            )[0].tolist()
+            vector = (
+                vs._get_model()
+                .encode(
+                    [f"{title} {content_md}"],
+                    normalize_embeddings=True,
+                )[0]
+                .tolist()
+            )
             await vs.upsert_one(str(item_id), vector)
         return result
 
     result = await knowledge_repo.delete_product_knowledge(
-        str(item_id), sync_source=sync_source, sync_ref=sync_ref,
+        str(item_id),
+        sync_source=sync_source,
+        sync_ref=sync_ref,
     )
     vs = knowledge_retriever._vs
     if vs and result == WriteResult.APPLIED:

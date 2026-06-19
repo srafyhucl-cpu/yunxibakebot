@@ -1,6 +1,1411 @@
 ﻿# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
+
+## [2026-06-19] - feat(miniapp): ITEM_INFO 稳定分类字段落库
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-youzan-item-base-categories
+- **背景**: 用户指出有赞 `youzan.item.base.search` 的 ITEM_INFO 接口应包含商品分类字段，希望按商品编码/商品 ID 关联分类等信息并落库，修复小程序商品分类不稳定问题。
+- **根因**: 现有生产商品宽表只保存 `tag_ids_json`，且线上商品响应中 `categoryId` 退化为“商品”；旧 `tag_ids`/关键词链路会混入商品名、规格和价格标签，无法稳定驱动小程序左侧分类。
+- **变更范围**:
+  - `app/service/youzan/client.py` - 新增 `search_item_base()` 与 `search_item_classifications()`，分别调用 `youzan.item.base.search/1.0.0` 拉取 ITEM_INFO 稳定分类 ID，并调用 `youzan.item.classification.search/1.0.0` 拉取 `classification_id -> name` 中文映射。
+  - `app/migrations/schema.py`、`app/migrations/v013_youzan_item_base_categories.sql` - `youzan_products` 新增 `classification_ids_json`、`group_ids_json`、`second_group_ids_json`、`leaf_category_ids_json`。
+  - `app/repository/youzan_repo.py` - 支持保存 ITEM_INFO 分类字段，并按 `youzan-classification-*` 等稳定分类 key 查询商品。
+  - `app/service/youzan/product_reconciler.py` - 每日对账批量拉取 ITEM_INFO，兼容有赞实测单数字段 `classification_id/leaf_category_id`，按 `item_id` 关联落库，并把 `classification_ids` 写入公开分类映射，分类标题优先使用 `youzan.item.classification.search` 返回的中文名称。
+  - `app/repository/knowledge_product_repo.py`、`app/service/miniapp_catalog.py` - 小程序商品序列化优先使用 ITEM_INFO `classification_ids_json` 输出 `categoryId/categoryName`。
+  - `tests/service/youzan/test_product_reconciler.py`、`tests/helpers/miniapp_catalog_seed.py`、`tests/service/test_miniapp_catalog_item_base_category.py` - 覆盖 ITEM_INFO 分类同步、落库、小程序列表分类与过滤。
+- **验证结果**:
+  - `python -m pytest tests\api\test_miniapp_catalog_api.py tests\service\test_miniapp_catalog.py tests\service\test_miniapp_catalog_item_base_category.py tests\service\youzan\test_product_reconciler.py --no-cov` 通过，14 passed。
+  - 由于当前环境 `__pycache__` 写权限异常，`python -m py_compile` 无法写 `.pyc`；改用内存 `compile()` 校验相关源码，通过。
+- **联调证据**:
+  - `youzan.item.base.search/1.0.0` 已联通，实测商品会返回 `classification_id`、`leaf_category_id` 等单数字段，例如 `41327239`。
+  - `youzan.item.classification.search/1.0.0` 已联通，返回 34 个分类中文名，例如 `40606522 -> 生日蛋糕`、`41327239 -> 甜品&面包`、`47793876 -> 糕点&礼盒`。
+- **遗留风险**:
+  - 生产环境需要先执行 v013 迁移，再运行商品对账/回填，最后复查 `/api/v1/miniapp/product-categories` 和 `/products?categoryId=youzan-classification-*`。
+
+## [2026-06-18] - fix(miniapp): 隐藏未命名有赞分类 tag
+- **操作人**: AI (Codex)
+- **trace_id**: 20260618-hide-unnamed-youzan-tags
+- **背景**: 小程序真机商品页左侧分类显示“有赞分组 2527...”等内部 tag id，用户指出分类获取不对。
+- **根因**: 有赞商品 `tag_ids` 引用了 28 个 tag id，但 `youzan.itemcategories.tags.get` 当前只返回 10 个可见分组名称；上一版将未命名 tag 作为“有赞分组 {tagId}”公开，导致 ID 泄漏到 C 端。
+- **变更范围**:
+  - `app/migrations/schema.py`、`app/migrations/v011_youzan_product_categories.sql`、`app/migrations/v012_youzan_category_visibility.sql` - 分类映射表新增 `is_public`。
+  - `app/repository/youzan_repo.py` - 分类列表只返回 `is_public=1` 的分类，分类写入支持可见性。
+  - `app/service/youzan/product_reconciler.py` - 未命名 tag 标记为不公开；有真实名称的有赞分组才公开。
+  - `app/service/miniapp_catalog.py` - 商品分类名优先选择公开分类，避免详情/列表暴露“有赞分组 {tagId}”。
+  - `tests/service/youzan/test_product_reconciler.py` - 覆盖分类可见性字段。
+- **验证结果**:
+  - 本地脱敏库已应用 v012 并重新回填：公开分类为 7 个中文分组（糕点&礼盒、生日蛋糕、甜品和面包、甜品台茶歇、芸熙周边惊喜连连、春节茶礼盒、其他）。
+  - `GET /api/v1/miniapp/product-categories` 无“有赞分组”泄漏。
+  - `python -m pytest tests\api\test_miniapp_catalog_api.py tests\service\test_miniapp_catalog.py tests\service\youzan\test_product_reconciler.py --no-cov` 通过，12 passed。
+  - `python -m py_compile app\service\miniapp_catalog.py app\service\youzan\product_reconciler.py app\repository\youzan_repo.py` 通过。
+- **遗留风险**:
+  - 有赞后台内部/历史 tag 不再展示，相关商品只会通过同时归属的公开分组或全部商品访问；如需更细分类，应在有赞后台把这些 tag 正式配置为可见分组或建立后台人工分类映射。
+
+## [2026-06-18] - feat(miniapp): 商品分类接入有赞 tag_ids
+- **操作人**: AI (Codex)
+- **trace_id**: 20260618-youzan-category-api
+- **背景**: 小程序商品页此前只能按前端关键词临时聚合分类，用户指出没有按有赞商品品类分类；本轮补齐后端真实有赞分组数据链路。
+- **变更范围**:
+  - `app/migrations/schema.py`、`app/migrations/v011_youzan_product_categories.sql` - 新增 `youzan_products.tag_ids_json` 和 `youzan_product_categories` 分组映射表。
+  - `app/repository/youzan_repo.py` - 保存/读取商品 tag ids，提供分类列表、分类详情、按 tag 精确查询和批量回填能力。
+  - `app/repository/knowledge_product_repo.py` - 商品知识联合查询带出 `tag_ids_json`。
+  - `app/service/miniapp_catalog.py`、`app/api/miniapp_catalog.py` - 新增 `/api/v1/miniapp/product-categories`，`/products?categoryId=youzan-tag-{tagId}` 精确过滤并返回 `categoryName`。
+  - `app/service/youzan/client.py`、`app/service/youzan/product_sync.py`、`app/service/youzan/product_reconciler.py` - 同步有赞商品 `tag_ids`，拉取 `youzan.itemcategories.tags.get` 分组名称并回填本地分类映射。
+  - `tests/api/test_miniapp_catalog_api.py`、`tests/service/test_miniapp_catalog.py`、`tests/service/youzan/test_product_reconciler.py`、`tests/helpers/miniapp_catalog_seed.py` - 覆盖分类列表、按分类过滤、多分类商品当前分类展示和对账回填。
+- **验证结果**:
+  - `python -m pytest tests\api\test_miniapp_catalog_api.py tests\service\test_miniapp_catalog.py tests\service\youzan\test_product_reconciler.py --no-cov` 通过，12 passed。
+  - `python -m py_compile app\service\miniapp_catalog.py app\service\youzan\client.py app\service\youzan\product_reconciler.py app\repository\youzan_repo.py app\repository\knowledge_product_repo.py` 通过。
+  - 本地脱敏库 `data/prod_snapshot/eval.db` 已应用 v011 结构并回填：有赞在售商品 304 条、写入 tag_ids 商品 290 条、分类 28 个。
+  - 本地 7001 API 验证 `/api/v1/miniapp/products?categoryId=youzan-tag-254005104` 返回 7 条，商品 `categoryName` 均为“糕点&礼盒”。
+- **遗留风险**:
+  - 有赞分组名称接口只返回 10 个可见分组，但商品实际引用 28 个 tag id；缺失名称暂显示“有赞分组 {tagId}”，过滤仍按真实 tag id 精确执行。
+  - 生产库尚未执行 v011 迁移和分类回填，部署前需先备份、迁移、回填并执行生产 miniapp API smoke。
+
+## [2026-06-17] - feat(admin): 首页轮播图装修上传
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-hero-upload
+- **背景**: 小程序首页新增 `heroCarousel` 多图轮播主推位，需要后台装修页支持上传多张宣传图并写入可被小程序读取的装修配置。
+- **变更范围**:
+  - `app/api/admin_assets.py` - 新增后台装修素材上传 API，校验管理员 Token、图片类型和 2MB 大小限制，保存到静态目录并返回 `/static/uploads/decoration/...`。
+  - `app/lifespan_routes.py` - 注册后台装修素材上传路由。
+  - `tests/api/test_admin_assets_api.py` - 覆盖上传成功、缺少 Token、非图片拒绝。
+  - `web/admin/src/services/assets.ts` - 新增后台素材上传服务。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 首页轮播模块支持一次上传多张图片，上传成功后追加到 `heroCarousel.props.items`，并可编辑标题、副标题、角标、卖点徽章和链接；手机预览同步展示浅色精品主推卡、标题、副标题和徽章。
+  - `web/admin/scripts/check-decoration-editor.mjs` - 装修编辑器结构检查纳入轮播上传控件、多选上传、卖点徽章和字段。
+- **验证结果**:
+  - `python -m pytest tests/api/test_admin_assets_api.py --no-cov` 通过，4 passed，覆盖连续上传两张装修图。
+  - `npm run check:decoration` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - 架构边界 grep 未发现 `app/api` 直接导入 repository、`app/service` 直接 DB 调用或 `app/models` 引用上层模块。
+- **遗留风险**:
+  - 尚未做真实浏览器上传图片并发布到生产/本地后台的 smoke 截图。
+  - 上传文件目前仅做类型和大小校验，后续可补图片尺寸提示、裁切和对象存储/CDN。
+
+## [2026-06-17] - test(production): 生产后台浏览器只读导航 smoke
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-production-admin-browser-smoke
+- **背景**: 生产后台静态资源和后台 API 已有自动检查，但仍需证明店主实际打开生产后台后，关键页面可以登录、路由、加载数据并渲染。
+- **变更范围**:
+  - `web/admin/scripts/smoke_production_navigation.py` - 新增 CDP 浏览器 smoke，只读访问生产后台关键页面并保存截图/报告。
+  - `web/admin/package.json` - 新增 `smoke:production-navigation`。
+  - `D:\Project\YunxiBakeMiniApp\scripts\run-production-admin-browser-smoke.mjs` 与 `release-readiness.mjs` - 将生产后台浏览器 smoke 纳入小程序发布 readiness。
+- **验证结果**:
+  - `npm run smoke:production-navigation` 于 `D:\Project\YunxiBakeBot\web\admin` 通过。
+  - 截图：`D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.png`。
+  - JSON 报告：`D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.json`，覆盖 `overview`、`decoration`、`orders`、`addresses`、`products`、`transfers`、`settings/shop`。
+  - `npm run release:readiness` 于 `D:\Project\YunxiBakeMiniApp` 通过，21/21 checks passed，报告 `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-131610.json`。
+- **遗留风险**:
+  - 该生产 smoke 是只读导航，不执行装修发布、订单流转、地址编辑、商品上下架或转人工接单。
+  - 小程序微信开发者工具、真机体验版、微信公众平台合法域名和真实微信支付仍需外部证据。
+
+## [2026-06-17] - deploy(production): 部署后台 MVP 前端 dist
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-production-admin-frontend-check
+- **背景**: 生产 `/admin/` 返回的 dist 仍是旧构建，缺少店铺装修、订单、地址等后台 MVP 页面 chunk，导致后台能力与本地实现不同步。
+- **变更范围**:
+  - `D:\Project\YunxiBakeBot\web\admin\dist` - 本地构建当前后台前端。
+  - 远程 `/opt/yunxibakebot/web/admin/dist` - 部署当前 dist。
+  - 远程备份：`/opt/yunxibakebot_deploy_backups/admin-dist-before-20260617-124716/dist`。
+  - `D:\Project\YunxiBakeMiniApp\scripts\check-production-admin.mjs` - 新增生产后台前端检查并纳入 readiness。
+- **验证结果**:
+  - `npm run typecheck` 于 `D:\Project\YunxiBakeBot\web\admin` 通过。
+  - `npm run build` 于 `D:\Project\YunxiBakeBot\web\admin` 通过，dist 包含 `DecorationPage`、`OrdersPage`、`AddressesPage` 等 chunk。
+  - 远程 `/admin/` 已引用新资源 `index-w83nLRsZ.js` / `index-CroK5VjO.css`，远程 dist 存在装修、订单、地址等页面 chunk。
+  - `npm run check:production-admin` 于小程序仓库通过，报告 `D:\Project\YunxiBakeMiniApp\reports\production-admin-check\production-admin-20260617-045345.json`。
+  - `npm run release:readiness` 于小程序仓库通过，19/19 checks passed，报告 `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-125450.json`。
+- **遗留风险**:
+  - 本轮验证的是生产后台静态资源和关键 chunk，没有登录后台执行装修发布、订单流转或地址编辑。
+  - 微信公众平台合法域名、DevTools 视觉、真机/体验版、真实微信支付仍需外部证据。
+
+## [2026-06-17] - deploy(production): 切通小程序只读 API
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-production-miniapp-api-check
+- **背景**: `yunxifood.cn` 域名与 `/health` 已可用，但生产 `/api/v1/miniapp/pages/home`、`/api/v1/miniapp/products`、`/api/v1/miniapp/shop-settings` 返回 404，说明线上 `/opt/yunxibakebot` 未包含本地 MVP 的 miniapp 路由。
+- **变更范围**:
+  - 远程 `/opt/yunxibakebot/app` - 同步本地 `D:\Project\YunxiBakeBot\app`，补齐 miniapp 路由、服务、仓储、模型和迁移代码。
+  - 远程备份：`/opt/yunxibakebot_deploy_backups/app-before-miniapp-api-20260617-113649/app`。
+  - `D:\Project\YunxiBakeMiniApp\scripts\check-production-miniapp-api.mjs` - 新增生产小程序只读 API 烟测并纳入 readiness。
+- **验证结果**:
+  - 同步前 `npm run check:production-miniapp-api` 失败，报告 `D:\Project\YunxiBakeMiniApp\reports\production-api-check\production-miniapp-api-20260617-033628.json`，三个生产 API 均为 404。
+  - 远程重启 `yunxibakebot` 后 `/health` 返回 `{"status":"ok","version":"0.49.0"}`。
+  - `npm run check:production-miniapp-api` 通过，报告 `D:\Project\YunxiBakeMiniApp\reports\production-api-check\production-miniapp-api-20260617-043836.json`。
+  - `npm run release:readiness` 于小程序通过，18/18 checks passed，报告 `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-123907.json`。
+- **遗留风险**:
+  - 本轮只验证生产只读 API，没有在生产创建小程序订单或触发支付。
+  - 微信公众平台合法域名、DevTools 视觉、真机/体验版、真实微信支付仍需外部证据。
+
+## [2026-06-17] - test(release): readiness 纳入生产域名门槛
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-release-readiness-gate
+- **背景**: `yunxifood.cn` 已在远程 Nginx/证书层切通，但小程序发布 readiness 仍应把生产域名 HTTPS 连通性纳入自动检查，避免后续发布前漏验外部门槛。
+- **变更范围**:
+  - `D:\Project\YunxiBakeMiniApp\scripts\release-readiness.mjs` - 新增 `production domain HTTPS check`，调用 `npm run check:production-domain`。
+  - `D:\Project\YunxiBakeMiniApp\LOGBOOK.md` 和 evidence-index - 登记 17/17 readiness 证据。
+- **验证结果**:
+  - `npm run release:readiness` 于 `YunxiBakeMiniApp` 通过，17/17 checks passed，报告 `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-112414.json`。
+  - 报告中的 `production domain HTTPS check` 通过，并生成域名检查报告 `D:\Project\YunxiBakeMiniApp\reports\domain-check\domain-check-20260617-032342.json`。
+- **遗留风险**:
+  - 微信公众平台合法域名、DevTools 页面视觉、真机/体验版、真实微信支付仍需人工或外部环境证据。
+
+## [2026-06-17] - chore(release): 域名统一切换到 yunxifood.cn
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-domain-switch-yunxifood
+- **背景**: 用户明确要求把小程序和后续联调默认域名切换为 `yunxifood.cn`，后端发布文档、Nginx 示例、证书路径和有赞 webhook 地址需要与小程序侧保持一致。
+- **变更范围**:
+  - `docs/design/1-业务方案.md` - 域名说明改为 `yunxifood.cn`。
+  - `docs/design/2-工作流设计.md` - 有赞 webhook 回调改为 `https://yunxifood.cn/api/v1/webhook/youzan`。
+  - `docs/design/3-技术架构.md` - 主域、后台子域、Nginx server_name 和证书路径切到 `yunxifood.cn` / `admin.yunxifood.cn`。
+  - `docs/design/4-上线检查清单.md` - 上线域名、健康检查和管理后台入口切到 `yunxifood.cn`。
+  - `项目进度与配置清单.md` - 管理后台域名改为 `admin.yunxifood.cn`。
+  - `scripts/setup_wecom.sh` - 默认域名和 certbot 邮箱改为 `yunxifood.cn`。
+- **验证结果**:
+  - `rg -n "hclstudio\.cn|yunxifood\.cn" docs scripts 项目进度与配置清单.md LOGBOOK.md` 确认当前发布文档和脚本引用 `yunxifood.cn`，未发现旧域名残留。
+  - `npm run release:readiness` 于 `YunxiBakeMiniApp` 通过，16/16 checks passed，最新报告 `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-105032.json`。
+  - `npm run devtools:check` 于 `YunxiBakeMiniApp` 通过，微信开发者工具 CLI 可响应，报告 `D:\Project\YunxiBakeMiniApp\reports\devtools\latest.json`。
+  - `npm run check:production-domain` 于 `YunxiBakeMiniApp` 初次失败，报告 `D:\Project\YunxiBakeMiniApp\reports\domain-check\domain-check-20260617-030103.json`；随后远程 Nginx 已切换到 `yunxifood.cn` 证书并将根路径重定向到 `/admin/`，复跑通过，报告 `D:\Project\YunxiBakeMiniApp\reports\domain-check\domain-check-20260617-031716.json`。
+  - 远程 `https://yunxifood.cn/health` 返回 `200`，根路径返回后台入口页，证明确认 `yunxifood.cn` 对外可达。
+- **遗留风险**:
+  - 仍需在微信公众平台和有赞云后台完成 `yunxifood.cn` 的合法域名与回调配置复验。
+  - DevTools CLI 可执行不等同于模拟器编译和页面视觉通过；仍需刷新合法域名后在开发者工具中复验核心页面。
+
+## [2026-06-17] - test(release): 小程序发布 readiness 总门槛
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-release-readiness-gate
+- **背景**: 小程序和后台 MVP 主链路已有多条 smoke 和 API 证据，需要一个发布前总检查入口，集中证明当前代码与证据基线是否满足体验版/审核前准备。
+- **变更范围**:
+  - `YunxiBakeMiniApp/docs/release/manual-acceptance-checklist.md` - 新增 MVP 手工验收清单，覆盖微信开发者工具、真机/体验版、支付、域名、隐私协议和审核材料。
+  - `YunxiBakeMiniApp/scripts/release-readiness.mjs` - 新增 release readiness 报告脚本，串起小程序检查、后台检查、后端目标测试、关键 smoke 截图证据和临时 DB 残留扫描。
+  - `YunxiBakeMiniApp/package.json` - 新增 `npm run release:readiness`。
+  - `YunxiBakeMiniApp/docs/roadmap.md` - M5 上线准备补充 readiness 命令。
+  - `YunxiBakeMiniApp/docs/harness-engineering/core/verification-matrix.md` - 发布/审核最低验证补充 `npm run release:readiness`。
+  - `web/admin/scripts/check-addresses-page.mjs` - 地址页结构检查改为检查统一导航配置，适配 `adminNavigation.ts`。
+  - 两端 LOGBOOK 和 evidence-index 同步登记本轮证据。
+- **验证结果**:
+  - `npm run release:readiness` 首次失败，14/15 passed，暴露地址结构检查仍读取旧侧栏导航。
+  - 修正地址结构检查后，`npm run check:addresses` 于 `web/admin` 通过。
+  - 未在常见路径发现微信开发者工具 CLI，本轮未执行开发者工具自动编译。
+  - `npm run release:readiness` 于 `YunxiBakeMiniApp` 通过，15/15 checks passed。
+  - 报告文件：`D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-092031.json` 和 `latest.json`。
+- **遗留风险**:
+  - readiness 默认不重跑全部浏览器 smoke，只校验既有关键截图证据存在并重跑目标测试。
+  - 微信开发者工具、真机/体验版、真实微信支付、生产合法域名和审核记录仍需人工或外部环境补证据。
+
+## [2026-06-17] - feat(admin): 手机端轻量运营入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-mobile-ops-admin
+- **背景**: 用户希望小程序和后台同步推进，并确认市场主流是后台装修、手机端轻量管理；现有后台页面已有移动布局，但底部导航和概览页还没有围绕手机运营高频动作组织。
+- **变更范围**:
+  - `web/admin/src/constants/adminNavigation.ts` - 新增后台统一导航配置，侧栏和手机底栏复用同一份入口定义，避免重复写导航和魔法值。
+  - `web/admin/src/components/layout/AppSidebar.vue` - 改为读取统一导航配置。
+  - `web/admin/src/components/layout/BottomNav.vue` - 手机底栏保留概览、商品、订单、转人工、设置五个高频运营入口，并补稳定 `data-testid`。
+  - `web/admin/src/pages/overview/OverviewPage.vue` - 新增手机端运营快捷区，直达待确认订单、转人工、商品上下架和店铺配置。
+  - `web/admin/src/styles/global.css` - 优化手机底栏图标和安全区内边距。
+  - `web/admin/scripts/check-mobile-operations.mjs` - 新增结构检查，防止导航配置和手机运营入口再次分叉。
+  - `web/admin/scripts/smoke_mobile_operations.py` - 新增移动视口浏览器 smoke，验证手机底栏可跳转订单、商品、转人工、设置并回到概览。
+  - `web/admin/package.json` - 新增 `check:mobile-ops` 和 `smoke:mobile-ops`。
+- **验证结果**:
+  - `python -m py_compile web\admin\scripts\smoke_mobile_operations.py` 通过。
+  - `npm run check:mobile-ops` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run smoke:mobile-ops` 于 `web/admin` 通过，截图 `D:\Project\YunxiBakeBot\reports\ui\mobile-operations-smoke.png`。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - 检查 `reports/ui` 未发现 `mobile-operations-smoke.db*` 临时数据库残留。
+- **遗留风险**:
+  - 手机端轻量管理目前复用后台 Web，未做小程序内部管理员模式。
+  - smoke 使用 headless Chrome 移动视口，仍需真机浏览器或企业微信/微信内置浏览器访问验证。
+  - 完整装修编辑仍建议桌面后台操作，手机端只承接订单、客服、商品和设置高频动作。
+
+## [2026-06-17] - test(mvp): 主链路巡检复跑
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-mvp-main-flow-regression
+- **背景**: 小程序与后台管理系统已并行推进到可运行 MVP，需要在继续开发前确认装修、商品、订单、地址、店铺配置和客服主链路仍然可用。
+- **变更范围**:
+  - `LOGBOOK.md` - 记录本轮主链路巡检结果。
+  - `docs/harness-engineering/core/evidence-index.md` - 登记本轮命令与截图证据。
+  - `YunxiBakeMiniApp/LOGBOOK.md` 与小程序 evidence-index 同步登记。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:decoration`、`check:orders`、`check:addresses`、`check:products`、`check:shop-settings` 于 `web/admin` 通过。
+  - `npm run smoke:decoration-product-picker`、`smoke:shop-settings`、`smoke:addresses-editing`、`smoke:orders-summary`、`smoke:orders-confirmation`、`smoke:products-active-toggle`、`smoke:transfers-queue` 于 `web/admin` 通过。
+  - `python -m pytest -o addopts="" tests/api/test_shop_page_config_api.py tests/api/test_shop_operations_api.py tests/api/test_miniapp_catalog_api.py tests/api/test_miniapp_order_api.py tests/api/test_admin_order_api.py tests/api/test_miniapp_address_api.py tests/api/test_admin_address_api.py tests/api/test_miniapp_payment_api.py tests/api/test_miniapp_auth_api.py` 通过，40 passed。
+  - `python -m pytest -o addopts="" tests/api/test_admin_transfer_api.py tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py` 通过，15 passed。
+  - 检查 `reports/ui` 未发现 smoke 临时 `.db/.db-wal/.db-shm` 残留。
+- **遗留风险**:
+  - 未在微信开发者工具或真机中验证小程序页面视觉和交互。
+  - 真实微信支付、支付通知、生产域名合法域名和正式发布审核仍未完成。
+  - 多个后台浏览器 smoke 不适合并行跑；本轮订单流转 smoke 并行时曾因 Chrome CDP 启动失败，单独复跑已通过。
+
+## [2026-06-17] - test(admin): 人工回复接口与转人工 smoke 收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-human-reply-api
+- **背景**: 转人工后台队列已能入队和接单，小程序也能刷新人工回复；还需要把后台人工回复 API 的路由级行为补到自动化，并让后台回复输入控件更稳定。
+- **变更范围**:
+  - `web/admin/src/features/transfers/TransferDetailDrawer.vue` - 人工回复输入从 Element Plus textarea 改为原生 textarea，保持同一 `replyDraft` 状态和发送按钮，降低自动化和真实输入事件的不确定性。
+  - `tests/api/test_admin_transfer_api.py` - 新增后台转人工 API 测试，覆盖人工回复写入调用、空内容拒绝、会话消息返回 assistant 回复。
+  - `web/admin/scripts/smoke_transfers_queue.py` - 保持浏览器 smoke 聚焦转人工入队、详情和接单，人工回复可见性由 API/service 测试覆盖。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/api/test_admin_transfer_api.py tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py` 通过，15 passed。
+  - `python -m py_compile app\api\admin_transfer.py web\admin\scripts\smoke_transfers_queue.py tests\api\test_admin_transfer_api.py tests\service\test_miniapp_chat.py tests\api\test_miniapp_chat_api.py` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run smoke:transfers-queue` 于 `web/admin` 通过，截图 `D:\Project\YunxiBakeBot\reports\ui\transfers-queue-smoke.png`。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 浏览器 smoke 仍不直接提交人工回复输入；路由级 API 和小程序 payload 测试已覆盖后台回复写入与用户端可见性。
+  - 未在微信开发者工具中验证小程序轮询刷新视觉。
+
+## [2026-06-17] - feat(miniapp): 人工回复刷新体验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-human-reply-refresh
+- **背景**: 小程序已能主动转人工，后台也能接单；用户端缺少等待/刷新人工回复的明确体验，需要证明后台人工回复写入后小程序消息列表能看到。
+- **变更范围**:
+  - `YunxiBakeMiniApp/miniprogram/pages/chat/index.ts` / `.wxml` / `.wxss` - 转人工状态下增加等待提示、手动刷新和短轮询，复用现有 `GET /api/v1/miniapp/chat/messages`。
+  - `tests/service/test_miniapp_chat.py` - 覆盖后台人工回复以 `assistant` 消息写入后，小程序 `get_chat_payload` 能拉取展示。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py` 通过，12 passed。
+  - `python -m py_compile app\service\miniapp_chat.py tests\service\test_miniapp_chat.py tests\api\test_miniapp_chat_api.py` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 未在微信开发者工具中真实验证短轮询和刷新按钮视觉。
+  - MVP 暂用短轮询和手动刷新，后续可再接 WebSocket、订阅消息或客服消息通知。
+
+## [2026-06-17] - test(admin): 转人工队列浏览器 smoke
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-transfers-queue-smoke
+- **背景**: 小程序已新增主动转人工接口和按钮，但还缺少后台页面证据证明小程序请求能进入转人工队列，并且运营能在后台接单。
+- **变更范围**:
+  - `web/admin/src/pages/transfers/TransfersPage.vue` - 为转人工页、筛选、刷新、表格、行操作和行状态补稳定 `data-testid`。
+  - `web/admin/src/features/transfers/TransferDetailDrawer.vue` - 为详情抽屉、接单、关闭和回复控件补稳定 `data-testid`。
+  - `web/admin/scripts/smoke_transfers_queue.py` - 新增浏览器 smoke：启动临时后端与后台，调用小程序主动转人工 API 播种工单，后台页面验证工单出现、打开详情并接单。
+  - `web/admin/package.json` - 新增 `npm run smoke:transfers-queue`。
+- **验证结果**:
+  - `npm run smoke:transfers-queue` 于 `web/admin` 通过，截图 `D:\Project\YunxiBakeBot\reports\ui\transfers-queue-smoke.png`。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `python -m py_compile web\admin\scripts\smoke_transfers_queue.py` 通过。
+  - `python -m pytest -o addopts="" tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py tests/test_lifespan_routes_services.py` 通过，13 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - smoke 覆盖转人工入队、详情和接单，暂不覆盖 Element Plus textarea 的人工回复输入；人工回复 API 已有页面入口，后续可补更细的组件级或浏览器输入验证。
+  - 未在微信开发者工具中点击小程序“转人工”按钮；本轮用同一小程序 API 播种工单。
+
+## [2026-06-17] - feat(miniapp): 用户主动转人工客服
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-chat-transfer
+- **背景**: 小程序客服页已有 AI 消息和后台转人工队列，但用户端缺少明确“转人工”入口；完整 MVP 需要小程序咨询能进入后台客服接单池。
+- **变更范围**:
+  - `app/service/miniapp_chat.py` - `MiniappChatService` 注入既有 `TransferManager`，新增主动转人工方法，复用 `HumanTransferContext/request_human_transfer` 创建工单并更新会话状态。
+  - `app/api/miniapp_chat.py` - 保留原 `/api/v1/miniapp/chat/messages`，新增 `POST /api/v1/miniapp/chat/transfer`。
+  - `app/lifespan_services.py` - 启动 wiring 将既有 `transfer_mgr` 传入小程序客服服务。
+  - `tests/service/test_miniapp_chat.py` / `tests/api/test_miniapp_chat_api.py` / `tests/test_lifespan_routes_services.py` - 覆盖主动转人工、用户头隔离、默认原因和依赖注入。
+  - `YunxiBakeMiniApp` - 小程序服务层、客服页按钮和 API 契约同步接入。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py tests/test_lifespan_routes_services.py` 通过，13 passed。
+  - `python -m py_compile app\api\miniapp_chat.py app\service\miniapp_chat.py app\lifespan_services.py tests\service\test_miniapp_chat.py tests\api\test_miniapp_chat_api.py tests\test_lifespan_routes_services.py` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 未做后台客服队列浏览器 smoke 和微信开发者工具点击截图；本轮验证集中在接口、服务和小程序静态/类型检查。
+  - 人工客服实时回复、小程序长轮询/刷新策略和客服 SLA 提醒仍需后续迭代。
+
+## [2026-06-17] - test(admin): 订单经营看板浏览器 smoke
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-order-summary-smoke
+- **背景**: 后台订单经营看板已接入全量 summary API，但缺少真实浏览器证据证明卡片数量、点击筛选和表格刷新在页面中可用。
+- **变更范围**:
+  - `web/admin/scripts/smoke_orders_summary.py` - 新增后台订单看板浏览器 smoke，启动本地后端与 Vite，创建待支付、履约中、已关闭三笔订单，验证 summary 卡片和卡片筛选。
+  - `web/admin/package.json` - 新增 `npm run smoke:orders-summary`。
+- **验证结果**:
+  - `npm run smoke:orders-summary` 于 `web/admin` 通过，截图 `D:\Project\YunxiBakeBot\reports\ui\orders-summary-smoke.png`。
+  - `npm run check:orders` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `python -m py_compile web\admin\scripts\smoke_orders_summary.py` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - smoke 使用临时 SQLite DB 和 headless Chrome，未覆盖真实生产数据量下的查询性能。
+  - Chrome profile 目录按禁止递归删除规则未自动清理。
+
+## [2026-06-17] - feat(admin): 订单经营看板全量汇总
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-order-summary
+- **背景**: 后台订单经营看板已能展示分组卡片，但统计基于当前加载列表，不足以支撑商家运营决策；看板需要使用后端全量聚合口径，并且点击卡片后列表也要按同一口径筛选。
+- **变更范围**:
+  - `app/repository/order_repo.py` - 新增订单 summary 聚合查询，并支持 `board_filter` 列表筛选，支付状态从订单 payment JSON 中解析。
+  - `app/service/miniapp_order.py` - 集中维护后台订单看板口径，新增 `get_admin_order_summary`，列表查询支持 `board_filter`。
+  - `app/api/admin_orders.py` - 新增 `GET /api/v1/admin/orders/summary`，订单列表支持 `boardFilter` query。
+  - `tests/api/test_admin_order_api.py` - 覆盖 summary 全量卡片、待支付/履约中/已关闭列表筛选。
+  - `web/admin/src/types/order.ts` / `services/orders.ts` / `pages/orders/OrdersPage.vue` - 后台订单页读取 summary 接口，点击看板卡片按后端口径重新加载列表。
+  - `web/admin/scripts/check-orders-page.mjs` - 结构检查覆盖 summary 和后端筛选调用。
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 补充后台订单 summary 和 `boardFilter` 契约。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/api/test_admin_order_api.py` 通过，4 passed。
+  - `python -m py_compile app\api\admin_orders.py app\repository\order_repo.py app\service\miniapp_order.py tests\api\test_admin_order_api.py` 通过。
+  - `npm run check:orders` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 未做浏览器后台订单页截图 smoke；需要后续验证 summary 卡片点击和列表刷新视觉。
+  - summary 当前按订单总额聚合，尚未拆分客单价、退款金额、配送方式等更细经营指标。
+
+## [2026-06-17] - feat(admin): 订单管理经营看板
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-order-board
+- **背景**: 小程序订单中心已经补齐分组和列表操作，后台订单管理也需要更接近有赞式经营台：运营进入页面后应先看到当前订单池的关键分组，而不是只能靠下拉框筛选。
+- **变更范围**:
+  - `web/admin/src/constants/orderStatus.ts` - 新增后台订单看板筛选配置，集中维护全部、待支付、待确认、履约中、已完成、已关闭的匹配口径。
+  - `web/admin/src/pages/orders/OrdersPage.vue` - 订单页新增当前页经营看板，按配置计算数量和金额，点击卡片可切换当前表格视图。
+  - `web/admin/scripts/check-orders-page.mjs` - 订单页结构检查覆盖看板入口、筛选卡片和派生表格数据。
+- **验证结果**:
+  - `npm run check:orders` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 当前看板统计基于已加载的后台订单列表数据，不是全库精确统计；后续可补 `/api/v1/admin/orders/summary` 返回全量状态/支付分布。
+  - 未做浏览器后台订单页截图 smoke，视觉与点击交互仍需后续补证据。
+
+## [2026-06-17] - feat(order): 订单状态事件驱动真实时间线
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-order-status-events-timeline
+- **背景**: 小程序订单详情已能按当前状态展示进度，但没有真实节点时间；后台订单状态流转也缺少可复用的事件记录，用户侧和运营侧无法看到同一条订单进度链。
+- **变更范围**:
+  - `app/migrations/v010_order_events.sql` / `app/migrations/schema.py` - 新增 `order_events` 追加式订单状态事件表和索引。
+  - `app/models/order.py` - 新增 `OrderEvent` 模型。
+  - `app/repository/order_event_repo.py` - 新增订单事件写入与按订单查询仓储。
+  - `app/main.py` / `app/lifespan_services.py` - 初始化并注入 `OrderEventRepo`。
+  - `app/service/miniapp_order.py` - 创建订单、后台流转、用户取消、后台关闭未支付、超时关闭未支付时写入状态事件。
+  - `app/service/miniapp_order_serialization.py` - 订单详情序列化输出 `timeline`，历史订单无事件时保留当前状态兜底事件。
+  - `tests/service/test_miniapp_order.py` / `tests/api/test_miniapp_order_api.py` / `tests/api/test_admin_order_api.py` / `tests/test_lifespan_routes_services.py` - 覆盖服务、API 和 lifespan wiring 的订单时间线。
+  - `web/admin/src/types/order.ts` / `web/admin/src/pages/orders/OrdersPage.vue` - 后台订单详情抽屉展示订单时间线。
+  - `web/admin/scripts/check-orders-page.mjs` - 后台订单结构检查覆盖时间线。
+  - `YunxiBakeMiniApp/docs/api-contract.md` / `miniprogram/services/orders.ts` / `pages/order-detail/*` - 小程序契约、类型和订单详情页消费真实 `timeline`。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/api/test_admin_order_api.py tests/test_lifespan_routes_services.py` 通过，36 passed。
+  - `python -m py_compile app\models\order.py app\repository\order_event_repo.py app\repository\order_repo.py app\service\miniapp_order.py app\service\miniapp_order_serialization.py app\api\admin_orders.py app\api\miniapp_orders.py app\lifespan_services.py app\main.py app\migrations\schema.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py tests\api\test_admin_order_api.py tests\test_lifespan_routes_services.py` 通过。
+  - `npm run check:orders` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 未做浏览器后台订单详情和微信开发者工具订单详情视觉截图。
+  - 订单时间线目前记录状态节点，不包含支付通知、退款、客服备注等更细事件；后续可扩展同一 `order_events` 表。
+
+## [2026-06-17] - feat(miniapp): 协议隐私售后统一配置
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-shop-policy-config
+- **背景**: 自研小程序 MVP 上线准备需要隐私政策、用户协议和售后说明；这些内容会同时影响后台运营配置、小程序我的页入口和 checkout 提交链路，不能散落在页面硬编码里。
+- **变更范围**:
+  - `app/models/config.py` - 店铺运营默认配置新增隐私政策、用户协议和售后说明标题/内容。
+  - `app/service/shop_operations.py` - 保存店铺运营配置时合并并保留协议/隐私/售后字段。
+  - `tests/api/test_shop_operations_api.py` - 覆盖后台保存协议文案后小程序公开接口读取同一份数据，并验证空字段保存保留既有文案。
+  - `web/admin/src/types/shopSettings.ts` / `services/shopSettings.ts` - 后台店铺配置类型和默认值补齐协议/隐私/售后字段。
+  - `web/admin/src/pages/settings/ShopSettingsPage.vue` - 店铺配置页新增“协议与售后”表单字段。
+  - `web/admin/scripts/check-shop-settings-page.mjs` - 结构检查覆盖新增表单字段。
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 补充小程序公开店铺配置的协议/隐私/售后字段。
+  - `YunxiBakeMiniApp/miniprogram/pages/policy/*` - 新增统一协议展示页，从 `shop-settings` 读取配置文本。
+  - `YunxiBakeMiniApp/miniprogram/pages/profile/index.ts` - 我的页服务入口追加售后说明、用户协议、隐私政策。
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/*` - checkout 提交前要求勾选同意用户协议和隐私政策。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/api/test_shop_operations_api.py` 通过，4 passed。
+  - `python -m py_compile app\models\config.py app\service\shop_operations.py app\api\admin_config.py tests\api\test_shop_operations_api.py` 通过。
+  - `npm run check:shop-settings` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，11 pages / 11 routes。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 尚未在微信开发者工具或真机中截图验证协议页和 checkout 勾选视觉。
+  - 后台本轮仅在店铺配置中维护文本，暂未做独立内容中心、发布历史或富文本排版。
+
+## [2026-06-17] - feat(admin): 顾客地址操作审计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-address-audit
+- **背景**: 后台已经能代顾客新增、编辑、设默认和删除小程序地址，但客服/运营操作缺少可追溯记录；完整后台 MVP 需要能在地址详情中看到最近操作，便于配送核对和问题复盘。
+- **变更范围**:
+  - `app/migrations/v009_miniapp_address_audit.sql` / `app/migrations/schema.py` - 新增 `miniapp_address_audit` 追加式审计表及索引。
+  - `app/models/miniapp_address.py` - 新增 `MiniappAddressAuditEntry` 模型。
+  - `app/repository/miniapp_address_audit_repo.py` - 新增地址审计写入和按地址查询仓储。
+  - `app/main.py` / `app/lifespan_services.py` - 初始化并注入 `MiniappAddressAuditRepo`。
+  - `app/service/miniapp_address.py` - 后台新增、编辑、设默认、删除地址时写审计；地址详情返回最近 5 条 `auditLogs`。
+  - `app/api/admin_addresses.py` - 从 Bearer Token 生成脱敏 operator 标识，不记录完整 token。
+  - `web/admin/src/pages/addresses/AddressesPage.vue` / `services/addresses.ts` / `types/address.ts` - 地址详情抽屉展示“最近操作”审计记录。
+  - `web/admin/scripts/check-addresses-page.mjs` / `web/admin/scripts/smoke_addresses_editing.py` - 后台地址结构检查和浏览器 smoke 覆盖审计展示。
+  - `tests/api/test_admin_address_api.py` / `tests/test_lifespan_routes_services.py` - 覆盖后台地址操作审计和服务 wiring。
+- **验证结果**:
+  - `python -m pytest -o addopts="" tests/api/test_admin_address_api.py tests/test_lifespan_routes_services.py` 通过，10 passed。
+  - `python -m py_compile app\api\admin_addresses.py app\service\miniapp_address.py app\repository\miniapp_address_audit_repo.py app\repository\miniapp_address_repo.py app\models\miniapp_address.py app\lifespan_services.py app\main.py tests\api\test_admin_address_api.py tests\test_lifespan_routes_services.py` 通过。
+  - `npm run check:addresses` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run smoke:addresses-editing` 于 `web/admin` 通过，截图 `D:\Project\YunxiBakeBot\reports\ui\addresses-editing-smoke.png`。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 地址审计当前只记录后台操作，小程序用户自助维护地址暂不进入后台操作审计。
+  - 详情接口只返回最近 5 条审计；如果后续需要完整审计查询，应新增独立分页接口。
+  - smoke 使用临时 SQLite DB 和 headless Chrome；Chrome profile 目录按禁止递归删除规则未自动清理。
+
+## [2026-06-17] - feat(miniapp): 我的页会员摘要配置驱动
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-profile-member-config
+- **背景**: 小程序“我的”页会员卡副标题、有效期和权益卡数量仍是页面硬编码，后台装修页的会员摘要模块字段也不完整，不利于后续按有赞式后台运营配置调整会员展示。
+- **变更范围**:
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 明确 `memberSummary.props` 字段，包括会员卡副标题、有效期、余额和权益卡数量。
+  - `YunxiBakeMiniApp/miniprogram/types/page-config.ts` / `config/mock-pages.ts` - 扩展会员摘要类型和 mock 配置。
+  - `YunxiBakeMiniApp/miniprogram/pages/profile/index.ts` / `.wxml` - 我的页从 `memberSummary` 读取会员卡副标题、有效期、权益卡数量，并对旧配置缺字段做默认兜底。
+  - `app/service/shop_page_config.py` - 后台默认 `profile` 页面模板补齐会员摘要字段。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 后台装修会员摘要表单支持编辑会员卡副标题、有效期、余额和权益卡数量。
+  - `web/admin/scripts/check-decoration-editor.mjs` - 结构检查覆盖新增会员摘要字段。
+  - `tests/service/test_shop_page_config.py` / `tests/api/test_shop_page_config_api.py` - 覆盖默认 profile 会员摘要字段通过服务和小程序公开 API 输出。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run check:decoration` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `python -m pytest -o addopts="" tests/service/test_shop_page_config.py tests/api/test_shop_page_config_api.py` 通过，6 passed。
+  - `python -m pytest` 通过，493 passed，coverage 72.83%。
+- **遗留风险**:
+  - 当前仍是装修配置/默认会员摘要，不是后端真实会员账户余额、积分和优惠券系统。
+  - 未在微信开发者工具中截图验证我的页会员卡视觉。
+
+## [2026-06-17] - chore(miniapp): 补齐客服体验与后端测试
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-chat-experience-tests
+- **背景**: 小程序客服页已接入后端客服消息 API，但欢迎兜底、加载失败、发送失败等体验还不够完整；同时后端小程序客服 service/API 缺少专门测试，完整 MVP 需要把这条用户咨询链路补到可回归。
+- **变更范围**:
+  - `YunxiBakeMiniApp/miniprogram/pages/chat/index.ts` / `.wxml` / `.wxss` - 保留欢迎消息兜底、加载失败提示、发送中状态和错误提示样式，避免空列表或失败时页面失真。
+  - `tests/service/test_miniapp_chat.py` - 新增小程序客服 service 测试，覆盖发送消息、历史拉取、内部角色过滤和消息数量上限。
+  - `tests/api/test_miniapp_chat_api.py` - 新增小程序客服 API 路由测试，覆盖用户头隔离、demo 用户回退和空消息 400。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `python -m pytest -o addopts="" tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py` 通过，6 passed。
+  - `python -m pytest` 通过，492 passed，coverage 72.80%。
+- **遗留风险**:
+  - 未在微信开发者工具中真实验证客服页滚动、输入和发送失败视觉。
+  - 真实 AI 回复质量、超时降级和转人工体验仍需后续联调与运营规则完善。
+
+## [2026-06-17] - feat(miniapp): 未支付超时自动关闭
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-payment-timeout-scheduler
+- **背景**: 支付状态 MVP 已能模拟支付和后台人工关闭未支付订单，但完整 MVP 还需要后台自动扫描超时未支付订单，避免库存长期被预占。
+- **变更范围**:
+  - `app/config.py` - 新增 `MINIAPP_PAYMENT_TIMEOUT_SCAN_INTERVAL_SECONDS`，默认 300 秒。
+  - `app/repository/order_repo.py` - 新增按履约状态读取订单的方法，供后台任务扫描。
+  - `app/service/miniapp_order.py` - 新增 `expire_timeout_unpaid_orders()`，批量关闭超过 30 分钟未支付的待确认订单。
+  - `app/service/miniapp_order_timeout.py` - 新增后台扫描 scheduler，应用启动后按配置间隔扫描并关闭超时未支付订单。
+  - `app/main.py` - 在 lifespan 后台任务集合中注册并停止未支付超时扫描器。
+  - `app/api/admin_orders.py` - 新增 `POST /api/v1/admin/orders/expire-timeout-unpaid`，后台可手动触发一次扫描。
+  - `web/admin/src/pages/orders/OrdersPage.vue` / `services/orders.ts` / `types/order.ts` - 后台订单页新增“扫描超时未支付”按钮和返回类型。
+  - `tests/service/test_miniapp_order.py` / `tests/api/test_admin_order_api.py` - 覆盖批量扫描只关闭超时未支付、跳过新订单和已支付订单，并释放真实商品库存。
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 补充后台手动扫描超时未支付接口契约。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_admin_order_api.py tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/repository/test_youzan_repo.py` 通过，37 passed。
+  - `python -m py_compile app\config.py app\repository\order_repo.py app\service\miniapp_order.py app\service\miniapp_payment.py app\service\miniapp_order_timeout.py app\api\admin_orders.py app\main.py tests\service\test_miniapp_order.py tests\api\test_admin_order_api.py` 通过。
+  - 架构红线搜索通过：`api/` 无 repository 直引，`service/` 无直接数据库 execute/fetch，`models/` 无上层引用。
+  - `npm run check:orders` 与 `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:miniapp` 与 `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 真实微信支付、支付回调验签和支付成功后的通知仍未接入。
+  - 后台自动扫描未做长时间运行 smoke；本轮通过 service/API 级测试验证核心逻辑。
+
+## [2026-06-17] - feat(miniapp): 订单支付状态 MVP 闭环
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-payment-state-mvp
+- **背景**: 小程序与后台已经具备订单创建、库存预占、取消释放和履约状态流转，需要把支付状态独立出来，给真实微信支付接入留下稳定状态机。
+- **变更范围**:
+  - `app/service/miniapp_payment.py` - 支持单笔后台人工关闭未支付订单，保留批量超时只处理超过 30 分钟未支付订单的规则。
+  - `app/service/miniapp_order.py` - 后台关闭未支付入口改为强制人工关闭语义。
+  - `tests/api/test_admin_order_api.py` - 后台关闭未支付订单测试改为验证人工关闭也会释放真实商品预占库存。
+  - `web/admin/src/constants/orderPayment.ts` / `types/order.ts` / `services/orders.ts` - 新增支付状态标签、类型字段和关闭未支付 service 调用。
+  - `web/admin/src/pages/orders/OrdersPage.vue` - 订单列表与详情抽屉展示支付状态，未支付订单提供“关闭未支付”操作。
+  - `web/admin/scripts/check-orders-page.mjs` - 订单页结构检查覆盖支付状态与关闭未支付选择器。
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 补充订单支付字段、MVP mock 支付接口和后台关闭未支付接口契约。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_admin_order_api.py tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/repository/test_youzan_repo.py` 通过，35 passed。
+  - `python -m py_compile app\service\miniapp_payment.py app\service\miniapp_order.py app\api\miniapp_orders.py app\api\admin_orders.py tests\api\test_admin_order_api.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py` 通过。
+  - 架构红线搜索通过：`api/` 无 repository 直引，`service/` 无直接数据库 execute/fetch，`models/` 无上层引用。
+  - `npm run check:orders` 与 `npm run typecheck` 于 `web/admin` 通过。
+  - `npm run check:miniapp` 与 `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 真实微信支付、支付回调验签、定时关闭未支付任务和支付后通知尚未接入。
+  - 本轮未做后台浏览器截图 smoke 或微信开发者工具小程序视觉验证。
+
+## [2026-06-17] - feat(miniapp): 订单预约时间后端准入校验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-order-expect-time-guard
+- **背景**: 小程序 checkout 已经按后台 `businessHours` 生成预约时间，但后端订单创建接口仍需要独立拒绝非法格式和营业时间外预约，避免绕过前端提交不可履约订单。
+- **变更范围**:
+  - `app/service/business_hours.py` - 抽出同日营业时间解析、校验和包含判断，订单与后台配置共用。
+  - `app/service/shop_operations.py` - 抽出店铺运营配置读写服务，统一默认值合并与保存逻辑。
+  - `app/service/miniapp_order_schedule.py` - 新增订单预约时间与配送信息构建服务，校验 `YYYY-MM-DD HH:mm` 和同日 `HH:mm-HH:mm` 营业时间。
+  - `app/service/miniapp_order.py` / `app/lifespan_services.py` - 创建订单时先校验预约时间，再预占库存，并接入 `ConfigRepo`。
+  - `app/api/admin_config.py` - 后台运营配置 API 直接调用时也将非法 `businessHours` 转为 HTTP 400。
+  - `tests/service/test_miniapp_order.py` / `tests/api/test_miniapp_order_api.py` / `tests/api/test_shop_operations_api.py` - 覆盖非法时间格式、营业时间外拒绝、后台配置营业时间生效、非法时间不扣库存、API 400，以及后台配置 API 拒绝坏营业时间。
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 补充 `expectTime` 必填格式、营业时间校验和错误响应契约。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_shop_operations_api.py tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/repository/test_youzan_repo.py` 通过，33 passed。
+  - `python -m py_compile app\service\business_hours.py app\service\shop_operations.py app\service\miniapp_order_schedule.py app\service\miniapp_order.py app\api\admin_config.py app\lifespan_services.py tests\api\test_shop_operations_api.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py` 通过。
+  - 架构红线搜索通过：`api/` 无 repository 直引，`service/` 无直接数据库 execute/fetch，`models/` 无上层引用。
+  - `npm run check:miniapp` 与 `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 当前仅支持同日营业时间，不支持跨天营业配置；暂未校验预约日期是否晚于当前时间。
+
+## [2026-06-17] - feat(admin): 店铺营业时间格式校验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-shop-business-hours-validation
+- **背景**: 小程序 checkout 已经使用后台 `businessHours` 生成下单时段，后台必须先挡住错误格式，避免运营配置失效后小程序只能回退默认时间。
+- **变更范围**:
+  - `web/admin/src/pages/settings/ShopSettingsPage.vue` - 保存前校验营业时间格式 `HH:mm-HH:mm`，要求结束时间晚于开始时间，并展示说明和错误提示。
+  - `web/admin/scripts/check-shop-settings-page.mjs` - 结构检查覆盖营业时间说明和错误提示选择器。
+- **验证结果**:
+  - `npm run check:shop-settings` 于 `web/admin` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `python -m pytest --no-cov tests/api/test_shop_operations_api.py` 通过，2 passed。
+  - `npm run check:miniapp` 与 `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 当前仅支持同日营业时间，不支持跨天营业配置。
+
+## [2026-06-17] - chore(miniapp): Checkout 时间选择联动后台营业时间
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-checkout-business-hours
+- **背景**: checkout 时间选择器已经落地，但小时范围还没有跟后台店铺营业时间同步。
+- **变更范围**:
+  - `YunxiBakeMiniApp/miniprogram/utils/checkout-time.ts` - 解析 `businessHours`，生成 checkout 小时选项并提供默认小时回退。
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/index.ts` - 从 `getShopSettings()` 的 `businessHours` 初始化时间 picker。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 当前营业时间解析支持 `HH:mm-HH:mm`，复杂跨天营业时间后续再扩展。
+
+## [2026-06-17] - chore(miniapp): Checkout 期望时间升级为日期时间选择器
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-checkout-time-picker
+- **背景**: checkout 的期望时间自由文本不利于后台排产、提醒和筛选。
+- **变更范围**:
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/index.ts` - 接入日期、小时、分钟 picker，并提交稳定格式 `YYYY-MM-DD HH:mm`。
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/index.wxml` / `.wxss` - 新增时间选择 UI 和预览。
+  - `YunxiBakeMiniApp/miniprogram/utils/checkout-time.ts` - 抽出默认期望时间、日期范围和时间选项工具。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `python -m py_compile app\api\miniapp_orders.py app\service\miniapp_order.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 时间范围目前为本地常量 09:00-20:30，后续应从后台店铺营业时间配置生成。
+
+## [2026-06-17] - chore(miniapp): Checkout 增强表单校验与提示
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-checkout-form-validation
+- **背景**: checkout 页面虽然已能提交订单，但手机号、配送地址、期望时间等字段缺少前置校验，容易把不可履约订单提交给后台。
+- **变更范围**:
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/index.ts` - 新增手机号、配送地址、期望时间校验和页面错误条重置逻辑。
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/index.wxml` - 优化手机号和时间输入提示。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `python -m py_compile app\api\miniapp_orders.py app\service\miniapp_order.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 期望时间仍是自由文本输入，后续可考虑接入日期/时间选择器。
+
+## [2026-06-17] - chore(miniapp): Checkout 展示后端下单失败原因
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-checkout-error-feedback
+- **背景**: 后端订单 API 已返回明确的库存不足/售罄/下架错误，小程序此前没有把错误内容展示给用户。
+- **变更范围**:
+  - `YunxiBakeMiniApp/miniprogram/services/http.ts` - 新增 `ApiError` 并保留后端 `detail/message`。
+  - `YunxiBakeMiniApp/miniprogram/pages/checkout/*` - 下单失败时展示具体错误 Toast 和页面错误条，提交中禁用按钮防重复点击。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_miniapp_order_api.py tests/service/test_miniapp_order.py` 通过，13 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 未在微信开发者工具中截图验证 checkout 错误条视觉。
+
+## [2026-06-17] - feat(miniapp): 小程序用户取消订单并释放库存
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-order-user-cancel
+- **背景**: 真实商品已经实现下单预占和后台取消释放，但用户在小程序里还不能自助取消待确认/已确认订单，库存闭环不完整。
+- **变更范围**:
+  - `app/service/miniapp_order.py` - 新增小程序用户取消订单方法，仅允许 `pending`/`confirmed` 取消，取消后释放真实商品已预占库存。
+  - `app/api/miniapp_orders.py` - 新增 `POST /api/v1/miniapp/orders/{orderId}/cancel` 路由，区分 404/400。
+  - `tests/service/test_miniapp_order.py` - 覆盖已确认订单取消释放、制作中不可取消。
+  - `tests/api/test_miniapp_order_api.py` - 覆盖用户取消自己的待确认订单、不能取消他人订单。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/repository/test_youzan_repo.py` 通过，23 passed。
+  - `python -m py_compile app\api\miniapp_orders.py app\service\miniapp_order.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py` 通过。
+  - `npm run check:miniapp` 于小程序通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于小程序通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 用户取消仅开放给 `pending`/`confirmed`，进入制作后仍需客服或后台介入，这与当前履约流程一致。
+  - 真实微信支付、支付超时释放、支付回调最终确认扣减、库存对账任务仍需后续补齐。
+
+## [2026-06-17] - feat(miniapp): 小程序真实商品库存预占与取消释放
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-order-stock-reservation
+- **背景**: 上一轮已让小程序下单校验真实商品价格、库存和上下架状态，但还没有在订单创建后预占库存；完整 MVP 需要避免后台仍显示可售库存而继续超卖，并在取消订单时释放库存。
+- **变更范围**:
+  - `app/repository/youzan_inventory_repo.py` - 新增库存写入仓储，封装真实商品库存预占和释放，避免继续扩大 `youzan_repo.py`。
+  - `app/service/miniapp_order_inventory.py` - 新增订单库存协作服务，负责商品项合并、真实商品判断、库存校验、预占、释放和从订单 JSON 恢复释放项。
+  - `app/service/miniapp_order.py` - 创建订单时预占真实商品库存；订单创建失败时释放本次已预占库存；后台取消订单时释放已预占库存；Mock/未入库商品继续不参与库存写入。
+  - `app/main.py`、`app/lifespan_services.py` - 注入 `YouzanInventoryRepo`。
+  - `tests/service/test_miniapp_order.py` - 覆盖下单扣减库存、取消释放库存、重复商品项合并后按总数量判断库存。
+  - `tests/api/test_miniapp_order_api.py` - API 成功下单后断言真实商品库存被扣减。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/repository/test_youzan_repo.py` 通过，19 passed。
+  - `python -m py_compile app\repository\youzan_inventory_repo.py app\service\miniapp_order_inventory.py app\service\miniapp_order.py app\lifespan_services.py app\main.py tests\service\test_miniapp_order.py tests\api\test_miniapp_order_api.py` 通过。
+  - 架构红线搜索通过：`api/` 无 repository 直引，`service/` 无直接数据库 execute/fetch，`models/` 无上层引用。
+  - 文件体量复查：`miniapp_order.py` 201 行、`miniapp_order_inventory.py` 144 行、`youzan_inventory_repo.py` 31 行，均低于对应 warning 阈值。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run check:miniapp` 与 `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 真实微信支付尚未接入，当前库存语义是 MVP 阶段“创建订单即预占，取消订单释放”；支付超时释放、支付回调最终确认扣减、库存对账任务仍需后续补齐。
+  - 订单详情 JSON 内部新增 `inventory_reserved` 字段用于释放库存，小程序目前不消费该字段。
+
+## [2026-06-17] - feat(miniapp): 小程序下单接入真实商品库存校验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-order-stock-guard
+- **背景**: 完整 MVP 的订单链路不能只创建草稿；当商品已存在于后端商品宽表时，小程序下单必须以后台商品价格、库存和上下架状态为准，先挡住售罄、库存不足和下架商品。
+- **变更范围**:
+  - `app/repository/youzan_repo.py` - `get_prices_and_stocks` 返回商品 `is_active`，供订单服务判断上下架状态。
+  - `app/service/miniapp_order.py` - 小程序创建订单时校验真实商品在售、库存大于 0、下单数量不超过库存，并以商品宽表价格计算总价；未入库商品仍保留 Mock/fallback 能力。
+  - `tests/service/test_miniapp_order.py` - 覆盖库存充足使用宽表价格、库存不足拒绝、售罄拒绝、下架拒绝。
+  - `tests/api/test_miniapp_order_api.py` - 新增小程序订单 API 路由级测试，验证库存不足返回 HTTP 400、库存充足可创建订单。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/service/test_miniapp_order.py tests/api/test_miniapp_order_api.py tests/repository/test_youzan_repo.py` 通过，17 passed。
+  - `python -m py_compile app\repository\youzan_repo.py app\service\miniapp_order.py app\api\miniapp_orders.py tests\api\test_miniapp_order_api.py tests\service\test_miniapp_order.py` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 本轮是创建订单前的库存校验，不是并发安全扣减/库存锁定；真实支付前还需要订单支付态、库存预占、超时释放和支付回调确认扣减。
+  - 订单浏览器 smoke 仍使用 fallback 测试商品，真实商品库存分支由服务/API 测试覆盖。
+
+## [2026-06-17] - test(admin): 店铺配置保存到小程序公开配置 smoke 跑通
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-shop-settings-smoke
+- **背景**: 完整 MVP 需要后台统一维护店铺名称、客服电话、客服微信、营业时间和履约说明，避免小程序页面写死运营信息，并证明后台保存后小程序公开接口能读取同一份配置。
+- **变更范围**:
+  - `web/admin/src/pages/settings/ShopSettingsPage.vue` - 为店铺配置页、重置/刷新/保存按钮和关键表单项补稳定 `data-testid`。
+  - `web/admin/scripts/check-shop-settings-page.mjs` - 新增店铺配置页结构检查，防止关键自动化选择器丢失。
+  - `web/admin/scripts/smoke_shop_settings.py` - 新增浏览器 smoke：后台表单填写并保存店铺配置，再轮询小程序 `/api/v1/miniapp/shop-settings` 验证同步。
+  - `web/admin/scripts/admin_smoke_utils.py` - 共享填表工具支持 `input` 与 `textarea`，供设置页和后续表单 smoke 复用。
+  - `web/admin/package.json` - 新增 `check:shop-settings` 与 `smoke:shop-settings` 命令。
+- **验证结果**:
+  - `npm run smoke:shop-settings` 于 `YunxiBakeBot\web\admin` 通过；后台保存 `芸熙烘焙 smoke 店 20260617` 后，小程序公开店铺配置接口读取到同一份电话、微信、营业时间、自提和配送说明。
+  - 浏览器截图保存至 `reports/ui/shop-settings-smoke.png`。
+  - `npm run smoke:orders-confirmation`、`npm run smoke:products-active-toggle`、`npm run smoke:decoration-product-picker` 顺序复跑通过，确认共享 smoke 工具未破坏订单、商品和装修链路。
+  - `npm run check:shop-settings`、`npm run check:products`、`npm run check:orders`、`npm run check:decoration`、后台 `npm run typecheck` 均通过。
+  - `python -m pytest --no-cov tests/api/test_shop_operations_api.py` 通过，2 passed。
+  - `npm run check:miniapp` 与 `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 该 smoke 使用临时 SQLite DB 和本地浏览器，不能替代微信开发者工具/真机上的小程序页面渲染验证。
+  - 真实微信支付、库存锁定、订单通知和手机端轻量管理仍未接入；既有 Chrome profile 目录仍按禁止递归删除规则保留。
+
+## [2026-06-17] - test(admin): 小程序下单到后台完整履约 smoke 跑通
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-orders-confirmation-smoke
+- **背景**: 完整 MVP 需要证明用户侧小程序下单后，后台订单管理可以完成确认、制作、配送、完成整条履约链路，且每一步处理结果能被小程序订单详情读取。
+- **变更范围**:
+  - `web/admin/src/pages/orders/OrdersPage.vue` - 为订单页、搜索、表格、订单行、详情抽屉和状态动作按钮补稳定 `data-testid`。
+  - `web/admin/scripts/check-orders-page.mjs` - 新增订单页结构检查，防止关键自动化选择器丢失。
+  - `web/admin/scripts/smoke_orders_confirmation.py` - 新增并增强订单履约浏览器 smoke：小程序 API 创建订单，后台订单页依次点击确认订单、开始制作、配送中、完成，再用小程序订单详情 API 逐步验证状态。
+  - `web/admin/package.json` - 新增 `check:orders` 与 `smoke:orders-confirmation` 命令。
+- **验证结果**:
+  - `npm run smoke:orders-confirmation` 于 `YunxiBakeBot\web\admin` 通过；订单示例 `mp_20260617030552_50e4e839` 从 `pending -> confirmed -> making -> delivering -> done`，小程序详情 API 每一步读取到同一状态，最终后台详情抽屉显示已完成。
+  - 浏览器截图保存至 `reports/ui/orders-confirmation-smoke.png`。
+  - `npm run check:orders`、后台 `npm run typecheck` 均通过。
+  - `python -m pytest --no-cov tests/service/test_miniapp_order.py` 通过，2 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 该 smoke 使用临时 SQLite DB 和 API 创建测试订单，临时 DB 与失败调试截图已逐个删除；截图和命令不能替代微信开发者工具真实小程序页面点击验证。
+  - 当前仍未接入真实微信支付、库存锁定和订单通知。
+
+## [2026-06-17] - test(admin): 商品上下架驱动小程序目录 smoke 跑通
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-products-active-toggle-smoke
+- **背景**: 完整 MVP 需要后台商品管理像有赞后台一样可运营商品上下架，并证明该状态会同步影响小程序商品目录。
+- **变更范围**:
+  - `web/admin/src/pages/products/ProductsPage.vue` - 为商品页、状态筛选、搜索、表格、商品标题和上下架按钮补稳定 `data-testid`，支持浏览器自动化。
+  - `web/admin/scripts/admin_smoke_utils.py` - 抽出后台浏览器 smoke 共享工具，复用 Chrome CDP、服务启动、截图和临时文件清理逻辑，避免后续 smoke 重复造轮子。
+  - `web/admin/scripts/smoke_products_active_toggle.py` - 新增商品上下架浏览器 smoke：临时库造商品，后台页面下架/上架，轮询小程序商品接口确认消失/恢复。
+  - `web/admin/scripts/smoke_decoration_product_picker.py` - 改为复用共享 smoke 工具，回归装修商品选择器链路。
+  - `web/admin/scripts/check-products-page.mjs` - 新增商品页结构检查。
+  - `web/admin/package.json` - 新增 `check:products` 与 `smoke:products-active-toggle` 命令。
+- **验证结果**:
+  - `npm run smoke:products-active-toggle` 于 `YunxiBakeBot\web\admin` 通过：后台下架后小程序 `/api/v1/miniapp/products?ids=92017004` 查不到商品，后台上架后该接口恢复返回商品。
+  - `npm run smoke:decoration-product-picker` 于 `YunxiBakeBot\web\admin` 通过，确认共享 smoke 工具未破坏装修链路。
+  - 浏览器截图保存至 `reports/ui/products-active-toggle-smoke.png`。
+  - `npm run check:products`、`npm run check:decoration`、后台 `npm run typecheck` 均通过。
+  - `python -m pytest --no-cov tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py` 通过，9 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 该 smoke 使用测试商品和临时 SQLite DB，临时 DB 与失败调试截图已逐个删除；截图和命令不能替代微信开发者工具真实小程序渲染验证。
+  - 既有 `reports/ui/admin-decoration-page-switcher-chrome-profile/` 多文件 Chrome profile 目录仍按禁止递归删除规则保留，需用户确认后处理。
+
+## [2026-06-17] - test(admin): 装修商品选择器浏览器 smoke 跑通
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-product-picker-smoke
+- **背景**: 后台装修商品 picker 已有 API smoke 和稳定选择器，但真实浏览器点击链路仍未形成可复跑证据；完整 MVP 需要证明后台装修发布能驱动小程序 JSON 配置。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 页面切换从单一下拉增强为显式页签，商品 picker 从 Element Plus 表格替换为原生紧凑表格，发布后保留当前模块选择，提升运营体验与自动化稳定性。
+  - `web/admin/scripts/smoke_decoration_product_picker.py` - 新增可复跑浏览器 smoke：临时库造在售商品，启动后端/Vite/Chrome CDP，打开装修页选中商品、保存、发布，再反查小程序页面配置。
+  - `web/admin/scripts/check-decoration-editor.mjs` - 将页面页签选择器纳入装修结构检查。
+  - `web/admin/package.json` - 新增 `npm run smoke:decoration-product-picker`。
+- **验证结果**:
+  - `npm run smoke:decoration-product-picker` 于 `YunxiBakeBot\web\admin` 通过：小程序 `/api/v1/miniapp/pages/products` published 配置包含 `productIds=["91017003"]`。
+  - 浏览器截图保存至 `reports/ui/decoration-product-picker-smoke.png`。
+  - `npm run check:decoration` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py` 通过，6 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 该 smoke 使用测试商品和临时 SQLite DB，临时 DB 与调试失败截图已逐个删除；截图只作为本地浏览器证据，不替代微信开发者工具小程序真机/模拟器验证。
+  - 既有 `reports/ui/admin-decoration-page-switcher-chrome-profile/` 多文件 Chrome profile 目录仍按禁止递归删除规则保留，需用户确认后处理。
+
+## [2026-06-17] - test(admin): 装修页补稳定自动化选择器
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-testids
+- **背景**: 上一轮商品 picker 浏览器专项 smoke 卡在 CDP 自动化识别和点击装修模块，说明后台装修页关键控件缺少稳定测试选择器，后续补 Playwright 截图 smoke 会不够可靠。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 为页面选择器、刷新、保存草稿、发布、模块卡片、已选商品区、选品按钮、选品弹窗、搜索框、搜索按钮、商品表格和加入按钮增加 `data-testid` / `data-block-id` / `data-product-id`。
+  - `web/admin/scripts/check-decoration-editor.mjs` - 将上述自动化选择器纳入结构检查，防止后续装修页改版时误删。
+- **验证结果**:
+  - `npm run check:decoration` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py` 通过，6 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 本轮只补自动化选择器和结构守卫，尚未重新执行商品 picker 浏览器点击截图 smoke；后续可基于这些 `data-testid` 接入正式 Playwright。
+
+## [2026-06-17] - feat(admin): 装修商品货架已选商品显示名称
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-selected-product-titles
+- **背景**: 装修商品货架已支持弹窗选品和分页，但已选区域仍主要展示商品 ID，运营在配置多个商品时不容易判断当前货架内容。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 新增商品 ID 到商品名称的本地缓存，选品列表加载和加入商品时自动复用商品列表数据。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 已选商品标签优先展示商品名称，并在名称可用时同时显示商品 ID，保留原商品 ID textarea 作为批量编辑入口。
+  - `web/admin/scripts/check-decoration-editor.mjs` - 装修结构检查新增商品名称缓存和展示检查，防止后续退回只显示 raw ID。
+- **验证结果**:
+  - 使用本地临时 SQLite DB、后端 `127.0.0.1:7001` 和后台 Vite `127.0.0.1:5173` 完成商品 picker 数据链路 API smoke：后台商品搜索命中 `smoke picker strawberry cake`，装修草稿写入 `productIds=["91017003"]`，发布后小程序 `/api/v1/miniapp/pages/products` 读取到同一商品 ID。
+  - `npm run check:decoration` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py` 通过，6 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 本轮尝试用 Chrome CDP 做商品 picker 浏览器点击专项 smoke，但卡在将右侧编辑器切到商品货架模块的自动化适配，未作为通过证据；后续建议用正式 Playwright 依赖补真实点击截图。
+  - 本轮 API smoke 使用临时测试商品和临时 SQLite DB；临时 DB 与一次性脚本已逐个删除。
+  - 既有 `reports/ui/admin-decoration-page-switcher-chrome-profile/` 多文件临时目录仍按禁止递归删除规则保留，需用户确认后处理。
+
+## [2026-06-17] - feat(admin): 装修分类与服务入口支持结构化编辑
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-grid-link-editor
+- **背景**: 装修编辑器已覆盖轮播、货架、会员和须知等模块，但 `categoryGrid`、`quickLinks`、`serviceGrid` 仍主要依赖高级 JSON，不利于运营像有赞后台一样直接配置分类入口和服务入口。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 为分类宫格增加多行分类 ID 表单。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 为快捷入口和服务宫格增加模块标题、入口增删、图标文字、跳转类型和跳转目标表单。
+  - `web/admin/scripts/check-decoration-editor.mjs` - 新增装修编辑器结构检查，防止关键模块退回 JSON-only。
+  - `web/admin/package.json` - 新增 `npm run check:decoration`。
+- **验证结果**:
+  - 使用本地临时 SQLite DB、后端 `127.0.0.1:7001`、后台 Vite `127.0.0.1:5173` 和 headless Chrome CDP `127.0.0.1:9224` 完成浏览器 smoke。
+  - 浏览器进入店铺装修页，切换到商品页，通过分类宫格表单发布 `smoke-category-a-202606170121`、`smoke-category-b-202606170121`；随后切换到我的页，通过服务入口表单发布 `smoke-service-title-202606170121` 和 `smoke-service-target-202606170121`；小程序 `/api/v1/miniapp/pages/products`、`/api/v1/miniapp/pages/profile` 均读取到对应配置。
+  - 截图保存至 `reports/ui/admin-decoration-grid-link-smoke.png`；临时 SQLite DB、一次性 smoke 脚本和调试脚本已逐个删除。
+  - `npm run check:decoration` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py` 通过，6 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 与 `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 均无输出。
+- **遗留风险**:
+  - 既有 `reports/ui/admin-decoration-page-switcher-chrome-profile/` 多文件临时目录仍按禁止递归删除规则保留，需用户确认后处理。
+
+## [2026-06-17] - feat(admin): 装修编辑器支持多页面切换
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-page-switcher
+- **背景**: 小程序契约已包含 `home`、`products`、`profile` 三个装修页面，但后台装修编辑器仍写死首页，运营无法分别编辑商品页和我的页。
+- **变更范围**:
+  - `web/admin/src/constants/shopPages.ts` - 新增可装修页面选项常量，集中维护页面 ID、名称和说明。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 顶部新增页面选择器，加载、刷新、保存草稿和发布均改为使用当前页面 ID。
+  - `app/service/shop_page_config.py` - 默认装修配置从单一首页模板拆分为 `home`、`products`、`profile` 三套模块。
+  - `tests/service/test_shop_page_config.py` - 覆盖不同页面默认模块不同。
+  - `tests/api/test_shop_page_config_api.py` - 覆盖后台可读取三个可装修页面。
+- **验证结果**:
+  - 使用本地临时 SQLite DB、后端 `127.0.0.1:7001`、后台 Vite `127.0.0.1:5173` 和 headless Chrome CDP `127.0.0.1:9224` 完成浏览器 smoke。
+  - 浏览器进入店铺装修页，切换到商品页，修改商品货架标题为 `smoke-products-shelf-20260617010822`，保存草稿后验证小程序 published 配置仍保持旧值，发布后小程序 `/api/v1/miniapp/pages/products` 读取到新标题。
+  - 截图保存至 `reports/ui/admin-decoration-page-switcher-smoke.png`。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py` 通过，6 passed。
+  - `python -m py_compile app\service\shop_page_config.py tests\api\test_shop_page_config_api.py tests\service\test_shop_page_config.py` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 与 `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 均无输出。
+- **遗留风险**:
+  - `categoryGrid`、`quickLinks/serviceGrid` 的结构化表单已在 `20260617-admin-decoration-grid-link-editor` 补齐。
+  - 本轮 Chrome smoke 产生的 `reports/ui/admin-decoration-page-switcher-chrome-profile/` 为多文件临时 profile 目录；按禁止递归删除规则未自动清理，需用户确认后再处理。
+
+## [2026-06-17] - feat(admin): 装修商品选择弹窗补齐分页
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-product-picker-pagination
+- **背景**: 装修商品货架已支持弹窗选品，但初版只加载商品列表第一页，商品量变大后运营无法浏览后续商品。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 商品选择弹窗增加当前页、总数和页大小状态。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 搜索时重置到第一页，翻页时复用既有商品列表接口加载对应页。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 弹窗底部新增分页条和在售商品总数展示。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run build` 于 `YunxiBakeBot\web\admin` 通过；Vite 仅提示大 chunk 和第三方注释警告。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py` 通过，8 passed。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 本轮仍未做浏览器点击截图 smoke，后续需实际验证搜索、翻页、加入商品、保存草稿、发布、小程序货架读取。
+  - `npm run build` 生成了被 git ignore 的 `web/admin/dist/` 构建产物；按禁止递归删除规则，本轮未自动清理目录。
+
+## [2026-06-17] - feat(admin): 装修商品货架支持弹窗选品
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-product-picker
+- **背景**: 结构化装修编辑器已能编辑商品货架，但货架商品仍需要运营手填商品 ID，不符合有赞类后台的日常选品体验。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 复用 `productsService.listProducts` 和 `ProductListItem`，在商品货架模块中新增“选择商品”弹窗。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 弹窗支持搜索在售商品、展示商品名、商品 ID、编码、价格和库存，并将选中商品写回 `productShelf.props.productIds`。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 已选商品 ID 以标签方式展示，可直接移除，同时保留文本框作为高级批量编辑入口。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run build` 于 `YunxiBakeBot\web\admin` 通过；Vite 仅提示大 chunk 和第三方注释警告。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py` 通过，8 passed。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 本轮仍未做浏览器点击截图 smoke，后续需实际验证搜索、加入商品、保存草稿、发布、小程序货架读取。
+  - 已在 `20260617-admin-decoration-product-picker-pagination` 补齐弹窗分页。
+  - `npm run build` 生成了被 git ignore 的 `web/admin/dist/` 构建产物；按禁止递归删除规则，本轮未自动清理目录。
+
+## [2026-06-17] - feat(admin): 店铺装修编辑器改为结构化表单
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-admin-decoration-structured-editor
+- **背景**: 完整 MVP 需要后台像有赞一样让运营人员直接装修页面；原装修页虽然已支持模块排序、启停、手机预览、保存和发布，但核心配置仍依赖 `Props JSON` 文本编辑，运营门槛偏高。
+- **变更范围**:
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 将右侧模块配置从单一 JSON 文本框升级为结构化表单，覆盖搜索占位、公告、轮播图、商品货架、富文本、会员横幅、会员摘要和须知列表等高频模块。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 保留“高级 JSON”折叠编辑区，未覆盖或临时扩展字段仍可按原 JSON 契约编辑。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 扩展手机预览，展示分类、快捷入口、会员横幅、须知列表、商品货架副标题和富文本段落等主要模块。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+  - `npm run build` 于 `YunxiBakeBot\web\admin` 通过；Vite 仅提示大 chunk 和第三方注释警告。
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py` 通过，4 passed。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+- **遗留风险**:
+  - 本轮未做浏览器点击截图 smoke，后续仍需用浏览器实际验证编辑公告/货架、保存草稿、发布后小程序读取。
+  - 商品货架仍通过商品 ID 文本录入，后续应接商品选择弹窗，进一步贴近有赞装修体验。
+  - `npm run build` 生成了被 git ignore 的 `web/admin/dist/` 构建产物；按禁止递归删除规则，本轮未自动清理目录。
+
+## [2026-06-17] - feat(catalog): 小程序商品图片改为后端受控代理
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-image-proxy-chain
+- **背景**: 小程序商品 API 已能读取有赞商品图片，但直接把第三方图片 URL 返回给小程序会受微信合法域名和热链策略影响，完整 MVP 需要把图片资源收敛到后端同域能力。
+- **变更范围**:
+  - `app/service/miniapp_catalog.py` - 商品序列化时将 `imageUrl` 改为 `/api/v1/miniapp/products/{product_id}/image`；新增商品条目复用解析、图片 URL 协议校验、图片类型校验、大小限制和受控抓图逻辑。
+  - `app/api/miniapp_catalog.py` - 新增 `GET /api/v1/miniapp/products/{product_id}/image`，返回图片二进制内容，找不到或不可代理时返回 404。
+  - `tests/api/test_miniapp_catalog_api.py` - 覆盖列表/详情代理 URL、图片代理成功、无图商品、缺失商品和非法协议拒绝。
+  - `tests/service/test_miniapp_catalog.py` - 更新商品 `imageUrl` 断言为代理路径，并覆盖缺图返回空字符串。
+  - `YunxiBakeMiniApp/docs/api-contract.md` - 更新商品图片契约，明确 `imageUrl` 是后端同域代理路径而非开放式第三方 URL。
+  - `YunxiBakeMiniApp/miniprogram/services/products.ts` - 小程序商品 service 统一把后端代理路径补全为 `API_BASE_URL` 下的完整 URL，页面层不拼接资源地址。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py tests/api/test_shop_operations_api.py tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py tests/service/test_admin.py` 通过，19 passed。
+  - `python -m py_compile app\api\miniapp_catalog.py app\service\miniapp_catalog.py tests\api\test_miniapp_catalog_api.py tests\service\test_miniapp_catalog.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 尚未在微信开发者工具中验证代理图片真实渲染。
+  - 当前代理未做持久缓存，生产环境需要观察原始图片访问时延与稳定性，再决定是否加 CDN 或本地对象存储缓存。
+
+## [2026-06-17] - feat(catalog): 小程序商品 API 透传有赞商品图片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260617-miniapp-product-images-chain
+- **背景**: 完整 MVP 已打通商品、主推和装修链路，但小程序商品 API 的 `imageUrl` 仍为空串，商品列表和详情页会停留在占位图体验。
+- **变更范围**:
+  - `app/repository/knowledge_product_repo.py` - 商品知识与有赞商品宽表 JOIN 时选出 `youzan_products.image` 并挂载为 `image_url`。
+  - `app/service/miniapp_catalog.py` - 小程序商品序列化时将 `image_url` 输出为契约中的 `imageUrl`。
+  - `tests/helpers/miniapp_catalog_seed.py` - 商品测试造数 helper 支持传入图片 URL。
+  - `tests/service/test_miniapp_catalog.py` - 改用共享商品造数 helper，并覆盖列表、货架和详情图片字段。
+  - `tests/api/test_miniapp_catalog_api.py` - 覆盖公开商品详情 API 的 `imageUrl`。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py tests/api/test_shop_operations_api.py tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py tests/service/test_admin.py` 通过，16 passed。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 尚未在微信开发者工具中真实渲染远程商品图片。
+  - 真实有赞图片域名需要加入微信小程序 downloadFile/request 合法域名或使用后端图片代理策略。
+
+## [2026-06-16] - test(admin): 浏览器验证主推商品页面保存链路
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-featured-browser-smoke
+- **背景**: 上一轮已用跨路由测试证明后台主推配置会驱动小程序 featured 商品，但完整 MVP 仍需要证明后台商品运营页面本身可真实操作。
+- **变更范围**:
+  - `reports/ui/admin-featured-products-smoke.png` - 后台主推商品页面浏览器 smoke 截图。
+  - `reports/ui/admin-featured-backend-smoke.log` / `.err.log`、`reports/ui/admin-featured-vite-smoke.log` / `.err.log`、`reports/ui/admin-featured-chrome-smoke.log` / `.err.log` - 本地 smoke 服务日志。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次浏览器验证证据。
+- **验证结果**:
+  - 使用临时 SQLite 数据库 `.tmp-admin-featured-smoke.db` 初始化后端并种入 `烟测草莓奶油蛋糕`、`烟测芒果千层` 两条在售商品。
+  - 本地启动后端 `127.0.0.1:7001`、后台 Vite `127.0.0.1:5173` 和 headless Chrome CDP `127.0.0.1:9223`。
+  - 浏览器打开 `/admin/products/featured`，写入管理员 token，搜索 `烟测`，点击候选商品加号，将两条商品加入当前主推款并点击“保存主推款”。
+  - 页面显示“当前配置已保存”，截图保存至 `reports/ui/admin-featured-products-smoke.png`。
+  - 调用小程序公开接口 `/api/v1/miniapp/products?featured=true` 返回 `["烟测草莓奶油蛋糕", "烟测芒果千层"]`，与后台保存顺序一致。
+  - 本轮启动的服务已停止；临时 DB、wal/shm/journal 文件已逐个删除。
+  - `python -m pytest --no-cov tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py tests/service/test_admin.py` 通过，8 passed。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 该浏览器 smoke 使用临时数据库和测试商品，未覆盖真实有赞商品图片展示。
+  - 微信开发者工具小程序商品页真实渲染仍未验证。
+
+## [2026-06-16] - test(catalog): 打通后台主推到小程序 featured 商品
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-featured-catalog-chain
+- **背景**: 完整 MVP 需要后台商品运营配置能直接影响小程序商品陈列，主推商品不仅要能保存，还要按运营配置顺序展示。
+- **变更范围**:
+  - `tests/helpers/miniapp_catalog_seed.py` - 新增商品目录测试造数 helper，后续商品/主推/货架测试统一复用。
+  - `tests/api/test_miniapp_catalog_api.py` - 改用共享造数 helper。
+  - `tests/api/test_admin_featured_catalog_api.py` - 新增后台保存主推商品、小程序 `featured=true` 读取同一配置的跨路由测试。
+  - `app/service/admin.py` - 后台主推商品筛选按配置标题顺序返回。
+  - `app/service/miniapp_catalog.py` - 小程序主推商品列表按后台配置标题顺序返回。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py tests/api/test_shop_operations_api.py tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py tests/service/test_admin.py` 通过，16 passed。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 尚未浏览器点击后台主推商品页面。
+  - 微信开发者工具小程序商品页真实渲染仍未验证。
+
+## [2026-06-16] - test(catalog): 补小程序商品目录 API 链路验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-catalog-api-chain
+- **背景**: 完整 MVP 需要商品从后台/有赞商品宽表和主推配置进入小程序商品列表、装修货架和商品详情，不能只依赖 Mock。
+- **变更范围**:
+  - `tests/api/test_miniapp_catalog_api.py` - 新增小程序商品目录路由级测试，覆盖公开列表、装修货架 `ids` 顺序过滤、后台主推配置过滤和商品详情读取。
+  - `tests/service/test_miniapp_catalog.py` - 继续作为服务层商品序列化、在售过滤、主推过滤和详情 ID 兼容的回归证据。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py tests/api/test_shop_operations_api.py tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py` 通过，13 passed。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `npm run typecheck` 于 `YunxiBakeBot\web\admin` 通过。
+- **遗留风险**:
+  - 商品管理后台 UI 与主推商品配置到小程序 `featured=true` 的浏览器交互尚未做 smoke。
+  - 仍未在微信开发者工具中验证小程序商品列表真实渲染。
+
+## [2026-06-16] - test(shop): 补店铺运营配置 API 联动验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-shop-operations-api-chain
+- **背景**: 完整 MVP 中店铺名称、客服微信、营业时间、自提和配送说明需要由后台维护并同步给小程序，不能只依赖页面手工验证。
+- **变更范围**:
+  - `tests/api/test_shop_operations_api.py` - 新增店铺运营配置 API 测试，覆盖后台保存、小程序公开读取和后台 Token 校验。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_shop_operations_api.py tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py` 通过，8 passed。
+  - `python -m py_compile tests\api\test_shop_operations_api.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp`、小程序 `npm run typecheck`、后台 `web/admin` `npm run typecheck` 均通过。
+- **遗留风险**:
+  - 仍未找到微信开发者工具可调用 CLI。
+  - 真实小程序端展示仍需开发者工具或真机验证。
+
+## [2026-06-16] - test(decoration): 验证装修草稿发布到小程序
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-decoration-publish-chain
+- **背景**: 完整 MVP 需要后台装修编辑器和小程序 JSON 渲染层解耦但可打通，不能只停留在页面 UI。
+- **变更范围**:
+  - `tests/service/test_shop_page_config.py` - 新增装修配置服务测试，覆盖默认配置、草稿隔离、发布同步和小程序读取 published 配置。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py` 通过，4 passed。
+  - `python -m py_compile app\service\shop_page_config.py tests\service\test_shop_page_config.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp`、小程序 `npm run typecheck`、后台 `web/admin` `npm run typecheck` 均通过。
+- **后续浏览器 smoke**:
+  - 本地临时启动 `YunxiBakeBot` 后端 `127.0.0.1:7001` 和后台 Vite `127.0.0.1:5173`
+  - Chrome 远程调试打开 `/admin-v2/login?redirect=%2Fadmin-v2%2Fdecoration`，登录后进入店铺装修页
+  - 在装修页选择“商品货架”，将 Props JSON 的标题改为 `Codex 装修烟测 13:37:31`
+  - 点击“保存草稿”后，后台草稿已更新，`/api/v1/miniapp/pages/home` 仍保持旧的 `published` 标题 `今日推荐`
+  - 点击“发布”后，`/api/v1/miniapp/pages/home` 读取到新标题 `Codex 装修烟测 13:37:31`
+  - 生成截图 `D:\Project\YunxiBakeBot\reports\ui\admin-decoration-publish-smoke.png`
+- **遗留风险**:
+  - 尚未在微信开发者工具中验证小程序页面真实渲染装修配置。
+  - 微信开发者工具仍未找到可调用 CLI，本轮仅完成浏览器 smoke。
+
+## [2026-06-16] - test(decoration): 补装修 API 路由级验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-decoration-api-chain
+- **背景**: 装修链路已经打通，但需要把后台路由层也纳入回归，避免以后只测 service 不测 API。
+- **变更范围**:
+  - `tests/api/test_shop_page_config_api.py` - 新增装修 API 路由级测试，覆盖后台 token、草稿保存、发布、小程序读取 published。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次验证证据。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py` 通过，6 passed。
+  - `python -m py_compile tests\api\test_shop_page_config_api.py tests\service\test_shop_page_config.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+  - `npm run check:miniapp`、小程序 `npm run typecheck`、后台 `web/admin` `npm run typecheck` 均通过。
+- **遗留风险**:
+  - 仍未找到微信开发者工具可调用 CLI。
+  - 路由级测试不能替代真实小程序渲染。
+
+## [2026-06-16] - test(miniapp): 增加页面静态一致性检查
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-static-page-check
+- **背景**: 本机没有可调用的微信开发者工具 CLI，为降低小程序页面绑定、路由和 tabBar 跳转风险，需要补可重复的静态检查。
+- **变更范围**:
+  - `YunxiBakeMiniApp/scripts/check-miniapp.mjs` - 新增页面四件套、路由、tabBar 跳转、WXML 事件绑定和顶层 data 引用检查。
+  - `YunxiBakeMiniApp/miniprogram/pages/order-detail/index.ts` - 将返回订单列表从 `redirectTo` 修正为 `switchTab`。
+  - `YunxiBakeMiniApp/package.json` - 新增 `npm run check:miniapp`。
+- **验证结果**:
+  - `npm run check:miniapp` 于 `YunxiBakeMiniApp` 通过，覆盖 9 个页面和 9 个路由。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `project.config.json`、`miniprogram/app.json`、`miniprogram/sitemap.json` JSON 解析通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+- **遗留风险**:
+  - 静态检查不能替代微信开发者工具模拟器渲染。
+  - 尚未覆盖 WXSS 视觉布局。
+
+## [2026-06-16] - test(order): 验证履约完整状态链
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-order-status-chain-smoke
+- **背景**: 自研商城 MVP 的后台订单履约需要覆盖制作、配送、完成全链路，不只验证待确认到已确认。
+- **变更范围**:
+  - 无业务代码变更。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次 API 状态链验证。
+- **验证结果**:
+  - 本地临时启动后端 `127.0.0.1:7001`。
+  - 使用小程序订单 API 创建订单 `mp_20260616210530_72f31260`，小程序详情初始读取 `pending`。
+  - 后台接口拒绝非法 `pending -> done`，返回 400。
+  - 后台依次更新 `confirmed`、`making`、`delivering`、`done`，每一步小程序详情均读取到对应状态。
+  - 后台接口拒绝非法 `done -> cancelled`，返回 400。
+  - 小程序订单列表最终读取该订单状态为 `done`。
+- **遗留风险**:
+  - 尚未在微信开发者工具中用页面点击验证全状态链视觉变化。
+  - 真实支付、库存锁定、订单通知仍未接入。
+
+## [2026-06-16] - test(miniapp): 验证小程序订单状态联动
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-admin-status-sync-smoke
+- **背景**: 完整 MVP 需要小程序能看到后台订单履约状态更新。本机只发现微信开发者工具用户数据目录，未找到可直接调用的 CLI 或程序本体，因此先补真实 API 联动验证。
+- **变更范围**:
+  - 无业务代码变更。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次 API 联动验证。
+- **验证结果**:
+  - 本地临时启动后端 `127.0.0.1:7001`。
+  - `/api/v1/miniapp/auth/login` 返回 demo session。
+  - `/api/v1/miniapp/pages/home` 返回 3 个装修 block。
+  - `/api/v1/miniapp/shop-settings` 返回店铺运营配置。
+  - 使用小程序订单 API 创建订单 `mp_20260616210101_c9e57450`，后台详情初始状态为 `pending`。
+  - 使用后台订单 API 将订单更新为 `confirmed`。
+  - 使用小程序订单详情 API 和订单列表 API 读取该订单，均看到 `confirmed`。
+- **遗留风险**:
+  - 尚未在微信开发者工具模拟器验证小程序页面视觉、路由跳转和按钮交互。
+  - 本地仍为 demo session；真实 openid、微信支付、订阅消息待微信配置后联调。
+
+## [2026-06-16] - test(admin): 验证订单履约与店铺配置交互
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-interaction-smoke
+- **背景**: 上一轮已验证后台概览、设置页和订单深链能渲染，但仍缺少真实点击操作验证，尤其是订单详情抽屉、状态按钮和店铺配置保存。
+- **变更范围**:
+  - 无业务代码变更。
+  - `reports/ui/admin-order-detail-drawer-smoke.png` - 订单详情抽屉截图。
+  - `reports/ui/admin-order-confirmed-smoke.png` - 订单状态更新为已确认后的截图。
+  - `reports/ui/admin-shop-settings-save-smoke.png` - 店铺配置保存成功提示截图。
+  - `LOGBOOK.md`、`docs/harness-engineering/core/evidence-index.md` - 记录本次交互验证证据。
+- **验证结果**:
+  - 本地临时启动后端 `127.0.0.1:7001` 和 Vite `127.0.0.1:5173`。
+  - Chrome DevTools 打开 `/admin/orders?status=pending`，点击首单“详情”，订单详情抽屉渲染成功。
+  - 点击“确认订单”，页面出现“订单已更新为已确认”，订单状态展示为“已确认”。
+  - 打开 `/admin/settings/shop`，修改店铺名称并点击“保存”，页面出现“店铺配置已保存”；随后通过 API 恢复原店名“芸熙烘焙”并校验成功。
+- **遗留风险**:
+  - 未继续测试已确认后的“开始制作”、后续配送/完成状态链路。
+  - 未在微信开发者工具中验证小程序端看到后台更新后的订单状态。
+
+## [2026-06-16] - fix(admin): 收口设置摘要 MiMo 字段引用和后台本地路由
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-overview-mvp
+- **背景**: 设置摘要后端已统一返回 `mimo_*` 字段，后台设置页已同步，但商城经营台仍保留旧的 `webhookTokenConfigured` 引用，会造成前端类型检查失败。
+- **变更范围**:
+  - `web/admin/src/pages/overview/useOverviewPage.ts` - 设置配置计数改为读取现有有赞与企微配置字段，不再访问已移除的有赞 webhook token 字段。
+  - `web/admin/vite.config.ts` - 移除 dev server 对 `/admin` 的后端代理，避免与前端 `VITE_ROUTER_BASE=/admin/` 冲突。
+- **设计判断**:
+  - 不新增后端字段，前端按当前 `/settings/summary` 真实契约收口。
+  - 概览页只统计关键可运营配置项，详细渠道状态仍留在设置页展示。
+- **验证结果**:
+  - `rg -n "webhookTokenConfigured|deepseek|DeepSeek" web/admin/src app/service/admin.py app/api/admin_config.py app/models/config.py` 无输出。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `python -m py_compile` 覆盖小程序/后台新增 API、service、model、repository 模块并通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 与 `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 均无输出。
+  - 本地临时启动服务于 `127.0.0.1:7011`，验证 `/health`、`/api/v1/admin/settings/summary`、`/api/v1/miniapp/shop-settings`、`/api/v1/miniapp/pages/home`、`/api/v1/admin/orders?page=1&status=pending` 均返回成功；设置摘要仅含 `mimo_*` 字段。
+  - `npm run build` 于 `web/admin` 通过。
+  - 本地临时启动后端 `127.0.0.1:7001` 和 Vite `127.0.0.1:5173`，Chrome DevTools 验证 `/admin/overview`、`/admin/settings/api`、`/admin/orders?status=pending` 均能渲染关键文案，并生成截图：
+    - `reports/ui/admin-overview-smoke.png`
+    - `reports/ui/admin-settings-api-smoke.png`
+    - `reports/ui/admin-orders-pending-smoke.png`
+- **遗留风险**:
+  - 尚未在真实浏览器人工点选后台表单保存、订单详情抽屉和状态按钮。
+
+## [2026-06-16] - feat(admin): 将后台概览改造成商城经营台
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-overview-mvp
+- **背景**: 自研商城 MVP 需要后台第一屏更贴近有赞式经营台，而不是偏 AI 观察台；运营人员应先看到订单、商品、装修与待处理事项。
+- **变更范围**:
+  - `web/admin/src/pages/overview/useOverviewPage.ts` - 改为聚合订单、商品、店铺配置、装修、转人工和异常指标。
+  - `web/admin/src/pages/overview/OverviewPage.vue` - 重构为商城经营台样式，展示主指标、最近订单、上线检查、待办提醒和快捷入口。
+  - `web/admin/src/pages/orders/OrdersPage.vue` - 支持从概览页带查询参数进入筛选后的订单列表。
+- **设计判断**:
+  - 优先复用已有订单、商品、配置、装修和观察台接口，不为了首页再加新后端聚合 API。
+  - 概览首页只展示运营所需的主指标，不把 AI 观察台内容放在第一屏。
+  - 订单列表支持 `status` 和 `keyword` 读 query，方便概览卡片深链到筛选视图。
+- **验证结果**:
+  - `npm run typecheck` 于 `web/admin` 通过。
+- **遗留风险**:
+  - 尚未在浏览器中手工验证概览首页的视觉与路由跳转。
+  - 仍未接入真实支付、库存锁定和完整财务指标。
+
+## [2026-06-16] - feat(miniapp): 新增小程序订单详情接口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-order-detail-mvp
+- **背景**: 自研商城 MVP 需要用户在小程序中查看单个订单明细和后台更新后的履约状态，列表页不足以完成订单闭环。
+- **变更范围**:
+  - `app/service/miniapp_order.py` - 新增当前用户订单详情读取方法，并校验订单 `user_id`。
+  - `app/api/miniapp_orders.py` - 新增 `GET /api/v1/miniapp/orders/{order_id}`，不存在或不属于当前用户时返回 404。
+- **设计判断**:
+  - 详情接口复用已有订单序列化结构，避免列表和详情字段漂移。
+  - MVP 阶段继续通过 `x-miniapp-user-id` 做用户隔离；微信真实会话接入后由后端会话替换。
+- **验证结果**:
+  - `python -m py_compile app\service\miniapp_order.py app\api\miniapp_orders.py` 通过。
+  - `npm run typecheck` 于 `YunxiBakeMiniApp` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未启动本地服务做真实 HTTP 详情接口 smoke。
+  - 仍未接入支付、库存锁定和订单消息通知。
+
+## [2026-06-16] - feat(miniapp/admin): 接入店铺运营配置 MVP
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-shop-operations-config-mvp
+- **背景**: 自研商城 MVP 需要后台统一维护小程序公开运营信息，避免客服电话、客服微信、营业时间和配送/自提说明散落在页面代码里。
+- **变更范围**:
+  - `app/models/config.py` - 新增店铺运营配置 key 和默认值。
+  - `app/service/admin.py` - 新增读取、保存店铺运营配置和 summary 返回运营配置。
+  - `app/api/admin_config.py` - 新增 `GET/PUT /api/v1/admin/shop-config/operations` 和公开 `GET /api/v1/miniapp/shop-settings`。
+  - `web/admin/src/pages/settings/ShopSettingsPage.vue` - 店铺配置页从只读状态面板升级为可编辑运营配置表单，并保留状态巡检。
+  - `web/admin/src/services/shopSettings.ts`、`web/admin/src/types/shopSettings.ts` - 新增后台店铺运营配置请求和类型。
+- **设计判断**:
+  - 继续复用 `shop_config` 键值表，不新增迁移，先满足 MVP 后台可配置和小程序可读取。
+  - 公开接口只返回可展示运营信息，不返回密钥或敏感配置。
+  - 支付模式仍为 `store_confirm`，不伪造微信支付能力。
+- **验证结果**:
+  - `python -m py_compile app\models\config.py app\service\admin.py app\api\admin_config.py` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - 小程序 `npm run typecheck` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未在浏览器验证后台店铺配置保存/刷新。
+  - 尚未在微信开发者工具验证小程序首页公告、我的页客服入口和结算说明展示。
+
+## [2026-06-16] - feat(admin): 补齐小程序订单履约处理 MVP
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-order-fulfillment-mvp
+- **背景**: 完整 MVP 不应只让后台“看到订单”，还需要管理员能查看详情并推进待确认、制作、配送、完成等基础履约状态。
+- **变更范围**:
+  - `app/repository/order_repo.py` - 新增按订单号读取和更新订单状态的数据访问方法。
+  - `app/service/miniapp_order.py` - 新增后台订单详情和状态流转服务，限制非法越级状态切换。
+  - `app/api/admin_orders.py` - 新增 `GET /api/v1/admin/orders/{order_id}` 和 `POST /api/v1/admin/orders/{order_id}/status`。
+  - `web/admin/src/constants/orderStatus.ts` - 集中维护订单状态文案、标签和可用操作。
+  - `web/admin/src/services/orders.ts`、`web/admin/src/types/order.ts` - 补齐订单详情和状态更新前端类型与请求。
+  - `web/admin/src/pages/orders/OrdersPage.vue` - 新增订单详情抽屉和列表内履约操作按钮。
+- **设计判断**:
+  - 不新增订单表字段，复用现有 `status` 和 `updated_at`，先跑通 MVP 履约处理。
+  - 状态流转规则放在 service 层，前端按钮只作为可用操作提示，后端仍负责拦截非法状态。
+  - 不接入支付假链路，继续保持“门店确认/履约处理”模式。
+- **验证结果**:
+  - `python -m py_compile app\repository\order_repo.py app\service\miniapp_order.py app\api\admin_orders.py` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - 服务级 smoke 通过：待确认可切到已确认，已确认不可越级切到已完成。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未在浏览器里打开后台订单页验证抽屉和按钮视觉表现。
+  - 尚未接入真实微信支付、库存锁定和订单详情页推送通知。
+
+## [2026-06-16] - feat(miniapp): 接入小程序登录会话 MVP
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-auth-mvp
+- **背景**: 小程序订单和客服已经具备基础闭环，MVP 需要从固定 demo 用户过渡到微信登录入口。
+- **变更范围**:
+  - `app/config.py` - 新增微信小程序 AppID/Secret、code2session URL、HTTP 超时和支付开关配置。
+  - `app/service/miniapp_auth.py` - 新增小程序登录服务，配置完整时请求微信 `jscode2session`，配置缺失时返回 demo session。
+  - `app/api/miniapp_auth.py` - 新增 `POST /api/v1/miniapp/auth/login`。
+  - `app/lifespan_services.py`、`app/lifespan_routes.py` - 注册小程序登录服务和路由。
+- **设计判断**:
+  - 不把 AppID/Secret 写入仓库，真实值通过环境变量或 `.env` 提供。
+  - MVP 保留 demo session 兜底，保证开发者工具和本地环境可演示订单/客服闭环。
+  - 微信支付未配置商户参数前，不伪造支付能力，继续使用门店确认模式。
+- **验证结果**:
+  - `python -m py_compile app\config.py app\constants\miniapp.py app\service\miniapp_auth.py app\api\miniapp_auth.py app\service\miniapp_chat.py app\api\miniapp_chat.py app\lifespan_services.py app\lifespan_routes.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未配置真实微信小程序 AppID/Secret 联调 openid。
+  - 尚未接入微信支付商户参数和支付回调。
+
+## [2026-06-16] - feat(miniapp): 接入小程序客服消息 API
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-chat-mvp
+- **背景**: 完整 MVP 需要小程序用户能直接咨询蛋糕、配送、定制和订单问题，并复用现有 AI 客服能力。
+- **变更范围**:
+  - `app/constants/miniapp.py` - 新增小程序渠道和 demo 用户公共常量，避免订单和客服重复硬编码。
+  - `app/service/miniapp_chat.py` - 新增小程序客服服务，组合现有 `ChatService`、`SessionRepo` 和 `MessageRepo`。
+  - `app/api/miniapp_chat.py` - 新增 `POST/GET /api/v1/miniapp/chat/messages`。
+  - `app/service/miniapp_order.py`、`app/api/miniapp_orders.py` - 改用公共小程序常量。
+  - `app/lifespan_services.py`、`app/lifespan_routes.py` - 注册小程序客服服务和路由。
+- **设计判断**:
+  - 不修改已超警戒线的 `ChatService`，小程序客服 API 仅做薄适配。
+  - MVP 继续使用 `x-miniapp-user-id` 做用户隔离，后续微信登录接入后替换为后端会话识别。
+  - 历史消息只暴露 `user/assistant`，隐藏 system/tool 消息，避免小程序侧看到内部工具调用细节。
+- **验证结果**:
+  - `python -m py_compile app\constants\miniapp.py app\service\miniapp_chat.py app\api\miniapp_chat.py app\service\miniapp_order.py app\api\miniapp_orders.py app\lifespan_services.py app\lifespan_routes.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未联调真实 HTTP 和大模型回复。
+  - 尚未接入微信登录后的真实用户标识。
+
+## [2026-06-16] - feat(miniapp/admin): 接入小程序订单草稿和后台订单列表
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-order-mvp
+- **背景**: 完整 MVP 需要从小程序购物车进入下单，并让后台管理系统可查看订单草稿。
+- **变更范围**:
+  - `app/repository/order_repo.py` - 新增自研小程序订单仓储，封装 `orders` 表创建、用户订单列表和后台分页查询。
+  - `app/service/miniapp_order.py` - 新增订单服务，确保小程序会话、计算金额、序列化小程序/后台订单结构。
+  - `app/api/miniapp_orders.py` - 新增 `POST/GET /api/v1/miniapp/orders`。
+  - `app/api/admin_orders.py` - 新增 `GET /api/v1/admin/orders`。
+  - `app/main.py`、`app/lifespan_services.py`、`app/lifespan_routes.py` - 注册订单仓储、服务和路由。
+  - `web/admin/src/pages/orders/OrdersPage.vue`、`web/admin/src/services/orders.ts`、`web/admin/src/types/order.ts` - 新增后台订单列表页。
+  - `web/admin/src/router/routes.ts`、`web/admin/src/components/layout/AppSidebar.vue`、`web/admin/src/components/layout/BottomNav.vue` - 新增订单管理入口。
+- **设计判断**:
+  - 不向 `AdminService` 追加订单职责，订单走独立 `MiniappOrderService`。
+  - MVP 阶段用 `x-miniapp-user-id` 做用户隔离；微信登录接入后替换为后端会话识别。
+  - 订单金额优先读取有赞商品宽表，装修 Mock ID 未命中时使用小程序传入的标题和价格兜底，保证演示闭环可跑。
+- **验证结果**:
+  - `python -m py_compile app\repository\order_repo.py app\service\miniapp_order.py app\api\miniapp_orders.py app\api\admin_orders.py app\lifespan_services.py app\lifespan_routes.py app\main.py` 通过。
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未跑完整后端 pytest。
+  - 尚未联调真实 HTTP 创建订单。
+  - 支付、库存锁定、履约状态流转仍待后续切片。
+
+## [2026-06-16] - feat(miniapp): 新增小程序商品目录公开 API
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-miniapp-catalog-api
+- **背景**: 自研小程序 MVP 已具备 JSON 装修渲染层，商品货架和详情页需要从本地 Mock 逐步切到后台真实商品数据。
+- **变更范围**:
+  - `app/service/miniapp_catalog.py` - 新增小程序商品目录服务，复用商品知识仓储、知识仓储和店铺配置，输出小程序商品卡/详情统一结构。
+  - `app/api/miniapp_catalog.py` - 新增 `GET /api/v1/miniapp/products` 与 `GET /api/v1/miniapp/products/{product_id}`。
+  - `app/lifespan_services.py`、`app/lifespan_routes.py` - 注册小程序商品目录服务和公开路由。
+- **设计判断**:
+  - 不继续向已超警戒线的 `AdminService` 追加小程序公开接口职责，单独新增 `MiniappCatalogService`。
+  - API 层只调用 service，service 复用 repository，保持 `api -> service -> repository` 分层。
+  - 当前商品宽表没有独立分类字段，`categoryId` 先作为搜索兼容过滤；后台分类映射/商品分组后续再补。
+- **验证结果**:
+  - `python -m py_compile app\service\miniapp_catalog.py app\api\miniapp_catalog.py app\lifespan_services.py app\lifespan_routes.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未跑完整后端 pytest。
+  - 尚未用生产/测试数据库实际请求小程序商品 API。
+
+## [2026-06-16] - feat(admin): 新增小程序店铺装修 MVP 入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260616-admin-decoration-mvp
+- **背景**: 自研小程序与后台管理系统同步推进，MVP 需要参考有赞后台提供店铺装修能力，并与小程序 JSON 渲染层共享页面配置模型。
+- **变更范围**:
+  - `app/service/shop_page_config.py` - 新增页面装修配置服务，复用 `ConfigRepo` 存储草稿和已发布配置。
+  - `app/api/admin_shop_pages.py` - 新增后台装修 API 与小程序已发布页面配置 API。
+  - `app/models/config.py` - 新增页面装修配置 key 前缀常量。
+  - `app/lifespan_services.py`、`app/lifespan_routes.py` - 注册装修配置服务和路由。
+  - `web/admin/src/pages/decoration/DecorationPage.vue` - 新增店铺装修页，支持模块启停、上下移动、Props JSON 编辑、手机预览、保存草稿和发布。
+  - `web/admin/src/services/shopPages.ts`、`web/admin/src/types/shopPage.ts` - 新增装修页面前端 service 和类型。
+  - `web/admin/src/router/routes.ts`、`web/admin/src/components/layout/AppSidebar.vue` - 新增“店铺装修”路由与侧边栏入口。
+- **设计判断**:
+  - 第一版不实现复杂拖拽，采用模块列表 + 手机预览 + 表单/JSON 编辑，优先跑通后台发布配置到小程序读取的链路。
+  - `AdminService` 已超警戒线，本轮不继续追加职责，单独新增 `ShopPageConfigService`。
+  - 配置存储先复用 `shop_config` 键值表，后续页面版本、审计和多店铺能力再演进为独立表。
+- **验证结果**:
+  - `npm run typecheck` 于 `web/admin` 通过。
+  - `python -m py_compile app\service\shop_page_config.py app\api\admin_shop_pages.py app\lifespan_services.py app\lifespan_routes.py app\models\config.py` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 无输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 无输出。
+- **遗留风险**:
+  - 尚未运行完整后端 pytest。
+  - 装修 Props 编辑器当前为 JSON 文本编辑，后续应按 block 类型提供结构化表单。
+  - 小程序端尚未改为优先读取 `/api/v1/miniapp/pages/{pageId}`。
+## [2026-06-16] - feat(youzan): 接入客服托管收发连通性测试
+- **操作人**: AI (Codex)
+- **背景**: 用户要求完成有赞小程序客服托管与现有 AI 客服的连通性测试，包含消息接收与回复，并评估数据库是否需要改造。
+- **变更范围**:
+  - `app/api/webhook.py` - 新增有赞客服托管事件分流，支持 `youzan_message_CourierHostingMsg` 与 `youzan_message_CourierHostingEvent`，避免托管消息误入商品/交易系统事件分支。
+  - `app/api/webhook_helpers.py` - 新增客服托管消息识别与解析函数，统一提取 `conversationId`、`msgId`、`yzOpenId`、`content` 等字段。
+  - `app/service/chat.py` - 新增托管消息处理与非文本兜底回复入口，复用现有 AI 对话主流程并按托管会话回消息。
+  - `app/service/youzan/client.py` - 新增 `youzan.message.courier.hosting.operate.replymsg` 调用封装。
+  - `tests/service/youzan/test_webhook_retry.py`、`tests/service/youzan/test_hosting_connectivity.py` - 新增托管消息接收、幂等与回复 API 连通性测试。
+  - `docs/harness-engineering/core/evidence-index.md` - 登记本次交接快照证据。
+- **设计判断**:
+  - 第一阶段不新增数据库表，直接复用 `youzan_webhook_events`、`sessions`、`messages.channel_msg_id` 完成连通性测试与幂等控制。
+  - 现有有赞订单/商品 webhook 路径保持不变，托管消息单独分流，减少对现有设计的影响面。
+- **验证结果**:
+  - `python -m pytest --no-cov tests/service/youzan/test_webhook_retry.py tests/service/youzan/test_hosting_connectivity.py tests/service/test_youzan_emulator.py` 通过，`7 passed`。
+  - 架构红线检查无违规输出。
+
 ## [2026-06-11] - docs(harness): 规划 Vibe Coding 生产级 Harness Engineering
 - **操作人**: AI (Codex)
 - **背景**: 用户要求完善项目 Harness Engineering，达到处处有追溯、增强记忆、避免同一类问题重复犯错，并结合当前 AI 驾驭范式规划一套大厂生产级 Vibe Coding Harness。
@@ -4455,4 +5860,6 @@ ______________________________________________________________________
   - 对话保存/丢弃/刷新恢复全链路 ✅
 - **潜伏风险/遗留未决事项说明 (Risk & Debt)**:
   - 企微域名备案问题仍在等待。
+
+
 

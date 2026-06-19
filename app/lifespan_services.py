@@ -21,6 +21,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     from app.service.admin import AdminService
     from app.service.knowledge_admin import KnowledgeAdminService
     from app.service.knowledge_sync import KnowledgeSyncService
+    from app.service.miniapp_catalog import MiniappCatalogService
     from app.service.observability import ObservabilityService
     from app.service.transfer_manager import TransferManager
 
@@ -48,6 +49,12 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         admin_repo=repos["knowledge_admin_repo"],
         history_repo=repos["history_repo"],
         sync_service=knowledge_sync_service,
+    )
+    miniapp_catalog_service = MiniappCatalogService(
+        product_repo=repos["knowledge_product_repo"],
+        knowledge_repo=repos["knowledge_repo"],
+        config_repo=repos["config_repo"],
+        youzan_product_repo=repos["youzan_product_repo"],
     )
     transfer_mgr = TransferManager(repos["transfer_repo"])
 
@@ -82,6 +89,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "observability_service": observability_service,
         "knowledge_sync_service": knowledge_sync_service,
         "knowledge_admin_service": knowledge_admin_service,
+        "miniapp_catalog_service": miniapp_catalog_service,
         "transfer_mgr": transfer_mgr,
         "youzan_client": youzan_client,
         "youzan_event_handler": youzan_event_handler,

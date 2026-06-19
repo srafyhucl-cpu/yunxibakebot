@@ -16,8 +16,26 @@ class FakeYouzanClient:
         self._product_payloads = product_payloads or {}
         self.requested_product_ids: list[int] = []
 
-    async def list_onsale_item_ids(self) -> set[int]:
-        return self._onsale_ids
+    async def list_onsale_items(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "item_id": item_id,
+                "tag_ids": [f"tag-{item_id}"],
+            }
+            for item_id in sorted(self._onsale_ids)
+        ]
+
+    async def list_product_tags(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": f"tag-{item_id}",
+                "name": f"分组 {item_id}",
+            }
+            for item_id in sorted(self._onsale_ids)
+        ]
+
+    async def search_item_classifications(self) -> list[dict[str, Any]]:
+        return []
 
     async def get_product(self, item_id: int) -> dict[str, Any]:
         self.requested_product_ids.append(item_id)
@@ -32,6 +50,9 @@ class FakeProductRepo:
         self._all_ids = all_ids
         self.deleted: list[tuple[int, str, str, str]] = []
         self.sold_updates: dict[int, tuple[int, str]] = {}
+        self.category_updates: dict[int, list[str]] = {}
+        self.item_base_category_updates: dict[int, dict[str, list[str]]] = {}
+        self.categories: list[tuple[str, str, int, int, int]] = []
 
     async def list_active_item_ids(self) -> list[int]:
         return self._active_ids
@@ -56,6 +77,28 @@ class FakeProductRepo:
     ) -> int:
         self.sold_updates = sold_num_map
         return len(sold_num_map)
+
+    async def upsert_category(
+        self,
+        *,
+        tag_id: str,
+        title: str,
+        sort: int = 0,
+        product_count: int = 0,
+        is_public: int = 1,
+    ) -> None:
+        self.categories.append((tag_id, title, sort, product_count, is_public))
+
+    async def bulk_update_tag_ids(self, tag_ids_map: dict[int, list[str]]) -> int:
+        self.category_updates = tag_ids_map
+        return len(tag_ids_map)
+
+    async def bulk_update_item_base_categories(
+        self,
+        category_map: dict[int, dict[str, list[str]]],
+    ) -> int:
+        self.item_base_category_updates = category_map
+        return len(category_map)
 
 
 class FakeHistoryRepo:
@@ -105,11 +148,14 @@ async def test_product_reconcile_deactivates_missing_items_and_syncs_sold_num() 
     assert summary["deactivated"] == 1
     assert summary["deactivated_ids"] == [202]
     assert summary["sold_num_synced"] == 2
+    assert summary["category_synced"] == 2
     assert summary["errors"] == []
     assert product_repo.deleted[0][0] == 202
     assert product_repo.deleted[0][2:] == ("product_reconcile", "daily_reconcile")
     assert knowledge_repo.deleted_item_ids == ["202"]
     assert product_repo.sold_updates == {101: (7, "SKU-101"), 303: (2, "SKU-303")}
+    assert product_repo.category_updates == {101: ["tag-101"], 303: ["tag-303"]}
+    assert product_repo.categories[0][-1] == 1
     assert len(history_repo.records) == 1
     assert history_repo.records[0].action == "deactivate"
     assert history_repo.records[0].status == "success"
@@ -142,6 +188,7 @@ async def test_product_reconcile_keeps_running_when_deactivate_fails() -> None:
     assert summary["deactivated"] == 0
     assert summary["deactivated_ids"] == []
     assert summary["sold_num_synced"] == 1
+    assert summary["category_synced"] == 1
     assert summary["errors"] == ["item_id=202: database locked"]
     assert history_repo.records == []
 
@@ -164,3 +211,50 @@ async def test_fetch_sold_nums_ignores_api_errors_and_zero_sales() -> None:
 
     assert sold_nums == {2: (5, "SKU-2")}
     assert sorted(youzan_client.requested_product_ids) == [1, 2, 3]
+
+
+async def test_product_reconcile_syncs_item_base_categories() -> None:
+    class ItemBaseClient(FakeYouzanClient):
+        async def search_item_base(self, item_ids: list[int]) -> list[dict[str, Any]]:
+            return [
+                {
+                    "item_id": item_ids[0],
+                    "classification_id": 67,
+                    "group_ids": [1001],
+                    "second_group_ids": [2001],
+                    "leaf_category_id": 3001,
+                }
+            ]
+
+        async def search_item_classifications(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "classification_id": 67,
+                    "name": "生日蛋糕",
+                    "parent_classification_id": 0,
+                }
+            ]
+
+    youzan_client = ItemBaseClient(
+        {101},
+        {101: {"data": {"item": {"sold_num": 1, "item_no": "SKU-101"}}}},
+    )
+    product_repo = FakeProductRepo(active_ids=[101], all_ids=[101])
+    service = ProductReconcileService(
+        youzan_client=youzan_client,  # type: ignore[arg-type]
+        product_repo=product_repo,  # type: ignore[arg-type]
+        history_repo=FakeHistoryRepo(),  # type: ignore[arg-type]
+    )
+
+    summary = await service.run()
+
+    assert summary["category_synced"] == 2
+    assert product_repo.item_base_category_updates == {
+        101: {
+            "classification_ids": ["67"],
+            "group_ids": ["1001"],
+            "second_group_ids": ["2001"],
+            "leaf_category_ids": ["3001"],
+        }
+    }
+    assert ("classification-67", "生日蛋糕", 1000, 1, 1) in product_repo.categories

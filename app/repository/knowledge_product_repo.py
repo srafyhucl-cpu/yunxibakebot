@@ -3,15 +3,10 @@
 职责：商品知识条目的 upsert、软下架和管理后台分页查询。
 """
 
-import aiosqlite
-
 from app.models.content_change_history import WriteResult
-from app.repository.knowledge_repo import ENTRY_COLUMNS, ENTRY_SELECT_SQL
+from app.repository.base import BaseRepository
 
 PRODUCT_CATEGORY = "product"
-
-
-from app.repository.base import BaseRepository
 
 
 class KnowledgeProductRepo(BaseRepository):
@@ -92,12 +87,24 @@ class KnowledgeProductRepo(BaseRepository):
         stock = row_dict.pop("stock", None)
         sold_num = row_dict.pop("agg_sold_num", 0)
         item_no = row_dict.pop("item_no", "")
+        image_url = row_dict.pop("image_url", "")
+        tag_ids_json = row_dict.pop("tag_ids_json", "[]")
+        classification_ids_json = row_dict.pop("classification_ids_json", "[]")
+        group_ids_json = row_dict.pop("group_ids_json", "[]")
+        second_group_ids_json = row_dict.pop("second_group_ids_json", "[]")
+        leaf_category_ids_json = row_dict.pop("leaf_category_ids_json", "[]")
 
         entry = entry_class(**row_dict)
         setattr(entry, "price_fen", price_fen)
         setattr(entry, "stock", stock)
         setattr(entry, "sold_num", sold_num)
         setattr(entry, "item_no", item_no)
+        setattr(entry, "image_url", image_url)
+        setattr(entry, "tag_ids_json", tag_ids_json)
+        setattr(entry, "classification_ids_json", classification_ids_json)
+        setattr(entry, "group_ids_json", group_ids_json)
+        setattr(entry, "second_group_ids_json", second_group_ids_json)
+        setattr(entry, "leaf_category_ids_json", leaf_category_ids_json)
         return entry
 
     async def get_all_products(
@@ -117,9 +124,15 @@ class KnowledgeProductRepo(BaseRepository):
     ) -> list:
         """分页获取商品知识，支持多维度过滤，并通过与 youzan_products 做 LEFT JOIN 聚合实现安全的同款销量合并排序。"""
         from app.models.knowledge import KnowledgeEntry
+
         result = self._build_product_where(
-            search, is_active, sync_source, vector_sync_status,
-            featured_titles, youzan_item_id_filter, keyword_filter,
+            search,
+            is_active,
+            sync_source,
+            vector_sync_status,
+            featured_titles,
+            youzan_item_id_filter,
+            keyword_filter,
             item_no_filter,
         )
         if result is None:
@@ -133,7 +146,10 @@ class KnowledgeProductRepo(BaseRepository):
             "kb.id, kb.category, kb.content_type, kb.title, kb.content, kb.keywords, kb.priority, "
             "kb.is_active, kb.youzan_item_id, kb.last_sync_source, kb.last_sync_ref, "
             "kb.vector_sync_status, kb.updated_at, "
-            "yp.price_fen, yp.stock, COALESCE(agg.total_sold, yp.sold_num) AS agg_sold_num, yp.item_no "
+            "yp.price_fen, yp.stock, COALESCE(agg.total_sold, yp.sold_num) AS agg_sold_num, "
+            "yp.item_no, yp.image AS image_url, yp.tag_ids_json, "
+            "yp.classification_ids_json, yp.group_ids_json, "
+            "yp.second_group_ids_json, yp.leaf_category_ids_json "
             "FROM knowledge_base kb "
             "LEFT JOIN youzan_products yp ON kb.youzan_item_id = CAST(yp.item_id AS TEXT) "
             "LEFT JOIN ("
@@ -162,8 +178,13 @@ class KnowledgeProductRepo(BaseRepository):
     ) -> int:
         """返回商品类知识条目总数，显式加上 kb 前缀支持联合过滤。"""
         result = self._build_product_where(
-            search, is_active, sync_source, vector_sync_status,
-            featured_titles, youzan_item_id_filter, keyword_filter,
+            search,
+            is_active,
+            sync_source,
+            vector_sync_status,
+            featured_titles,
+            youzan_item_id_filter,
+            keyword_filter,
             item_no_filter,
         )
         if result is None:

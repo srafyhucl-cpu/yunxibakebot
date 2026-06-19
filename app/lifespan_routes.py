@@ -12,6 +12,7 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.admin_frontend import create_admin_frontend_router
     from app.api.admin_knowledge import create_admin_knowledge_router
     from app.api.admin_observability import create_observability_router
+    from app.api.miniapp_catalog import create_miniapp_catalog_router
     from app.api.admin_products import create_admin_products_router
     from app.api.webhook import create_webhook_router
     from app.api.wecom import router as wecom_router
@@ -31,6 +32,9 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     )
     app.include_router(create_admin_frontend_router())
     app.include_router(create_shop_config_router(services["admin_service"]))
+    app.include_router(
+        create_miniapp_catalog_router(services["miniapp_catalog_service"])
+    )
     app.include_router(
         create_admin_knowledge_router(services["knowledge_admin_service"])
     )

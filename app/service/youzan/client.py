@@ -121,6 +121,8 @@ class YouzanClient:
             logger.info("有赞 API 仿真调用拦截 [%s]: %s", api_name, params)
             if api_name == "youzan.scrm.im.conversation.message.create":
                 return {"response": {"success": True}}
+            elif api_name == "youzan.message.courier.hosting.operate.replymsg":
+                return {"response": {"success": True}}
             elif api_name == "youzan.trade.get":
                 return YouzanMockEmulator.get_mock_order_response(
                     params.get("tid", "mock_order_123")
@@ -133,6 +135,15 @@ class YouzanClient:
                 return YouzanMockEmulator.get_mock_product_response(
                     params.get("item_id", 0), params.get("alias", "")
                 )
+            elif api_name == "youzan.itemcategories.tags.get":
+                return {"data": {"tags": []}}
+            elif api_name == "youzan.item.classification.search":
+                return {
+                    "data": {
+                        "items": [],
+                        "paginator": {"total_count": 0, "page_no": 1, "page_size": 20},
+                    }
+                }
             return {"response": {"success": True}}
 
         token = await self.get_token()
@@ -159,6 +170,21 @@ class YouzanClient:
                 "kdt_id": settings.YOUZAN_KDT_ID,
                 "open_id": buyer_open_id,
                 "message_type": "text",
+                "content": content,
+            },
+        )
+
+    async def send_hosting_reply(
+        self, conversation_id: str, content: str, msg_type: str = "text"
+    ) -> dict:
+        """通过有赞客服托管会话回复客户消息。"""
+        logger.info("有赞客服托管消息发送: conversation=%s", conversation_id)
+        return await self._call(
+            "youzan.message.courier.hosting.operate.replymsg",
+            "1.0.0",
+            {
+                "conversationId": conversation_id,
+                "msgType": msg_type,
                 "content": content,
             },
         )
@@ -231,6 +257,22 @@ class YouzanClient:
         logger.info("有赞在售商品全量拉取完成，共 %d 条", len(all_items))
         return all_items
 
+    async def list_product_tags(self) -> list[dict]:
+        """拉取有赞商品分组标签列表。"""
+        if settings.YOUZAN_MOCK_MODE:
+            logger.info("有赞商品分组列表仿真拦截，返回空列表")
+            return []
+
+        result = await self._call(
+            "youzan.itemcategories.tags.get",
+            "3.0.0",
+            {"kdt_id": settings.YOUZAN_KDT_ID},
+        )
+        response = result.get("data") or result.get("response") or {}
+        tags: list[dict] = response.get("tags") or []
+        logger.info("有赞商品分组拉取完成，共 %d 个", len(tags))
+        return tags
+
     async def list_onsale_item_ids(self) -> set[int]:
         """分页拉取有赞店铺所有在售商品的 item_id 集合。"""
         items = await self.list_onsale_items()
@@ -241,6 +283,69 @@ class YouzanClient:
             except (KeyError, ValueError, TypeError):
                 continue
         return item_ids
+
+    async def search_item_base(self, item_ids: list[int]) -> list[dict]:
+        """批量查询有赞商品基础信息，补齐商品分类与分组 ID。"""
+        if settings.YOUZAN_MOCK_MODE:
+            logger.info("有赞商品基础信息批量查询仿真拦截，返回空列表")
+            return []
+        if not item_ids:
+            return []
+
+        result = await self._call(
+            "youzan.item.base.search",
+            "1.0.0",
+            {
+                "kdt_id": settings.YOUZAN_KDT_ID,
+                "channel": 0,
+                "item_ids": item_ids[:20],
+            },
+        )
+        response = result.get("data") or result.get("response") or {}
+        items = (
+            response.get("items")
+            or response.get("item_list")
+            or response.get("list")
+            or []
+        )
+        if not isinstance(items, list):
+            return []
+        logger.info("有赞商品基础信息批量查询完成，共 %d 条", len(items))
+        return items
+
+    async def search_item_classifications(self) -> list[dict]:
+        """分页查询有赞商品分类，返回 classification_id 与中文名称。"""
+        if settings.YOUZAN_MOCK_MODE:
+            logger.info("有赞商品分类搜索仿真拦截，返回空列表")
+            return []
+
+        page_no = 1
+        page_size = 20
+        all_items: list[dict] = []
+        while True:
+            result = await self._call(
+                "youzan.item.classification.search",
+                "1.0.0",
+                {
+                    "request": {
+                        "kdt_id": settings.YOUZAN_KDT_ID,
+                        "page_no": page_no,
+                    },
+                },
+            )
+            response = result.get("data") or result.get("response") or {}
+            items = response.get("items") or []
+            if not isinstance(items, list):
+                break
+            all_items.extend(items)
+            paginator = response.get("paginator") or {}
+            total_count = int(paginator.get("total_count") or len(all_items))
+            page_size = int(paginator.get("page_size") or page_size)
+            if page_no * page_size >= total_count or not items:
+                break
+            page_no += 1
+        logger.info("有赞商品分类搜索完成，共 %d 个分类", len(all_items))
+        return all_items
 
     async def close(self) -> None:
         """关闭 HTTP 连接池。"""
