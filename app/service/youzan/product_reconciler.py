@@ -26,7 +26,7 @@ logger = setup_logger()
 RECONCILE_SOURCE = "product_reconcile"
 # 并发拉取 sold_num 时的最大并发数（避免触发有赞频率限制）
 _SOLD_NUM_CONCURRENCY = 10
-_ITEM_BASE_BATCH_SIZE = 20
+_ITEM_BASE_BATCH_SIZE = 10
 
 
 class ProductReconcileService:

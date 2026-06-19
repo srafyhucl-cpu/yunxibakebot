@@ -2,6 +2,24 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-19] - fix(miniapp): 修正 ITEM_INFO 分类批量同步漏数
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-miniapp-category-batch-limit
+- **背景**: 用户反馈 `/api/v1/miniapp/product-categories` 仍为空或分类不全，生产库 `youzan_product_categories` 与 `youzan_products.classification_ids_json` 未按预期补齐。
+- **根因**: 生产联调确认 `youzan.item.base.search/1.0.0` 一次稳定只返回 10 个 `item_id` 的 ITEM_INFO 结果；现网代码按 20 个商品一批请求，导致每批后半段商品长期拿不到 `classification_id`、`leaf_category_id` 等字段，看起来像“同步成功但没落库”。
+- **变更范围**:
+  - `app/service/youzan/product_reconciler.py` - 将 ITEM_INFO 批量分类同步批次从 20 收紧为 10，避免有赞接口静默漏回后半批商品。
+  - `tests/service/youzan/test_product_reconciler.py` - 新增回归测试，覆盖“上游每次最多只返回 10 条 ITEM_INFO”时仍能通过两批请求补齐 20 个商品分类。
+- **验证结果**:
+  - 生产机最小复现确认：请求 5 个 `item_id` 返回 5 条，10 个返回 10 条，20 个仅返回后 10 条。
+  - `python -m pytest tests/service/youzan/test_product_reconciler.py tests/service/test_miniapp_catalog_item_base_category.py -q --no-cov` 通过，6 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **联调证据**:
+  - 生产机 `search_item_base([2682712717..2698518097])` 返回 5/5，`search_item_base([...10 个商品...])` 返回 10/10，`search_item_base([...20 个商品...])` 仅返回后 10 个商品。
+  - 修复前生产库统计为 `tagged_products=302`、`classified_products=2`；修复后需重新触发 reconcile 回填并复查小程序分类接口。
+- **遗留风险**:
+  - 这次修复依赖重新执行商品对账才能把历史漏掉的 `classification_ids_json` 全量补齐；代码提交后仍需完成生产回填与接口复核。
+
 ## [2026-06-19] - feat(miniapp): 打通商城订单与后台经营台主链路
 - **操作人**: AI (Codex)
 - **trace_id**: 20260619-miniapp-storefront-ops-console

@@ -3,7 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.content_change_history import ContentChangeHistoryCreate
-from app.service.youzan.product_reconciler import ProductReconcileService
+from app.service.youzan.product_reconciler import (
+    ProductReconcileService,
+    _ITEM_BASE_BATCH_SIZE,
+)
 
 
 class FakeYouzanClient:
@@ -258,3 +261,47 @@ async def test_product_reconcile_syncs_item_base_categories() -> None:
         }
     }
     assert ("classification-67", "生日蛋糕", 1000, 1, 1) in product_repo.categories
+
+
+async def test_product_reconcile_batches_item_base_search_by_ten() -> None:
+    class BatchLimitedClient(FakeYouzanClient):
+        def __init__(self, onsale_ids: set[int], all_ids: list[int]) -> None:
+            super().__init__(
+                onsale_ids,
+                {
+                    item_id: {
+                        "data": {"item": {"sold_num": 1, "item_no": f"SKU-{item_id}"}}
+                    }
+                    for item_id in all_ids
+                },
+            )
+            self.batch_sizes: list[int] = []
+
+        async def search_item_base(self, item_ids: list[int]) -> list[dict[str, Any]]:
+            self.batch_sizes.append(len(item_ids))
+            return [
+                {
+                    "item_id": item_id,
+                    "classification_id": item_id + 1000,
+                }
+                for item_id in item_ids[:10]
+            ]
+
+        async def search_item_classifications(self) -> list[dict[str, Any]]:
+            return []
+
+    all_ids = list(range(1, 21))
+    youzan_client = BatchLimitedClient(set(all_ids), all_ids)
+    product_repo = FakeProductRepo(active_ids=all_ids, all_ids=all_ids)
+    service = ProductReconcileService(
+        youzan_client=youzan_client,  # type: ignore[arg-type]
+        product_repo=product_repo,  # type: ignore[arg-type]
+        history_repo=FakeHistoryRepo(),  # type: ignore[arg-type]
+    )
+
+    summary = await service.run()
+
+    assert _ITEM_BASE_BATCH_SIZE == 10
+    assert youzan_client.batch_sizes == [10, 10]
+    assert summary["category_synced"] == 40
+    assert len(product_repo.item_base_category_updates) == 20
