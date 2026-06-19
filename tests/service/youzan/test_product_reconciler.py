@@ -305,3 +305,40 @@ async def test_product_reconcile_batches_item_base_search_by_ten() -> None:
     assert youzan_client.batch_sizes == [10, 10]
     assert summary["category_synced"] == 40
     assert len(product_repo.item_base_category_updates) == 20
+
+
+async def test_product_reconcile_item_base_only_uses_onsale_ids() -> None:
+    class OnsaleOnlyClient(FakeYouzanClient):
+        def __init__(self) -> None:
+            super().__init__(
+                {101, 303},
+                {
+                    101: {"data": {"item": {"sold_num": 1, "item_no": "SKU-101"}}},
+                    202: {"data": {"item": {"sold_num": 0, "item_no": "SKU-202"}}},
+                    303: {"data": {"item": {"sold_num": 2, "item_no": "SKU-303"}}},
+                },
+            )
+            self.item_base_batches: list[list[int]] = []
+
+        async def search_item_base(self, item_ids: list[int]) -> list[dict[str, Any]]:
+            self.item_base_batches.append(item_ids)
+            return [
+                {"item_id": item_id, "classification_id": item_id + 1000}
+                for item_id in item_ids
+            ]
+
+        async def search_item_classifications(self) -> list[dict[str, Any]]:
+            return []
+
+    client = OnsaleOnlyClient()
+    product_repo = FakeProductRepo(active_ids=[101, 202, 303], all_ids=[101, 202, 303])
+    service = ProductReconcileService(
+        youzan_client=client,  # type: ignore[arg-type]
+        product_repo=product_repo,  # type: ignore[arg-type]
+        history_repo=FakeHistoryRepo(),  # type: ignore[arg-type]
+    )
+
+    await service.run()
+
+    assert client.item_base_batches == [[101, 303]]
+    assert sorted(product_repo.item_base_category_updates) == [101, 303]

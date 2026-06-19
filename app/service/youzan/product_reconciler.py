@@ -66,10 +66,13 @@ class ProductReconcileService:
         sold_updated = 0
         category_synced = 0
         all_local_ids = await self._product_repo.list_all_item_ids()
+        onsale_local_ids = sorted(onsale_ids)
         if all_local_ids:
             product_tags = await self._client.list_product_tags()
             classification_titles = await self._fetch_classification_titles()
-            item_base_categories = await self._fetch_item_base_categories(all_local_ids)
+            item_base_categories = await self._fetch_item_base_categories(
+                onsale_local_ids
+            )
             category_synced = await self._sync_product_categories(
                 onsale_items, product_tags
             )

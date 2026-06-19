@@ -19,6 +19,7 @@
   - 修复前生产库统计为 `tagged_products=302`、`classified_products=2`；修复后需重新触发 reconcile 回填并复查小程序分类接口。
 - **遗留风险**:
   - 这次修复依赖重新执行商品对账才能把历史漏掉的 `classification_ids_json` 全量补齐；代码提交后仍需完成生产回填与接口复核。
+  - 生产进一步联调发现，历史下架商品 `item_id` 混入 `youzan.item.base.search/1.0.0` 批次时，可能让整批 ITEM_INFO 结果直接归零；已追加修复为仅对当前有赞在售商品执行 ITEM_INFO 分类回填，并补测试覆盖。
 
 ## [2026-06-19] - feat(miniapp): 打通商城订单与后台经营台主链路
 - **操作人**: AI (Codex)
