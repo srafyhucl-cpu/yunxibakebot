@@ -4,11 +4,13 @@ webhook 消息解析辅助函数。
 从有赞 Webhook payload 中提取 trace_id、msg 字段、业务类型与业务主键。
 """
 
-import hashlib
 import json
 import urllib.parse
 
 from app.models.youzan_webhook_event import YouzanWebhookBusinessType
+
+YOUZAN_HOSTING_MESSAGE_EVENT = "youzan_message_CourierHostingMsg"
+YOUZAN_HOSTING_EVENT = "youzan_message_CourierHostingEvent"
 
 
 def extract_trace_id(request) -> str:
@@ -34,6 +36,32 @@ def parse_payload_msg(payload: dict) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def is_youzan_hosting_message_event(event_type: str) -> bool:
+    """判断是否为有赞客服托管客户消息事件。"""
+    return event_type == YOUZAN_HOSTING_MESSAGE_EVENT
+
+
+def is_youzan_hosting_event(event_type: str) -> bool:
+    """判断是否为有赞客服托管回执事件。"""
+    return event_type == YOUZAN_HOSTING_EVENT
+
+
+def parse_youzan_hosting_message(payload: dict) -> dict:
+    """解析有赞客服托管消息，兼容顶层字段和 msg 包裹字段。"""
+    msg_obj = parse_payload_msg(payload)
+    source = msg_obj if msg_obj else payload
+    return {
+        "kdt_id": source.get("kdtId") or source.get("kdt_id") or "",
+        "conversation_id": source.get("conversationId") or "",
+        "msg_id": str(source.get("msgId") or source.get("msg_id") or ""),
+        "channel": source.get("channel") or "",
+        "msg_type": source.get("msgType") or source.get("msg_type") or "",
+        "content": source.get("content") or "",
+        "yz_open_id": str(source.get("yzOpenId") or source.get("yz_open_id") or ""),
+        "send_time": source.get("sendTime") or source.get("send_time") or "",
+    }
+
+
 def extract_business_fields(
     payload: dict, event_type: str, buyer_id: str
 ) -> tuple[str, str]:
@@ -45,6 +73,12 @@ def extract_business_fields(
 
     event_type_lower = event_type.lower()
     msg_obj = parse_payload_msg(payload)
+    if is_youzan_hosting_message_event(event_type):
+        hosting_msg = parse_youzan_hosting_message(payload)
+        return (
+            YouzanWebhookBusinessType.CHAT,
+            hosting_msg["conversation_id"] or hosting_msg["yz_open_id"],
+        )
     if event_type_lower.startswith("trade_"):
         tid = msg_obj.get("tid", "")
         if not tid:
@@ -76,4 +110,15 @@ def build_payload_summary(
         "msg_type": payload.get("msg_type", ""),
         "buyer_id": payload.get("buyer_id", ""),
     }
+    if is_youzan_hosting_message_event(event_type):
+        hosting_msg = parse_youzan_hosting_message(payload)
+        summary.update(
+            {
+                "msg_id": hosting_msg["msg_id"],
+                "conversation_id": hosting_msg["conversation_id"],
+                "channel": hosting_msg["channel"],
+                "msg_type": hosting_msg["msg_type"],
+                "yz_open_id": hosting_msg["yz_open_id"],
+            }
+        )
     return json.dumps(summary, ensure_ascii=False)[:300]

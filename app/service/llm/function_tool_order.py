@@ -33,78 +33,105 @@ async def get_order_info(
     """
     db = knowledge_retriever._repo._db
     from app.repository.youzan_repo import YouzanOrderRepo
+
     order_repo = YouzanOrderRepo(db)
 
     try:
         local_order = await order_repo.get_by_order_no(order_no)
         if local_order and local_order["status"] in ("TRADE_SUCCESS", "TRADE_CLOSED"):
-            logger.info("已完成/已关闭订单触发本地状态机短路秒回: order_no=%s", order_no)
-            return json.dumps({
-                "order_no": order_no,
-                "status": local_order["status"],
-                "amount_yuan": local_order["amount_fen"] / 100.0,
-                "product_titles": local_order["product_titles"],
-                "logistics_no": local_order["logistics_no"],
-                "logistics_status": local_order["logistics_status"],
-                "source": "local_short_circuit",
-            }, ensure_ascii=False)
+            logger.info(
+                "已完成/已关闭订单触发本地状态机短路秒回: order_no=%s", order_no
+            )
+            return json.dumps(
+                {
+                    "order_no": order_no,
+                    "status": local_order["status"],
+                    "amount_yuan": local_order["amount_fen"] / 100.0,
+                    "product_titles": local_order["product_titles"],
+                    "logistics_no": local_order["logistics_no"],
+                    "logistics_status": local_order["logistics_status"],
+                    "source": "local_short_circuit",
+                },
+                ensure_ascii=False,
+            )
 
         if youzan_client is None:
             from app.service.youzan.client import YouzanClient as _YZC
             from app.repository.config_repo import ConfigRepo
+
             youzan_client = _YZC(config_repo=ConfigRepo(db))
         raw_order = await youzan_client.get_order(order_no)
         parsed = parse_youzan_order_response(raw_order)
         if parsed is None:
-            return json.dumps({"order_no": order_no, "available": False, "message": "未找到此订单，请检查您的订单号或小程序绑定手机号是否输入正确"}, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "order_no": order_no,
+                    "available": False,
+                    "message": "未找到此订单，请检查您的订单号或小程序绑定手机号是否输入正确",
+                },
+                ensure_ascii=False,
+            )
 
-        await order_repo.upsert_order(YouzanOrderData(
-            order_no=order_no,
-            buyer_id=parsed.buyer_id,
-            status=parsed.status,
-            amount_fen=parsed.payment_fen,
-            logistics_no=local_order["logistics_no"] if local_order else "",
-            logistics_status=local_order["logistics_status"] if local_order else "",
-            product_titles=parsed.product_titles,
-            total_quantity=parsed.total_qty,
-            pay_time=parsed.order_info.get("pay_time", ""),
-            consign_time=parsed.order_info.get("consign_time", ""),
-            pay_type_str=parsed.order_info.get("pay_type_str", ""),
-            express_type=int(parsed.order_info.get("express_type", 0)),
-            refund_state=int(parsed.order_info.get("refund_state", 0)),
-            post_fee_fen=parsed.post_fee_fen,
-            discount_fen=parsed.discount_fen,
-            delivery_province=parsed.addr_info.get("delivery_province", ""),
-            delivery_city=parsed.addr_info.get("delivery_city", ""),
-            delivery_district=parsed.addr_info.get("delivery_district", ""),
-            delivery_time=parsed.addr_info.get("delivery_start_time", ""),
-            outer_user_id=parsed.outer_user_id,
-            order_items_json=json.dumps(parsed.items_detail, ensure_ascii=False),
-            created_at=parsed.order_info.get("created", ""),
-            updated_at=parsed.order_info.get("update_time", "") or parsed.order_info.get("created", ""),
-        ))
+        await order_repo.upsert_order(
+            YouzanOrderData(
+                order_no=order_no,
+                buyer_id=parsed.buyer_id,
+                status=parsed.status,
+                amount_fen=parsed.payment_fen,
+                logistics_no=local_order["logistics_no"] if local_order else "",
+                logistics_status=local_order["logistics_status"] if local_order else "",
+                product_titles=parsed.product_titles,
+                total_quantity=parsed.total_qty,
+                pay_time=parsed.order_info.get("pay_time", ""),
+                consign_time=parsed.order_info.get("consign_time", ""),
+                pay_type_str=parsed.order_info.get("pay_type_str", ""),
+                express_type=int(parsed.order_info.get("express_type", 0)),
+                refund_state=int(parsed.order_info.get("refund_state", 0)),
+                post_fee_fen=parsed.post_fee_fen,
+                discount_fen=parsed.discount_fen,
+                delivery_province=parsed.addr_info.get("delivery_province", ""),
+                delivery_city=parsed.addr_info.get("delivery_city", ""),
+                delivery_district=parsed.addr_info.get("delivery_district", ""),
+                delivery_time=parsed.addr_info.get("delivery_start_time", ""),
+                outer_user_id=parsed.outer_user_id,
+                order_items_json=json.dumps(parsed.items_detail, ensure_ascii=False),
+                created_at=parsed.order_info.get("created", ""),
+                updated_at=parsed.order_info.get("update_time", "")
+                or parsed.order_info.get("created", ""),
+            )
+        )
 
-        return json.dumps({
-            "order_no": order_no,
-            "status": parsed.status,
-            "status_str": parsed.order_info.get("status_str", ""),
-            "amount_yuan": parsed.payment_fen / 100.0,
-            "post_fee_yuan": parsed.post_fee,
-            "discount_yuan": parsed.discount_fen / 100.0,
-            "product_titles": parsed.product_titles,
-            "pay_time": parsed.order_info.get("pay_time", ""),
-            "pay_type": parsed.order_info.get("pay_type_str", ""),
-            "delivery_province": parsed.addr_info.get("delivery_province", ""),
-            "delivery_city": parsed.addr_info.get("delivery_city", ""),
-            "delivery_district": parsed.addr_info.get("delivery_district", ""),
-            "delivery_time": parsed.addr_info.get("delivery_start_time", ""),
-            "order_items": parsed.items_detail,
-            "source": "youzan_live_api",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "order_no": order_no,
+                "status": parsed.status,
+                "status_str": parsed.order_info.get("status_str", ""),
+                "amount_yuan": parsed.payment_fen / 100.0,
+                "post_fee_yuan": parsed.post_fee,
+                "discount_yuan": parsed.discount_fen / 100.0,
+                "product_titles": parsed.product_titles,
+                "pay_time": parsed.order_info.get("pay_time", ""),
+                "pay_type": parsed.order_info.get("pay_type_str", ""),
+                "delivery_province": parsed.addr_info.get("delivery_province", ""),
+                "delivery_city": parsed.addr_info.get("delivery_city", ""),
+                "delivery_district": parsed.addr_info.get("delivery_district", ""),
+                "delivery_time": parsed.addr_info.get("delivery_start_time", ""),
+                "order_items": parsed.items_detail,
+                "source": "youzan_live_api",
+            },
+            ensure_ascii=False,
+        )
 
     except Exception as exc:
         logger.error("有赞订单查询失败: order_no=%s err=%s", order_no, exc)
-        return json.dumps({"order_no": order_no, "available": False, "message": "订单查询发生系统异常，请稍后再试或联系人工客服"}, ensure_ascii=False)
+        return json.dumps(
+            {
+                "order_no": order_no,
+                "available": False,
+                "message": "订单查询发生系统异常，请稍后再试或联系人工客服",
+            },
+            ensure_ascii=False,
+        )
 
 
 async def get_logistics_info(
@@ -124,12 +151,24 @@ async def get_logistics_info(
         if youzan_client is None:
             from app.service.youzan.client import YouzanClient as _YZC
             from app.repository.config_repo import ConfigRepo
+
             youzan_client = _YZC(config_repo=ConfigRepo(db))
         raw_logistics = await youzan_client.get_logistics(order_no)
 
-        express_data = raw_logistics.get("data") or raw_logistics.get("response") if isinstance(raw_logistics, dict) else None
+        express_data = (
+            raw_logistics.get("data") or raw_logistics.get("response")
+            if isinstance(raw_logistics, dict)
+            else None
+        )
         if not isinstance(express_data, dict):
-            return json.dumps({"order_no": order_no, "available": False, "message": "未查询到物流派送信息，可能商家尚未发货"}, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "order_no": order_no,
+                    "available": False,
+                    "message": "未查询到物流派送信息，可能商家尚未发货",
+                },
+                ensure_ascii=False,
+            )
 
         express_id = express_data.get("express_id", "")
         express_name = express_data.get("express_name", "")
@@ -139,43 +178,56 @@ async def get_logistics_info(
         ]
 
         from app.repository.youzan_repo import YouzanOrderRepo
+
         order_repo = YouzanOrderRepo(db)
         local_order = await order_repo.get_by_order_no(order_no)
         if local_order:
-            await order_repo.upsert_order(YouzanOrderData(
-                order_no=local_order["order_no"],
-                buyer_id=local_order["buyer_id"],
-                status=local_order["status"],
-                amount_fen=local_order["amount_fen"],
-                logistics_no=express_id,
-                logistics_status=step_descs[-1] if step_descs else "暂无轨迹",
-                product_titles=local_order["product_titles"],
-                total_quantity=local_order["total_quantity"],
-                pay_time=local_order.get("pay_time", ""),
-                consign_time=local_order.get("consign_time", ""),
-                pay_type_str=local_order.get("pay_type_str", ""),
-                express_type=local_order.get("express_type", 0),
-                refund_state=local_order.get("refund_state", 0),
-                post_fee_fen=local_order.get("post_fee_fen", 0),
-                discount_fen=local_order.get("discount_fen", 0),
-                delivery_province=local_order.get("delivery_province", ""),
-                delivery_city=local_order.get("delivery_city", ""),
-                delivery_district=local_order.get("delivery_district", ""),
-                delivery_time=local_order.get("delivery_time", ""),
-                outer_user_id=local_order.get("outer_user_id", ""),
-                order_items_json=local_order.get("order_items_json", "[]"),
-                created_at=local_order["created_at"],
-                updated_at=local_order["updated_at"],
-            ))
+            await order_repo.upsert_order(
+                YouzanOrderData(
+                    order_no=local_order["order_no"],
+                    buyer_id=local_order["buyer_id"],
+                    status=local_order["status"],
+                    amount_fen=local_order["amount_fen"],
+                    logistics_no=express_id,
+                    logistics_status=step_descs[-1] if step_descs else "暂无轨迹",
+                    product_titles=local_order["product_titles"],
+                    total_quantity=local_order["total_quantity"],
+                    pay_time=local_order.get("pay_time", ""),
+                    consign_time=local_order.get("consign_time", ""),
+                    pay_type_str=local_order.get("pay_type_str", ""),
+                    express_type=local_order.get("express_type", 0),
+                    refund_state=local_order.get("refund_state", 0),
+                    post_fee_fen=local_order.get("post_fee_fen", 0),
+                    discount_fen=local_order.get("discount_fen", 0),
+                    delivery_province=local_order.get("delivery_province", ""),
+                    delivery_city=local_order.get("delivery_city", ""),
+                    delivery_district=local_order.get("delivery_district", ""),
+                    delivery_time=local_order.get("delivery_time", ""),
+                    outer_user_id=local_order.get("outer_user_id", ""),
+                    order_items_json=local_order.get("order_items_json", "[]"),
+                    created_at=local_order["created_at"],
+                    updated_at=local_order["updated_at"],
+                )
+            )
 
-        return json.dumps({
-            "order_no": order_no,
-            "express_name": express_name,
-            "express_id": express_id,
-            "steps": step_descs[:5],
-            "message": "查询成功",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "order_no": order_no,
+                "express_name": express_name,
+                "express_id": express_id,
+                "steps": step_descs[:5],
+                "message": "查询成功",
+            },
+            ensure_ascii=False,
+        )
 
     except Exception as exc:
         logger.error("有赞物流查询失败: order_no=%s err=%s", order_no, exc)
-        return json.dumps({"order_no": order_no, "available": False, "message": "物流查询发生异常，请稍后再试或联系人工客服获取配送进度"}, ensure_ascii=False)
+        return json.dumps(
+            {
+                "order_no": order_no,
+                "available": False,
+                "message": "物流查询发生异常，请稍后再试或联系人工客服获取配送进度",
+            },
+            ensure_ascii=False,
+        )

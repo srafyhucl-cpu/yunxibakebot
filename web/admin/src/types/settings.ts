@@ -14,7 +14,6 @@ export interface ChannelSettingsSummary {
     clientIdConfigured: boolean;
     clientSecretConfigured: boolean;
     kdtIdConfigured: boolean;
-    webhookTokenConfigured: boolean;
     mockMode: boolean;
   };
   wecom: {
@@ -30,10 +29,11 @@ export interface ChannelSettingsSummary {
 
 export interface ApiSettingsSummary {
   adminTokenConfigured: boolean;
-  deepseekApiKeyConfigured: boolean;
-  deepseekBaseUrl: string;
-  deepseekModel: string;
-  deepseekTimeoutSeconds: number;
+  mimoApiKeyConfigured: boolean;
+  mimoBaseUrl: string;
+  mimoChatModel: string;
+  mimoVisionModel: string;
+  mimoAsrModel: string;
 }
 
 export interface SettingsSummary {

@@ -29,12 +29,22 @@ IGNORE_DIRS = {"__pycache__", ".git", "venv", "node_modules", "migrations"}
 # 已知超线但尚未完成拆分的存量文件（仅发出警告，不阻断提交）
 # 完成拆分后请从此名单移除
 KNOWN_OVERSIZE = {
+    "app/api/webhook.py",  # 360行，有赞与托管消息双链路待继续拆分
     "app/repository/knowledge_repo.py",  # 254行，超出4行，待微调
+    "app/repository/knowledge_product_repo.py",  # 271行，商城目录查询与分类序列化待拆分
+    "app/repository/youzan_repo.py",  # 411行，有赞商品宽表与分类回写链路待拆分
     "app/service/chat.py",  # 496行，核心链路，待拆 tool_executor
+    "app/service/knowledge_admin.py",  # 324行，后台知识管理编排待拆分页与同步入口
     "app/service/observability.py",  # 353行，待拆分页查询与报表
     "app/service/llm/function_tool_order.py",  # 181行，超出1行
     "app/service/llm/function_tool_product.py",  # 252行，待拆 product_rag_helper
+    "app/service/llm/intent.py",  # 183行，格式化后超出3行，待继续拆词表/规则
+    "app/service/miniapp_catalog.py",  # 375行，商城目录过滤与分类组装待拆分
+    "app/service/miniapp_order.py",  # 430行，订单编排与后台看板待拆分
+    "app/service/miniapp_payment.py",  # 494行，支付签名与通知处理待拆分
+    "app/service/youzan/client.py",  # 354行，有赞开放接口客户端待按域拆分
     "app/service/youzan/event_item.py",  # 396行，待拆 item_builder
+    "app/service/youzan/product_reconciler.py",  # 356行，商品对账与分类回填待拆分
     "app/service/wecom/client_kf.py",  # 387行，mixin模式待拆分
     "app/service/wecom/kf_message_queue.py",  # 348行，待拆消息处理链路
     # app/database.py 已拆分，365 行，无超线

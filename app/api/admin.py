@@ -26,7 +26,9 @@ def is_valid_admin_token(token: str | None) -> bool:
     return hmac.compare_digest(token, expected)
 
 
-def verify_token(request: Request, authorization: str | None = Header(default=None)) -> None:
+def verify_token(
+    request: Request, authorization: str | None = Header(default=None)
+) -> None:
     if not has_admin_api_access(request, authorization):
         raise HTTPException(status_code=401, detail="未授权")
 
@@ -67,7 +69,8 @@ def create_admin_router(
 
     router = APIRouter(tags=["admin"])
 
-
     router.include_router(create_dialog_router(chat_service, admin_service))
-    router.include_router(create_transfer_router(transfer_mgr, admin_service, chat_service))
+    router.include_router(
+        create_transfer_router(transfer_mgr, admin_service, chat_service)
+    )
     return router

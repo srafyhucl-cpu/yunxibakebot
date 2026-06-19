@@ -14,7 +14,11 @@ class YouzanMockEmulator:
     @staticmethod
     def calculate_signature(client_id: str, client_secret: str, raw_body: bytes) -> str:
         """根据有赞 Webhook 规范计算签名：MD5(client_id + raw_body + client_secret)。"""
-        return hashlib.md5((client_id + raw_body.decode("utf-8", errors="replace") + client_secret).encode()).hexdigest()
+        return hashlib.md5(
+            (
+                client_id + raw_body.decode("utf-8", errors="replace") + client_secret
+            ).encode()
+        ).hexdigest()
 
     @staticmethod
     def generate_webhook_message(
@@ -31,13 +35,13 @@ class YouzanMockEmulator:
             "msg_id": actual_msg_id,
             "buyer_id": buyer_id,
             "msg_type": msg_type,
-            "content": {
-                "text": content_text
-            } if msg_type == "text" else content_text,
+            "content": {"text": content_text} if msg_type == "text" else content_text,
             "timestamp": int(time.time()),
         }
         raw_body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        signature = YouzanMockEmulator.calculate_signature(client_id, client_secret, raw_body)
+        signature = YouzanMockEmulator.calculate_signature(
+            client_id, client_secret, raw_body
+        )
         return raw_body, signature
 
     @staticmethod
@@ -135,10 +139,9 @@ class YouzanMockEmulator:
                             "sku_id": 999111,
                             "price": 28800,
                             "quantity": 150,
-                            "properties_name_json": "[{\"k\":\"规格\",\"v\":\"6寸\"}]",
+                            "properties_name_json": '[{"k":"规格","v":"6寸"}]',
                         }
                     ],
                 }
             },
         }
-

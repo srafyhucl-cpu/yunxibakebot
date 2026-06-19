@@ -6,7 +6,9 @@ from app.config import settings
 
 def _get_route_endpoint(router, path: str, method: str):
     for route in router.routes:
-        if getattr(route, "path", "") == path and method in getattr(route, "methods", set()):
+        if getattr(route, "path", "") == path and method in getattr(
+            route, "methods", set()
+        ):
             return route.endpoint
     raise AssertionError(f"Route not found: {method} {path}")
 

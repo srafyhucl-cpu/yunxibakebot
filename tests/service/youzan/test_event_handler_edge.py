@@ -3,6 +3,7 @@ event_handler / event_item 边界场景测试：
 1. youzan API 返回非 dict 响应（str）时不应抛 AttributeError
 2. alias 为空时写库不应触发 NOT NULL / UNIQUE 约束
 """
+
 import json
 import pytest
 import aiosqlite
@@ -21,6 +22,7 @@ from app.repository.config_repo import ConfigRepo
 
 class _FakeYouzanClient:
     """模拟有赞 API 返回字符串（非 dict）的极端场景。"""
+
     async def get_product(self, item_id, alias=""):
         return "商品不存在"  # 模拟 HTTP 200 + JSON string body
 
@@ -30,6 +32,7 @@ class _FakeYouzanClient:
 
 class _FakeYouzanClientStringData:
     """模拟 msg_obj[data] 为字符串的有赞老格式事件极端场景。"""
+
     async def get_product(self, item_id, alias=""):
         return {
             "response": {
@@ -52,6 +55,7 @@ class _FakeYouzanClientStringData:
 
 class _FakeYouzanClientEmptyAlias:
     """模拟有赞 API 返回 alias 为空的正常 dict 响应。"""
+
     async def get_product(self, item_id, alias=""):
         return {
             "response": {
@@ -79,7 +83,9 @@ async def test_api_returns_string_no_crash():
     vs = EmbeddingSearcher()
     vs.build([])
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
-    handler = YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_FakeYouzanClient())
+    handler = YouzanEventHandler(
+        db=db, knowledge_retriever=kr, youzan_client=_FakeYouzanClient()
+    )
 
     payload = {
         "type": "ITEM_STATE",
@@ -102,7 +108,9 @@ async def test_msg_obj_data_string_no_crash():
     vs = EmbeddingSearcher()
     vs.build([])
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
-    handler = YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_FakeYouzanClientStringData())
+    handler = YouzanEventHandler(
+        db=db, knowledge_retriever=kr, youzan_client=_FakeYouzanClientStringData()
+    )
 
     # msg 中 data 字段为字符串（有赞老格式）
     payload = {
@@ -132,7 +140,9 @@ async def test_empty_alias_uses_item_id_fallback():
     vs = EmbeddingSearcher()
     vs.build([])
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
-    handler = YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_FakeYouzanClientEmptyAlias())
+    handler = YouzanEventHandler(
+        db=db, knowledge_retriever=kr, youzan_client=_FakeYouzanClientEmptyAlias()
+    )
 
     for item_id, msg_id in [(100010, "msg_a"), (99999, "msg_b")]:
         payload = {
@@ -163,7 +173,16 @@ async def test_reconcile_and_webhook_preserves_inactive_status():
     await db.execute(
         "INSERT INTO youzan_products (item_id, title, alias, price_fen, stock, image, is_active, updated_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (88888, "已下架千层蛋糕", "alias_88888", 28800, 100, "", 0, "2026-05-28 00:00:00")
+        (
+            88888,
+            "已下架千层蛋糕",
+            "alias_88888",
+            28800,
+            100,
+            "",
+            0,
+            "2026-05-28 00:00:00",
+        ),
     )
     await db.commit()
 
@@ -184,13 +203,16 @@ async def test_reconcile_and_webhook_preserves_inactive_status():
                     }
                 }
             }
+
         async def get_order(self, *a, **kw):
             return {}
 
     vs = EmbeddingSearcher()
     vs.build([])
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
-    handler = YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_FakeClientForWebhook())
+    handler = YouzanEventHandler(
+        db=db, knowledge_retriever=kr, youzan_client=_FakeClientForWebhook()
+    )
 
     # 模拟常规库存/销量更新 Webhook 事件
     payload = {
@@ -224,7 +246,16 @@ async def test_live_refresh_preserves_inactive_status():
     await db.execute(
         "INSERT INTO youzan_products (item_id, title, alias, price_fen, stock, image, is_active, updated_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (77777, "已下架慕斯蛋糕", "alias_77777", 19800, 50, "", 0, "2026-05-28 00:00:00")
+        (
+            77777,
+            "已下架慕斯蛋糕",
+            "alias_77777",
+            19800,
+            50,
+            "",
+            0,
+            "2026-05-28 00:00:00",
+        ),
     )
     await db.commit()
 
@@ -251,6 +282,7 @@ async def test_live_refresh_preserves_inactive_status():
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
 
     from app.service.llm.function_tool_product import _refresh_product_live
+
     live_res = await _refresh_product_live(77777, _FakeClientForLive(), db, kr)
 
     # 验证返回值和数据库中的状态

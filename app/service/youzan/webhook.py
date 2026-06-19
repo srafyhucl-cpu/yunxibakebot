@@ -14,9 +14,15 @@ from app.logger import setup_logger
 logger = setup_logger()
 
 
-def verify_signature(client_id: str, client_secret: str, raw_body: bytes, signature_header: str) -> bool:
+def verify_signature(
+    client_id: str, client_secret: str, raw_body: bytes, signature_header: str
+) -> bool:
     """验证有赞消息推送签名：MD5(client_id + raw_body + client_secret)。"""
-    expected = hashlib.md5((client_id + raw_body.decode("utf-8", errors="replace") + client_secret).encode()).hexdigest()
+    expected = hashlib.md5(
+        (
+            client_id + raw_body.decode("utf-8", errors="replace") + client_secret
+        ).encode()
+    ).hexdigest()
     return hmac.compare_digest(expected, signature_header)
 
 
@@ -87,4 +93,3 @@ def parse_item_id(payload: dict, msg_obj: dict | None = None) -> str | None:
             return raw_id_str
 
     return None
-

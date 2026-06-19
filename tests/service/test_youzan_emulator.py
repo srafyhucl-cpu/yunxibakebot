@@ -40,7 +40,9 @@ async def test_youzan_client_mock_api_calls() -> None:
         assert token == "mock_access_token_123456"
 
         # 2. 验证消息回复接口拦截
-        reply_resp = await client.send_reply(buyer_open_id="buyer_888", content="收到，马上处理")
+        reply_resp = await client.send_reply(
+            buyer_open_id="buyer_888", content="收到，马上处理"
+        )
         assert reply_resp == {"response": {"success": True}}
 
         # 3. 验证订单详情查询拦截（data.full_order_info 结构）

@@ -13,7 +13,11 @@ _DEFAULT_OPERATOR = "admin"
 def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
     """创建知识配置后台路由。"""
 
-    api_router = APIRouter(prefix="/api/v1/admin/knowledge-config", tags=["admin-knowledge-api"], dependencies=[Depends(verify_token)])
+    api_router = APIRouter(
+        prefix="/api/v1/admin/knowledge-config",
+        tags=["admin-knowledge-api"],
+        dependencies=[Depends(verify_token)],
+    )
     root_router = APIRouter()
 
     def _build_draft(body: dict) -> KnowledgeAdminDraft:
@@ -54,8 +58,6 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
             "created_at": entry.created_at,
             "updated_at": entry.updated_at,
         }
-
-
 
     @api_router.get("/entries")
     async def list_entries(
@@ -134,11 +136,15 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
         }
 
     @api_router.post("/entries")
-    async def create_entry(request: Request, authorization: str | None = Header(default=None)) -> dict:
+    async def create_entry(
+        request: Request, authorization: str | None = Header(default=None)
+    ) -> dict:
 
         body = await request.json()
         try:
-            entry = await service.create_entry(_build_draft(body), operator=_DEFAULT_OPERATOR)
+            entry = await service.create_entry(
+                _build_draft(body), operator=_DEFAULT_OPERATOR
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"code": 0, "data": _serialize_entry(entry)}
@@ -152,7 +158,9 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
 
         body = await request.json()
         try:
-            entry = await service.update_entry(entry_id, _build_draft(body), operator=_DEFAULT_OPERATOR)
+            entry = await service.update_entry(
+                entry_id, _build_draft(body), operator=_DEFAULT_OPERATOR
+            )
         except ValueError as exc:
             message = str(exc)
             if "不存在" in message:
@@ -203,7 +211,6 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
                 "reason": suggestion.reason,
             },
         }
-
 
     root_router.include_router(api_router)
     return root_router

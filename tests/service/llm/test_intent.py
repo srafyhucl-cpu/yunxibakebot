@@ -20,12 +20,16 @@ from app.service.llm import intent as intent_module
         ("你好呀", intent_module.IntentType.SMALL_TALK),
     ],
 )
-def test_match_clear_intent(query: str, expected_intent: intent_module.IntentType) -> None:
+def test_match_clear_intent(
+    query: str, expected_intent: intent_module.IntentType
+) -> None:
     assert intent_module._match_clear_intent(query) == expected_intent
 
 
 @pytest.mark.asyncio
-async def test_detect_intent_uses_llm_for_ambiguous_query(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_detect_intent_uses_llm_for_ambiguous_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class _FakeMessage:
         content = '{"primary_intent": 2, "secondary_intents": []}'
 
@@ -46,7 +50,9 @@ async def test_detect_intent_uses_llm_for_ambiguous_query(monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
-async def test_detect_intent_falls_back_when_llm_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_detect_intent_falls_back_when_llm_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def _raise_llm_error(*args: object, **kwargs: object) -> str:
         raise LLMError("boom")
 
@@ -89,14 +95,28 @@ async def test_detect_intent_bypasses_llm_for_human_assistance_keywords(
 @pytest.mark.parametrize(
     ("raw_response", "expected_intent"),
     [
-        ("{\"primary_intent\": 2, \"secondary_intents\": [7]}", intent_module.IntentType.HUMAN_ASSISTANCE),
-        ("{\"primary_intent\": 1, \"secondary_intents\": [6]}", intent_module.IntentType.AFTER_SALES_ISSUE),
-        ("{\"primary_intent\": 2, \"secondary_intents\": [5]}", intent_module.IntentType.ORDER_SERVICE),
-        ("```json\n{\"primary_intent\": 6, \"secondary_intents\": []}\n```", intent_module.IntentType.AFTER_SALES_ISSUE),
+        (
+            '{"primary_intent": 2, "secondary_intents": [7]}',
+            intent_module.IntentType.HUMAN_ASSISTANCE,
+        ),
+        (
+            '{"primary_intent": 1, "secondary_intents": [6]}',
+            intent_module.IntentType.AFTER_SALES_ISSUE,
+        ),
+        (
+            '{"primary_intent": 2, "secondary_intents": [5]}',
+            intent_module.IntentType.ORDER_SERVICE,
+        ),
+        (
+            '```json\n{"primary_intent": 6, "secondary_intents": []}\n```',
+            intent_module.IntentType.AFTER_SALES_ISSUE,
+        ),
         ("7", intent_module.IntentType.HUMAN_ASSISTANCE),
         ("broken json containing 6", intent_module.IntentType.AFTER_SALES_ISSUE),
         ("completely broken", intent_module.IntentType.PRODUCT_CONSULTATION),
     ],
 )
-def test_extract_intent_prioritization_and_parsing(raw_response: str, expected_intent: intent_module.IntentType) -> None:
+def test_extract_intent_prioritization_and_parsing(
+    raw_response: str, expected_intent: intent_module.IntentType
+) -> None:
     assert intent_module._extract_intent(raw_response) == expected_intent

@@ -20,13 +20,24 @@ def repo(db: aiosqlite.Connection) -> KnowledgeRepo:
     return KnowledgeRepo(db)
 
 
-async def _seed(repo: KnowledgeRepo, youzan_item_id: str, title: str, content: str,
-                keywords: str = "", priority: int = 0, updated_at: str = _TS_NEW) -> None:
+async def _seed(
+    repo: KnowledgeRepo,
+    youzan_item_id: str,
+    title: str,
+    content: str,
+    keywords: str = "",
+    priority: int = 0,
+    updated_at: str = _TS_NEW,
+) -> None:
     """辅助：插入一条商品知识条目。"""
     prod_repo = KnowledgeProductRepo(repo._db)
     await prod_repo.upsert_product_knowledge(
-        youzan_item_id=youzan_item_id, title=title, content=content,
-        keywords=keywords, priority=priority, updated_at=updated_at,
+        youzan_item_id=youzan_item_id,
+        title=title,
+        content=content,
+        keywords=keywords,
+        priority=priority,
+        updated_at=updated_at,
     )
 
 

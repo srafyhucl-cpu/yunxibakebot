@@ -79,7 +79,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="transfers-page">
+  <section class="transfers-page" data-testid="transfers-page">
     <!-- 单卡片占满整页 -->
     <el-card shadow="never" class="transfers-page__card">
       <!-- 卡片头：标题 + 统计快捷切换 Tab -->
@@ -92,6 +92,7 @@ onUnmounted(() => {
                 class="transfers-page__stat-tab"
                 :class="{ 'is-active': filterStatus === 'all' }"
                 type="button"
+                data-testid="transfers-filter-all"
                 @click="filterStatus = 'all'"
               >
                 全部队列&nbsp;<strong>{{ totalCount }}</strong>
@@ -100,6 +101,7 @@ onUnmounted(() => {
                 class="transfers-page__stat-tab transfers-page__stat-tab--warning"
                 :class="{ 'is-active': filterStatus === 'pending' }"
                 type="button"
+                data-testid="transfers-filter-pending"
                 @click="filterStatus = 'pending'"
               >
                 待处理&nbsp;<strong>{{ pendingCount }}</strong>
@@ -108,6 +110,7 @@ onUnmounted(() => {
                 class="transfers-page__stat-tab transfers-page__stat-tab--success"
                 :class="{ 'is-active': filterStatus === 'accepted' }"
                 type="button"
+                data-testid="transfers-filter-accepted"
                 @click="filterStatus = 'accepted'"
               >
                 已接单&nbsp;<strong>{{ acceptedCount }}</strong>
@@ -126,6 +129,7 @@ onUnmounted(() => {
             placeholder="检索用户ID、原委或摘要"
             clearable
             class="transfers-page__search"
+            data-testid="transfers-search-input"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -140,7 +144,13 @@ onUnmounted(() => {
         </div>
 
         <div class="transfers-page__toolbar-right">
-          <el-button :loading="loading" :icon="Refresh" type="primary" @click="loadTransfers">
+          <el-button
+            :loading="loading"
+            :icon="Refresh"
+            type="primary"
+            data-testid="transfers-refresh"
+            @click="loadTransfers"
+          >
             刷新队列
           </el-button>
         </div>
@@ -155,6 +165,7 @@ onUnmounted(() => {
           border
           :height="tableHeight"
           class="transfers-page__table"
+          data-testid="transfers-table"
         >
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="shortUserId" label="用户标识" min-width="150" show-overflow-tooltip>
@@ -172,7 +183,7 @@ onUnmounted(() => {
           <el-table-column prop="statusLabel" label="状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'accepted' ? 'success' : 'warning'" effect="light" size="small">
-                {{ row.statusLabel }}
+                <span :data-testid="`transfers-row-status-${row.id}`">{{ row.statusLabel }}</span>
               </el-tag>
             </template>
           </el-table-column>
@@ -183,14 +194,22 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column label="操作" width="180" fixed="right" align="center">
             <template #default="{ row }">
-              <div class="transfers-page__actions">
-                <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
+              <div class="transfers-page__actions" :data-testid="`transfers-row-${row.id}`">
+                <el-button
+                  link
+                  type="primary"
+                  :data-testid="`transfers-open-detail-${row.id}`"
+                  @click="openDetail(row)"
+                >
+                  查看详情
+                </el-button>
                 <el-button
                   size="small"
                   type="success"
                   plain
                   :disabled="row.status !== 'pending'"
                   :loading="actionLoadingId === row.id && row.status === 'pending'"
+                  :data-testid="`transfers-process-${row.id}`"
                   @click="openDetail(row)"
                 >
                   处理
@@ -210,6 +229,7 @@ onUnmounted(() => {
             :key="row.id"
             type="button"
             class="transfers-page__card-item"
+            :data-testid="`transfers-mobile-row-${row.id}`"
             @click="openDetail(row)"
           >
             <div class="transfers-page__card-top">

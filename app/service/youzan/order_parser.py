@@ -52,7 +52,9 @@ def parse_youzan_order_response(raw_order: dict) -> ParsedOrderData | None:
     total_fee = float(pay_info.get("total_fee", 0))
     post_fee = float(pay_info.get("post_fee", 0))
     post_fee_fen = int(post_fee * 100)
-    discount_fen = max(0, int((total_fee + post_fee - float(pay_info.get("payment", 0))) * 100))
+    discount_fen = max(
+        0, int((total_fee + post_fee - float(pay_info.get("payment", 0))) * 100)
+    )
     buyer_id = str(buyer_info.get("buyer_id", "") or buyer_info.get("open_id", ""))
     outer_user_id = str(buyer_info.get("outer_user_id", ""))
 
@@ -65,16 +67,18 @@ def parse_youzan_order_response(raw_order: dict) -> ParsedOrderData | None:
         num = item.get("num", 1)
         titles_list.append(f"{title} x {num}")
         total_qty += num
-        items_detail.append({
-            "oid": item.get("oid", ""),
-            "item_id": item.get("item_id", 0),
-            "alias": item.get("alias", ""),
-            "title": title,
-            "num": num,
-            "price": item.get("price", "0"),
-            "sku_properties_name": item.get("sku_properties_name", ""),
-            "buyer_messages": item.get("buyer_messages", ""),
-        })
+        items_detail.append(
+            {
+                "oid": item.get("oid", ""),
+                "item_id": item.get("item_id", 0),
+                "alias": item.get("alias", ""),
+                "title": title,
+                "num": num,
+                "price": item.get("price", "0"),
+                "sku_properties_name": item.get("sku_properties_name", ""),
+                "buyer_messages": item.get("buyer_messages", ""),
+            }
+        )
 
     return ParsedOrderData(
         foi=foi,

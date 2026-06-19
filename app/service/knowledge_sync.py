@@ -57,12 +57,18 @@ class KnowledgeSyncService:
         try:
             if entry.is_active:
                 model = self._embedding_searcher._get_model()
-                vector_data = (await asyncio.to_thread(
-                    model.encode,
-                    [f"{entry.title} {entry.content}"],
-                    normalize_embeddings=True,
-                ))[0]
-                vector = vector_data.tolist() if hasattr(vector_data, "tolist") else list(vector_data)
+                vector_data = (
+                    await asyncio.to_thread(
+                        model.encode,
+                        [f"{entry.title} {entry.content}"],
+                        normalize_embeddings=True,
+                    )
+                )[0]
+                vector = (
+                    vector_data.tolist()
+                    if hasattr(vector_data, "tolist")
+                    else list(vector_data)
+                )
                 await self._embedding_searcher.upsert_one(self._doc_key(entry), vector)
             else:
                 await self._embedding_searcher.delete_one(self._doc_key(entry))
@@ -83,7 +89,9 @@ class KnowledgeSyncService:
                     source_ref=str(entry.id),
                     action=action,
                     status=ChangeStatus.SUCCESS,
-                    change_summary_json=self._build_summary(entry, operator, synced_at, ""),
+                    change_summary_json=self._build_summary(
+                        entry, operator, synced_at, ""
+                    ),
                     occurred_at=synced_at,
                 )
             )
@@ -105,7 +113,9 @@ class KnowledgeSyncService:
                     source_ref=str(entry.id),
                     action=action,
                     status=ChangeStatus.FAILED,
-                    change_summary_json=self._build_summary(entry, operator, "", error_message),
+                    change_summary_json=self._build_summary(
+                        entry, operator, "", error_message
+                    ),
                     error_type=type(exc).__name__,
                     error_message=error_message,
                     occurred_at=now_str(),
@@ -144,7 +154,9 @@ class KnowledgeSyncService:
 
         logger.info(
             "批量向量同步完成：成功 %d，失败 %d，共 %d 条",
-            success_count, failed_count, total,
+            success_count,
+            failed_count,
+            total,
         )
         return {"total": total, "success": success_count, "failed": failed_count}
 

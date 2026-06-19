@@ -52,6 +52,16 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
+        "app.api.admin_addresses",
+        create_admin_addresses_router=lambda service: ("admin-addresses", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.admin_assets",
+        create_admin_assets_router=lambda: "admin-assets",
+    )
+    _install_module(
+        monkeypatch,
         "app.api.admin_config",
         create_shop_config_router=lambda admin_service: ("config", admin_service),
     )
@@ -81,6 +91,46 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
+        "app.api.admin_orders",
+        create_admin_orders_router=lambda service: ("admin-orders", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.admin_shop_pages",
+        create_shop_page_config_router=lambda service: ("shop-pages", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.miniapp_auth",
+        create_miniapp_auth_router=lambda service: ("miniapp-auth", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.miniapp_addresses",
+        create_miniapp_addresses_router=lambda service: ("miniapp-addresses", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.miniapp_catalog",
+        create_miniapp_catalog_router=lambda service: ("miniapp-catalog", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.miniapp_chat",
+        create_miniapp_chat_router=lambda service: ("miniapp-chat", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.miniapp_orders",
+        create_miniapp_orders_router=lambda service: ("miniapp-orders", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.miniapp_payments",
+        create_miniapp_payments_router=lambda service: ("miniapp-payments", service),
+    )
+    _install_module(
+        monkeypatch,
         "app.api.webhook",
         create_webhook_router=lambda chat_service: ("webhook", chat_service),
     )
@@ -94,13 +144,19 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "observability_service": "observability",
         "reconcile_service": "reconcile",
         "knowledge_sync_service": "knowledge-sync",
+        "shop_page_config_service": "shop-pages-service",
+        "miniapp_auth_service": "miniapp-auth-service",
+        "miniapp_address_service": "miniapp-address-service",
+        "miniapp_catalog_service": "miniapp-catalog-service",
+        "miniapp_order_service": "miniapp-order-service",
+        "miniapp_chat_service": "miniapp-chat-service",
     }
 
     lifespan_routes.register_routes(app, services)
 
     assert wecom_queue.started_with == ["chat"]
     assert kf_queue.started_with == ["chat"]
-    assert len(app.included_routers) == 8
+    assert len(app.included_routers) == 18
     assert app.included_routers[0] == ("webhook", "chat")
     assert app.included_routers[-1] == "wecom-router"
 
@@ -144,6 +200,30 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         def __init__(self, repo: Any) -> None:
             created["transfer_mgr"] = repo
 
+    class FakeMiniappAuthService:
+        def __init__(self) -> None:
+            created["miniapp_auth_service"] = True
+
+    class FakeMiniappAddressService:
+        def __init__(self, **kwargs: Any) -> None:
+            created["miniapp_address_service"] = kwargs
+
+    class FakeMiniappCatalogService:
+        def __init__(self, **kwargs: Any) -> None:
+            created["miniapp_catalog_service"] = kwargs
+
+    class FakeMiniappOrderService:
+        def __init__(self, **kwargs: Any) -> None:
+            created["miniapp_order_service"] = kwargs
+
+    class FakeMiniappChatService:
+        def __init__(self, **kwargs: Any) -> None:
+            created["miniapp_chat_service"] = kwargs
+
+    class FakeShopPageConfigService:
+        def __init__(self, config_repo: Any) -> None:
+            created["shop_page_config_service"] = config_repo
+
     class FakeChatService:
         def __init__(self, **kwargs: Any) -> None:
             created["chat_service"] = kwargs
@@ -170,8 +250,38 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     )
     _install_module(
         monkeypatch,
+        "app.service.miniapp_auth",
+        MiniappAuthService=FakeMiniappAuthService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.miniapp_address",
+        MiniappAddressService=FakeMiniappAddressService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.miniapp_catalog",
+        MiniappCatalogService=FakeMiniappCatalogService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.miniapp_order",
+        MiniappOrderService=FakeMiniappOrderService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.miniapp_chat",
+        MiniappChatService=FakeMiniappChatService,
+    )
+    _install_module(
+        monkeypatch,
         "app.service.observability",
         ObservabilityService=FakeObservabilityService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.shop_page_config",
+        ShopPageConfigService=FakeShopPageConfigService,
     )
     _install_module(
         monkeypatch,
@@ -188,6 +298,11 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "config_repo": "config-repo",
         "history_repo": "history-repo",
         "youzan_product_repo": "youzan-product-repo",
+        "youzan_inventory_repo": "youzan-inventory-repo",
+        "order_repo": "order-repo",
+        "order_event_repo": "order-event-repo",
+        "miniapp_address_repo": "miniapp-address-repo",
+        "miniapp_address_audit_repo": "miniapp-address-audit-repo",
         "webhook_event_repo": "webhook-event-repo",
         "analytics_repo": "analytics-repo",
         "customer_profile_repo": "customer-profile-repo",
@@ -200,7 +315,13 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "observability_service",
         "knowledge_sync_service",
         "knowledge_admin_service",
+        "miniapp_auth_service",
+        "miniapp_address_service",
+        "miniapp_catalog_service",
+        "miniapp_order_service",
+        "miniapp_chat_service",
         "transfer_mgr",
+        "shop_page_config_service",
         "youzan_client",
         "youzan_event_handler",
         "reconcile_service",
@@ -215,6 +336,15 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     assert created["transfer_mgr"] == "transfer-repo"
     assert created["chat_service"]["youzan_client"] is services["youzan_client"]
     assert created["chat_service"]["customer_profile_repo"] == "customer-profile-repo"
+    assert created["miniapp_order_service"]["order_repo"] == "order-repo"
+    assert created["miniapp_order_service"]["event_repo"] == "order-event-repo"
+    assert created["miniapp_address_service"]["address_repo"] == "miniapp-address-repo"
+    assert (
+        created["miniapp_address_service"]["audit_repo"] == "miniapp-address-audit-repo"
+    )
+    assert created["miniapp_chat_service"]["chat_service"] is services["chat_service"]
+    assert created["miniapp_chat_service"]["transfer_mgr"] is services["transfer_mgr"]
+    assert created["shop_page_config_service"] == "config-repo"
     assert (
         created["reconcile_service"]["knowledge_product_repo"]
         == "knowledge-product-repo"

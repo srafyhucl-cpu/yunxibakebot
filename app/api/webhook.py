@@ -10,16 +10,13 @@ Webhook API 路由。
 
 import asyncio
 import hashlib
-import json
 import time
-import urllib.parse
 
 from fastapi import APIRouter, Request, HTTPException, Depends
 from app.database import get_db_session, db_session_scope
 from app.config import settings
 from app.logger import setup_logger
 from app.models.youzan_webhook_event import (
-    YouzanWebhookBusinessType,
     YouzanWebhookStatus,
     YouzanWebhookEventCreate,
     YouzanWebhookEventUpdate,
@@ -27,17 +24,17 @@ from app.models.youzan_webhook_event import (
 from app.service.chat import ChatService
 from app.service.youzan.webhook import (
     verify_signature as verify_youzan_signature,
-    parse_item_id,
 )
 from app.api.webhook_helpers import (
     extract_trace_id,
-    parse_payload_msg,
     extract_business_fields,
     build_payload_summary,
+    is_youzan_hosting_message_event,
+    is_youzan_hosting_event,
+    parse_youzan_hosting_message,
 )
 
 logger = setup_logger()
-router = APIRouter(prefix="/api/v1/webhook", tags=["webhook"])
 
 AUDIT_HTTP_OK = 200
 PAYLOAD_PREVIEW_LIMIT = 300
@@ -46,6 +43,8 @@ PAYLOAD_PREVIEW_LIMIT = 300
 def create_webhook_router(chat_service: ChatService) -> APIRouter:
     """工厂函数：注入 ChatService 依赖后返回路由实例。"""
     import datetime
+
+    router = APIRouter(prefix="/api/v1/webhook", tags=["webhook"])
 
     # 高并发带滑动窗口自清洗的 TTL 去重容器
     _processing_msg_timestamps: dict[str, float] = {}
@@ -176,15 +175,18 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
             raise HTTPException(status_code=400, detail="无效的 JSON 消息") from exc
 
         trace_id = extract_trace_id(request)
+        # 3. 审计事件创建
+        event_type = payload.get("type", "") or request.headers.get("event-type", "")
         msg_id = payload.get("msg_id") or payload.get("id") or ""
+        if is_youzan_hosting_message_event(event_type):
+            hosting_msg = parse_youzan_hosting_message(payload)
+            msg_id = hosting_msg["msg_id"] or msg_id
         if not msg_id:
             msg_id = trace_id
         if not msg_id:
             logger.warning("有赞消息缺少可用的去重 ID，丢弃")
             return {"code": 0, "msg": "success"}
 
-        # 3. 审计事件创建
-        event_type = payload.get("type", "") or request.headers.get("event-type", "")
         buyer_id = payload.get("buyer_id", "")
         audit_id = await _create_audit_event(
             payload, raw_body, msg_id, trace_id, event_type, buyer_id
@@ -212,6 +214,97 @@ def create_webhook_router(chat_service: ChatService) -> APIRouter:
         _processing_msg_timestamps[msg_id] = now
 
         # 7. 分发处理：系统事件 vs 客服消息
+        if is_youzan_hosting_message_event(event_type):
+            hosting_msg = parse_youzan_hosting_message(payload)
+            hosting_msg_id = hosting_msg["msg_id"] or msg_id
+            conversation_id = hosting_msg["conversation_id"]
+            yz_open_id = hosting_msg["yz_open_id"]
+            msg_type = hosting_msg["msg_type"] or "text"
+            content = hosting_msg["content"]
+
+            if not conversation_id or not hosting_msg_id:
+                _processing_msg_timestamps.pop(msg_id, None)
+                await _mark_audit_result(
+                    audit_id,
+                    YouzanWebhookStatus.SKIPPED,
+                    "hosting_missing_identity",
+                )
+                return {"code": 0, "msg": "success"}
+
+            if msg_type != "text":
+                await _mark_audit_processing(audit_id, "hosting_nontext_fallback")
+
+                async def _background_hosting_nontext_fallback() -> None:
+                    try:
+                        async with db_session_scope():
+                            await chat_service.reply_youzan_hosting_nontext_fallback(
+                                conversation_id=conversation_id,
+                                msg_id=hosting_msg_id,
+                            )
+                            await _mark_audit_result(
+                                audit_id,
+                                YouzanWebhookStatus.PROCESSED,
+                                "hosting_nontext_fallback",
+                            )
+                    except Exception as exc:
+                        logger.error(
+                            "有赞托管非文本兜底回复异常 [msg_id=%s]: %s",
+                            hosting_msg_id,
+                            exc,
+                        )
+                        await _mark_audit_failed(
+                            audit_id, "hosting_nontext_failed", exc
+                        )
+                    finally:
+                        _processing_msg_timestamps.pop(msg_id, None)
+
+                _track_task(asyncio.create_task(_background_hosting_nontext_fallback()))
+                return {"code": 0, "msg": "success"}
+
+            if not content:
+                _processing_msg_timestamps.pop(msg_id, None)
+                await _mark_audit_result(
+                    audit_id, YouzanWebhookStatus.SKIPPED, "hosting_empty_content"
+                )
+                return {"code": 0, "msg": "success"}
+
+            await _mark_audit_processing(audit_id, "hosting_chat_dispatched")
+
+            async def _background_process_hosting_message() -> None:
+                try:
+                    async with db_session_scope():
+                        await chat_service.handle_youzan_hosting_message(
+                            conversation_id=conversation_id,
+                            yz_open_id=yz_open_id,
+                            content=content,
+                            msg_id=hosting_msg_id,
+                        )
+                        await _mark_audit_result(
+                            audit_id,
+                            YouzanWebhookStatus.PROCESSED,
+                            "hosting_chat_processed",
+                        )
+                except Exception as exc:
+                    logger.error(
+                        "有赞托管消息后台业务处理异常 [msg_id=%s]: %s",
+                        hosting_msg_id,
+                        exc,
+                        exc_info=True,
+                    )
+                    await _mark_audit_failed(audit_id, "hosting_chat_failed", exc)
+                finally:
+                    _processing_msg_timestamps.pop(msg_id, None)
+
+            _track_task(asyncio.create_task(_background_process_hosting_message()))
+            return {"code": 0, "msg": "success"}
+
+        if is_youzan_hosting_event(event_type):
+            await _mark_audit_result(
+                audit_id, YouzanWebhookStatus.SKIPPED, "hosting_event_ack"
+            )
+            _processing_msg_timestamps.pop(msg_id, None)
+            return {"code": 0, "msg": "success"}
+
         if event_type:
             await _mark_audit_processing(audit_id, "system_dispatched")
 

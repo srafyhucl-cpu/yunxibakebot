@@ -59,9 +59,15 @@ def _match_clear_intent(user_query: str) -> IntentType | None:
     has_order_action = _contains_any(user_query, ORDER_ACTION_KEYWORDS)
     has_order_context = _contains_any(user_query, ORDER_CONTEXT_KEYWORDS)
     has_order_topic = _contains_any(user_query, ORDER_SERVICE_TOPIC_KEYWORDS)
-    if has_order_topic and (has_order_action or (has_order_context and not has_question_signal)):
+    if has_order_topic and (
+        has_order_action or (has_order_context and not has_question_signal)
+    ):
         return IntentType.ORDER_SERVICE
-    if _contains_any(user_query, SMALL_TALK_KEYWORDS) and len(user_query) <= SMALL_TALK_MAX_QUERY_LEN and not has_question_signal:
+    if (
+        _contains_any(user_query, SMALL_TALK_KEYWORDS)
+        and len(user_query) <= SMALL_TALK_MAX_QUERY_LEN
+        and not has_question_signal
+    ):
         return IntentType.SMALL_TALK
     if not has_question_signal:
         return None
@@ -123,7 +129,11 @@ def _extract_intent(raw_content: str) -> IntentType:
             if character in INTENT_ID_CHARACTERS:
                 val = int(character)
                 # 优先级判定
-                if val in (IntentType.ORDER_SERVICE, IntentType.AFTER_SALES_ISSUE, IntentType.HUMAN_ASSISTANCE):
+                if val in (
+                    IntentType.ORDER_SERVICE,
+                    IntentType.AFTER_SALES_ISSUE,
+                    IntentType.HUMAN_ASSISTANCE,
+                ):
                     if val == IntentType.HUMAN_ASSISTANCE:
                         return IntentType.HUMAN_ASSISTANCE
                     if val == IntentType.AFTER_SALES_ISSUE:
@@ -140,14 +150,20 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
         return IntentType.SMALL_TALK
 
     # 2. 0 成本强动作拦截（否定语境跳过，放行到 LLM 进一步判断）
-    if _contains_any(normalized_query, HUMAN_ASSISTANCE_KEYWORDS) and not _has_negation(normalized_query):
-        logger.debug("转人工强动作拦截命中: \"%s\" -> HUMAN_ASSISTANCE", normalized_query[:30])
+    if _contains_any(normalized_query, HUMAN_ASSISTANCE_KEYWORDS) and not _has_negation(
+        normalized_query
+    ):
+        logger.debug(
+            '转人工强动作拦截命中: "%s" -> HUMAN_ASSISTANCE', normalized_query[:30]
+        )
         return IntentType.HUMAN_ASSISTANCE
 
     # 3. 其它明确规则的前置判定
     matched_intent = _match_clear_intent(normalized_query)
     if matched_intent is not None:
-        logger.debug("意图识别前置命中: \"%s\" -> %s", normalized_query[:30], matched_intent.name)
+        logger.debug(
+            '意图识别前置命中: "%s" -> %s', normalized_query[:30], matched_intent.name
+        )
         return matched_intent
 
     # 4. 大模型多标签打标与 Token 溢出防线
@@ -160,7 +176,7 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
         )
         raw_content = (response.choices[0].message.content or "1").strip()
         intent = _extract_intent(raw_content)
-        logger.debug("意图识别: \"%s\" -> %s", normalized_query[:30], intent.name)
+        logger.debug('意图识别: "%s" -> %s', normalized_query[:30], intent.name)
         return intent
     except (LLMError, KeyError, IndexError) as exc:
         logger.warning("意图识别失败，默认返回 PRODUCT_CONSULTATION: %s", exc)

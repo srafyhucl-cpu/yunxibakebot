@@ -19,19 +19,24 @@ def create_transfer_router(
     @router.get("/transfers/pending", dependencies=[Depends(verify_token)])
     async def list_pending_transfers() -> dict:
         transfers = await transfer_mgr.get_pending()
-        return {"code": 0, "data": [
-            {
-                "id": t.id,
-                "session_id": t.session_id,
-                "user_id": t.user_id,
-                "reason": t.reason,
-                "conversation_summary": t.conversation_summary,
-                "created_at": t.created_at,
-            }
-            for t in transfers
-        ]}
+        return {
+            "code": 0,
+            "data": [
+                {
+                    "id": t.id,
+                    "session_id": t.session_id,
+                    "user_id": t.user_id,
+                    "reason": t.reason,
+                    "conversation_summary": t.conversation_summary,
+                    "created_at": t.created_at,
+                }
+                for t in transfers
+            ],
+        }
 
-    @router.post("/transfers/{transfer_id}/accept", dependencies=[Depends(verify_token)])
+    @router.post(
+        "/transfers/{transfer_id}/accept", dependencies=[Depends(verify_token)]
+    )
     async def accept_transfer(transfer_id: str, staff_id: str = "") -> dict:
         await transfer_mgr.accept_transfer(transfer_id, staff_id)
         return {"code": 0, "message": "已接单"}
@@ -52,14 +57,17 @@ def create_transfer_router(
     async def get_session_messages(session_id: str) -> dict:
         """获取某会话的消息列表。"""
         msgs = await admin_service.get_by_session(session_id)
-        return {"code": 0, "data": [
-            {
-                "role": m.role.value if hasattr(m.role, "value") else m.role,
-                "content": m.content,
-                "created_at": m.created_at,
-            }
-            for m in msgs
-        ]}
+        return {
+            "code": 0,
+            "data": [
+                {
+                    "role": m.role.value if hasattr(m.role, "value") else m.role,
+                    "content": m.content,
+                    "created_at": m.created_at,
+                }
+                for m in msgs
+            ],
+        }
 
     @router.get("/sessions", dependencies=[Depends(verify_token)])
     async def list_sessions() -> dict:

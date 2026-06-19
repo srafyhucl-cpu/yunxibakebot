@@ -38,9 +38,14 @@ from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
+from app.repository.miniapp_address_audit_repo import MiniappAddressAuditRepo
+from app.repository.miniapp_address_repo import MiniappAddressRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
+from app.repository.order_event_repo import OrderEventRepo
+from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
+from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 # 以下5个服务类由lifespan_services模块内部按需导入，避免顶层循环依赖
@@ -126,7 +131,7 @@ async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
     register_routes(app, services)
 
     # 6. 启动后台任务
-    bg_tasks = _start_background_tasks(app, repos)
+    bg_tasks = _start_background_tasks(app, repos, services)
     bg_tasks.add(save_task)
 
     # 7. 启动通知
@@ -156,12 +161,17 @@ def _init_repositories() -> dict[str, object]:
         "config_repo": ConfigRepo(None),
         "history_repo": ContentChangeHistoryRepo(None),
         "youzan_product_repo": YouzanProductRepo(None),
+        "youzan_inventory_repo": YouzanInventoryRepo(None),
         "webhook_event_repo": YouzanWebhookEventRepo(None),
         "analytics_repo": AnalyticsRepo(None),
         "customer_profile_repo": CustomerProfileRepo(None),
         "conversation_review_repo": ConversationReviewRepo(None),
         "knowledge_gap_repo": KnowledgeGapRepo(None),
         "offline_session_repo": OfflineSessionRepo(None),
+        "order_repo": OrderRepo(None),
+        "order_event_repo": OrderEventRepo(None),
+        "miniapp_address_repo": MiniappAddressRepo(None),
+        "miniapp_address_audit_repo": MiniappAddressAuditRepo(None),
     }
 
 
@@ -178,14 +188,23 @@ async def _startup_notify() -> None:
 
 
 def _start_background_tasks(
-    app: FastAPI, repos: dict[str, object]
+    app: FastAPI, repos: dict[str, object], services: dict[str, Any]
 ) -> set[asyncio.Task[None]]:
     """创建后台任务集合（持有强引用，避免任务被 GC 提前回收）。"""
     bg_tasks: set[asyncio.Task[None]] = set()
 
     from app.service.offline.bootstrap import register_offline_review_scheduler
+    from app.service.miniapp_order_timeout import (
+        register_miniapp_order_timeout_scheduler,
+    )
 
     register_offline_review_scheduler(app, repos, bg_tasks, db_session_scope)
+    register_miniapp_order_timeout_scheduler(
+        app,
+        services["miniapp_order_service"],
+        bg_tasks,
+        db_session_scope,
+    )
     return bg_tasks
 
 
@@ -233,6 +252,10 @@ async def _shutdown_lifespan_services(
     from app.service.offline.bootstrap import stop_offline_review_scheduler
 
     await stop_offline_review_scheduler(app)
+
+    from app.service.miniapp_order_timeout import stop_miniapp_order_timeout_scheduler
+
+    await stop_miniapp_order_timeout_scheduler(app)
 
     # 关闭企微客户端
     from app.service.wecom.client import close_wecom_client

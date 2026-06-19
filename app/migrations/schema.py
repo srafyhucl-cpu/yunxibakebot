@@ -85,6 +85,7 @@ SCHEMA_STATEMENTS: list[str] = [
         products TEXT NOT NULL,
         total_amount REAL DEFAULT 0,
         delivery TEXT DEFAULT '{}',
+        payment TEXT DEFAULT '{}',
         status TEXT DEFAULT 'pending'
             CHECK(status IN ('pending','confirmed','making','delivering','done','cancelled')),
         remark TEXT DEFAULT '',
@@ -92,6 +93,45 @@ SCHEMA_STATEMENTS: list[str] = [
         updated_at TEXT DEFAULT (datetime('now'))
     )""",
     "CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)",
+    # 小程序订单状态事件表
+    """CREATE TABLE IF NOT EXISTS order_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        operator TEXT NOT NULL DEFAULT 'system',
+        note TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_events(order_id)",
+    "CREATE INDEX IF NOT EXISTS idx_order_events_created ON order_events(created_at)",
+    # 小程序收货地址表
+    """CREATE TABLE IF NOT EXISTS miniapp_addresses (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        receiver_name TEXT NOT NULL,
+        receiver_phone TEXT NOT NULL,
+        address TEXT NOT NULL,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_miniapp_addresses_user ON miniapp_addresses(user_id)",
+    # 小程序地址操作审计表
+    """CREATE TABLE IF NOT EXISTS miniapp_address_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        operator TEXT NOT NULL DEFAULT 'admin',
+        action TEXT NOT NULL,
+        before_json TEXT DEFAULT '{}',
+        after_json TEXT DEFAULT '{}',
+        note TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_miniapp_address_audit_address ON miniapp_address_audit(address_id)",
+    "CREATE INDEX IF NOT EXISTS idx_miniapp_address_audit_user ON miniapp_address_audit(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_miniapp_address_audit_created ON miniapp_address_audit(created_at)",
     # 店铺配置表
     """CREATE TABLE IF NOT EXISTS shop_config (
         key TEXT PRIMARY KEY,
@@ -111,6 +151,11 @@ SCHEMA_STATEMENTS: list[str] = [
         item_props_json TEXT DEFAULT '[]',
         desc TEXT DEFAULT '',
         tags TEXT DEFAULT '',
+        tag_ids_json TEXT DEFAULT '[]',
+        classification_ids_json TEXT DEFAULT '[]',
+        group_ids_json TEXT DEFAULT '[]',
+        second_group_ids_json TEXT DEFAULT '[]',
+        leaf_category_ids_json TEXT DEFAULT '[]',
         item_no TEXT DEFAULT '',
         last_sync_source TEXT DEFAULT 'product_reconcile',
         last_sync_ref TEXT DEFAULT '',
@@ -118,6 +163,21 @@ SCHEMA_STATEMENTS: list[str] = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_yp_title ON youzan_products(title)",
     "CREATE INDEX IF NOT EXISTS idx_yp_alias ON youzan_products(alias)",
+    "CREATE INDEX IF NOT EXISTS idx_yp_tag_ids ON youzan_products(tag_ids_json)",
+    "CREATE INDEX IF NOT EXISTS idx_yp_classification_ids ON youzan_products(classification_ids_json)",
+    "CREATE INDEX IF NOT EXISTS idx_yp_group_ids ON youzan_products(group_ids_json)",
+    "CREATE INDEX IF NOT EXISTS idx_yp_second_group_ids ON youzan_products(second_group_ids_json)",
+    "CREATE INDEX IF NOT EXISTS idx_yp_leaf_category_ids ON youzan_products(leaf_category_ids_json)",
+    # 有赞商品分组映射表
+    """CREATE TABLE IF NOT EXISTS youzan_product_categories (
+        tag_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        sort INTEGER DEFAULT 0,
+        product_count INTEGER DEFAULT 0,
+        is_public INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ypc_sort ON youzan_product_categories(sort, title)",
     # 有赞交易订单大宽表
     """CREATE TABLE IF NOT EXISTS youzan_orders (
         order_no TEXT PRIMARY KEY,

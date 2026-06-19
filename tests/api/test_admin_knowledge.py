@@ -29,12 +29,16 @@ class _FakeEmbeddingSearcher:
 
 def _get_route_endpoint(router, path: str, method: str):
     for route in router.routes:
-        if getattr(route, "path", "") == path and method in getattr(route, "methods", set()):
+        if getattr(route, "path", "") == path and method in getattr(
+            route, "methods", set()
+        ):
             return route.endpoint
     raise AssertionError(f"Route not found: {method} {path}")
 
 
-def _build_request(path: str, method: str = "GET", cookies: dict | None = None, body: bytes = b"") -> Request:
+def _build_request(
+    path: str, method: str = "GET", cookies: dict | None = None, body: bytes = b""
+) -> Request:
     scope = {
         "type": "http",
         "method": method,
@@ -45,14 +49,13 @@ def _build_request(path: str, method: str = "GET", cookies: dict | None = None, 
         "client": ("testclient", 50000),
         "scheme": "http",
     }
+
     async def receive() -> dict:
         return {"type": "http.request", "body": body, "more_body": False}
 
     request = Request(scope, receive=receive)
     request._cookies = cookies or {}
     return request
-
-
 
 
 @pytest.mark.asyncio
@@ -65,11 +68,17 @@ async def test_admin_knowledge_api_create_and_detail() -> None:
             knowledge_repo=repo,
             admin_repo=KnowledgeAdminRepo(db),
             history_repo=history_repo,
-            sync_service=KnowledgeSyncService(repo, history_repo, _FakeEmbeddingSearcher()),
+            sync_service=KnowledgeSyncService(
+                repo, history_repo, _FakeEmbeddingSearcher()
+            ),
         )
     )
-    create_endpoint = _get_route_endpoint(router, "/api/v1/admin/knowledge-config/entries", "POST")
-    detail_endpoint = _get_route_endpoint(router, "/api/v1/admin/knowledge-config/entries/{entry_id}", "GET")
+    create_endpoint = _get_route_endpoint(
+        router, "/api/v1/admin/knowledge-config/entries", "POST"
+    )
+    detail_endpoint = _get_route_endpoint(
+        router, "/api/v1/admin/knowledge-config/entries/{entry_id}", "GET"
+    )
 
     request = _build_request(
         "/api/v1/admin/knowledge-config/entries",

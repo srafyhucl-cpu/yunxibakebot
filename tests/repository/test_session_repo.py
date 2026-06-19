@@ -73,8 +73,12 @@ async def test_update_status_transfer_pending(repo: SessionRepo) -> None:
 
 async def test_get_all_active_excludes_closed(repo: SessionRepo) -> None:
     """get_all_active 只返回 active / transfer_pending / human_service 三种状态。"""
-    for i, status in enumerate([SessionStatus.ACTIVE, SessionStatus.CLOSED, SessionStatus.HUMAN_SERVICE]):
-        data = SessionCreate(id=f"s-10{i}", channel=Channel.YOUZAN, user_id=f"buyer_10{i}")
+    for i, status in enumerate(
+        [SessionStatus.ACTIVE, SessionStatus.CLOSED, SessionStatus.HUMAN_SERVICE]
+    ):
+        data = SessionCreate(
+            id=f"s-10{i}", channel=Channel.YOUZAN, user_id=f"buyer_10{i}"
+        )
         s = await repo.get_or_create(data)
         if status != SessionStatus.ACTIVE:
             await repo.update_status(s.id, status)

@@ -72,7 +72,9 @@ class ContentChangeHistoryRepo(BaseRepository):
             params.append(entity_type)
         if keyword:
             like = f"%{keyword}%"
-            clauses.append("(c.title LIKE ? OR c.entity_key LIKE ? OR c.change_summary_json LIKE ?)")
+            clauses.append(
+                "(c.title LIKE ? OR c.entity_key LIKE ? OR c.change_summary_json LIKE ?)"
+            )
             params.extend([like, like, like])
         rows = await self._db.execute_fetchall(
             "SELECT c.id, c.entity_type, c.entity_key, c.category, c.title, c.source, c.source_ref, "
@@ -116,7 +118,9 @@ class ContentChangeHistoryRepo(BaseRepository):
             params.append(entity_type)
         if keyword:
             like = f"%{keyword}%"
-            clauses.append("(title LIKE ? OR entity_key LIKE ? OR change_summary_json LIKE ?)")
+            clauses.append(
+                "(title LIKE ? OR entity_key LIKE ? OR change_summary_json LIKE ?)"
+            )
             params.extend([like, like, like])
         rows = await self._db.execute_fetchall(
             "SELECT COUNT(*) AS c FROM content_change_history "

@@ -22,7 +22,15 @@ class AnalyticsRepo(BaseRepository):
         await self._db.execute(
             "INSERT INTO analytics_events (session_id, buyer_id, event_type, event_source, ref_id, meta_data, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (session_id, buyer_id, event_type, event_source, ref_id, meta_data, created_at),
+            (
+                session_id,
+                buyer_id,
+                event_type,
+                event_source,
+                ref_id,
+                meta_data,
+                created_at,
+            ),
         )
         await self._db.commit()
 
@@ -39,8 +47,8 @@ class AnalyticsRepo(BaseRepository):
         """
         rows = await self._db.execute_fetchall(
             "SELECT 1 FROM analytics_events "
-            "WHERE session_id = ? AND ref_id = ? AND event_type = \"product_recommend\" "
-            "AND datetime(created_at) > datetime(\"now\", \"-\" || ? || \" hour\") LIMIT 1",
+            'WHERE session_id = ? AND ref_id = ? AND event_type = "product_recommend" '
+            'AND datetime(created_at) > datetime("now", "-" || ? || " hour") LIMIT 1',
             (session_id, ref_id, hour_limit),
         )
         return len(rows) > 0
@@ -57,8 +65,8 @@ class AnalyticsRepo(BaseRepository):
         """
         rows = await self._db.execute_fetchall(
             "SELECT session_id FROM analytics_events "
-            "WHERE buyer_id = ? AND ref_id = ? AND event_type = \"product_recommend\" "
-            "AND datetime(created_at) > datetime(\"now\", \"-\" || ? || \" hour\") "
+            'WHERE buyer_id = ? AND ref_id = ? AND event_type = "product_recommend" '
+            'AND datetime(created_at) > datetime("now", "-" || ? || " hour") '
             "ORDER BY created_at DESC LIMIT 1",
             (buyer_id, ref_id, lookback_hours),
         )
@@ -67,7 +75,7 @@ class AnalyticsRepo(BaseRepository):
     async def rotate_analytics_logs(self, days_to_keep: int = 90) -> None:
         """自动滚动清理超出保留天数的历史分析日志，保障 SQLite 磁盘容量不爆满。"""
         await self._db.execute(
-            "DELETE FROM analytics_events WHERE datetime(created_at) < datetime(\"now\", \"-\" || ? || \" days\")",
+            'DELETE FROM analytics_events WHERE datetime(created_at) < datetime("now", "-" || ? || " days")',
             (days_to_keep,),
         )
         await self._db.commit()

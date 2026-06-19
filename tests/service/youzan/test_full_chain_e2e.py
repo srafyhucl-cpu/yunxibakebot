@@ -8,6 +8,7 @@
 
 payload 全部基于有赞官方文档真实结构造数（MSG/277, MSG/276, MSG/364, MSG/433, MSG/302）。
 """
+
 import json
 import urllib.parse
 
@@ -46,17 +47,21 @@ class _MockYouzanClient:
                             "sku_id": 90001,
                             "price": 6800,
                             "quantity": 30,
-                            "properties_name_json": json.dumps([
-                                {"k": "规格", "v": "6寸"},
-                            ]),
+                            "properties_name_json": json.dumps(
+                                [
+                                    {"k": "规格", "v": "6寸"},
+                                ]
+                            ),
                         },
                         {
                             "sku_id": 90002,
                             "price": 9800,
                             "quantity": 20,
-                            "properties_name_json": json.dumps([
-                                {"k": "规格", "v": "8寸"},
-                            ]),
+                            "properties_name_json": json.dumps(
+                                [
+                                    {"k": "规格", "v": "8寸"},
+                                ]
+                            ),
                         },
                     ],
                     "item_props": [
@@ -129,7 +134,9 @@ async def _setup(db=None):
     vs = EmbeddingSearcher()
     vs.build([])
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
-    handler = YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_MockYouzanClient())
+    handler = YouzanEventHandler(
+        db=db, knowledge_retriever=kr, youzan_client=_MockYouzanClient()
+    )
     return db, handler
 
 
@@ -219,12 +226,14 @@ async def test_e2e_item_state_down():
     官方文档 MSG/276：id=商品ID，msg 为 URL 编码 JSON，内层 data.is_display=0。
     验证：youzan_products 写入 + knowledge_base 被删除（下架擦除向量）。
     """
-    inner_data = json.dumps({
-        "item_id": 5001003,
-        "alias": "yx5001003",
-        "kdt_id": 63077,
-        "is_display": 0,
-    })
+    inner_data = json.dumps(
+        {
+            "item_id": 5001003,
+            "alias": "yx5001003",
+            "kdt_id": 63077,
+            "is_display": 0,
+        }
+    )
     msg_obj = json.dumps({"data": inner_data, "change_fields": '["is_display"]'})
     payload = {
         "msg": urllib.parse.quote(msg_obj),
@@ -276,12 +285,14 @@ async def test_e2e_item_state_up():
     事件 4：ITEM_STATE — 商品上架 (ITEM_SALE_UP)
     is_display=1，应写库 + 写知识库。
     """
-    inner_data = json.dumps({
-        "item_id": 5001004,
-        "alias": "yx5001004",
-        "kdt_id": 63077,
-        "is_display": 1,
-    })
+    inner_data = json.dumps(
+        {
+            "item_id": 5001004,
+            "alias": "yx5001004",
+            "kdt_id": 63077,
+            "is_display": 1,
+        }
+    )
     msg_obj = json.dumps({"data": inner_data, "change_fields": '["is_display"]'})
     payload = {
         "msg": urllib.parse.quote(msg_obj),
@@ -441,8 +452,15 @@ async def test_e2e_trade_buyer_pay():
                     "created": "2026-05-23 15:06:30",
                     "pay_time": "2026-05-23 15:07:00",
                 },
-                "pay_info": {"payment": "68.00", "total_fee": "68.00", "post_fee": "0.00"},
-                "buyer_info": {"buyer_id": "buyer_pay_001", "yz_open_id": "yz_open_abc"},
+                "pay_info": {
+                    "payment": "68.00",
+                    "total_fee": "68.00",
+                    "post_fee": "0.00",
+                },
+                "buyer_info": {
+                    "buyer_id": "buyer_pay_001",
+                    "yz_open_id": "yz_open_abc",
+                },
                 "address_info": {
                     "delivery_province": "上海",
                     "delivery_city": "上海市",
@@ -609,7 +627,13 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ① ITEM_INFO (ITEM_CREATE)
     await handler.handle_system_event(
-        payload={"msg": '{"mode":1}', "type": "ITEM_INFO", "id": "9000001", "status": "ITEM_CREATE", "kdt_id": "63077"},
+        payload={
+            "msg": '{"mode":1}',
+            "type": "ITEM_INFO",
+            "id": "9000001",
+            "status": "ITEM_CREATE",
+            "kdt_id": "63077",
+        },
         event_type="ITEM_INFO",
         updated_at_str="2026-05-23 16:00:00",
         msg_id="seq-001",
@@ -618,7 +642,13 @@ async def test_e2e_all_nine_events_in_sequence():
     # ② ITEM_STATE (上架)
     inner = json.dumps({"item_id": 9000002, "is_display": 1, "kdt_id": 63077})
     await handler.handle_system_event(
-        payload={"msg": urllib.parse.quote(json.dumps({"data": inner})), "type": "ITEM_STATE", "id": "9000002", "status": "ITEM_SALE_UP", "kdt_id": "63077"},
+        payload={
+            "msg": urllib.parse.quote(json.dumps({"data": inner})),
+            "type": "ITEM_STATE",
+            "id": "9000002",
+            "status": "ITEM_SALE_UP",
+            "kdt_id": "63077",
+        },
         event_type="ITEM_STATE",
         updated_at_str="2026-05-23 16:01:00",
         msg_id="seq-002",
@@ -634,7 +664,13 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ④ youzan_item_skuStockOrSoldNumUpdated
     await handler.handle_system_event(
-        payload={"kdt_id": "63077", "item_id": "9000004", "sku_id": "99", "event_type": "UPDATE", "channel": "0"},
+        payload={
+            "kdt_id": "63077",
+            "item_id": "9000004",
+            "sku_id": "99",
+            "event_type": "UPDATE",
+            "channel": "0",
+        },
         event_type="youzan_item_skuStockOrSoldNumUpdated",
         updated_at_str="2026-05-23 16:03:00",
         msg_id="seq-004",
@@ -642,7 +678,22 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ⑤ trade_TradeCreate
     await handler.handle_system_event(
-        payload={"msg": {"full_order_info": {"order_info": {"tid": "E900001", "status": "WAIT_BUYER_PAY", "created": "2026-05-23 16:04:00"}, "buyer_info": {"buyer_id": "b1"}, "orders": []}}, "type": "trade_TradeCreate", "id": "E900001", "msg_id": "seq-005"},
+        payload={
+            "msg": {
+                "full_order_info": {
+                    "order_info": {
+                        "tid": "E900001",
+                        "status": "WAIT_BUYER_PAY",
+                        "created": "2026-05-23 16:04:00",
+                    },
+                    "buyer_info": {"buyer_id": "b1"},
+                    "orders": [],
+                }
+            },
+            "type": "trade_TradeCreate",
+            "id": "E900001",
+            "msg_id": "seq-005",
+        },
         event_type="trade_TradeCreate",
         updated_at_str="2026-05-23 16:04:00",
         msg_id="seq-005",
@@ -650,7 +701,22 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ⑥ trade_TradeBuyerPay
     await handler.handle_system_event(
-        payload={"msg": {"full_order_info": {"order_info": {"tid": "E900002", "status": "WAIT_SELLER_SEND_GOODS", "pay_time": "2026-05-23 16:05:00"}, "buyer_info": {"buyer_id": "b2"}, "orders": []}}, "type": "trade_TradeBuyerPay", "id": "E900002", "msg_id": "seq-006"},
+        payload={
+            "msg": {
+                "full_order_info": {
+                    "order_info": {
+                        "tid": "E900002",
+                        "status": "WAIT_SELLER_SEND_GOODS",
+                        "pay_time": "2026-05-23 16:05:00",
+                    },
+                    "buyer_info": {"buyer_id": "b2"},
+                    "orders": [],
+                }
+            },
+            "type": "trade_TradeBuyerPay",
+            "id": "E900002",
+            "msg_id": "seq-006",
+        },
         event_type="trade_TradeBuyerPay",
         updated_at_str="2026-05-23 16:05:00",
         msg_id="seq-006",
@@ -658,7 +724,12 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ⑦ trade_TradeSellerShip
     await handler.handle_system_event(
-        payload={"msg": {"tid": "E900003", "status": "WAIT_BUYER_CONFIRM_GOODS"}, "type": "trade_TradeSellerShip", "id": "E900003", "msg_id": "seq-007"},
+        payload={
+            "msg": {"tid": "E900003", "status": "WAIT_BUYER_CONFIRM_GOODS"},
+            "type": "trade_TradeSellerShip",
+            "id": "E900003",
+            "msg_id": "seq-007",
+        },
         event_type="trade_TradeSellerShip",
         updated_at_str="2026-05-23 16:06:00",
         msg_id="seq-007",
@@ -666,7 +737,12 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ⑧ trade_TradeSuccess
     await handler.handle_system_event(
-        payload={"msg": {"tid": "E900004", "status": "TRADE_SUCCESS"}, "type": "trade_TradeSuccess", "id": "E900004", "msg_id": "seq-008"},
+        payload={
+            "msg": {"tid": "E900004", "status": "TRADE_SUCCESS"},
+            "type": "trade_TradeSuccess",
+            "id": "E900004",
+            "msg_id": "seq-008",
+        },
         event_type="trade_TradeSuccess",
         updated_at_str="2026-05-23 16:07:00",
         msg_id="seq-008",
@@ -674,7 +750,12 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ⑨ trade_TradeClose
     await handler.handle_system_event(
-        payload={"msg": {"tid": "E900005", "status": "TRADE_CLOSED", "close_type": 1}, "type": "trade_TradeClose", "id": "E900005", "msg_id": "seq-009"},
+        payload={
+            "msg": {"tid": "E900005", "status": "TRADE_CLOSED", "close_type": 1},
+            "type": "trade_TradeClose",
+            "id": "E900005",
+            "msg_id": "seq-009",
+        },
         event_type="trade_TradeClose",
         updated_at_str="2026-05-23 16:08:00",
         msg_id="seq-009",
@@ -682,7 +763,9 @@ async def test_e2e_all_nine_events_in_sequence():
 
     # ═══ 断言 ═══
     # 商品
-    prod_rows = await db.execute_fetchall("SELECT item_id FROM youzan_products ORDER BY item_id")
+    prod_rows = await db.execute_fetchall(
+        "SELECT item_id FROM youzan_products ORDER BY item_id"
+    )
     prod_ids = {r["item_id"] for r in prod_rows}
     assert 9000001 in prod_ids, "ITEM_INFO 商品应写入"
     assert 9000002 in prod_ids, "ITEM_STATE 商品应写入"
@@ -690,7 +773,9 @@ async def test_e2e_all_nine_events_in_sequence():
     assert 9000004 in prod_ids, "skuStockUpdate 商品应写入"
 
     # 知识库（youzan_item_id 为 TEXT 类型）
-    kb_rows = await db.execute_fetchall("SELECT youzan_item_id FROM knowledge_base ORDER BY youzan_item_id")
+    kb_rows = await db.execute_fetchall(
+        "SELECT youzan_item_id FROM knowledge_base ORDER BY youzan_item_id"
+    )
     kb_ids = {r["youzan_item_id"] for r in kb_rows}
     assert "9000001" in kb_ids, "ITEM_INFO 应同步知识库"
     assert "9000002" in kb_ids, "ITEM_STATE 上架应同步知识库"
@@ -698,7 +783,9 @@ async def test_e2e_all_nine_events_in_sequence():
     assert "9000004" in kb_ids, "skuStockUpdate 应同步知识库"
 
     # 订单
-    order_rows = await db.execute_fetchall("SELECT order_no FROM youzan_orders ORDER BY order_no")
+    order_rows = await db.execute_fetchall(
+        "SELECT order_no FROM youzan_orders ORDER BY order_no"
+    )
     order_nos = {r["order_no"] for r in order_rows}
     assert "E900001" in order_nos, "trade_TradeCreate 订单应写入"
     assert "E900002" in order_nos, "trade_TradeBuyerPay 订单应写入"

@@ -1,31 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import {
-  Odometer,
-  ChatDotRound,
-  Goods,
-  Document,
-  DataAnalysis,
-  Service,
-  Setting,
-} from "@element-plus/icons-vue";
+
+import { ADMIN_NAV_ITEMS } from "@/constants/adminNavigation";
 
 const props = defineProps<{
   open: boolean;
 }>();
 
 const route = useRoute();
-
-const navItems = [
-  { label: "概览", to: "/overview", key: "overview", icon: Odometer },
-  { label: "AI 对话", to: "/ai-dialog", key: "ai-dialog", icon: ChatDotRound },
-  { label: "商品管理", to: "/products", key: "products", icon: Goods },
-  { label: "知识配置", to: "/knowledge", key: "knowledge", icon: Document },
-  { label: "数据观察台", to: "/observability/sessions", key: "observability", icon: DataAnalysis },
-  { label: "转人工", to: "/transfers", key: "transfers", icon: Service },
-  { label: "系统配置", to: "/settings/shop", key: "settings", icon: Setting },
-];
 
 const activeKey = computed(() => route.meta.navKey);
 </script>
@@ -44,7 +27,7 @@ const activeKey = computed(() => route.meta.navKey);
     </div>
     <nav class="app-sidebar__nav">
       <el-tooltip
-        v-for="item in navItems"
+        v-for="item in ADMIN_NAV_ITEMS"
         :key="item.key"
         :content="item.label"
         placement="right"

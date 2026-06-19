@@ -76,6 +76,21 @@ class Settings(BaseSettings):
     YOUZAN_GOODS_H5_BASE_URL: str = "https://h5.youzan.com/v2/showcase/goods"
     YOUZAN_HTTP_TIMEOUT_SECONDS: float = 10.0
 
+    # ── 微信小程序 ──
+    WECHAT_MINIAPP_APP_ID: str = ""
+    WECHAT_MINIAPP_APP_SECRET: str = ""
+    WECHAT_MINIAPP_AUTH_URL: str = "https://api.weixin.qq.com/sns/jscode2session"
+    WECHAT_MINIAPP_HTTP_TIMEOUT_SECONDS: float = 10.0
+    WECHAT_PAY_ENABLED: bool = False
+    WECHAT_PAY_API_BASE: str = "https://api.mch.weixin.qq.com"
+    WECHAT_PAY_MCH_ID: str = ""
+    WECHAT_PAY_NOTIFY_URL: str = ""
+    WECHAT_PAY_PRIVATE_KEY_PATH: str = ""
+    WECHAT_PAY_CERT_SERIAL_NO: str = ""
+    WECHAT_PAY_PLATFORM_CERT_PATH: str = ""
+    WECHAT_PAY_API_V3_KEY: str = ""
+    MINIAPP_PAYMENT_TIMEOUT_SCAN_INTERVAL_SECONDS: int = 300
+
     # ── 管理后台 ──
     # 注意：生产环境必须在 .env 中设置强密码，不能使用默认值
     ADMIN_API_TOKEN: str = "CHANGE_ME_IN_PRODUCTION_ENV"

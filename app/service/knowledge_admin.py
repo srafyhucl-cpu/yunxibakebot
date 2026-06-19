@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 import re
 
-from app.models.content_change_history import ChangeAction, ChangeEntityType, SyncSource, WriteResult
+from app.models.content_change_history import (
+    ChangeAction,
+    ChangeEntityType,
+    SyncSource,
+    WriteResult,
+)
 from app.models.knowledge import KnowledgeContentType, KnowledgeEntry
 from app.models.knowledge_admin import KnowledgeAdminDraft, KnowledgeCategorySuggestion
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
@@ -18,9 +23,43 @@ MAX_KEYWORDS_LENGTH = 200
 MIN_PRIORITY = 0
 MAX_PRIORITY = 100
 
-_FAQ_HINTS = ("吗", "怎么", "如何", "能否", "可以", "是否", "多久", "几点", "多少", "什么时候")
-_RULE_HINTS = ("规则", "退款", "售后", "改期", "配送", "预订", "定制", "发票", "补差", "需提前", "不支持")
-_SCRIPT_HINTS = ("您好", "亲", "抱歉", "建议您", "请您", "欢迎", "推荐您", "麻烦您", "辛苦您", "可以这样回复")
+_FAQ_HINTS = (
+    "吗",
+    "怎么",
+    "如何",
+    "能否",
+    "可以",
+    "是否",
+    "多久",
+    "几点",
+    "多少",
+    "什么时候",
+)
+_RULE_HINTS = (
+    "规则",
+    "退款",
+    "售后",
+    "改期",
+    "配送",
+    "预订",
+    "定制",
+    "发票",
+    "补差",
+    "需提前",
+    "不支持",
+)
+_SCRIPT_HINTS = (
+    "您好",
+    "亲",
+    "抱歉",
+    "建议您",
+    "请您",
+    "欢迎",
+    "推荐您",
+    "麻烦您",
+    "辛苦您",
+    "可以这样回复",
+)
 
 
 class KnowledgeAdminService:
@@ -96,9 +135,13 @@ class KnowledgeAdminService:
             ],
         }
 
-    async def create_entry(self, draft: KnowledgeAdminDraft, *, operator: str) -> KnowledgeEntry:
+    async def create_entry(
+        self, draft: KnowledgeAdminDraft, *, operator: str
+    ) -> KnowledgeEntry:
         normalized = self._normalize_draft(draft)
-        suggestion = self.suggest_category(title=normalized.title, content=normalized.content)
+        suggestion = self.suggest_category(
+            title=normalized.title, content=normalized.content
+        )
         entry_id = await self._admin_repo.create_admin_entry(
             category=self._map_category(normalized.content_type),
             content_type=normalized.content_type,
@@ -131,7 +174,9 @@ class KnowledgeAdminService:
     ) -> KnowledgeEntry:
         existing = await self._require_entry(entry_id)
         normalized = self._normalize_draft(draft)
-        suggestion = self.suggest_category(title=normalized.title, content=normalized.content)
+        suggestion = self.suggest_category(
+            title=normalized.title, content=normalized.content
+        )
         result = await self._admin_repo.update_admin_entry(
             entry_id,
             category=self._map_category(normalized.content_type),
@@ -182,7 +227,9 @@ class KnowledgeAdminService:
             retry_increment=True,
         )
 
-    def suggest_category(self, *, title: str, content: str) -> KnowledgeCategorySuggestion:
+    def suggest_category(
+        self, *, title: str, content: str
+    ) -> KnowledgeCategorySuggestion:
         merged = f"{title}\n{content}".strip()
         if self._matches_any(merged, _RULE_HINTS):
             return KnowledgeCategorySuggestion(

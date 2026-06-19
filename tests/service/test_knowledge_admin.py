@@ -60,7 +60,9 @@ async def test_create_entry_syncs_vector_and_writes_history(db) -> None:
 
     assert entry.vector_sync_status == "success"
     assert embedding.upserted == [f"kb_{entry.id}"]
-    history = await history_repo.list_for_entity(entity_type="knowledge", entity_key=f"kb_{entry.id}")
+    history = await history_repo.list_for_entity(
+        entity_type="knowledge", entity_key=f"kb_{entry.id}"
+    )
     assert len(history) == 1
     assert history[0].status == ChangeStatus.SUCCESS
 
@@ -91,6 +93,8 @@ async def test_create_entry_marks_failed_when_vector_sync_errors(db) -> None:
 
     assert entry.vector_sync_status == "failed"
     assert entry.vector_sync_error == "向量服务不可用"
-    history = await history_repo.list_for_entity(entity_type="knowledge", entity_key=f"kb_{entry.id}")
+    history = await history_repo.list_for_entity(
+        entity_type="knowledge", entity_key=f"kb_{entry.id}"
+    )
     assert len(history) == 1
     assert history[0].status == ChangeStatus.FAILED

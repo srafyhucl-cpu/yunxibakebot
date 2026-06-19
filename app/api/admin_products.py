@@ -18,7 +18,11 @@ def create_admin_products_router(
     knowledge_sync_service: KnowledgeSyncService,
 ) -> APIRouter:
     """创建商品管理 API 路由。"""
-    router = APIRouter(prefix="/api/v1/admin/products", tags=["admin-products"], dependencies=[Depends(verify_token)])
+    router = APIRouter(
+        prefix="/api/v1/admin/products",
+        tags=["admin-products"],
+        dependencies=[Depends(verify_token)],
+    )
 
     @router.post("/reconcile")
     async def trigger_reconcile(

@@ -11,6 +11,7 @@
 5. trade_TradeCreate/TradeBuyerPay - tid 嵌套在 full_order_info.order_info
 6. trade_TradeSuccess/TradeSellerShip/TradeClose - tid 在 msg 顶层
 """
+
 import json
 import pytest
 
@@ -24,6 +25,7 @@ from app.service.youzan.event_handler import YouzanEventHandler
 
 class _FakeClient:
     """有赞 API 仿真客户端，按 item_id 返回最小化合法商品结构。"""
+
     async def get_product(self, item_id, alias=""):
         return {
             "response": {
@@ -69,17 +71,19 @@ class _FakeClient:
                         "delivery_district": "浦东新区",
                         "delivery_start_time": "",
                     },
-                    "orders": [{
-                        "oid": "mock_oid_001",
-                        "item_id": 5836487486,
-                        "alias": "mock5836487486",
-                        "title": "草莓双层奶油蛋糕",
-                        "num": 1,
-                        "price": "188.00",
-                        "payment": "188.00",
-                        "sku_properties_name": "6寸",
-                        "buyer_messages": "",
-                    }],
+                    "orders": [
+                        {
+                            "oid": "mock_oid_001",
+                            "item_id": 5836487486,
+                            "alias": "mock5836487486",
+                            "title": "草莓双层奶油蛋糕",
+                            "num": 1,
+                            "price": "188.00",
+                            "payment": "188.00",
+                            "sku_properties_name": "6寸",
+                            "buyer_messages": "",
+                        }
+                    ],
                 }
             },
         }
@@ -89,7 +93,9 @@ async def _make_handler(db):
     vs = EmbeddingSearcher()
     vs.build([])
     kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
-    return YouzanEventHandler(db=db, knowledge_retriever=kr, youzan_client=_FakeClient())
+    return YouzanEventHandler(
+        db=db, knowledge_retriever=kr, youzan_client=_FakeClient()
+    )
 
 
 # ──────────────────────────────────────────────
@@ -103,9 +109,7 @@ async def test_item_group_change_msg():
         "id": "0a4550c002d5d05246d1",
         "kdt_id": "10",
         "version": "1591250527",
-        "data": {
-            "item_id": "100010"
-        }
+        "data": {"item_id": "100010"},
     }
     db = await init_db(":memory:")
     handler = await _make_handler(db)
@@ -138,7 +142,7 @@ async def test_item_info_truncated_json_fallback_writes_db():
         "kdt_id": "63077",
         "id": "400444679",
         "app_id": "299232221a",
-        "status": "ITEM_CREATE"
+        "status": "ITEM_CREATE",
     }
     db = await init_db(":memory:")
     handler = await _make_handler(db)
@@ -196,7 +200,7 @@ async def test_sku_stock_update():
         "event_type": "INSERT",
         "item_id": "1234",
         "channel": "1",
-        "sku_id": "4567"
+        "sku_id": "4567",
     }
     db = await init_db(":memory:")
     handler = await _make_handler(db)
@@ -220,13 +224,16 @@ async def test_sku_stock_update():
 @pytest.mark.asyncio
 async def test_item_state_standard():
     import urllib.parse
-    msg_content = json.dumps({
-        "kdt_id": "1896311",
-        "event_type": "INSERT",
-        "item_id": "1234",
-        "channel": "1",
-        "sku_id": "4567"
-    })
+
+    msg_content = json.dumps(
+        {
+            "kdt_id": "1896311",
+            "event_type": "INSERT",
+            "item_id": "1234",
+            "channel": "1",
+            "sku_id": "4567",
+        }
+    )
     payload = {
         "kdt_id": "1896311",
         "event_type": "INSERT",
@@ -261,7 +268,11 @@ async def test_trade_create_nested_tid_writes_db():
         "type": "trade_TradeCreate",
         "msg": {
             "full_order_info": {
-                "order_info": {"tid": tid, "status": "WAIT_BUYER_PAY", "created": "2026-05-23 12:00:00"},
+                "order_info": {
+                    "tid": tid,
+                    "status": "WAIT_BUYER_PAY",
+                    "created": "2026-05-23 12:00:00",
+                },
             }
         },
         "msg_id": "trade-create-001",
@@ -313,29 +324,44 @@ async def test_trade_success_top_level_tid_writes_db():
 @pytest.mark.asyncio
 async def test_batch_push_all_four_events():
     import urllib.parse
+
     db = await init_db(":memory:")
     handler = await _make_handler(db)
 
     events = [
         (
-            {"id": "0a4550c002d5d05246d1", "kdt_id": "10", "version": "1591250527",
-             "data": {"item_id": "100010"}},
-            "item_group_change_msg", "0a4550c002d5d05246d1",
+            {
+                "id": "0a4550c002d5d05246d1",
+                "kdt_id": "10",
+                "version": "1591250527",
+                "data": {"item_id": "100010"},
+            },
+            "item_group_change_msg",
+            "0a4550c002d5d05246d1",
         ),
         (
-            {"msg": '{"mode":1,"sign":"3831b4ed685733d44', "type": "ITEM_INFO",
-             "id": "400444679", "msg_id": "已废弃"},
-            "ITEM_INFO", "已废弃",
+            {
+                "msg": '{"mode":1,"sign":"3831b4ed685733d44',
+                "type": "ITEM_INFO",
+                "id": "400444679",
+                "msg_id": "已废弃",
+            },
+            "ITEM_INFO",
+            "已废弃",
         ),
         (
             {"kdt_id": "1896311", "item_id": "1234", "sku_id": "4567"},
-            "youzan_item_skuStockOrSoldNumUpdated", "yz7-sku-001",
+            "youzan_item_skuStockOrSoldNumUpdated",
+            "yz7-sku-001",
         ),
         (
-            {"type": "ITEM_STATE",
-             "msg": urllib.parse.quote(json.dumps({"item_id": "5678"})),
-             "id": "400444678"},
-            "ITEM_STATE", "400444678",
+            {
+                "type": "ITEM_STATE",
+                "msg": urllib.parse.quote(json.dumps({"item_id": "5678"})),
+                "id": "400444678",
+            },
+            "ITEM_STATE",
+            "400444678",
         ),
     ]
 

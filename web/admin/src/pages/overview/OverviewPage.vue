@@ -4,12 +4,13 @@ import {
   ChatDotRound,
   CircleCheckFilled,
   Clock,
-  Document,
   Goods,
   Histogram,
+  MagicStick,
   RefreshRight,
   Service,
   Setting,
+  Tickets,
   WarningFilled,
 } from "@element-plus/icons-vue";
 
@@ -20,13 +21,20 @@ const {
   errorMessage,
   lastRefreshedAt,
   productTotal,
-  currentContentTotal,
+  activeProductTotal,
+  inactiveProductTotal,
+  orderTotal,
+  pendingOrderCount,
+  orderAmountText,
   pendingTransferCount,
   failedHistoryTotal,
   failedWebhookTotal,
   slowWebhookTotal,
   processingWebhookTotal,
   configuredSettingCount,
+  decorationStatusText,
+  decorationUpdatedAt,
+  recentOrders,
   recentIssues,
   healthLabel,
   healthType,
@@ -34,10 +42,17 @@ const {
 } = useOverviewPage();
 
 const quickLinks = [
-  { title: "AI 对话", desc: "验证回复、意图和工具调用", to: "/ai-dialog", icon: ChatDotRound },
-  { title: "商品管理", desc: "检查商品和 AI 可读同步", to: "/products", icon: Goods },
-  { title: "数据观察台", desc: "追踪内容、回写和 Webhook", to: "/observability/sessions", icon: Histogram },
-  { title: "系统配置", desc: "巡检渠道和 API 配置状态", to: "/settings/shop", icon: Setting },
+  { title: "店铺装修", desc: "编辑首页模块并发布到小程序", to: "/decoration", icon: MagicStick },
+  { title: "订单管理", desc: "确认订单、推进制作和配送", to: "/orders", icon: Tickets },
+  { title: "商品管理", desc: "上下架商品和设置主推款", to: "/products", icon: Goods },
+  { title: "店铺配置", desc: "维护电话、微信和配送说明", to: "/settings/shop", icon: Setting },
+];
+
+const mobileOperationLinks = [
+  { title: "待确认", desc: "立即处理新订单", to: "/orders?status=pending", icon: Tickets, tone: "red" },
+  { title: "转人工", desc: "接待顾客咨询", to: "/transfers", icon: Service, tone: "green" },
+  { title: "上下架", desc: "快速调整商品", to: "/products", icon: Goods, tone: "blue" },
+  { title: "店铺配置", desc: "电话与配送说明", to: "/settings/shop", icon: Setting, tone: "orange" },
 ];
 
 onMounted(loadOverview);
@@ -45,16 +60,15 @@ onMounted(loadOverview);
 
 <template>
   <section class="overview-page">
-    <!-- Hero -->
     <el-card shadow="never" class="overview-page__hero" v-loading="loading">
       <div class="hero-left">
-        <span class="hero-eyebrow">Yunxi Admin v2</span>
-        <h2>运营概览</h2>
-        <p>商品 · AI 内容 · 转人工 · 异常事件一屏掌握</p>
+        <span class="hero-eyebrow">Yunxi Store MVP</span>
+        <h2>商城经营台</h2>
+        <p>订单 · 商品 · 装修 · 客服待处理一屏掌握</p>
       </div>
       <div class="hero-right">
         <el-tag :type="healthType" size="large" effect="dark" class="health-tag">
-          <span class="health-dot" :class="`health-dot--${healthType}`" />
+          <span class="health-dot" />
           {{ healthLabel }}
         </el-tag>
         <div class="hero-refresh">
@@ -67,68 +81,133 @@ onMounted(loadOverview);
       </div>
     </el-card>
 
-    <!-- 加载失败提示 -->
     <el-alert v-if="errorMessage" type="warning" show-icon :closable="false" :title="errorMessage" />
 
-    <!-- 指标卡 -->
-    <div class="metrics-grid">
-      <router-link to="/products" class="metric-card metric-card--blue">
-        <div class="metric-card__header">
-          <span class="metric-card__label">商品总数</span>
-          <span class="metric-icon metric-icon--blue"><el-icon size="18"><Goods /></el-icon></span>
-        </div>
-        <strong class="metric-card__value">{{ productTotal }}</strong>
-        <span class="metric-card__cta">查看商品 →</span>
-      </router-link>
-
-      <router-link to="/observability/sessions" class="metric-card metric-card--green">
-        <div class="metric-card__header">
-          <span class="metric-card__label">AI 可读内容</span>
-          <span class="metric-icon metric-icon--green"><el-icon size="18"><Document /></el-icon></span>
-        </div>
-        <strong class="metric-card__value">{{ currentContentTotal }}</strong>
-        <span class="metric-card__cta">查看观察台 →</span>
-      </router-link>
-
+    <div class="mobile-ops" data-testid="overview-mobile-ops">
       <router-link
-        to="/transfers"
-        class="metric-card"
-        :class="pendingTransferCount > 0 ? 'metric-card--orange' : 'metric-card--neutral'"
+        v-for="link in mobileOperationLinks"
+        :key="link.to"
+        class="mobile-op"
+        :class="`mobile-op--${link.tone}`"
+        :to="link.to"
+        :data-testid="`overview-mobile-op-${link.tone}`"
       >
-        <div class="metric-card__header">
-          <span class="metric-card__label">待处理转人工</span>
-          <span
-            class="metric-icon"
-            :class="pendingTransferCount > 0 ? 'metric-icon--orange' : 'metric-icon--neutral'"
-          >
-            <el-icon size="18"><Service /></el-icon>
-          </span>
-        </div>
-        <strong class="metric-card__value" :class="{ 'is-orange': pendingTransferCount > 0 }">
-          {{ pendingTransferCount }}
-        </strong>
-        <span class="metric-card__cta">处理会话 →</span>
-      </router-link>
-
-      <router-link to="/settings/shop" class="metric-card metric-card--purple">
-        <div class="metric-card__header">
-          <span class="metric-card__label">配置已就绪</span>
-          <span class="metric-icon metric-icon--purple"><el-icon size="18"><Setting /></el-icon></span>
-        </div>
-        <strong class="metric-card__value">
-          {{ configuredSettingCount }}<small>/6</small>
-        </strong>
-        <span class="metric-card__cta">巡检配置 →</span>
+        <span class="mobile-op__icon">
+          <el-icon size="18"><component :is="link.icon" /></el-icon>
+        </span>
+        <span class="mobile-op__body">
+          <strong>{{ link.title }}</strong>
+          <small>{{ link.desc }}</small>
+        </span>
       </router-link>
     </div>
 
-    <!-- 异常入口 + 失败快照 -->
+    <div class="metrics-grid">
+      <router-link to="/orders" class="metric-card metric-card--orange">
+        <div class="metric-card__header">
+          <span class="metric-card__label">小程序订单</span>
+          <span class="metric-icon metric-icon--orange"><el-icon size="18"><Tickets /></el-icon></span>
+        </div>
+        <strong class="metric-card__value">{{ orderTotal }}</strong>
+        <span class="metric-card__cta">{{ orderAmountText }} · 查看订单 →</span>
+      </router-link>
+
+      <router-link to="/orders?status=pending" class="metric-card metric-card--red">
+        <div class="metric-card__header">
+          <span class="metric-card__label">待确认订单</span>
+          <span class="metric-icon metric-icon--red"><el-icon size="18"><WarningFilled /></el-icon></span>
+        </div>
+        <strong class="metric-card__value" :class="{ 'is-danger': pendingOrderCount > 0 }">
+          {{ pendingOrderCount }}
+        </strong>
+        <span class="metric-card__cta">马上处理 →</span>
+      </router-link>
+
+      <router-link to="/products" class="metric-card metric-card--blue">
+        <div class="metric-card__header">
+          <span class="metric-card__label">商品池</span>
+          <span class="metric-icon metric-icon--blue"><el-icon size="18"><Goods /></el-icon></span>
+        </div>
+        <strong class="metric-card__value">{{ productTotal }}</strong>
+        <span class="metric-card__cta">在售 {{ activeProductTotal }} · 下架 {{ inactiveProductTotal }}</span>
+      </router-link>
+
+      <router-link to="/transfers" class="metric-card metric-card--green">
+        <div class="metric-card__header">
+          <span class="metric-card__label">待处理客服</span>
+          <span class="metric-icon metric-icon--green"><el-icon size="18"><Service /></el-icon></span>
+        </div>
+        <strong class="metric-card__value">{{ pendingTransferCount }}</strong>
+        <span class="metric-card__cta">接待会话 →</span>
+      </router-link>
+    </div>
+
     <div class="overview-grid">
       <el-card shadow="never">
         <template #header>
           <div class="section-title">
-            <strong>异常入口</strong>
-            <router-link to="/observability/failures">全部失败排查 →</router-link>
+            <strong>最近订单</strong>
+            <router-link to="/orders">全部订单 →</router-link>
+          </div>
+        </template>
+        <div v-if="recentOrders.length" class="order-list">
+          <router-link
+            v-for="order in recentOrders"
+            :key="order.id"
+            class="order-item"
+            :to="`/orders?keyword=${encodeURIComponent(order.id)}`"
+          >
+            <div>
+              <strong>{{ order.itemTitle || "未命名商品" }}</strong>
+              <span>{{ order.receiverName || "未填写" }} · {{ order.expectTime || "时间待确认" }}</span>
+            </div>
+            <div class="order-item__right">
+              <el-tag size="small" effect="light">{{ order.statusText }}</el-tag>
+              <strong>{{ order.totalText }}</strong>
+            </div>
+          </router-link>
+        </div>
+        <el-empty v-else description="暂无小程序订单" :image-size="80" />
+      </el-card>
+
+      <el-card shadow="never">
+        <template #header>
+          <div class="section-title">
+            <strong>上线检查</strong>
+            <router-link to="/settings/shop">配置详情 →</router-link>
+          </div>
+        </template>
+        <div class="readiness-list">
+          <div class="readiness-item">
+            <span>首页装修</span>
+            <strong>{{ decorationStatusText }}</strong>
+            <small>{{ decorationUpdatedAt || "未记录发布时间" }}</small>
+          </div>
+          <div class="readiness-item">
+            <span>渠道配置</span>
+            <strong>{{ configuredSettingCount }}/6</strong>
+            <small>有赞、企微和管理 Token 状态</small>
+          </div>
+          <div class="readiness-item">
+            <span>数据异常</span>
+            <strong>{{ failedHistoryTotal + failedWebhookTotal + slowWebhookTotal }}</strong>
+            <small>失败或慢处理事件</small>
+          </div>
+          <div class="readiness-item">
+            <span>Webhook 队列</span>
+            <strong>{{ processingWebhookTotal }}</strong>
+            <small>处理中事件</small>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <div class="overview-grid">
+      <el-card shadow="never">
+        <template #header>
+          <div class="section-title">
+            <strong>待办提醒</strong>
+            <router-link to="/observability/failures">失败排查 →</router-link>
           </div>
         </template>
         <div class="issues-list">
@@ -152,101 +231,49 @@ onMounted(loadOverview);
       </el-card>
 
       <el-card shadow="never">
-        <template #header>
-          <div class="section-title">
-            <strong>失败快照</strong>
-            <el-tag
-              v-if="failedHistoryTotal + failedWebhookTotal + slowWebhookTotal > 0"
-              type="danger"
-              size="small"
-              effect="dark"
-              round
-            >
-              {{ failedHistoryTotal + failedWebhookTotal + slowWebhookTotal }} 条待排查
-            </el-tag>
-          </div>
-        </template>
-        <div class="snapshot-grid">
-          <div class="snapshot-item">
-            <span>回写失败</span>
-            <div class="snapshot-count">
-              <el-icon v-if="failedHistoryTotal > 0" size="16" class="snapshot-warn-icon"><WarningFilled /></el-icon>
-              <strong :class="{ 'is-danger': failedHistoryTotal > 0 }">{{ failedHistoryTotal }}</strong>
+        <template #header><strong>快捷入口</strong></template>
+        <div class="quick-links">
+          <router-link v-for="link in quickLinks" :key="link.to" class="quick-link" :to="link.to">
+            <span class="quick-link__icon">
+              <el-icon size="20"><component :is="link.icon" /></el-icon>
+            </span>
+            <div class="quick-link__body">
+              <strong>{{ link.title }}</strong>
+              <span>{{ link.desc }}</span>
             </div>
-            <router-link
-              class="snapshot-action"
-              :class="{ 'snapshot-action--danger': failedHistoryTotal > 0 }"
-              to="/observability/failures?tab=history"
-            >立即排查 →</router-link>
-          </div>
-          <div class="snapshot-item">
-            <span>Webhook 失败</span>
-            <div class="snapshot-count">
-              <el-icon v-if="failedWebhookTotal > 0" size="16" class="snapshot-warn-icon"><WarningFilled /></el-icon>
-              <strong :class="{ 'is-danger': failedWebhookTotal > 0 }">{{ failedWebhookTotal }}</strong>
+          </router-link>
+          <router-link class="quick-link" to="/ai-dialog">
+            <span class="quick-link__icon">
+              <el-icon size="20"><ChatDotRound /></el-icon>
+            </span>
+            <div class="quick-link__body">
+              <strong>AI 对话</strong>
+              <span>验证客服回复和知识命中</span>
             </div>
-            <router-link
-              class="snapshot-action"
-              :class="{ 'snapshot-action--danger': failedWebhookTotal > 0 }"
-              to="/observability/failures?tab=webhooks"
-            >立即排查 →</router-link>
-          </div>
-          <div class="snapshot-item">
-            <span>慢 Webhook</span>
-            <div class="snapshot-count">
-              <el-icon v-if="slowWebhookTotal > 0" size="16" class="snapshot-warn-icon"><WarningFilled /></el-icon>
-              <strong :class="{ 'is-danger': slowWebhookTotal > 0 }">{{ slowWebhookTotal }}</strong>
+          </router-link>
+          <router-link class="quick-link" to="/observability/sessions">
+            <span class="quick-link__icon">
+              <el-icon size="20"><Histogram /></el-icon>
+            </span>
+            <div class="quick-link__body">
+              <strong>数据观察台</strong>
+              <span>查看回写、Webhook 和同步状态</span>
             </div>
-            <router-link
-              class="snapshot-action"
-              :class="{ 'snapshot-action--danger': slowWebhookTotal > 0 }"
-              to="/observability/sessions?tab=webhooks"
-            >查看耗时 →</router-link>
-          </div>
-          <div class="snapshot-item">
-            <span>Webhook 处理中</span>
-            <div class="snapshot-count">
-              <strong>{{ processingWebhookTotal }}</strong>
-            </div>
-            <router-link
-              class="snapshot-action"
-              to="/observability/sessions?tab=webhooks&webhookStatus=processing"
-            >查看队列 →</router-link>
-          </div>
+          </router-link>
         </div>
       </el-card>
     </div>
-
-    <!-- 快捷入口 -->
-    <el-card shadow="never">
-      <template #header><strong>快捷入口</strong></template>
-      <div class="quick-links">
-        <router-link v-for="link in quickLinks" :key="link.to" class="quick-link" :to="link.to">
-          <span class="quick-link__icon">
-            <el-icon size="20"><component :is="link.icon" /></el-icon>
-          </span>
-          <div class="quick-link__body">
-            <strong>{{ link.title }}</strong>
-            <span>{{ link.desc }}</span>
-          </div>
-        </router-link>
-      </div>
-    </el-card>
   </section>
 </template>
 
 <style scoped>
-/* ── 整体布局 ─────────────────────────────────── */
 .overview-page {
   display: grid;
   gap: 16px;
 }
 
-/* ── Hero ────────────────────────────────────── */
 .overview-page__hero {
-  background:
-    radial-gradient(circle at 12% 20%, rgba(255, 120, 72, 0.18), transparent 28%),
-    linear-gradient(135deg, #fff7ee 0%, #ffffff 48%, #eef6ff 100%);
+  background: linear-gradient(135deg, #fff7ee 0%, #ffffff 52%, #eef6ff 100%);
 }
 
 .overview-page__hero :deep(.el-card__body) {
@@ -260,7 +287,7 @@ onMounted(loadOverview);
   color: var(--yx-brand);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -283,7 +310,9 @@ onMounted(loadOverview);
   flex-shrink: 0;
 }
 
-.health-tag {
+.health-tag,
+.hero-refresh,
+.refresh-time {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -294,76 +323,101 @@ onMounted(loadOverview);
   height: 7px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.9;
-  animation: blink 2.4s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.3; }
-}
-
-.hero-refresh {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .refresh-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   font-size: 12px;
   color: var(--yx-text-muted);
 }
 
-/* ── 指标卡 ──────────────────────────────────── */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
+.mobile-ops {
+  display: none;
+}
+
+.mobile-op {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--yx-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--yx-text);
+  text-decoration: none;
+}
+
+.mobile-op__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.mobile-op__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mobile-op__body strong,
+.mobile-op__body small {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mobile-op__body small {
+  color: var(--yx-text-muted);
+  font-size: 12px;
+}
+
+.mobile-op--red .mobile-op__icon { background: #fff1f2; color: #e11d48; }
+.mobile-op--green .mobile-op__icon { background: #ecfdf5; color: #10b981; }
+.mobile-op--blue .mobile-op__icon { background: #eff6ff; color: #3b82f6; }
+.mobile-op--orange .mobile-op__icon { background: #fff7ed; color: #f59e0b; }
+
 .metric-card {
-  position: relative;
   display: grid;
   gap: 6px;
   padding: 20px;
   background: #fff;
   border: 1px solid var(--yx-border);
-  border-radius: 14px;
-  text-decoration: none;
+  border-radius: 12px;
   color: var(--yx-text);
-  overflow: hidden;
+  text-decoration: none;
   transition: box-shadow 0.2s, transform 0.2s;
 }
-
-.metric-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  border-radius: 14px 14px 0 0;
-}
-
-.metric-card--blue::before   { background: #3b82f6; }
-.metric-card--green::before  { background: #10b981; }
-.metric-card--orange::before { background: #f59e0b; }
-.metric-card--purple::before { background: #8b5cf6; }
-.metric-card--neutral::before { background: var(--yx-border); }
 
 .metric-card:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
 }
 
-.metric-card__header {
+.metric-card__header,
+.section-title,
+.order-item,
+.readiness-item,
+.quick-link {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.metric-card__label {
+.metric-card__label,
+.order-item span,
+.readiness-item span,
+.readiness-item small,
+.quick-link__body span {
   font-size: 13px;
   color: var(--yx-text-muted);
 }
@@ -378,148 +432,105 @@ onMounted(loadOverview);
   flex-shrink: 0;
 }
 
-.metric-icon--blue   { background: #eff6ff; color: #3b82f6; }
-.metric-icon--green  { background: #ecfdf5; color: #10b981; }
 .metric-icon--orange { background: #fff7ed; color: #f59e0b; }
-.metric-icon--purple { background: #f5f3ff; color: #8b5cf6; }
-.metric-icon--neutral { background: var(--yx-bg); color: var(--yx-text-muted); }
+.metric-icon--red { background: #fff1f2; color: #e11d48; }
+.metric-icon--blue { background: #eff6ff; color: #3b82f6; }
+.metric-icon--green { background: #ecfdf5; color: #10b981; }
 
 .metric-card__value {
-  font-size: 36px;
-  font-weight: 700;
-  line-height: 1;
   margin: 6px 0 2px;
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 700;
 }
 
-.metric-card__value.is-orange { color: #f59e0b; }
-
-.metric-card__value small {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--yx-text-muted);
-  margin-left: 2px;
+.metric-card__value.is-danger {
+  color: #e11d48;
 }
 
-.metric-card__cta {
-  font-size: 12px;
-  color: var(--yx-brand);
-}
-
-/* ── 异常入口 + 失败快照 ──────────────────────── */
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
-  gap: 16px;
-}
-
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
+.metric-card__cta,
 .section-title a {
-  font-size: 13px;
   color: var(--yx-brand);
+  font-size: 12px;
   text-decoration: none;
 }
 
-.issues-list {
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 16px;
+}
+
+.order-list,
+.readiness-list,
+.issues-list,
+.quick-links {
   display: grid;
   gap: 10px;
 }
 
-.issue-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+.order-item,
+.issue-item,
+.quick-link {
   padding: 14px;
   border: 1px solid var(--yx-border);
-  border-left-width: 4px;
   border-radius: 10px;
-  text-decoration: none;
   color: var(--yx-text);
-  transition: background 0.15s;
+  text-decoration: none;
 }
 
-.issue-item:hover { background: var(--yx-bg); }
+.order-item > div:first-child,
+.quick-link__body,
+.issue-item__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.order-item__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.readiness-item {
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.readiness-item:last-child {
+  border-bottom: 0;
+}
+
+.readiness-item strong {
+  margin-left: auto;
+  color: var(--yx-text);
+}
+
+.readiness-item small {
+  width: 100%;
+  margin-left: 0;
+}
+
+.issue-item {
+  display: flex;
+  justify-content: flex-start;
+  border-left-width: 4px;
+}
 
 .issue-item--success { border-left-color: #10b981; }
 .issue-item--warning { border-left-color: #f59e0b; }
-.issue-item--danger  { border-left-color: #ef4444; }
-.issue-item--info    { border-left-color: var(--yx-border); }
+.issue-item--danger { border-left-color: #ef4444; }
+.issue-item--info { border-left-color: var(--yx-border); }
 
-.issue-item__icon { flex-shrink: 0; margin-top: 1px; }
-.issue-item--success .issue-item__icon { color: #10b981; }
-.issue-item--warning .issue-item__icon { color: #f59e0b; }
-.issue-item--danger  .issue-item__icon { color: #ef4444; }
-
-.issue-item__body { display: grid; gap: 3px; }
-.issue-item__body span { font-size: 13px; color: var(--yx-text-muted); }
-
-.snapshot-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.snapshot-item { display: grid; gap: 6px; }
-.snapshot-item span { font-size: 13px; color: var(--yx-text-muted); }
-
-.snapshot-count {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.snapshot-warn-icon { color: #ef4444; flex-shrink: 0; }
-
-.snapshot-count strong { font-size: 28px; font-weight: 700; }
-.snapshot-count strong.is-danger { color: #ef4444; }
-
-.snapshot-action {
-  display: inline-block;
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--yx-border);
-  background: var(--yx-bg);
-  color: var(--yx-text-muted);
-  text-decoration: none;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.snapshot-action--danger {
-  color: #ef4444;
-  border-color: #fecaca;
-  background: #fff5f5;
-}
-
-.snapshot-action--danger:hover { background: #fee2e2; }
-
-/* ── 快捷入口 ────────────────────────────────── */
-.quick-links {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+.issue-item__icon {
+  flex-shrink: 0;
 }
 
 .quick-link {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--yx-border);
-  border-radius: 12px;
-  text-decoration: none;
-  color: var(--yx-text);
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-
-.quick-link:hover {
-  background: var(--yx-brand-soft);
-  border-color: var(--yx-brand);
-  box-shadow: 0 4px 12px rgba(236, 111, 94, 0.12);
+  justify-content: flex-start;
 }
 
 .quick-link__icon {
@@ -532,18 +543,10 @@ onMounted(loadOverview);
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s;
 }
 
-.quick-link:hover .quick-link__icon { background: rgba(236, 111, 94, 0.2); }
-
-.quick-link__body { display: grid; gap: 2px; }
-.quick-link__body span { font-size: 12px; color: var(--yx-text-muted); }
-
-/* ── 响应式 ──────────────────────────────────── */
 @media (max-width: 1100px) {
-  .metrics-grid,
-  .quick-links {
+  .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -557,12 +560,22 @@ onMounted(loadOverview);
     flex-direction: column;
   }
 
-  .hero-right { align-items: flex-start; }
+  .hero-right {
+    align-items: flex-start;
+  }
 
-  .metrics-grid,
-  .quick-links,
-  .snapshot-grid {
+  .metrics-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-ops {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .mobile-op {
+    display: flex;
   }
 }
 </style>

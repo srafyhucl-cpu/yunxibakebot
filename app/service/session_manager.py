@@ -36,8 +36,9 @@ class SessionManager:
         self._session_repo = session_repo
         self._message_repo = message_repo
 
-    async def build_context(self, session_id: str,
-                            budget: int = CONVERSATION_TOKEN_BUDGET) -> list[dict]:
+    async def build_context(
+        self, session_id: str, budget: int = CONVERSATION_TOKEN_BUDGET
+    ) -> list[dict]:
         """
         构建 LLM 上下文（带滑动窗口）。
 
@@ -63,11 +64,13 @@ class SessionManager:
         result: list[dict] = []
         trimmed = len(all_messages) - len(selected)
         if trimmed > 0:
-            result.append({
-                "role": "system",
-                "content": f"(以下为最近 {len(selected)} 条消息之外的 "
-                           f"{trimmed} 条历史已被截断)",
-            })
+            result.append(
+                {
+                    "role": "system",
+                    "content": f"(以下为最近 {len(selected)} 条消息之外的 "
+                    f"{trimmed} 条历史已被截断)",
+                }
+            )
 
         result.extend({"role": msg.role, "content": msg.content} for msg in selected)
         return result

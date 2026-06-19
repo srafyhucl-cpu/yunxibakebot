@@ -12,7 +12,9 @@ from app.config import settings
 
 def _get_route_endpoint(router, path: str, method: str):
     for route in router.routes:
-        if getattr(route, "path", "") == path and method in getattr(route, "methods", set()):
+        if getattr(route, "path", "") == path and method in getattr(
+            route, "methods", set()
+        ):
             return route.endpoint
     raise AssertionError(f"Route not found: {method} {path}")
 
@@ -117,7 +119,9 @@ async def test_admin_route_returns_notice_when_dist_missing(
 ) -> None:
     missing_dist = tmp_path / "missing-dist"
     monkeypatch.setattr("app.api.admin_frontend.FRONTEND_DIST_DIR", missing_dist)
-    monkeypatch.setattr("app.api.admin_frontend.FRONTEND_INDEX_FILE", missing_dist / "index.html")
+    monkeypatch.setattr(
+        "app.api.admin_frontend.FRONTEND_INDEX_FILE", missing_dist / "index.html"
+    )
 
     router = create_admin_frontend_router()
     endpoint = _get_route_endpoint(router, "/admin", "GET")

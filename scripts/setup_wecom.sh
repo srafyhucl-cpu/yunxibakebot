@@ -14,16 +14,22 @@ PROJECT_DIR="/opt/yunxibakebot"
 echo "==== 1. 更新 .env 企微配置 ===="
 cd "$PROJECT_DIR"
 
-# 写入 TOKEN 和 AESKey（如果尚未配置）
+if [ -z "${WECOM_TOKEN:-}" ] || [ -z "${WECOM_ENCODING_AES_KEY:-}" ]; then
+    echo "请先通过环境变量提供 WECOM_TOKEN 和 WECOM_ENCODING_AES_KEY，再执行本脚本。"
+    echo "示例：WECOM_TOKEN='<token>' WECOM_ENCODING_AES_KEY='<aes-key>' bash setup_wecom.sh"
+    exit 1
+fi
+
+# 写入 Token 和 AESKey（如果尚未配置），不在终端回显敏感值。
 if grep -q '^WECOM_TOKEN=$' .env 2>/dev/null; then
-    sed -i "s/^WECOM_TOKEN=.*/WECOM_TOKEN=AIdH2j4QttfIvJcCrdDG/" .env
+    sed -i "s|^WECOM_TOKEN=.*|WECOM_TOKEN=${WECOM_TOKEN}|" .env
     echo "✓ WECOM_TOKEN 已写入 .env"
 else
     echo "⚠ WECOM_TOKEN 已存在，跳过"
 fi
 
 if grep -q '^WECOM_ENCODING_AES_KEY=$' .env 2>/dev/null; then
-    sed -i "s|^WECOM_ENCODING_AES_KEY=.*|WECOM_ENCODING_AES_KEY=MHyGeFISanfhz5sWiLDcHblE+ldp8aANnK9czp6KNGA=|" .env
+    sed -i "s|^WECOM_ENCODING_AES_KEY=.*|WECOM_ENCODING_AES_KEY=${WECOM_ENCODING_AES_KEY}|" .env
     echo "✓ WECOM_ENCODING_AES_KEY 已写入 .env"
 else
     echo "⚠ WECOM_ENCODING_AES_KEY 已存在，跳过"
@@ -85,7 +91,7 @@ nginx -t && systemctl reload nginx
 
 # 申请证书
 if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
-    certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --email admin@hclstudio.cn
+    certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --email admin@yunxifood.cn
     echo "✓ SSL 证书已签发"
 else
     echo "⚠ SSL 证书已存在，跳过签发"
@@ -111,8 +117,8 @@ echo "============================================"
 echo "  企微回调接入配置完成！"
 echo ""
 echo "  回调 URL:  https://${DOMAIN}/api/v1/wecom/callback"
-echo "  Token:     AIdH2j4QttfIvJcCrdDG"
-echo "  AESKey:    MHyGeFISanfhz5sWiLDcHblE+ldp8aANnK9czp6KNGA="
+echo "  Token:     请使用本次传入的 WECOM_TOKEN"
+echo "  AESKey:    请使用本次传入的 WECOM_ENCODING_AES_KEY"
 echo ""
 echo "  下一步：登录企业微信管理后台 → 应用管理"
 echo "  → 选择应用 → 接收消息 → 设置API接收"

@@ -34,12 +34,16 @@ class KnowledgeRepo(BaseRepository):
     async def get_by_category(self, category: str) -> list[KnowledgeEntry]:
         """按检索分类获取启用中的知识条目。"""
         rows = await self._db.execute_fetchall(
-            ENTRY_SELECT_SQL + "WHERE category = ? AND is_active = 1 " + "ORDER BY priority DESC",
+            ENTRY_SELECT_SQL
+            + "WHERE category = ? AND is_active = 1 "
+            + "ORDER BY priority DESC",
             (category,),
         )
         return [KnowledgeEntry(**dict(row)) for row in rows]
 
-    async def get_by_titles(self, titles: list[str], limit: int = 8) -> list[KnowledgeEntry]:
+    async def get_by_titles(
+        self, titles: list[str], limit: int = 8
+    ) -> list[KnowledgeEntry]:
         """根据标题批量获取知识条目。"""
         if not titles:
             return []
@@ -52,7 +56,9 @@ class KnowledgeRepo(BaseRepository):
         )
         return [KnowledgeEntry(**dict(row)) for row in rows]
 
-    async def get_by_youzan_item_ids(self, keys: list[str], limit: int = 8) -> list[KnowledgeEntry]:
+    async def get_by_youzan_item_ids(
+        self, keys: list[str], limit: int = 8
+    ) -> list[KnowledgeEntry]:
         """根据有赞商品 ID 或本地知识 ID 批量获取知识条目。"""
         if not keys:
             return []
@@ -112,7 +118,9 @@ class KnowledgeRepo(BaseRepository):
 
     async def count_all(self) -> int:
         """返回知识库总条目数。"""
-        rows = await self._db.execute_fetchall("SELECT COUNT(*) AS c FROM knowledge_base")
+        rows = await self._db.execute_fetchall(
+            "SELECT COUNT(*) AS c FROM knowledge_base"
+        )
         return int(rows[0]["c"]) if rows else 0
 
     async def list_current_entries(
@@ -141,7 +149,9 @@ class KnowledgeRepo(BaseRepository):
         )
         return [KnowledgeEntry(**dict(row)) for row in rows]
 
-    async def count_current_entries(self, *, category: str = "", keyword: str = "") -> int:
+    async def count_current_entries(
+        self, *, category: str = "", keyword: str = ""
+    ) -> int:
         """返回观察台当前知识总数。"""
         clauses = ["1 = 1"]
         params: list[object] = []
@@ -152,9 +162,9 @@ class KnowledgeRepo(BaseRepository):
             like = f"%{keyword}%"
             clauses.append("(title LIKE ? OR content LIKE ? OR keywords LIKE ?)")
             params.extend([like, like, like])
+        where_sql = " AND ".join(clauses)
         rows = await self._db.execute_fetchall(
-            "SELECT COUNT(*) AS c FROM knowledge_base "
-            f"WHERE {' AND '.join(clauses)}",
+            "SELECT COUNT(*) AS c FROM knowledge_base WHERE " + where_sql,
             tuple(params),
         )
         return int(rows[0]["c"]) if rows else 0
@@ -246,8 +256,7 @@ class KnowledgeRepo(BaseRepository):
     async def get_pending_sync_entries(self, limit: int = 500) -> list[KnowledgeEntry]:
         """获取所有待同步（pending/failed）的知识条目，跨所有分类和类型。"""
         rows = await self._db.execute_fetchall(
-            ENTRY_SELECT_SQL
-            + "WHERE vector_sync_status IN ('pending', 'failed') "
+            ENTRY_SELECT_SQL + "WHERE vector_sync_status IN ('pending', 'failed') "
             "ORDER BY updated_at ASC LIMIT ?",
             (limit,),
         )

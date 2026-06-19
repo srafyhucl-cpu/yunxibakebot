@@ -40,6 +40,11 @@ function updateVisible(value: boolean) {
 function updateReplyDraft(value: string) {
   emit("update:replyDraft", value);
 }
+
+function handleReplyInput(event: Event) {
+  const target = event.target as HTMLTextAreaElement | null;
+  updateReplyDraft(target?.value || "");
+}
 </script>
 
 <template>
@@ -50,7 +55,7 @@ function updateReplyDraft(value: string) {
     destroy-on-close
     @update:model-value="updateVisible"
   >
-    <div v-if="transfer" class="transfer-detail">
+    <div v-if="transfer" class="transfer-detail" data-testid="transfer-detail-drawer">
       <el-card shadow="never" class="transfer-detail__summary">
         <div class="transfer-detail__summary-grid">
           <div>
@@ -82,6 +87,7 @@ function updateReplyDraft(value: string) {
             plain
             :loading="isCurrentActionLoading && transfer.status === 'pending'"
             :disabled="transfer.status !== 'pending'"
+            data-testid="transfer-detail-accept"
             @click="$emit('accept')"
           >
             接单
@@ -90,6 +96,7 @@ function updateReplyDraft(value: string) {
             type="danger"
             plain
             :loading="isCurrentActionLoading && transfer.status !== 'pending'"
+            data-testid="transfer-detail-close"
             @click="$emit('close')"
           >
             关闭
@@ -138,18 +145,24 @@ function updateReplyDraft(value: string) {
         </template>
 
         <div class="transfer-detail__reply-body">
-          <el-input
-            :model-value="replyDraft"
-            type="textarea"
-            :autosize="{ minRows: 3, maxRows: 6 }"
-            resize="none"
+          <textarea
+            :value="replyDraft"
+            class="transfer-detail__reply-textarea"
             placeholder="输入人工回复内容"
-            @update:model-value="updateReplyDraft"
+            data-testid="transfer-detail-reply-input"
+            rows="4"
+            @input="handleReplyInput"
             @keydown.enter.exact.prevent="$emit('send-reply')"
           />
           <div class="transfer-detail__reply-footer">
             <span>Enter 发送，Shift + Enter 换行</span>
-            <el-button type="primary" :loading="replySending" @click="$emit('send-reply')">
+            <el-button
+              type="primary"
+              :loading="replySending"
+              :disabled="!replyDraft.trim()"
+              data-testid="transfer-detail-send-reply"
+              @click="$emit('send-reply')"
+            >
               发送回复
             </el-button>
           </div>
@@ -249,6 +262,25 @@ function updateReplyDraft(value: string) {
 .transfer-detail__reply-body {
   display: grid;
   gap: 10px;
+}
+
+.transfer-detail__reply-textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  color: var(--yx-text);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.transfer-detail__reply-textarea:focus {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-9);
 }
 
 .transfer-detail__reply-footer {

@@ -29,7 +29,7 @@ const pageIntro = computed(() => {
   if (props.panel === "channel") {
     return "只展示有赞和企微关键项是否已配置，敏感密钥不会在后台明文回显。";
   }
-  return "展示管理后台和 DeepSeek 接入状态，密钥仅显示配置状态，不展示具体值。";
+  return "展示管理后台和 MiMo 接入状态，密钥仅显示配置状态，不展示具体值。";
 });
 
 const configuredCount = computed(() => {
@@ -44,7 +44,6 @@ const configuredCount = computed(() => {
       summary.value.channels.youzan.clientIdConfigured,
       summary.value.channels.youzan.clientSecretConfigured,
       summary.value.channels.youzan.kdtIdConfigured,
-      summary.value.channels.youzan.webhookTokenConfigured,
       summary.value.channels.wecom.corpIdConfigured,
       summary.value.channels.wecom.agentIdConfigured,
       summary.value.channels.wecom.secretConfigured,
@@ -55,7 +54,7 @@ const configuredCount = computed(() => {
     ];
     return flags.filter(Boolean).length;
   }
-  return [summary.value.api.adminTokenConfigured, summary.value.api.deepseekApiKeyConfigured].filter(Boolean).length;
+  return [summary.value.api.adminTokenConfigured, summary.value.api.mimoApiKeyConfigured].filter(Boolean).length;
 });
 
 async function loadSummary() {
@@ -136,7 +135,6 @@ onMounted(loadSummary);
               <span>Client ID <el-tag :type="statusType(summary.channels.youzan.clientIdConfigured)">{{ statusText(summary.channels.youzan.clientIdConfigured) }}</el-tag></span>
               <span>Client Secret <el-tag :type="statusType(summary.channels.youzan.clientSecretConfigured)">{{ statusText(summary.channels.youzan.clientSecretConfigured) }}</el-tag></span>
               <span>KDT ID <el-tag :type="statusType(summary.channels.youzan.kdtIdConfigured)">{{ statusText(summary.channels.youzan.kdtIdConfigured) }}</el-tag></span>
-              <span>Webhook Token <el-tag :type="statusType(summary.channels.youzan.webhookTokenConfigured)">{{ statusText(summary.channels.youzan.webhookTokenConfigured) }}</el-tag></span>
               <span>仿真模式 <el-tag :type="summary.channels.youzan.mockMode ? 'warning' : 'success'">{{ summary.channels.youzan.mockMode ? "开启" : "关闭" }}</el-tag></span>
             </div>
           </el-card>
@@ -161,12 +159,13 @@ onMounted(loadSummary);
           <el-descriptions-item label="管理员 Token">
             <el-tag :type="statusType(summary.api.adminTokenConfigured)">{{ statusText(summary.api.adminTokenConfigured) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="DeepSeek API Key">
-            <el-tag :type="statusType(summary.api.deepseekApiKeyConfigured)">{{ statusText(summary.api.deepseekApiKeyConfigured) }}</el-tag>
+          <el-descriptions-item label="MiMo API Key">
+            <el-tag :type="statusType(summary.api.mimoApiKeyConfigured)">{{ statusText(summary.api.mimoApiKeyConfigured) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="DeepSeek 模型">{{ summary.api.deepseekModel }}</el-descriptions-item>
-          <el-descriptions-item label="超时时间">{{ summary.api.deepseekTimeoutSeconds }} 秒</el-descriptions-item>
-          <el-descriptions-item label="Base URL">{{ summary.api.deepseekBaseUrl }}</el-descriptions-item>
+          <el-descriptions-item label="对话模型">{{ summary.api.mimoChatModel }}</el-descriptions-item>
+          <el-descriptions-item label="视觉模型">{{ summary.api.mimoVisionModel }}</el-descriptions-item>
+          <el-descriptions-item label="语音模型">{{ summary.api.mimoAsrModel }}</el-descriptions-item>
+          <el-descriptions-item label="Base URL">{{ summary.api.mimoBaseUrl }}</el-descriptions-item>
         </el-descriptions>
       </template>
     </el-card>

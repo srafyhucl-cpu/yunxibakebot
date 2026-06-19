@@ -36,7 +36,9 @@ class KnowledgeAdminRepo(BaseRepository):
             params.append(content_type)
         if keyword:
             like = f"%{keyword}%"
-            clauses.append("(title LIKE ? OR content LIKE ? OR keywords LIKE ? OR vector_sync_error LIKE ?)")
+            clauses.append(
+                "(title LIKE ? OR content LIKE ? OR keywords LIKE ? OR vector_sync_error LIKE ?)"
+            )
             params.extend([like, like, like, like])
         if is_active in {"0", "1"}:
             clauses.append("is_active = ?")
@@ -68,7 +70,9 @@ class KnowledgeAdminRepo(BaseRepository):
             params.append(content_type)
         if keyword:
             like = f"%{keyword}%"
-            clauses.append("(title LIKE ? OR content LIKE ? OR keywords LIKE ? OR vector_sync_error LIKE ?)")
+            clauses.append(
+                "(title LIKE ? OR content LIKE ? OR keywords LIKE ? OR vector_sync_error LIKE ?)"
+            )
             params.extend([like, like, like, like])
         if is_active in {"0", "1"}:
             clauses.append("is_active = ?")
@@ -76,9 +80,9 @@ class KnowledgeAdminRepo(BaseRepository):
         if vector_status:
             clauses.append("vector_sync_status = ?")
             params.append(vector_status)
+        where_sql = " AND ".join(clauses)
         rows = await self._db.execute_fetchall(
-            "SELECT COUNT(*) AS c FROM knowledge_base "
-            f"WHERE {' AND '.join(clauses)}",
+            "SELECT COUNT(*) AS c FROM knowledge_base WHERE " + where_sql,
             tuple(params),
         )
         return int(rows[0]["c"]) if rows else 0

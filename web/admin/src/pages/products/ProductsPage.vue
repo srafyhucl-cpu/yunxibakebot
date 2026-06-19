@@ -63,7 +63,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="products-page">
+  <section class="products-page" data-testid="products-page">
     <!-- 单卡片占满整页 -->
     <el-card shadow="never" class="products-page__card">
       <!-- 卡片头：标题 + 统计快捷切换 Tab + 总条数 -->
@@ -76,6 +76,7 @@ onUnmounted(() => {
                 class="products-page__stat-tab"
                 :class="{ 'is-active': filterActive === 'all' }"
                 type="button"
+                data-testid="products-filter-all"
                 @click="filterActive = 'all'; submitSearch()"
               >
                 全部商品&nbsp;<strong>{{ totalActive + totalInactive }}</strong>
@@ -84,6 +85,7 @@ onUnmounted(() => {
                 class="products-page__stat-tab products-page__stat-tab--success"
                 :class="{ 'is-active': filterActive === '1' }"
                 type="button"
+                data-testid="products-filter-active"
                 @click="filterActive = '1'; submitSearch()"
               >
                 在售中&nbsp;<strong>{{ totalActive }}</strong>
@@ -92,6 +94,7 @@ onUnmounted(() => {
                 class="products-page__stat-tab products-page__stat-tab--warning"
                 :class="{ 'is-active': filterActive === '0' }"
                 type="button"
+                data-testid="products-filter-inactive"
                 @click="filterActive = '0'; submitSearch()"
               >
                 已下架&nbsp;<strong>{{ totalInactive }}</strong>
@@ -110,6 +113,7 @@ onUnmounted(() => {
             placeholder="搜索商品标题"
             clearable
             class="products-page__search"
+            data-testid="products-search-input"
             @keyup.enter="submitSearch"
           >
             <template #prefix>
@@ -161,10 +165,10 @@ onUnmounted(() => {
         </div>
 
         <div class="products-page__toolbar-right">
-          <el-button type="primary" :icon="Search" @click="submitSearch">
+          <el-button type="primary" :icon="Search" data-testid="products-search-submit" @click="submitSearch">
             筛选
           </el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button data-testid="products-reset-filters" @click="resetFilters">重置</el-button>
           <el-button
             type="warning"
             :loading="reconciling"
@@ -185,6 +189,7 @@ onUnmounted(() => {
           border
           :height="tableHeight"
           class="products-page__table"
+          data-testid="products-table"
           :default-sort="
             route.query.sort_by
               ? {
@@ -211,6 +216,7 @@ onUnmounted(() => {
               <button
                 class="products-page__title-btn"
                 type="button"
+                :data-testid="`products-row-title-${row.youzanItemId || row.id}`"
                 @click="openDetail(row)"
               >
                 {{ row.title || '（无标题）' }}
@@ -343,6 +349,7 @@ onUnmounted(() => {
                   :type="row.isActive ? 'warning' : 'success'"
                   plain
                   size="small"
+                  :data-testid="`products-toggle-active-${row.youzanItemId || row.id}`"
                   @click="toggleProduct(row)"
                 >
                   {{ row.isActive ? '下架' : '上架' }}
@@ -362,6 +369,7 @@ onUnmounted(() => {
             :key="row.id"
             class="products-page__card-item"
             type="button"
+            :data-testid="`products-mobile-row-${row.youzanItemId || row.id}`"
             @click="openDetail(row)"
           >
             <div class="products-page__card-top">

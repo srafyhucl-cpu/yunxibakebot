@@ -1,9 +1,13 @@
 import { computed, ref } from "vue";
 
 import { observabilityService } from "@/services/observability";
+import { ordersService } from "@/services/orders";
 import { productsService } from "@/services/products";
 import { settingsService } from "@/services/settings";
+import { shopPagesService } from "@/services/shopPages";
 import { transfersService } from "@/services/transfers";
+import { orderStatusLabel } from "@/constants/orderStatus";
+import type { OrderListItem } from "@/types/order";
 
 interface OverviewRecentIssue {
   title: string;
@@ -19,59 +23,74 @@ export function useOverviewPage() {
   const errorMessage = ref("");
   const lastRefreshedAt = ref("");
   const productTotal = ref(0);
-  const currentContentTotal = ref(0);
+  const activeProductTotal = ref(0);
+  const inactiveProductTotal = ref(0);
+  const orderTotal = ref(0);
+  const pendingOrderCount = ref(0);
+  const orderAmountText = ref("¥0.00");
   const pendingTransferCount = ref(0);
   const failedHistoryTotal = ref(0);
   const failedWebhookTotal = ref(0);
   const slowWebhookTotal = ref(0);
   const processingWebhookTotal = ref(0);
   const configuredSettingCount = ref(0);
+  const decorationStatusText = ref("未发布");
+  const decorationUpdatedAt = ref("");
+  const recentOrders = ref<Array<OrderListItem & { statusText: string; totalText: string }>>([]);
   const recentIssues = ref<OverviewRecentIssue[]>([]);
 
   const hasFailures = computed(
     () => failedHistoryTotal.value + failedWebhookTotal.value + slowWebhookTotal.value > 0,
   );
+
   const healthLabel = computed(() => {
-    if (errorMessage.value) {
-      return "需要检查";
-    }
-    if (hasFailures.value || pendingTransferCount.value > 0) {
+    if (errorMessage.value) return "需要检查";
+    if (pendingOrderCount.value > 0 || pendingTransferCount.value > 0 || hasFailures.value) {
       return "有待处理";
     }
-    return "运行平稳";
+    return "运营平稳";
   });
 
   const healthType = computed<"success" | "warning" | "danger">(() => {
-    if (errorMessage.value) {
-      return "danger";
-    }
-    return hasFailures.value || pendingTransferCount.value > 0 ? "warning" : "success";
+    if (errorMessage.value) return "danger";
+    return pendingOrderCount.value > 0 || pendingTransferCount.value > 0 || hasFailures.value
+      ? "warning"
+      : "success";
   });
 
   async function loadOverview() {
     loading.value = true;
     errorMessage.value = "";
 
-    const [products, currentContent, transfers, observabilitySummary, settings] =
+    const [orders, pendingOrders, products, transfers, observabilitySummary, settings, homePage] =
       await Promise.allSettled([
-        productsService.listProducts(FIRST_PAGE, ""),
-        observabilityService.listCurrent({
-          page: FIRST_PAGE,
-          view: "knowledge",
-          category: "",
-          keyword: "",
-          productStatus: "",
-        }),
+        ordersService.listOrders(FIRST_PAGE),
+        ordersService.listOrders(FIRST_PAGE, "", "pending"),
+        productsService.listProducts(FIRST_PAGE, "", "all"),
         transfersService.listPendingTransfers(),
         observabilityService.getSummary(),
         settingsService.getSummary(),
+        shopPagesService.getPage("home"),
       ]);
 
+    if (orders.status === "fulfilled") {
+      orderTotal.value = orders.value.total;
+      orderAmountText.value = formatFen(
+        orders.value.items.reduce((sum, item) => sum + item.totalFen, 0),
+      );
+      recentOrders.value = orders.value.items.slice(0, 5).map((item) => ({
+        ...item,
+        statusText: orderStatusLabel(item.status),
+        totalText: formatFen(item.totalFen),
+      }));
+    }
+    if (pendingOrders.status === "fulfilled") {
+      pendingOrderCount.value = pendingOrders.value.total;
+    }
     if (products.status === "fulfilled") {
       productTotal.value = products.value.total;
-    }
-    if (currentContent.status === "fulfilled") {
-      currentContentTotal.value = currentContent.value.total;
+      activeProductTotal.value = products.value.totalActive;
+      inactiveProductTotal.value = products.value.totalInactive;
     }
     if (transfers.status === "fulfilled") {
       pendingTransferCount.value = transfers.value.length;
@@ -85,16 +104,21 @@ export function useOverviewPage() {
     if (settings.status === "fulfilled") {
       configuredSettingCount.value = [
         settings.value.api.adminTokenConfigured,
-        settings.value.api.deepseekApiKeyConfigured,
         settings.value.channels.youzan.clientIdConfigured,
         settings.value.channels.youzan.clientSecretConfigured,
         settings.value.channels.youzan.kdtIdConfigured,
-        settings.value.channels.youzan.webhookTokenConfigured,
+        settings.value.channels.wecom.corpIdConfigured,
+        settings.value.channels.wecom.agentIdConfigured,
+        settings.value.channels.wecom.robotWebhookConfigured,
       ].filter(Boolean).length;
+    }
+    if (homePage.status === "fulfilled") {
+      decorationStatusText.value = homePage.value.published?.status === "published" ? "首页已发布" : "未发布";
+      decorationUpdatedAt.value = homePage.value.published?.updatedAt || "";
     }
 
     recentIssues.value = buildRecentIssues();
-    const failedRequests = [products, currentContent, transfers, observabilitySummary, settings]
+    const failedRequests = [orders, pendingOrders, products, transfers, observabilitySummary, settings, homePage]
       .filter((item) => item.status === "rejected").length;
     if (failedRequests > 0) {
       errorMessage.value = `${failedRequests} 个概览指标加载失败，请刷新重试`;
@@ -109,6 +133,14 @@ export function useOverviewPage() {
 
   function buildRecentIssues(): OverviewRecentIssue[] {
     const issues: OverviewRecentIssue[] = [];
+    if (pendingOrderCount.value > 0) {
+      issues.push({
+        title: "有待确认订单",
+        description: `${pendingOrderCount.value} 个小程序订单等待门店确认`,
+        route: "/orders?status=pending",
+        level: "warning",
+      });
+    }
     if (pendingTransferCount.value > 0) {
       issues.push({
         title: "有待处理转人工",
@@ -117,35 +149,19 @@ export function useOverviewPage() {
         level: "warning",
       });
     }
-    if (failedHistoryTotal.value > 0) {
+    if (failedHistoryTotal.value > 0 || failedWebhookTotal.value > 0 || slowWebhookTotal.value > 0) {
       issues.push({
-        title: "回写历史存在失败",
-        description: `${failedHistoryTotal.value} 条内容回写需要排查`,
-        route: "/observability/failures?tab=history",
+        title: "数据链路需要排查",
+        description: "存在回写失败、Webhook 失败或慢处理事件",
+        route: "/observability/failures",
         level: "danger",
-      });
-    }
-    if (failedWebhookTotal.value > 0) {
-      issues.push({
-        title: "Webhook 存在失败",
-        description: `${failedWebhookTotal.value} 条 Webhook 事件需要追踪`,
-        route: "/observability/failures?tab=webhooks",
-        level: "danger",
-      });
-    }
-    if (slowWebhookTotal.value > 0) {
-      issues.push({
-        title: "Webhook 处理偏慢",
-        description: `${slowWebhookTotal.value} 条近期 Webhook 超过值守阈值`,
-        route: "/observability/sessions?tab=webhooks",
-        level: "warning",
       });
     }
     if (!issues.length) {
       issues.push({
-        title: "暂无高优先级异常",
-        description: "可以继续检查商品、知识配置和系统配置状态",
-        route: "/observability/sessions",
+        title: "暂无高优先级事项",
+        description: "可以继续检查商品、装修和店铺配置",
+        route: "/settings/shop",
         level: "success",
       });
     }
@@ -157,16 +173,27 @@ export function useOverviewPage() {
     errorMessage,
     lastRefreshedAt,
     productTotal,
-    currentContentTotal,
+    activeProductTotal,
+    inactiveProductTotal,
+    orderTotal,
+    pendingOrderCount,
+    orderAmountText,
     pendingTransferCount,
     failedHistoryTotal,
     failedWebhookTotal,
     slowWebhookTotal,
     processingWebhookTotal,
     configuredSettingCount,
+    decorationStatusText,
+    decorationUpdatedAt,
+    recentOrders,
     recentIssues,
     healthLabel,
     healthType,
     loadOverview,
   };
+}
+
+function formatFen(value: number): string {
+  return `¥${(value / 100).toFixed(2)}`;
 }

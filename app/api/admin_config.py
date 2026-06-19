@@ -15,7 +15,6 @@ from app.config import settings
 from app.service.admin import AdminService
 
 
-
 router = APIRouter(tags=["admin-config"])
 _api_router = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(verify_token)])
 
@@ -68,6 +67,31 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         await admin_service.set_featured_products(products)
         return {"code": 0, "message": "已保存", "data": products}
 
+    @_api_router.get("/shop-config/operations")
+    async def get_shop_operations(
+        authorization: str | None = Header(default=None),
+    ) -> dict:
+
+        return {"code": 0, "data": await admin_service.get_shop_operations()}
+
+    @_api_router.put("/shop-config/operations")
+    async def set_shop_operations(
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> dict:
+
+        raw = await request.body()
+        body = json.loads(raw.decode("utf-8"))
+        try:
+            operations = await admin_service.set_shop_operations(body)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "code": 0,
+            "message": "已保存",
+            "data": operations,
+        }
+
     # ────────────── 商品上下架 API ──────────────
 
     @_api_router.get("/products")
@@ -97,8 +121,11 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
         if featured_only:
             featured_filter = await admin_service.get_featured_products()
         entries = await admin_service.get_all_products(
-            search=search, limit=limit, offset=offset,
-            is_active=active_filter, sync_source=sync_source,
+            search=search,
+            limit=limit,
+            offset=offset,
+            is_active=active_filter,
+            sync_source=sync_source,
             vector_sync_status=vector_sync_status,
             featured_titles=featured_filter,
             youzan_item_id_filter=youzan_item_id,
@@ -108,7 +135,9 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
             sort_order=sort_order,
         )
         total = await admin_service.count_products(
-            search=search, is_active=active_filter, sync_source=sync_source,
+            search=search,
+            is_active=active_filter,
+            sync_source=sync_source,
             vector_sync_status=vector_sync_status,
             featured_titles=featured_filter,
             youzan_item_id_filter=youzan_item_id,
@@ -145,6 +174,11 @@ def create_shop_config_router(admin_service: AdminService) -> APIRouter:
     ) -> dict:
 
         return {"code": 0, "data": await admin_service.get_settings_summary()}
+
+    @router.get("/api/v1/miniapp/shop-settings")
+    async def get_miniapp_shop_settings() -> dict:
+
+        return {"code": 0, "data": await admin_service.get_shop_operations()}
 
     router.include_router(_api_router)
     return router

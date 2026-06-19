@@ -99,20 +99,29 @@ async def test_analytics_recommend_deduplication_and_roi_attribution() -> None:
             event_type="product_recommend",
             event_source="ai_bot",
             ref_id=alias,
-            meta_data="{\"title\": \"小山园抹茶千层\"}",
+            meta_data='{"title": "小山园抹茶千层"}',
             created_at=now_str,
         )
 
         # 核心判重断言：在 1 小时滑动窗口内，相同的 session_id 针对同款商品别名触发推荐判定，应该返回 True！
-        is_duplicate = await analytics_repo.check_recent_recommend(session_id, alias, hour_limit=1)
+        is_duplicate = await analytics_repo.check_recent_recommend(
+            session_id, alias, hour_limit=1
+        )
         assert is_duplicate is True
 
         # 验证不同 session_id 未被排重影响
-        assert await analytics_repo.check_recent_recommend("session_another_diff", alias, hour_limit=1) is False
+        assert (
+            await analytics_repo.check_recent_recommend(
+                "session_another_diff", alias, hour_limit=1
+            )
+            is False
+        )
 
         # 2. 测试 C（AI 导购付款 24小时 ROI 业绩归因防线）
         # 追溯查询：当买家在 24 小时内付款时，校验是否存在对应商品的 RAG 导购推荐
-        归因_session_id = await analytics_repo.check_ai_recommend_for_conversion(buyer_id, alias, lookback_hours=24)
+        归因_session_id = await analytics_repo.check_ai_recommend_for_conversion(
+            buyer_id, alias, lookback_hours=24
+        )
 
         # 核心归因断言：成功追溯出正是 session_id = "session_mock_bake_888" 为该买家种了草！从而将销售绩效准确归因！
         assert 归因_session_id == session_id

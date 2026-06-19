@@ -20,6 +20,7 @@ class Order:
     products: str  # JSON
     total_amount: float = 0.0
     delivery: str = "{}"  # JSON
+    payment: str = "{}"  # JSON
     status: OrderStatus = OrderStatus.PENDING
     remark: str = ""
     created_at: str = ""
@@ -27,8 +28,21 @@ class Order:
 
 
 @dataclass
+class OrderEvent:
+    """小程序订单状态事件，用于用户侧进度时间线。"""
+
+    order_id: str
+    status: str
+    operator: str
+    note: str
+    created_at: str
+    id: int = 0
+
+
+@dataclass
 class YouzanOrderData:
     """有赞交易订单 Upsert 数据容器，封装 youzan_orders 全量可写字段。"""
+
     order_no: str
     buyer_id: str
     status: str

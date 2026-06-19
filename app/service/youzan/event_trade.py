@@ -84,7 +84,9 @@ async def handle_trade_event(
         raw_order = await youzan_client.get_order(tid)
         parsed = parse_youzan_order_response(raw_order)
         if parsed is None:
-            logger.warning("有赞 trade.get 响应缺少 full_order_info，跳过 DB 写入: tid=%s", tid)
+            logger.warning(
+                "有赞 trade.get 响应缺少 full_order_info，跳过 DB 写入: tid=%s", tid
+            )
             await mark_audit(
                 audit_repo,
                 audit_id,
@@ -96,31 +98,33 @@ async def handle_trade_event(
             )
             return
 
-        await order_repo.upsert_order(YouzanOrderData(
-            order_no=tid,
-            buyer_id=parsed.buyer_id,
-            status=parsed.status,
-            amount_fen=parsed.payment_fen,
-            logistics_no=local_order["logistics_no"] if local_order else "",
-            logistics_status=local_order["logistics_status"] if local_order else "",
-            product_titles=parsed.product_titles,
-            total_quantity=parsed.total_qty,
-            pay_time=parsed.order_info.get("pay_time", ""),
-            consign_time=parsed.order_info.get("consign_time", ""),
-            pay_type_str=parsed.order_info.get("pay_type_str", ""),
-            express_type=int(parsed.order_info.get("express_type", 0)),
-            refund_state=int(parsed.order_info.get("refund_state", 0)),
-            post_fee_fen=parsed.post_fee_fen,
-            discount_fen=parsed.discount_fen,
-            delivery_province=parsed.addr_info.get("delivery_province", ""),
-            delivery_city=parsed.addr_info.get("delivery_city", ""),
-            delivery_district=parsed.addr_info.get("delivery_district", ""),
-            delivery_time=parsed.addr_info.get("delivery_start_time", ""),
-            outer_user_id=parsed.outer_user_id,
-            order_items_json=json.dumps(parsed.items_detail, ensure_ascii=False),
-            created_at=parsed.order_info.get("created", ""),
-            updated_at=updated_at_str,
-        ))
+        await order_repo.upsert_order(
+            YouzanOrderData(
+                order_no=tid,
+                buyer_id=parsed.buyer_id,
+                status=parsed.status,
+                amount_fen=parsed.payment_fen,
+                logistics_no=local_order["logistics_no"] if local_order else "",
+                logistics_status=local_order["logistics_status"] if local_order else "",
+                product_titles=parsed.product_titles,
+                total_quantity=parsed.total_qty,
+                pay_time=parsed.order_info.get("pay_time", ""),
+                consign_time=parsed.order_info.get("consign_time", ""),
+                pay_type_str=parsed.order_info.get("pay_type_str", ""),
+                express_type=int(parsed.order_info.get("express_type", 0)),
+                refund_state=int(parsed.order_info.get("refund_state", 0)),
+                post_fee_fen=parsed.post_fee_fen,
+                discount_fen=parsed.discount_fen,
+                delivery_province=parsed.addr_info.get("delivery_province", ""),
+                delivery_city=parsed.addr_info.get("delivery_city", ""),
+                delivery_district=parsed.addr_info.get("delivery_district", ""),
+                delivery_time=parsed.addr_info.get("delivery_start_time", ""),
+                outer_user_id=parsed.outer_user_id,
+                order_items_json=json.dumps(parsed.items_detail, ensure_ascii=False),
+                created_at=parsed.order_info.get("created", ""),
+                updated_at=updated_at_str,
+            )
+        )
 
         if old_status != parsed.status:
             await analytics_repo.add_event(
@@ -129,17 +133,28 @@ async def handle_trade_event(
                 event_type="order_state_change",
                 event_source="webhook_youzan",
                 ref_id=tid,
-                meta_data=json.dumps({"old_status": old_status, "new_status": parsed.status}, ensure_ascii=False),
+                meta_data=json.dumps(
+                    {"old_status": old_status, "new_status": parsed.status},
+                    ensure_ascii=False,
+                ),
                 created_at=now_str(),
             )
-            logger.info("已成功记录订单履约时效埋点: tid=%s, old=%s, new=%s", tid, old_status, parsed.status)
+            logger.info(
+                "已成功记录订单履约时效埋点: tid=%s, old=%s, new=%s",
+                tid,
+                old_status,
+                parsed.status,
+            )
 
         is_payment_event = event_type == "trade_TradeBuyerPay" or (
             old_status in ("NONE", "WAIT_BUYER_PAY")
-            and parsed.status in ("WAIT_SELLER_SEND_GOODS", "TRADE_PAID", "TRADE_SUCCESS")
+            and parsed.status
+            in ("WAIT_SELLER_SEND_GOODS", "TRADE_PAID", "TRADE_SUCCESS")
         )
         if is_payment_event:
-            logger.info("触发 24 小时 AI 导购业绩付款归因校验: buyer=%s", parsed.buyer_id)
+            logger.info(
+                "触发 24 小时 AI 导购业绩付款归因校验: buyer=%s", parsed.buyer_id
+            )
             for item in parsed.order_items:
                 item_id = item.get("item_id", 0)
                 if not item_id:
@@ -158,17 +173,22 @@ async def handle_trade_event(
                         event_type="order_conversion",
                         event_source="webhook_youzan",
                         ref_id=tid,
-                        meta_data=json.dumps({
-                            "product_title": item.get("title", ""),
-                            "product_alias": alias,
-                            "amount_fen": int(float(item.get("payment", 0)) * 100),
-                            "lookback": "24_hours",
-                        }, ensure_ascii=False),
+                        meta_data=json.dumps(
+                            {
+                                "product_title": item.get("title", ""),
+                                "product_alias": alias,
+                                "amount_fen": int(float(item.get("payment", 0)) * 100),
+                                "lookback": "24_hours",
+                            },
+                            ensure_ascii=False,
+                        ),
                         created_at=now_str(),
                     )
                     logger.info(
                         "🎉 完美！AI 导购业绩归因匹配成功！已为 Dashboard 记账绩效: session_id=%s, buyer_id=%s, gmv_fen=%s",
-                        ai_session_id, parsed.buyer_id, item.get("payment"),
+                        ai_session_id,
+                        parsed.buyer_id,
+                        item.get("payment"),
                     )
         await mark_audit(
             audit_repo,

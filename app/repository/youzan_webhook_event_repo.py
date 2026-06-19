@@ -68,11 +68,21 @@ class YouzanWebhookEventRepo(BaseRepository):
             "business_key = COALESCE(NULLIF(?, ''), business_key), "
             "process_started_at = COALESCE(process_started_at, ?), updated_at = ? "
             "WHERE id = ?",
-            (YouzanWebhookStatus.PROCESSING, process_stage, business_type, business_key, now, now, event_id),
+            (
+                YouzanWebhookStatus.PROCESSING,
+                process_stage,
+                business_type,
+                business_key,
+                now,
+                now,
+                event_id,
+            ),
         )
         await self._db.commit()
 
-    async def mark_result(self, event_id: int, update: YouzanWebhookEventUpdate) -> None:
+    async def mark_result(
+        self, event_id: int, update: YouzanWebhookEventUpdate
+    ) -> None:
         now = now_str()
         rows = await self._db.execute_fetchall(
             "SELECT process_started_at FROM youzan_webhook_events WHERE id = ?",

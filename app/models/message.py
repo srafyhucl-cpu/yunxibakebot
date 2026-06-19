@@ -11,6 +11,7 @@ from enum import Enum
 
 class MessageRole(str, Enum):
     """消息角色：用户 / AI / 系统指令 / 工具调用结果"""
+
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
@@ -20,12 +21,13 @@ class MessageRole(str, Enum):
 @dataclass
 class Message:
     """对话中的一条消息。"""
+
     id: str
     session_id: str
     role: MessageRole
     content: str
-    channel_msg_id: str = ""        # 渠道原始消息ID（用于去重）
-    estimated_tokens: int = 0       # 预估 token 数（用于滑动窗口裁切）
-    tool_calls: str = "[]"          # JSON: LLM 发起的工具调用
-    tool_name: str = ""             # 工具名称（role=tool 时使用）
+    channel_msg_id: str = ""  # 渠道原始消息ID（用于去重）
+    estimated_tokens: int = 0  # 预估 token 数（用于滑动窗口裁切）
+    tool_calls: str = "[]"  # JSON: LLM 发起的工具调用
+    tool_name: str = ""  # 工具名称（role=tool 时使用）
     created_at: str = ""

@@ -134,6 +134,18 @@ class ChatService:
             buyer_open_id=buyer_id, content=NONTEXT_FALLBACK_REPLY
         )
 
+    async def reply_youzan_hosting_nontext_fallback(
+        self, conversation_id: str, msg_id: str
+    ) -> None:
+        """有赞托管非文本消息兑底：直接按托管会话回复友好提示。"""
+        if msg_id and await self._message_repo.has_processed(msg_id):
+            return
+        await self._youzan_client.send_hosting_reply(
+            conversation_id=conversation_id,
+            content=NONTEXT_FALLBACK_REPLY,
+            msg_type="text",
+        )
+
     async def handle_message_and_reply_youzan(
         self, buyer_id: str, content: str, msg_id: str
     ) -> None:
@@ -146,6 +158,27 @@ class ChatService:
         )
         if reply:
             await self._youzan_client.send_reply(buyer_open_id=buyer_id, content=reply)
+
+    async def handle_youzan_hosting_message(
+        self,
+        conversation_id: str,
+        yz_open_id: str,
+        content: str,
+        msg_id: str,
+    ) -> None:
+        """处理有赞客服托管消息，并按托管会话 ID 回复客户。"""
+        reply = await self.handle_message(
+            channel="youzan",
+            user_id=yz_open_id or conversation_id,
+            content=content,
+            channel_msg_id=msg_id,
+        )
+        if reply:
+            await self._youzan_client.send_hosting_reply(
+                conversation_id=conversation_id,
+                content=reply,
+                msg_type="text",
+            )
 
     async def handle_message(
         self,

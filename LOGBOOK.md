@@ -2,6 +2,25 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-19] - feat(miniapp): 打通商城订单与后台经营台主链路
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-miniapp-storefront-ops-console
+- **背景**: 当前工作区已累积小程序商城登录、客服、地址、订单、支付准备，以及后台装修、订单、地址、店铺配置、经营概览等跨端能力，需要整理成一次可追溯提交并同步双远端，避免功能长期停留在未提交状态。
+- **变更范围**:
+  - `app/api/miniapp_*.py`、`app/service/miniapp_*.py`、`app/repository/order_repo.py`、`app/repository/miniapp_address*_repo.py`、`app/repository/youzan_inventory_repo.py`、`app/models/order.py`、`app/models/miniapp_address.py`、`app/constants/miniapp.py` - 打通小程序登录、客服消息、收货地址、订单创建/查询/取消、支付参数准备、支付回调和库存占用/释放链路。
+  - `app/api/admin_orders.py`、`app/api/admin_addresses.py`、`app/api/admin_assets.py`、`app/api/admin_shop_pages.py`、`app/service/shop_operations.py`、`app/service/shop_page_config.py`、`app/lifespan_routes.py`、`app/lifespan_services.py`、`app/main.py` - 新增后台订单、地址、装修素材、页面装修与店铺运营配置路由，并在生命周期装配仓储、服务与订单超时扫描任务。
+  - `app/api/webhook.py`、`app/api/webhook_helpers.py`、`app/service/chat.py`、`tests/service/youzan/test_webhook_retry.py` - 增强有赞托管消息识别、非文本兜底和审计状态流转，补齐托管消息后台处理回归。
+  - `app/migrations/schema.py`、`app/migrations/v007_orders_payment_json.sql`、`app/migrations/v008_miniapp_addresses.sql`、`app/migrations/v009_miniapp_address_audit.sql`、`app/migrations/v010_order_events.sql` - 补齐小程序订单支付字段、顾客地址、地址审计和订单事件时间线表结构。
+  - `web/admin/src/pages/decoration/`、`orders/`、`addresses/`、`settings/ShopSettingsPage.vue`、`overview/OverviewPage.vue`、`src/services/*.ts`、`src/types/*.ts`、`src/constants/`、`scripts/check-*.mjs`、`scripts/smoke_*.py` - 后台新增装修、订单、地址、店铺配置页面与移动端导航、经营概览卡片、结构检查脚本和浏览器烟测脚本。
+  - `tests/api/test_admin_*`、`tests/api/test_miniapp_*`、`tests/service/test_miniapp_*`、`tests/service/test_shop_page_config.py`、`tests/test_lifespan_routes_services.py` - 覆盖后台与小程序主链路、服务装配与装修配置行为。
+- **验证计划**:
+  - 提交前运行 `python scripts/check_project.py --skip-tests`。
+  - 提交前运行 `python -m pytest tests/ -q`。
+  - 提交前运行 `npm run typecheck` 以及 `npm run check:decoration`、`check:orders`、`check:addresses`、`check:shop-settings`、`check:mobile-ops`。
+- **遗留风险**:
+  - 这批改动尚未完成生产部署与双端浏览器实机验收，提交后仍需按上线清单执行迁移、重启、烟测与证据留档。
+  - `server` 远端此前存在 Windows OpenSSH / `scp` / `known_hosts` 链路不稳定历史，双远端推送时需要优先验证 `git push server` 通道。
+
 ## [2026-06-19] - feat(miniapp): ITEM_INFO 稳定分类字段落库
 - **操作人**: AI (Codex)
 - **trace_id**: 20260619-youzan-item-base-categories

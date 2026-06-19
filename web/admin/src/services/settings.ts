@@ -18,7 +18,6 @@ interface SettingsSummaryResponse {
         client_id_configured: boolean;
         client_secret_configured: boolean;
         kdt_id_configured: boolean;
-        webhook_token_configured: boolean;
         mock_mode: boolean;
       };
       wecom: {
@@ -33,10 +32,11 @@ interface SettingsSummaryResponse {
     };
     api: {
       admin_token_configured: boolean;
-      deepseek_api_key_configured: boolean;
-      deepseek_base_url: string;
-      deepseek_model: string;
-      deepseek_timeout_seconds: number;
+      mimo_api_key_configured: boolean;
+      mimo_base_url: string;
+      mimo_chat_model: string;
+      mimo_vision_model: string;
+      mimo_asr_model: string;
     };
   };
 }
@@ -56,7 +56,6 @@ function normalizeSettingsSummary(data: SettingsSummaryResponse["data"]): Settin
         clientIdConfigured: data.channels.youzan.client_id_configured,
         clientSecretConfigured: data.channels.youzan.client_secret_configured,
         kdtIdConfigured: data.channels.youzan.kdt_id_configured,
-        webhookTokenConfigured: data.channels.youzan.webhook_token_configured,
         mockMode: data.channels.youzan.mock_mode,
       },
       wecom: {
@@ -71,10 +70,11 @@ function normalizeSettingsSummary(data: SettingsSummaryResponse["data"]): Settin
     },
     api: {
       adminTokenConfigured: data.api.admin_token_configured,
-      deepseekApiKeyConfigured: data.api.deepseek_api_key_configured,
-      deepseekBaseUrl: data.api.deepseek_base_url,
-      deepseekModel: data.api.deepseek_model,
-      deepseekTimeoutSeconds: data.api.deepseek_timeout_seconds,
+      mimoApiKeyConfigured: data.api.mimo_api_key_configured,
+      mimoBaseUrl: data.api.mimo_base_url,
+      mimoChatModel: data.api.mimo_chat_model,
+      mimoVisionModel: data.api.mimo_vision_model,
+      mimoAsrModel: data.api.mimo_asr_model,
     },
   };
 }

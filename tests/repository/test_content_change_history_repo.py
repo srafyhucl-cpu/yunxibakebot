@@ -30,7 +30,9 @@ async def test_add_and_query_content_change_history(db) -> None:
     assert entry is not None
     assert entry.title == "测试商品"
 
-    rows = await repo.list_entries(source="youzan_webhook", keyword="测试", limit=10, offset=0)
+    rows = await repo.list_entries(
+        source="youzan_webhook", keyword="测试", limit=10, offset=0
+    )
     assert len(rows) == 1
     assert rows[0].entity_key == "10001"
 

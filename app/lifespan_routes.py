@@ -8,12 +8,21 @@ from fastapi import FastAPI
 def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     """注册所有 API 路由，并启动消息队列 Worker。"""
     from app.api.admin import create_admin_router
+    from app.api.admin_addresses import create_admin_addresses_router
+    from app.api.admin_assets import create_admin_assets_router
     from app.api.admin_config import create_shop_config_router
     from app.api.admin_frontend import create_admin_frontend_router
     from app.api.admin_knowledge import create_admin_knowledge_router
     from app.api.admin_observability import create_observability_router
-    from app.api.miniapp_catalog import create_miniapp_catalog_router
+    from app.api.admin_orders import create_admin_orders_router
     from app.api.admin_products import create_admin_products_router
+    from app.api.admin_shop_pages import create_shop_page_config_router
+    from app.api.miniapp_addresses import create_miniapp_addresses_router
+    from app.api.miniapp_auth import create_miniapp_auth_router
+    from app.api.miniapp_catalog import create_miniapp_catalog_router
+    from app.api.miniapp_chat import create_miniapp_chat_router
+    from app.api.miniapp_orders import create_miniapp_orders_router
+    from app.api.miniapp_payments import create_miniapp_payments_router
     from app.api.webhook import create_webhook_router
     from app.api.wecom import router as wecom_router
     from app.service.wecom.kf_message_queue import kf_queue
@@ -31,10 +40,27 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
         )
     )
     app.include_router(create_admin_frontend_router())
+    app.include_router(create_admin_assets_router())
     app.include_router(create_shop_config_router(services["admin_service"]))
+    app.include_router(
+        create_shop_page_config_router(services["shop_page_config_service"])
+    )
+    app.include_router(
+        create_admin_addresses_router(services["miniapp_address_service"])
+    )
+    app.include_router(create_miniapp_auth_router(services["miniapp_auth_service"]))
+    app.include_router(
+        create_miniapp_addresses_router(services["miniapp_address_service"])
+    )
     app.include_router(
         create_miniapp_catalog_router(services["miniapp_catalog_service"])
     )
+    app.include_router(create_miniapp_orders_router(services["miniapp_order_service"]))
+    app.include_router(
+        create_miniapp_payments_router(services["miniapp_order_service"])
+    )
+    app.include_router(create_miniapp_chat_router(services["miniapp_chat_service"]))
+    app.include_router(create_admin_orders_router(services["miniapp_order_service"]))
     app.include_router(
         create_admin_knowledge_router(services["knowledge_admin_service"])
     )

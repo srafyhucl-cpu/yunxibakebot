@@ -46,23 +46,23 @@ def create_admin_frontend_router() -> APIRouter:
                     "current": 0,
                     "elapsed": 0.0,
                     "last_build_duration": 0.0,
-                    "detail": "向量服务未载入"
-                }
+                    "detail": "向量服务未载入",
+                },
             }
-            
+
         progress_data = vs._init_progress
         status = progress_data["status"]
         total = progress_data["total"]
         current = progress_data["current"]
         elapsed = progress_data["elapsed"]
         last_duration = progress_data["last_build_duration"]
-        
+
         percent = 0
         if status == "ready":
             percent = 100
         elif status == "building" and total > 0:
             percent = int((current / total) * 100)
-            
+
         detail_msg = "向量数据库初始化中..."
         if status == "loading":
             detail_msg = "正在载入本地预解算缓存..."
@@ -72,7 +72,7 @@ def create_admin_frontend_router() -> APIRouter:
             detail_msg = "系统向量库初始化完成"
         elif status == "failed":
             detail_msg = "向量库初始化失败，请重试或查看日志"
-            
+
         return {
             "code": 200,
             "data": {
@@ -82,9 +82,9 @@ def create_admin_frontend_router() -> APIRouter:
                 "percent": percent,
                 "elapsed": round(elapsed, 1),
                 "last_build_duration": round(last_duration, 1),
-                "detail": detail_msg
+                "detail": detail_msg,
             },
-            "msg": "获取向量状态成功"
+            "msg": "获取向量状态成功",
         }
 
     @router.post("/api/admin/vector-build-retry")
@@ -92,11 +92,11 @@ def create_admin_frontend_router() -> APIRouter:
         vs = getattr(request.app.state, "vs", None)
         if not vs:
             return {"code": 400, "message": "未找到向量服务"}
-            
+
         if vs._init_progress["status"] in ["failed", "ready"]:
             import asyncio
             from app.config import settings
-            
+
             vs_path = settings.EMBEDDING_INDEX_DIR
             asyncio.create_task(vs.rebuild_from_db(vs_path))
             return {"code": 200, "message": "重构任务已异步调起"}
@@ -120,8 +120,15 @@ def create_admin_frontend_router() -> APIRouter:
         # 核心拦截：如果向量库未初始化就绪，返回精美进度页面而不是 502
         if request:
             vs = getattr(request.app.state, "vs", None)
-            if vs and vs._init_progress["status"] in ["uninitialized", "loading", "building", "failed"]:
-                return HTMLResponse(content=get_transition_html(), headers=INDEX_CACHE_HEADERS)
+            if vs and vs._init_progress["status"] in [
+                "uninitialized",
+                "loading",
+                "building",
+                "failed",
+            ]:
+                return HTMLResponse(
+                    content=get_transition_html(), headers=INDEX_CACHE_HEADERS
+                )
 
         requested_path = (FRONTEND_DIST_DIR / asset_path).resolve()
         if asset_path:

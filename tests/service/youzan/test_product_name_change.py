@@ -23,7 +23,9 @@ from app.service.youzan.event_handler import YouzanEventHandler
 
 
 @pytest.mark.asyncio
-async def test_product_name_change_prevents_residue(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_product_name_change_prevents_residue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     测试场景：
     模拟同一款商品 `item_id=888`：
@@ -52,7 +54,9 @@ async def test_product_name_change_prevents_residue(monkeypatch: pytest.MonkeyPa
 
         # 全量空初始化
         vs.build([])
-        knowledge_retriever = KnowledgeRetriever(knowledge_repo, vs, config_repo=config_repo)
+        knowledge_retriever = KnowledgeRetriever(
+            knowledge_repo, vs, config_repo=config_repo
+        )
 
         # 3. 实例化核心对话服务（显式注入有赞依赖，L-1.2）
         youzan_client = YouzanClient(config_repo=config_repo)

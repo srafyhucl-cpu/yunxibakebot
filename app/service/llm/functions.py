@@ -62,22 +62,37 @@ async def dispatch_tool(
     match tool_name:
         case "get_order_info":
             if knowledge_retriever is None:
-                return json.dumps({"message": "订单查询服务暂不可用"}, ensure_ascii=False)
-            return await get_order_info(knowledge_retriever, youzan_client=youzan_client, **args)
+                return json.dumps(
+                    {"message": "订单查询服务暂不可用"}, ensure_ascii=False
+                )
+            return await get_order_info(
+                knowledge_retriever, youzan_client=youzan_client, **args
+            )
         case "get_logistics_info":
             if knowledge_retriever is None:
-                return json.dumps({"message": "物流查询服务暂不可用"}, ensure_ascii=False)
-            return await get_logistics_info(knowledge_retriever, youzan_client=youzan_client, **args)
+                return json.dumps(
+                    {"message": "物流查询服务暂不可用"}, ensure_ascii=False
+                )
+            return await get_logistics_info(
+                knowledge_retriever, youzan_client=youzan_client, **args
+            )
         case "get_product_info":
             if knowledge_retriever is None:
-                return json.dumps({"message": "商品查询服务暂不可用"}, ensure_ascii=False)
-            return await get_product_info(knowledge_retriever, session, youzan_client=youzan_client, **args)
+                return json.dumps(
+                    {"message": "商品查询服务暂不可用"}, ensure_ascii=False
+                )
+            return await get_product_info(
+                knowledge_retriever, session, youzan_client=youzan_client, **args
+            )
         case "search_knowledge":
             if knowledge_retriever is None:
                 return json.dumps({"message": "知识库服务暂不可用"}, ensure_ascii=False)
             return await search_knowledge(knowledge_retriever, **args)
         case "transfer_to_human":
             # 由 ChatService 工具调度循环拦截处理，此处为安全兜底
-            return json.dumps({"status": "pending", "message": "正在为您转接人工客服"}, ensure_ascii=False)
+            return json.dumps(
+                {"status": "pending", "message": "正在为您转接人工客服"},
+                ensure_ascii=False,
+            )
         case _:
             return json.dumps({"error": f"未知工具: {tool_name}"}, ensure_ascii=False)

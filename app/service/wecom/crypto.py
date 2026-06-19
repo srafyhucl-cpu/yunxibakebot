@@ -37,7 +37,7 @@ def decrypt(encoding_aes_key: str, msg_encrypt: str) -> str:
 
     # 格式：rand(16B) + msg_len(4B network order) + msg + corp_id
     msg_len = struct.unpack(">I", decrypted[16:20])[0]
-    msg = decrypted[20:20 + msg_len]
+    msg = decrypted[20 : 20 + msg_len]
     return msg.decode("utf-8")
 
 
@@ -70,7 +70,9 @@ def encrypt(encoding_aes_key: str, plaintext: str, corp_id: str) -> str:
     return base64.b64encode(encrypted).decode("utf-8")
 
 
-def verify_signature(token: str, timestamp: str, nonce: str, msg_encrypt: str, msg_signature: str) -> bool:
+def verify_signature(
+    token: str, timestamp: str, nonce: str, msg_encrypt: str, msg_signature: str
+) -> bool:
     """
     验证企微回调签名。
 

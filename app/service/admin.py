@@ -26,6 +26,7 @@ from app.service.observability import (
     ContentChangeLogger,
     build_knowledge_change_summary,
 )
+from app.service.shop_operations import ShopOperationsService
 
 
 class AdminService:
@@ -46,6 +47,7 @@ class AdminService:
         self._knowledge_repo = knowledge_repo
         self._config_repo = config_repo
         self._youzan_product_repo = youzan_product_repo
+        self._shop_operations_service = ShopOperationsService(config_repo)
 
     # ── 会话与转人工 ──
     async def get_pending_transfers(self) -> list[HumanTransfer]:
@@ -143,7 +145,9 @@ class AdminService:
         sort_by: str = "",
         sort_order: str = "desc",
     ) -> list[KnowledgeEntry]:
-        return await KnowledgeProductRepo(self._knowledge_repo._db).get_all_products(
+        products = await KnowledgeProductRepo(
+            self._knowledge_repo._db
+        ).get_all_products(
             search=search,
             limit=limit,
             offset=offset,
@@ -157,6 +161,9 @@ class AdminService:
             sort_by=sort_by,
             sort_order=sort_order,
         )
+        if featured_titles is not None:
+            return _sort_entries_by_titles(products, featured_titles)
+        return products
 
     async def count_products(
         self,
@@ -226,9 +233,18 @@ class AdminService:
     async def set_featured_products(self, products: list[str]) -> None:
         await self._config_repo.set_list(FEATURED_PRODUCTS_KEY, products)
 
+    async def get_shop_operations(self) -> dict:
+        """读取小程序公开运营配置。"""
+        return await self._shop_operations_service.get_shop_operations()
+
+    async def set_shop_operations(self, payload: dict) -> dict:
+        """保存小程序公开运营配置。"""
+        return await self._shop_operations_service.set_shop_operations(payload)
+
     async def get_settings_summary(self) -> dict:
         featured_products = await self.get_featured_products()
         product_total = await self.count_products()
+        shop_operations = await self.get_shop_operations()
         return {
             "shop": {
                 "server_host": settings.SERVER_HOST,
@@ -237,6 +253,7 @@ class AdminService:
                 "embedding_path": settings.EMBEDDING_INDEX_DIR,
                 "featured_product_count": len(featured_products),
                 "product_total": product_total,
+                "operations": shop_operations,
             },
             "channels": {
                 "youzan": {
@@ -274,3 +291,12 @@ class AdminService:
 
 def _is_configured(value: object) -> bool:
     return bool(str(value or "").strip())
+
+
+def _sort_entries_by_titles(
+    entries: list[KnowledgeEntry],
+    ordered_titles: list[str],
+) -> list[KnowledgeEntry]:
+    """按后台配置顺序排列主推商品。"""
+    order_map = {title: index for index, title in enumerate(ordered_titles)}
+    return sorted(entries, key=lambda entry: order_map.get(entry.title, len(order_map)))

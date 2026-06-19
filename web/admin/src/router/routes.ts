@@ -52,6 +52,33 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/decoration",
+    name: "decoration",
+    component: () => import("@/pages/decoration/DecorationPage.vue"),
+    meta: {
+      title: "店铺装修",
+      navKey: "decoration",
+    },
+  },
+  {
+    path: "/orders",
+    name: "orders",
+    component: () => import("@/pages/orders/OrdersPage.vue"),
+    meta: {
+      title: "订单管理",
+      navKey: "orders",
+    },
+  },
+  {
+    path: "/addresses",
+    name: "addresses",
+    component: () => import("@/pages/addresses/AddressesPage.vue"),
+    meta: {
+      title: "顾客地址",
+      navKey: "addresses",
+    },
+  },
+  {
     path: "/knowledge",
     name: "knowledge",
     component: () => import("@/pages/knowledge/KnowledgePage.vue"),

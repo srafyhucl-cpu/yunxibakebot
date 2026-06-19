@@ -35,9 +35,11 @@ def create_dialog_router(
     ) -> JSONResponse:
         if not has_admin_api_access(request, authorization):
             raise HTTPException(status_code=401, detail="未登录或登录已过期")
-            
-        response = JSONResponse({"ok": True, "data": {"name": "管理员", "role": "admin"}})
-        
+
+        response = JSONResponse(
+            {"ok": True, "data": {"name": "管理员", "role": "admin"}}
+        )
+
         # 自愈机制：如果验证通过，提取合法 Token 并强制补发带有正确全局 path 的 Cookie，
         # 用于修复因用户浏览器残留旧的 /auth/ 局部路径 Cookie 而导致后续业务接口 401 的无限重定向死循环
         token = request.cookies.get("admin_token")
@@ -66,7 +68,11 @@ def create_dialog_router(
         if not is_valid_admin_token(token):
             raise HTTPException(status_code=401, detail="Token 无效")
         response = JSONResponse(
-            {"ok": True, "message": "登录成功", "data": {"name": "管理员", "role": "admin"}},
+            {
+                "ok": True,
+                "message": "登录成功",
+                "data": {"name": "管理员", "role": "admin"},
+            },
         )
         response.set_cookie(
             key="admin_token",
@@ -91,16 +97,18 @@ def create_dialog_router(
         items = []
         for s in sessions:
             extra = json.loads(s.extra_info or "{}")
-            items.append({
-                "id": s.id,
-                "name": extra.get("name", ""),
-                "user_id": s.user_id,
-                "pinned": bool(extra.get("pinned", False)),
-                "user_display": extra.get("user_display", ""),
-                "last_msg": extra.get("last_msg", ""),
-                "created_at": s.created_at,
-                "updated_at": s.updated_at,
-            })
+            items.append(
+                {
+                    "id": s.id,
+                    "name": extra.get("name", ""),
+                    "user_id": s.user_id,
+                    "pinned": bool(extra.get("pinned", False)),
+                    "user_display": extra.get("user_display", ""),
+                    "last_msg": extra.get("last_msg", ""),
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                }
+            )
         items.sort(key=lambda x: (x["pinned"], x["updated_at"]), reverse=True)
         return {"code": 0, "data": items}
 
@@ -120,10 +128,14 @@ def create_dialog_router(
         extra["name"] = name
         if user_display:
             extra["user_display"] = user_display
-        await admin_service.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
+        await admin_service.update_extra(
+            session_id, json.dumps(extra, ensure_ascii=False)
+        )
         return {"code": 0, "message": "已保存"}
 
-    @router.post("/ai-dialog/session/{session_id}/pin", dependencies=[Depends(verify_token)])
+    @router.post(
+        "/ai-dialog/session/{session_id}/pin", dependencies=[Depends(verify_token)]
+    )
     async def pin_ai_dialog_session(session_id: str) -> dict:
         """切换 AI 对话置顶状态。"""
         session = await admin_service.get(session_id)
@@ -131,10 +143,14 @@ def create_dialog_router(
             return {"code": 404, "message": "会话不存在"}
         extra = json.loads(session.extra_info or "{}")
         extra["pinned"] = not bool(extra.get("pinned", False))
-        await admin_service.update_extra(session_id, json.dumps(extra, ensure_ascii=False))
+        await admin_service.update_extra(
+            session_id, json.dumps(extra, ensure_ascii=False)
+        )
         return {"code": 0, "pinned": extra["pinned"]}
 
-    @router.delete("/ai-dialog/session/{session_id}", dependencies=[Depends(verify_token)])
+    @router.delete(
+        "/ai-dialog/session/{session_id}", dependencies=[Depends(verify_token)]
+    )
     async def delete_ai_dialog_session(session_id: str) -> dict:
         """删除一条 AI 对话记录。"""
         session = await admin_service.get(session_id)
@@ -150,14 +166,18 @@ def create_dialog_router(
         if not session:
             return {"code": 0, "data": []}
         msgs = await admin_service.get_by_session(session.id)
-        return {"code": 0, "session_id": session.id, "data": [
-            {
-                "role": m.role.value if hasattr(m.role, "value") else m.role,
-                "content": m.content,
-                "created_at": m.created_at,
-            }
-            for m in msgs
-        ]}
+        return {
+            "code": 0,
+            "session_id": session.id,
+            "data": [
+                {
+                    "role": m.role.value if hasattr(m.role, "value") else m.role,
+                    "content": m.content,
+                    "created_at": m.created_at,
+                }
+                for m in msgs
+            ],
+        }
 
     @router.post("/ai-dialog", dependencies=[Depends(verify_token)])
     async def ai_dialog_api(request: Request) -> dict:
@@ -171,6 +191,7 @@ def create_dialog_router(
         if not content:
             return {"code": 422, "message": "内容不能为空"}
         from app.service.llm.intent import detect_intent
+
         intent = await detect_intent(content)
         test_user = body.get("user_id", "admin_tester")
         s = await admin_service.get_active(test_user, "admin_test")
@@ -187,7 +208,9 @@ def create_dialog_router(
                 timeout=AI_DIALOG_TIMEOUT_SECONDS,
             )
         except TimeoutError:
-            logger.error("后台 AI 对话接口超时: user=%s content=%s", test_user, content[:80])
+            logger.error(
+                "后台 AI 对话接口超时: user=%s content=%s", test_user, content[:80]
+            )
             return {
                 "code": 0,
                 "reply": "查询超时了，当前大模型服务响应较慢。请稍后重试，或直接联系人工确认订单配送时间。",
@@ -203,7 +226,9 @@ def create_dialog_router(
                 extra2 = json.loads(s2.extra_info or "{}")
                 if extra2.get("name"):
                     extra2["last_msg"] = clean[:60]
-                    await admin_service.update_extra(session_id, json.dumps(extra2, ensure_ascii=False))
+                    await admin_service.update_extra(
+                        session_id, json.dumps(extra2, ensure_ascii=False)
+                    )
         return {"code": 0, "reply": clean, "intent": intent, "session_id": session_id}
 
     return router
