@@ -26,7 +26,7 @@ ______________________________________________________________________
 | `app/repository/` 数据访问 | 对应 `tests/repository` 文件 | migration/preflight 相关测试 |
 | `app/models/` 模型 | 相关 service/repository 测试 | `python scripts/check_project.py` |
 | 数据库迁移 | `python -m pytest tests/migrations tests/scripts/test_apply_migrations.py -q --no-cov` | dry-run + JSON 报告 |
-| 客户正式迁移 | `python -m pytest tests/scripts/test_import_youzan_customers.py tests/scripts/test_audit_youzan_customer_migration.py -q --no-cov` | 审计报告 + dry-run 报告 + apply 后报告 |
+| 客户正式迁移 | `python -m pytest tests/scripts/test_import_youzan_customers.py tests/scripts/test_audit_youzan_customer_migration.py tests/scripts/test_verify_youzan_customer_import.py -q --no-cov` | 审计报告 + dry-run 报告 + apply 后报告 + 核对报告 |
 | 生产预检 | `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` | `python scripts/preflight_production.py --json` |
 | 冒烟脚本 | `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` | 本地服务启动后跑 smoke |
 | 知识种子 | `python -m pytest tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` | dry-run + apply 后报告 |
@@ -53,6 +53,7 @@ python scripts/import_youzan_customers.py --json --output reports/youzan-custome
 python scripts/apply_migrations.py --json --output reports/migration-dry-run-{timestamp}.json
 python scripts/seed_baseline_knowledge.py --json --output reports/baseline-seed-before-{timestamp}.json
 python scripts/rebuild_embeddings.py --json --output reports/rebuild-embeddings-before-{timestamp}.json
+python scripts/verify_youzan_customer_import.py --json --output reports/youzan-customer-import-verify-{timestamp}.json
 python scripts/smoke_test.py --json --output reports/smoke-after-{timestamp}.json
 ```
 

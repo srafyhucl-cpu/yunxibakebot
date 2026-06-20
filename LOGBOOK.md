@@ -2,6 +2,21 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - feat(customer): 新增正式迁移后批次核对脚本
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-pipeline
+- **背景**: 当前 customer 域已经有正式迁移入口和执行 runbook，但真正执行完 `--apply` 后，仍缺一个“自动核对这批数据到底落了多少快照、多少主档、多少来源身份、多少复核单，并且能否和 apply 报告对上”的脚本。没有这层机械验收，正式迁移后的核对仍需要人工进库比对，补跑和交接都不够稳。
+- **变更范围**:
+  - `scripts/verify_youzan_customer_import.py` - 新增批次级核对脚本，按 `db-path + tenant-id + source-batch-id` 统计实际快照数、命中的主档数、来源身份数、手机号身份数、关联复核单数和 bucket summary；可选读取正式导入报告，对比 total / bucket summary 并输出 mismatch。
+  - `tests/scripts/test_verify_youzan_customer_import.py` - 新增脚本级测试，覆盖缺少批次参数报错、按数据库批次核对成功、对比 apply 报告成功、发现 bucket summary 不一致时失败。
+  - `docs/architecture/youzan-customer-formal-import-runbook.md`、`docs/README.md`、`docs/harness-engineering/core/verification-matrix.md` - 同步纳入迁移后核对命令、证据要求与测试入口。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_verify_youzan_customer_import.py tests\scripts\test_import_youzan_customers.py tests\scripts\test_audit_youzan_customer_migration.py tests\service\test_customer_import_service.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\verify_youzan_customer_import.py tests\scripts\test_verify_youzan_customer_import.py scripts\import_youzan_customers.py` 通过。
+  - `python -m compileall scripts\verify_youzan_customer_import.py tests\scripts\test_verify_youzan_customer_import.py` 通过。
+- **结论**:
+  - customer 域现在已经补齐“正式迁移 apply 后的自动验收”这一环：同一批次导入完成后，可以直接产出批次核对报告，并与 apply 报告做机器化比对，而不必再靠人工进库抽查。
+
 ## [2026-06-20] - docs(customer): 补齐正式客户迁移执行 runbook
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-import-pipeline

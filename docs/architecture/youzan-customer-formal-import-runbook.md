@@ -234,6 +234,28 @@ python scripts/import_youzan_customers.py `
 2. 正式入口 dry-run 报告
 3. 正式入口 apply 报告
 
+建议再补一份批次级核对报告：
+
+```powershell
+python scripts/verify_youzan_customer_import.py `
+  --db-path "data\bot.db" `
+  --tenant-id "yunxi" `
+  --source-batch-id "youzan-customer-20260620-full" `
+  --import-report "reports\youzan-customer-import-apply-20260620-120000.json" `
+  --json `
+  --output "reports\youzan-customer-import-verify-{timestamp}.json"
+```
+
+这一步会核对：
+
+- 当前批次实际快照数
+- 当前批次命中的主档数
+- 来源身份数
+- 手机号身份数
+- 关联复核单数
+- 批次分流汇总
+- 与 apply 报告中的 total / bucket summary 是否一致
+
 如果本次迁移接近生产同步，还建议追加：
 
 ```powershell
@@ -250,11 +272,13 @@ python scripts/smoke_test.py --json --output reports/smoke-after-{timestamp}.jso
 - `--output` 必须配合 `--json`
 - 同批次重跑返回 `skip_existing_batch_row`
 - 跨批次复用来源身份与复核记录
+- 迁移后可按 `source_batch_id` 自动核对批次汇总，并可选对比 import report
 
 对应测试入口：
 
 - `tests/scripts/test_import_youzan_customers.py`
 - `tests/scripts/test_audit_youzan_customer_migration.py`
+- `tests/scripts/test_verify_youzan_customer_import.py`
 - `tests/service/test_customer_import_service.py`
 
 ## 关联文档
