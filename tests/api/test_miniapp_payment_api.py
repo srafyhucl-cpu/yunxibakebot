@@ -128,15 +128,15 @@ async def test_miniapp_payment_notify_marks_order_paid(
     ).decode("utf-8")
 
     monkeypatch.setattr(
-        "app.service.miniapp_payment.settings.WECHAT_PAY_PLATFORM_CERT_PATH",
+        "app.service.integrations.wechat_pay.settings.WECHAT_PAY_PLATFORM_CERT_PATH",
         "D:/missing/platform-cert.pem",
     )
     monkeypatch.setattr(
-        "app.service.miniapp_payment.MiniappPaymentService._verify_wechat_notify_signature",
+        "app.service.order.payment_runtime.OrderPaymentRuntimeService._verify_wechat_notify_signature",
         lambda self, raw_body, headers: True,
     )
     monkeypatch.setattr(
-        "app.service.miniapp_payment.MiniappPaymentService._decrypt_wechat_resource",
+        "app.service.order.payment_runtime.OrderPaymentRuntimeService._decrypt_wechat_resource",
         lambda self, resource: {
             "out_trade_no": created["orderId"],
             "trade_state": "SUCCESS",

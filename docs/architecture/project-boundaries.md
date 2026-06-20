@@ -60,6 +60,8 @@
 - `order` 域已直接承接下单、支付准备、mock 支付确认、微信支付通知、用户取消、后台状态流转、未支付关闭与超时扫描。
 - `integrations/wechat_pay.py` 已开始承接微信支付签名、预下单、通知验签与通知解密等第三方适配细节。
 
+更细的内部迁移盘点见：[Platform 领域迁移盘点](./platform-domain-migration-inventory.md)。当前判断是服务层 facade 已基本完成，后续优先迁测试和内部依赖；地址域仍保留 `miniapp_addresses` 等数据库表名，不在兼容期做表重命名。
+
 ## 推进顺序
 
 > 说明：下面的“推进顺序”描述的是历史上的分阶段路线，不等于当前仍在执行的最新方案。当前真实现状以 `Platform` 已完成 canonical 收口、`MiniApp` 保留前台渠道与兼容边界为准。

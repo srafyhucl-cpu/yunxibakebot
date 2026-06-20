@@ -1340,3 +1340,31 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 保留正式迁移、后验核对与交接快照的摘要索引；实际 JSON 报告与数据库快照按 reports/ 目录管理，不在索引中重复记录敏感内容。
 - summary: customer 域正式迁移已经从“审计”推进到“dry-run / apply / 后验核对 / 交接快照”四段闭环；交接快照与证据索引已可直接用于后续补跑和换手。
+
+## E-20260620-027：Platform 领域迁移盘点
+
+- trace_id: 20260620-platform-domain-migration-inventory
+- generated_at: 2026-06-20
+- evidence_type: architecture-inventory
+- file: `D:\Project\YunxiBakeBot\docs\architecture\platform-domain-migration-inventory.md`; `D:\Project\YunxiBakeBot\docs\architecture\project-boundaries.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `rg -n "platform-domain-migration-inventory|Platform 领域迁移盘点|20260620-platform-domain-migration-inventory" docs README.md LOGBOOK.md 项目进度与配置清单.md`; `rg "from app\.repository" app/api -g "*.py"`; `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`; `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_project.py`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 补齐 Platform 领域迁移盘点
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记盘点文档和本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: 确认 `app/service/miniapp_*.py` 已基本退为兼容 facade，真实实现主要落在 canonical 领域；下一阶段优先迁测试和内部依赖，地址域采用 repo/model 别名过渡，不改外部路径、请求头或数据库表名。
+
+## E-20260620-028：测试依赖迁移到 canonical 服务
+
+- trace_id: 20260620-platform-test-dependency-migration
+- generated_at: 2026-06-20
+- evidence_type: test-architecture-sweep
+- file: `D:\Project\YunxiBakeBot\tests\service\test_miniapp_order.py`; `D:\Project\YunxiBakeBot\tests\api\test_admin_order_api.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_payment_api.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_chat_api.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `rg -n "from app\.service\.miniapp_|app\.service\.miniapp_|MiniappPaymentService|MiniappOrderInventoryService|MiniappOrderScheduleService|MiniappOrderSerializationService|MiniappOrderService|MiniappCatalogService|MiniappAddressService|MiniappChatService|MiniappAuthService" tests app -g "*.py"`; `python scripts/check_project.py`
+- result: pass
+- related_logbook: 2026-06-20 - test(architecture): 迁移测试依赖到 canonical 服务
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记测试依赖迁移和本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: 订单、支付和会话 API 相关测试已改为依赖 canonical 服务名；兼容层引用只保留在红线测试样例和 `app/service/miniapp_*.py` facade 中。

@@ -10,7 +10,7 @@ from app.api.miniapp_chat import create_miniapp_chat_router
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
 
 
-class FakeMiniappChatService:
+class FakeStorefrontConversationService:
     """记录 API 传入参数，避免测试触发真实客服服务。"""
 
     def __init__(self) -> None:
@@ -94,12 +94,12 @@ class FakeMiniappChatService:
 
 
 @pytest.fixture
-def service() -> FakeMiniappChatService:
-    return FakeMiniappChatService()
+def service() -> FakeStorefrontConversationService:
+    return FakeStorefrontConversationService()
 
 
 @pytest.fixture
-def app(service: FakeMiniappChatService) -> FastAPI:
+def app(service: FakeStorefrontConversationService) -> FastAPI:
     test_app = FastAPI()
     test_app.include_router(create_miniapp_chat_router(service))
     return test_app
@@ -107,7 +107,7 @@ def app(service: FakeMiniappChatService) -> FastAPI:
 
 async def test_miniapp_chat_post_uses_user_header(
     app: FastAPI,
-    service: FakeMiniappChatService,
+    service: FakeStorefrontConversationService,
 ) -> None:
     """发送客服消息时应使用小程序用户头做会话隔离。"""
     transport = httpx.ASGITransport(app=app)
@@ -127,7 +127,7 @@ async def test_miniapp_chat_post_uses_user_header(
 
 async def test_miniapp_chat_get_falls_back_to_demo_user(
     app: FastAPI,
-    service: FakeMiniappChatService,
+    service: FakeStorefrontConversationService,
 ) -> None:
     """未带用户头时应回退 demo 用户，便于开发者工具演示。"""
     transport = httpx.ASGITransport(app=app)
@@ -160,7 +160,7 @@ async def test_miniapp_chat_rejects_blank_message(app: FastAPI) -> None:
 
 async def test_miniapp_chat_transfer_uses_user_header(
     app: FastAPI,
-    service: FakeMiniappChatService,
+    service: FakeStorefrontConversationService,
 ) -> None:
     """主动转人工时应使用小程序用户头做工单隔离。"""
     transport = httpx.ASGITransport(app=app)
@@ -184,7 +184,7 @@ async def test_miniapp_chat_transfer_uses_user_header(
 
 async def test_miniapp_chat_transfer_uses_default_reason(
     app: FastAPI,
-    service: FakeMiniappChatService,
+    service: FakeStorefrontConversationService,
 ) -> None:
     """未传原因时后端应统一补默认转人工原因。"""
     transport = httpx.ASGITransport(app=app)

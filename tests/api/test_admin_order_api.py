@@ -16,7 +16,10 @@ from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.order import OrderApplicationService
-from app.service.miniapp_payment import PAYMENT_TIMEOUT_MINUTES, build_initial_payment
+from app.service.order.payment_state import (
+    PAYMENT_TIMEOUT_MINUTES,
+    build_initial_payment,
+)
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 

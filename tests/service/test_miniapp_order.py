@@ -12,14 +12,15 @@ from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_order_inventory import MiniappOrderInventoryService
-from app.service.miniapp_payment import (
-    MiniappPaymentService,
+from app.service.integrations import wechat_pay
+from app.service.integrations.wechat_pay import WechatPayPrepayResult
+from app.service.order import OrderApplicationService
+from app.service.order.inventory import OrderInventoryService
+from app.service.order.payment_runtime import OrderPaymentRuntimeService
+from app.service.order.payment_state import (
     PAYMENT_TIMEOUT_MINUTES,
-    WechatPayPrepayResult,
     build_initial_payment,
 )
-from app.service.order import OrderApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
@@ -242,35 +243,32 @@ async def test_prepare_payment_returns_wechat_shape_when_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """微信支付配置齐全时，支付准备应返回小程序调起支付字段。"""
-    from app.service import miniapp_payment
 
     async def fake_prepay(self, order):
         return WechatPayPrepayResult(
             prepay_id=f"wx-prepay-{order.id}", appid="wx-app-id"
         )
 
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_PAY_ENABLED", True)
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_MINIAPP_APP_ID", "wx-app-id")
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_PAY_MCH_ID", "mch-id")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_ENABLED", True)
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_MINIAPP_APP_ID", "wx-app-id")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_MCH_ID", "mch-id")
     monkeypatch.setattr(
-        miniapp_payment.settings,
+        wechat_pay.settings,
         "WECHAT_PAY_NOTIFY_URL",
         "https://example.com/pay/notify",
     )
     monkeypatch.setattr(
-        miniapp_payment.settings,
+        wechat_pay.settings,
         "WECHAT_PAY_PRIVATE_KEY_PATH",
         "D:/secure/apiclient_key.pem",
     )
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_CERT_SERIAL_NO", "serial-no")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_API_V3_KEY", "api-v3-key")
     monkeypatch.setattr(
-        miniapp_payment.settings, "WECHAT_PAY_CERT_SERIAL_NO", "serial-no"
-    )
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_PAY_API_V3_KEY", "api-v3-key")
-    monkeypatch.setattr(
-        MiniappPaymentService, "_create_wechat_jsapi_prepay", fake_prepay
+        OrderPaymentRuntimeService, "_create_wechat_jsapi_prepay", fake_prepay
     )
     monkeypatch.setattr(
-        MiniappPaymentService,
+        OrderPaymentRuntimeService,
         "_sign_with_rsa",
         lambda self, message: "signed-pay-params",
     )
@@ -309,25 +307,21 @@ async def test_wechat_prepay_requires_bound_openid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """真实微信支付预下单必须有可用 openid。"""
-    from app.service import miniapp_payment
-
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_PAY_ENABLED", True)
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_MINIAPP_APP_ID", "wx-app-id")
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_PAY_MCH_ID", "mch-id")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_ENABLED", True)
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_MINIAPP_APP_ID", "wx-app-id")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_MCH_ID", "mch-id")
     monkeypatch.setattr(
-        miniapp_payment.settings,
+        wechat_pay.settings,
         "WECHAT_PAY_NOTIFY_URL",
         "https://example.com/pay/notify",
     )
     monkeypatch.setattr(
-        miniapp_payment.settings,
+        wechat_pay.settings,
         "WECHAT_PAY_PRIVATE_KEY_PATH",
         "D:/secure/apiclient_key.pem",
     )
-    monkeypatch.setattr(
-        miniapp_payment.settings, "WECHAT_PAY_CERT_SERIAL_NO", "serial-no"
-    )
-    monkeypatch.setattr(miniapp_payment.settings, "WECHAT_PAY_API_V3_KEY", "api-v3-key")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_CERT_SERIAL_NO", "serial-no")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_API_V3_KEY", "api-v3-key")
     created = await service.create_order(
         {
             "items": [
@@ -381,9 +375,9 @@ async def test_unpaid_timeout_releases_reserved_stock(
 
     order = await OrderRepo(db).get_order(created["orderId"])
     assert order is not None
-    payment_service = MiniappPaymentService(
+    payment_service = OrderPaymentRuntimeService(
         order_repo=OrderRepo(db),
-        inventory_service=MiniappOrderInventoryService(
+        inventory_service=OrderInventoryService(
             YouzanProductRepo(db),
             YouzanInventoryRepo(db),
         ),

@@ -3,6 +3,39 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-20] - test(architecture): 迁移测试依赖到 canonical 服务
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-test-dependency-migration
+- **背景**: `Platform` 领域迁移盘点确认 `app/service/miniapp_*.py` 已基本退为兼容 facade。为了让测试也对准真实领域实现，需要先把订单、支付和会话 API 测试中的兼容类名、兼容 monkeypatch 路径迁到 canonical 服务名。
+- **变更范围**:
+  - `tests/service/test_miniapp_order.py` - 改为直接依赖 `OrderPaymentRuntimeService`、`OrderInventoryService`、`payment_state` 和 `integrations.wechat_pay`。
+  - `tests/api/test_admin_order_api.py` - 改为从 `order.payment_state` 引用支付超时常量与初始支付状态构造函数。
+  - `tests/api/test_miniapp_payment_api.py` - monkeypatch 路径改到 `order.payment_runtime` 与 `integrations.wechat_pay`。
+  - `tests/api/test_miniapp_chat_api.py` - 测试假类改名为 `FakeStorefrontConversationService`，避免继续使用 `MiniappChatService` 语义。
+- **验证结果**:
+  - `rg -n "from app\.service\.miniapp_|app\.service\.miniapp_|MiniappPaymentService|MiniappOrderInventoryService|MiniappOrderScheduleService|MiniappOrderSerializationService|MiniappOrderService|MiniappCatalogService|MiniappAddressService|MiniappChatService|MiniappAuthService" tests app -g "*.py"` 仅剩红线测试样例与 `app/service/miniapp_*.py` 兼容 facade。
+  - `python scripts/check_project.py` 通过；函数行数警告为既有非阻断项。
+- **结论**:
+  - 第一批测试依赖迁移完成，真实业务测试不再依赖 `app.service.miniapp_*` 兼容服务；API 测试文件名和 `/api/v1/miniapp/*` 路径继续保留，因为它们验证外部兼容契约。
+
+## [2026-06-20] - docs(architecture): 补齐 Platform 领域迁移盘点
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-domain-migration-inventory
+- **背景**: 双仓命名和产品角色已经收口，但下一步如果直接搬代码，容易把已经完成的 service facade 收口和仍需谨慎处理的地址域表名混在一起。为了进入第二阶段内部治理，需要先把 `miniapp_*` 遗留点按风险和执行批次盘清楚。
+- **变更范围**:
+  - `docs/architecture/platform-domain-migration-inventory.md` - 新增 Platform 内部领域迁移盘点，明确服务层 facade 现状、地址域遗留风险、P0/P1/P2/P3 分级和建议执行批次。
+  - `docs/README.md` - 将新盘点文档加入当前权威口径。
+  - `docs/architecture/project-boundaries.md` - 补充指向盘点文档的当前判断。
+  - `项目进度与配置清单.md` - 登记本轮盘点结果。
+- **验证结果**:
+  - `rg -n "platform-domain-migration-inventory|Platform 领域迁移盘点|20260620-platform-domain-migration-inventory" docs README.md LOGBOOK.md 项目进度与配置清单.md` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"` 零输出。
+  - `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"` 零输出。
+  - `rg "from app\.(service|repository|api)" app/models -g "*.py"` 零输出。
+  - `python scripts/check_project.py` 通过；函数行数警告为既有非阻断项。
+- **结论**:
+  - 下一阶段优先迁测试和内部依赖，地址域采用 repo/model 别名过渡；不改外部 HTTP 路径、身份请求头、数据库表名或历史迁移文件名。
+
 ## [2026-06-20] - docs(architecture): 澄清产品角色名与仓库路径名
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-name-clarification-role-vs-slug
