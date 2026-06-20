@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 更新 customer master v1 的后续入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-master-next-steps
+- **背景**: `customer-master-v1.md` 作为客户主档设计基线，末尾仍停留在“下一步补两份文档或脚本方案”的旧建议。现在客户迁移的审计、正式迁移、后验核对和交接/回滚都已经形成稳定闭环，因此这份设计基线也需要把后续入口改成当前真实文档。
+- **变更范围**:
+  - `docs/architecture/customer-master-v1.md` - 将“落地建议”和“下一步输出建议”更新为有赞客户迁移审计、正式迁移、迁移后核对与交接/回滚的当前权威入口。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/customer-master-v1.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 待执行。
+- **结论**:
+  - 客户主档设计基线现在不再停留在旧的抽象建议，而是明确指向已经落地的迁移闭环入口，后续从主档设计进入时能直接走当前权威文档。
+
 ## [2026-06-20] - docs(readme): 在根入口补齐客户迁移闭环
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-root-readme-customer-links

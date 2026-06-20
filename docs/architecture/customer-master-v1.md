@@ -470,16 +470,19 @@
 
 建议后续按下面顺序推进：
 
-1. 先做有赞客户结构审计
-2. 再补 `customer master` 三层表结构设计
-3. 再做导入脚本与试归并脚本
-4. 最后才接企微绑定与 CRM 首版能力
+1. 先做有赞客户迁移审计
+2. 再跑正式迁移 dry-run / apply
+3. 再做迁移后批次核对
+4. 出现异常时按交接/回滚 runbook 处理
+5. 最后再接企微绑定与 CRM 首版能力
 
 ## 下一步输出建议
 
 在本文件之后，建议紧接着补两份文档或脚本方案：
 
-1. `有赞客户迁移审计清单`
+1. [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
    - 明确统计口径、输出字段和风险分类
-2. `customer master v1` 表结构草案
-   - 把三层结构正式映射到迁移脚本和数据库 schema
+2. [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+   - 明确审计、dry-run、apply、报告留档和重跑语义
+3. [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
+   - 明确 apply 后异常中止、交接证据、同批次重跑和恢复优先级
