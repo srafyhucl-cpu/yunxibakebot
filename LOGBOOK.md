@@ -2,6 +2,19 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(customer): 补齐有赞客户迁移交接回滚 runbook
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-handoff
+- **背景**: 当前 customer 域已经有正式迁移入口、正式 runbook 和后验核对脚本，但缺一份专门说明“apply 之后出了问题怎么办”的交接/回滚手册。没有这份材料，后续接手人仍会在中断、误批次、错库写入或结果不一致时反复临场判断，交接成本高。
+- **变更范围**:
+  - `docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md` - 新增有赞客户迁移交接与回滚 runbook，明确异常中止点、证据保留、同批次重跑、必须换批次的情况、不能直接回滚的情形和交接包清单。
+  - `docs/README.md` - 将新的交接与回滚 runbook 纳入当前权威口径导航。
+- **验证结果**:
+  - `Test-Path docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md` 通过。
+  - `Select-String -Path docs/README.md -Pattern "youzan-customer-import-handoff-and-rollback-runbook"` 通过。
+- **结论**:
+  - customer 域的正式迁移现在不只拥有“怎么迁”的标准路径，也补上了“出事后怎么停、怎么交接、怎么恢复”的操作面手册；后续补跑和事故处理不需要继续靠聊天记录临场拍脑袋。
+
 ## [2026-06-20] - feat(customer): 新增正式迁移后批次核对脚本
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-import-pipeline

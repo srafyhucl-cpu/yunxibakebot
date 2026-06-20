@@ -31,6 +31,20 @@ ______________________________________________________________________
 - retention_note: 保留生产后台浏览器截图和 JSON 报告；token 仅通过环境变量临时注入，不写入报告
 - summary: 生产后台登录后只读访问概览、装修、订单、地址、商品、转人工、店铺配置 7 个页面均渲染成功；小程序 release readiness 升级为 21/21 通过。
 
+## E-20260620-002：有赞客户迁移交接与回滚 runbook
+
+- trace_id: 20260620-customer-import-handoff
+- generated_at: 2026-06-20
+- evidence_type: handoff/runbook
+- file: `D:\Project\YunxiBakeBot\docs\architecture\youzan-customer-import-handoff-and-rollback-runbook.md`; `D:\Project\YunxiBakeBot\docs\README.md`
+- command: `Test-Path docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`; `Select-String -Path docs/README.md -Pattern "youzan-customer-import-handoff-and-rollback-runbook"`
+- result: pass
+- related_logbook: 2026-06-20 - docs(customer): 补齐有赞客户迁移交接回滚 runbook
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 保留交接与回滚 runbook 的摘要索引；不包含具体客户数据、数据库内容或报告正文。
+- summary: 有赞客户正式迁移现在同时具备“怎么迁、怎么核对、出事后怎么停、怎么交接、怎么恢复”的完整文档链路；后续补跑、事故处理和换手不必再靠聊天记录临场拼接。
+
 ## E-20260617-045：生产后台 MVP 前端 dist 部署
 
 - trace_id: 20260617-production-admin-frontend-check
