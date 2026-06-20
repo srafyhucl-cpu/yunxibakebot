@@ -27,6 +27,17 @@
 - **结论**:
   - docs 导航里历史方案与当前权威口径的边界更清楚了。
 
+## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-docs-history-layering
+- **背景**: `docs/README.md` 之前把 `two-repo-rollout-plan.md` 放在“当前权威口径”中，即使说明文字已经强调它是历史路线图，位置本身仍容易让人误解为当前实施依据。为了让历史材料和当前权威入口在导航层就分开，这份双仓路线图需要移入“历史方案”区。
+- **变更范围**:
+  - `docs/README.md` - 将 `two-repo-rollout-plan.md` 从当前权威口径移到历史方案区，并同步说明文字。
+- **验证结果**:
+  - `rg -n "two-repo-rollout-plan.md|当前权威口径|历史方案" docs/README.md` 通过。
+- **结论**:
+  - `docs/README.md` 的导航现在更准确地区分了当前权威口径和历史方案。
+
 ## [2026-06-20] - docs(architecture): 继续历史化 MiniApp 过渡文档的行动语气
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-history-only

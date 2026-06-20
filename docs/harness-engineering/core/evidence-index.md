@@ -143,6 +143,20 @@ ______________________________________________________________________
 - retention_note: 仅记录 docs 导航历史分层命中结果，不含业务数据
 - summary: docs 导航中历史材料已放入“历史方案”层，和当前权威口径分开。
 
+## E-20260620-015：双仓路线图进入历史方案区
+
+- trace_id: 20260620-docs-history-layering
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\README.md`
+- command: `rg -n "two-repo-rollout-plan.md|当前权威口径|历史方案" docs/README.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(readme): 将双仓路线图移入历史方案区
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录导航分层命中结果，不含业务数据
+- summary: 双仓路线图已经从当前权威口径移入历史方案区，导航层不会再把它当当前实施依据。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug

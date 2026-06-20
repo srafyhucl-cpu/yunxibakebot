@@ -10,8 +10,6 @@
   - 当前 `Platform` / `Storefront MiniApp` 边界与 canonical 领域职责。
 - `docs/architecture/platform-miniapp-api-contract-v1.md`
   - 当前双仓对接的 API 契约基线，明确 MiniApp 应消费哪些公开接口以及背后 canonical 归属域。
-- `docs/architecture/two-repo-rollout-plan.md`
-  - 双仓推进的历史路线图，重点看当前推进顺序与命名约束，不把它当作新的实施起点。
 - `docs/architecture/customer-master-v1.md`
   - 当前客户主档 v1 设计基线，明确主档、身份链接、来源快照三层结构，以及有赞迁移审计落点。
 - `docs/architecture/customer-master-v1-schema-draft.md`
@@ -39,6 +37,8 @@
   - `Storefront MiniApp` 第一阶段边界对齐清单，只保留历史过渡记录。
 - `docs/architecture/miniapp-ai-handoff-plan.md`
   - 发给 `MiniApp` 仓 AI 的过渡阶段执行说明，只作为历史参考。
+- `docs/architecture/two-repo-rollout-plan.md`
+  - 双仓推进的历史路线图，只用于回顾过渡思路和命名约束。
 
 ## 业务与技术背景
 
