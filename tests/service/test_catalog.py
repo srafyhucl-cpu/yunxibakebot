@@ -9,7 +9,7 @@ from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.catalog import CatalogApplicationService
-from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
+from tests.helpers.catalog_seed import seed_catalog_product
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ async def test_list_products_returns_sellable_miniapp_shape(
     service: CatalogApplicationService,
 ) -> None:
     """商品列表应只返回启用商品，并带上小程序需要的价格、库存、标签和描述。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=61001,
         title="草莓奶油蛋糕",
@@ -42,7 +42,7 @@ async def test_list_products_returns_sellable_miniapp_shape(
         tag_ids=["281476346"],
         category_title="生日蛋糕",
     )
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=61002,
         title="已下架蛋糕",
@@ -72,14 +72,14 @@ async def test_list_products_by_ids_preserves_requested_order_and_dedupes(
     service: CatalogApplicationService,
 ) -> None:
     """装修货架按商品 ID 拉取时，应按配置顺序返回并跳过重复或无效 ID。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=62001,
         title="芒果千层",
         image="https://img.example/mango.jpg",
         updated_at="2026-06-16 10:00:00",
     )
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=62002,
         title="黑森林蛋糕",
@@ -102,13 +102,13 @@ async def test_featured_products_use_admin_configured_titles(
     service: CatalogApplicationService,
 ) -> None:
     """小程序主推商品应使用后台配置的主推标题过滤。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=63001,
         title="今日主推蛋糕",
         updated_at="2026-06-16 10:00:00",
     )
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=63002,
         title="普通在售蛋糕",
@@ -126,7 +126,7 @@ async def test_get_product_supports_youzan_item_id_and_local_knowledge_id(
     service: CatalogApplicationService,
 ) -> None:
     """商品详情应支持有赞 item_id，以及小程序兜底使用的本地知识 ID。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=64001,
         title="巧克力慕斯",
@@ -153,7 +153,7 @@ async def test_product_without_image_keeps_empty_image_url(
     service: CatalogApplicationService,
 ) -> None:
     """没有原始商品图时，小程序仍拿到空图片地址并走页面兜底。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=65001,
         title="无图商品",
@@ -172,7 +172,7 @@ async def test_list_categories_and_filter_by_youzan_tag(
     service: CatalogApplicationService,
 ) -> None:
     """商品分类应来自有赞 tag 映射，并支持精确过滤。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=66001,
         title="分类生日蛋糕",
@@ -180,7 +180,7 @@ async def test_list_categories_and_filter_by_youzan_tag(
         category_title="生日蛋糕",
         updated_at="2026-06-16 10:00:00",
     )
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=66002,
         title="分类下午茶",

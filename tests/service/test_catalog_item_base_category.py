@@ -6,7 +6,7 @@ from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.catalog import CatalogApplicationService
-from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
+from tests.helpers.catalog_seed import seed_catalog_product
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ async def test_list_categories_and_filter_by_item_base_classification(
     db: aiosqlite.Connection,
     service: CatalogApplicationService,
 ) -> None:
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=66101,
         title="ITEM_INFO 分类蛋糕",

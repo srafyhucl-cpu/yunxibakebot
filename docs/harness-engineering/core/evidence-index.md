@@ -1410,3 +1410,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记前台会话常量收口和本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: `StorefrontConversationService` 不再直接依赖 `miniapp` 常量或硬编码消息前缀；兼容期内 channel、消息 ID 前缀、demo 用户和默认转人工原因保持现有值不变。
+
+## E-20260620-032：Platform 架构收口 P1-P3
+
+- trace_id: 20260620-platform-architecture-closure
+- generated_at: 2026-06-20
+- evidence_type: refactor/test/doc-sweep
+- file: `D:\Project\YunxiBakeBot\app\constants\storefront.py`; `D:\Project\YunxiBakeBot\app\service\order\application.py`; `D:\Project\YunxiBakeBot\app\api\miniapp_orders.py`; `D:\Project\YunxiBakeBot\tests\helpers\catalog_seed.py`; `D:\Project\YunxiBakeBot\docs\architecture\platform-domain-migration-inventory.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\test_catalog.py tests\service\test_catalog_item_base_category.py tests\service\test_order.py tests\service\test_customer_address.py tests\service\test_storefront_conversation.py tests\api\test_miniapp_chat_api.py tests\api\test_miniapp_order_api.py tests\api\test_miniapp_address_api.py -q --tb=short --no-cov`; architecture `rg` checks; `rg -n "from app\.constants\.miniapp" app\service\order app\service\channels\storefront app\api\miniapp_chat.py app\api\miniapp_orders.py app\api\miniapp_addresses.py -g "*.py"`; `rg -n "tests\.helpers\.miniapp_catalog_seed" tests\service -g "*.py"`; `python scripts/check_project.py`
+- result: pass
+- related_logbook: 2026-06-20 - refactor(platform): 完成 Platform 架构收口 P1-P3
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记架构收口与本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: 订单域、前台认证服务和 MiniApp API 内部默认用户已切到 storefront 常量；服务测试与商品测试 helper 已迁到 canonical 领域语义；旧 MiniApp API 契约、请求头、历史表名、迁移文件和微信平台配置保持不变。

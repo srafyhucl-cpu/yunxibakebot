@@ -5,7 +5,7 @@ import hashlib
 import httpx
 
 from app.config import settings
-from app.constants.miniapp import MINIAPP_DEMO_USER_ID
+from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 
 
 class StorefrontAuthService:
@@ -54,7 +54,7 @@ class StorefrontAuthService:
     def _demo_session(self, code: str) -> dict:
         digest = hashlib.sha256(code.encode("utf-8")).hexdigest()[:12]
         return {
-            "userId": f"{MINIAPP_DEMO_USER_ID}-{digest}",
+            "userId": f"{STOREFRONT_DEMO_USER_ID}-{digest}",
             "openid": "",
             "sessionReady": True,
             "isDemo": True,

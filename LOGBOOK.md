@@ -3,6 +3,26 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-20] - refactor(platform): 完成 Platform 架构收口 P1-P3
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-architecture-closure
+- **背景**: 主仓已明确为 `Platform` 角色，但订单域、MiniApp API 默认用户、前台认证 demo 用户和部分服务测试仍带有历史 `miniapp` 内部命名。为避免继续把外部小程序契约误当内部领域边界，本轮按计划完成 P1-P3 收口，并把 P0/P4/P5 暂缓决策写入文档。
+- **变更范围**:
+  - `app/constants/storefront.py`、`app/constants/miniapp.py` - storefront 常量成为内部 canonical 入口，miniapp 常量退为兼容导出，实际字符串值保持不变。
+  - `app/service/order/*`、`app/service/channels/storefront/auth.py` - 默认用户和前台渠道值改为依赖 storefront 常量，不再直接导入 `app.constants.miniapp`。
+  - `app/api/miniapp_chat.py`、`app/api/miniapp_orders.py`、`app/api/miniapp_addresses.py` - 文件名、路由路径和 `x-miniapp-user-id` 请求头不变，内部默认用户改用 `STOREFRONT_DEMO_USER_ID`。
+  - `tests/helpers/catalog_seed.py`、`tests/helpers/miniapp_catalog_seed.py` - 新增 canonical 商品造数 helper，旧 helper 保留为 API 契约测试兼容入口。
+  - `tests/service/test_customer_address.py`、`tests/service/test_catalog.py`、`tests/service/test_catalog_item_base_category.py`、`tests/service/test_storefront_conversation.py`、`tests/service/test_order.py` - 服务测试文件名迁到 canonical 领域语义，API 测试继续保留 MiniApp 契约命名。
+  - `docs/architecture/platform-domain-migration-inventory.md`、`项目进度与配置清单.md` - 写入 P0 暂不做、P1-P3 已完成、P4/P5 暂缓和未来触发条件。
+- **验证结果**:
+  - `python -m pytest tests\service\test_catalog.py tests\service\test_catalog_item_base_category.py tests\service\test_order.py tests\service\test_customer_address.py tests\service\test_storefront_conversation.py tests\api\test_miniapp_chat_api.py tests\api\test_miniapp_order_api.py tests\api\test_miniapp_address_api.py -q --tb=short --no-cov` 通过。
+  - `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `rg -n "from app\.constants\.miniapp" app\service\order app\service\channels\storefront app\api\miniapp_chat.py app\api\miniapp_orders.py app\api\miniapp_addresses.py -g "*.py"` 零输出。
+  - `rg -n "tests\.helpers\.miniapp_catalog_seed" tests\service -g "*.py"` 零输出。
+  - `python scripts/check_project.py` 通过；函数行数警告为既有非阻断项，覆盖率 75.54%。
+- **结论**:
+  - Platform 主仓内部 P1-P3 已收口到 canonical 领域命名；外部 MiniApp API 契约、请求头、历史数据库表名、迁移文件、仓库路径和 `WECHAT_MINIAPP_*` 微信平台配置均保持不变。
+
 ## [2026-06-20] - refactor(conversation): 收口前台会话渠道常量
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-storefront-conversation-constants

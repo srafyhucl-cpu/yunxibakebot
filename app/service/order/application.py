@@ -1,6 +1,6 @@
 """订单领域应用服务。"""
 
-from app.constants.miniapp import MINIAPP_DEMO_USER_ID
+from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 from app.repository.order_event_repo import OrderEventRepo
 from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
@@ -76,7 +76,7 @@ class OrderApplicationService:
         self,
         payload: dict,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管下单创建链路。"""
         return await self._creation_service.create_order(payload, user_id=user_id)
@@ -84,7 +84,7 @@ class OrderApplicationService:
     async def list_user_orders(
         self,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> list[dict]:
         """读取当前小程序用户订单。"""
         orders = await self._order_repo.list_by_user(user_id)
@@ -94,7 +94,7 @@ class OrderApplicationService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """读取当前小程序用户的单个订单。"""
         order = await self._order_repo.get_order(order_id)
@@ -106,7 +106,7 @@ class OrderApplicationService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管小程序用户取消链路。"""
         return await self._cancellation_service.cancel_user_order(
@@ -118,7 +118,7 @@ class OrderApplicationService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管 mock 支付链路。"""
         return await self._payment_service.confirm_mock_payment(
@@ -130,7 +130,7 @@ class OrderApplicationService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管支付准备链路。"""
         return await self._payment_service.prepare_payment(

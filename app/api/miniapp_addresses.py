@@ -4,12 +4,12 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.constants.miniapp import MINIAPP_DEMO_USER_ID
+from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 from app.service.customer import CustomerAddressService
 
 
 def _miniapp_user_id(value: str | None) -> str:
-    return (value or MINIAPP_DEMO_USER_ID).strip() or MINIAPP_DEMO_USER_ID
+    return (value or STOREFRONT_DEMO_USER_ID).strip() or STOREFRONT_DEMO_USER_ID
 
 
 def create_miniapp_addresses_router(service: CustomerAddressService) -> APIRouter:

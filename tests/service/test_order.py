@@ -21,7 +21,7 @@ from app.service.order.payment_state import (
     PAYMENT_TIMEOUT_MINUTES,
     build_initial_payment,
 )
-from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
+from tests.helpers.catalog_seed import seed_catalog_product
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ async def test_create_order_uses_catalog_price_when_stock_is_enough(
     service: OrderApplicationService,
 ) -> None:
     """真实商品库存足够时，应使用商品宽表价格创建订单。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81001,
         title="库存充足蛋糕",
@@ -348,7 +348,7 @@ async def test_unpaid_timeout_releases_reserved_stock(
     service: OrderApplicationService,
 ) -> None:
     """未支付超时关闭时应释放真实商品预占库存。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81009,
         title="支付超时释放蛋糕",
@@ -400,7 +400,7 @@ async def test_expire_timeout_unpaid_orders_only_closes_expired_unpaid(
     service: OrderApplicationService,
 ) -> None:
     """批量扫描只应关闭超时未支付订单。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81010,
         title="批量超时释放蛋糕",
@@ -481,7 +481,7 @@ async def test_cancel_pending_order_releases_reserved_stock(
     service: OrderApplicationService,
 ) -> None:
     """后台取消未履约订单时，应释放小程序下单预占库存。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81005,
         title="取消释放蛋糕",
@@ -522,7 +522,7 @@ async def test_user_cancel_confirmed_order_releases_reserved_stock(
     service: OrderApplicationService,
 ) -> None:
     """小程序用户取消待确认或已确认订单时，应释放预占库存。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81007,
         title="用户取消蛋糕",
@@ -590,7 +590,7 @@ async def test_duplicate_items_are_aggregated_before_stock_reservation(
     service: OrderApplicationService,
 ) -> None:
     """同一商品重复出现时，应按合计数量预占库存。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81006,
         title="重复项蛋糕",
@@ -630,7 +630,7 @@ async def test_create_order_rejects_insufficient_stock(
     service: OrderApplicationService,
 ) -> None:
     """真实商品下单数量不能超过库存。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81002,
         title="库存不足蛋糕",
@@ -662,14 +662,14 @@ async def test_create_order_rejects_sold_out_or_inactive_product(
     service: OrderApplicationService,
 ) -> None:
     """真实商品售罄或下架时不能创建订单。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81003,
         title="售罄蛋糕",
         price_fen=19800,
         stock=0,
     )
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81004,
         title="下架蛋糕",
@@ -805,7 +805,7 @@ async def test_invalid_expect_time_does_not_reserve_stock(
     service: OrderApplicationService,
 ) -> None:
     """预约时间非法时不能先扣减真实商品库存。"""
-    await seed_miniapp_product(
+    await seed_catalog_product(
         db,
         item_id=81008,
         title="非法时间库存测试蛋糕",

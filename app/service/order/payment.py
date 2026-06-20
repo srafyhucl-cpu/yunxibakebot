@@ -1,6 +1,6 @@
 """订单支付入口服务。"""
 
-from app.constants.miniapp import MINIAPP_DEMO_USER_ID
+from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 from app.service.order.payment_runtime import OrderPaymentRuntimeService, PaymentSession
 
 
@@ -14,7 +14,7 @@ class OrderPaymentService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """确认 mock 支付。"""
         return await self._payment_service.confirm_mock_payment(
@@ -25,7 +25,7 @@ class OrderPaymentService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """准备订单支付参数。"""
         session = await self._payment_service.prepare_payment(order_id, user_id=user_id)

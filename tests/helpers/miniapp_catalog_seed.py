@@ -1,10 +1,8 @@
-"""小程序商品目录测试造数工具。"""
+"""小程序 API 契约测试造数兼容入口。"""
 
 import aiosqlite
-import json
 
-from app.repository.knowledge_product_repo import KnowledgeProductRepo
-from app.repository.youzan_repo import YouzanProductRepo
+from tests.helpers.catalog_seed import seed_catalog_product
 
 
 async def seed_miniapp_product(
@@ -26,37 +24,20 @@ async def seed_miniapp_product(
     category_title: str = "",
 ) -> None:
     """写入一条可被小程序和后台商品接口读取的商品。"""
-    await KnowledgeProductRepo(db).upsert_product_knowledge(
-        youzan_item_id=str(item_id),
+    await seed_catalog_product(
+        db,
+        item_id=item_id,
         title=title,
         content=content,
         keywords=keywords,
-        priority=priority,
-        updated_at=updated_at,
-        sync_source="miniapp_catalog_test",
-        sync_ref=str(item_id),
-    )
-    await YouzanProductRepo(db).upsert_product(
-        item_id=item_id,
-        title=title,
-        alias=f"alias-{item_id}",
         price_fen=price_fen,
         stock=stock,
+        sold_num=sold_num,
         image=image,
         is_active=is_active,
+        priority=priority,
         updated_at=updated_at,
-        tag_ids_json=json.dumps(tag_ids or [], ensure_ascii=False),
-        classification_ids_json=json.dumps(
-            classification_ids or [], ensure_ascii=False
-        ),
-        sold_num=sold_num,
+        tag_ids=tag_ids,
+        classification_ids=classification_ids,
+        category_title=category_title,
     )
-    if tag_ids and category_title:
-        await YouzanProductRepo(db).upsert_category(
-            tag_id=tag_ids[0],
-            title=category_title,
-            sort=10,
-            product_count=1,
-        )
-    if not is_active:
-        await KnowledgeProductRepo(db).delete_product_knowledge(str(item_id))

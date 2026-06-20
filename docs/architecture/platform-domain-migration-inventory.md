@@ -4,10 +4,11 @@
 
 ## 结论
 
-- `app/service/miniapp_*.py` 当前已经基本退化为兼容 facade，只做旧类名、常量或函数名导出。
+- `app/service/miniapp_*.py` 当前已经退化为兼容 facade，只做旧类名、常量或函数名导出。
 - 真实服务实现已主要落在 `customer / order / catalog / conversation / channels/storefront / integrations / ops`。
-- 下一阶段不应优先改 HTTP 路径、数据库表名或 MiniApp API 契约，而应先减少内部测试、仓储和模型对 `miniapp_*` 兼容命名的依赖。
-- 风险最高的遗留点是地址域：`miniapp_addresses`、`miniapp_address_audit` 仍是数据库表名，`MiniappAddressRepo` / `MiniappAddress` 仍是仓储和模型名，但其业务归属已经是 `customer`。
+- 订单域、前台认证服务和 MiniApp API 内部默认用户已经改为依赖 `app.constants.storefront`，`app.constants.miniapp` 只保留兼容导出。
+- 服务测试文件名和商品测试 helper 已切到 canonical 语义；API 测试继续保留 `test_miniapp_*`，因为它们验证 `/api/v1/miniapp/*` 外部契约。
+- 下一阶段不应优先改 HTTP 路径、数据库表名或 MiniApp API 契约，而应继续压缩内部引用和文档入口里的历史命名。
 
 ## 当前分层现状
 
@@ -28,55 +29,91 @@
 
 ### P0：保持稳定，不在下一步改
 
+- `YunxiBakeBot` / `YunxiBakeMiniApp` 仓库路径名。
+- 第三个总仓或 monorepo。
 - `/api/v1/miniapp/*` HTTP 路径。
 - `x-miniapp-user-id` 请求头。
 - `miniapp_addresses`、`miniapp_address_audit` 数据库表名。
 - 历史迁移文件名，例如 `v008_miniapp_addresses.sql`。
-- `YunxiBakeBot` / `YunxiBakeMiniApp` 仓库路径名。
+- `WECHAT_MINIAPP_*` 微信平台配置名。
+- `app/service/miniapp_*.py` 兼容 facade。
 
 这些名字承担兼容契约或历史迁移语义，贸然改动会增加联调、数据迁移和回滚风险。
 
-### P1：可以优先做的低风险收口
+### P1：内部依赖去 `miniapp` 化
 
-- 将 app 内部新增代码统一依赖 canonical 服务，继续保持 `scripts/check_project.py` 的红线：`app` 内禁止导入 `app.service.miniapp_*`。
-- 把现有测试里对 `MiniappPaymentService`、`MiniappOrderInventoryService`、`MiniappAddressRepo` 等兼容名的依赖，逐步替换为 canonical 名称。
-- 在测试替换完成后，保留 facade 文件作为外部兼容入口，但不再把它们当作主要测试目标。
-- 对 `lifespan_services.py` 中的旧 service key 保持兼容别名，同时新增测试确保路由优先使用 canonical key。
+- 已完成订单域默认用户和渠道常量切换到 `STOREFRONT_DEMO_USER_ID` / `STOREFRONT_CHANNEL`。
+- 已完成 `miniapp_chat.py`、`miniapp_orders.py`、`miniapp_addresses.py` 内部默认用户切换到 `STOREFRONT_DEMO_USER_ID`。
+- 已完成 `StorefrontAuthService` demo 用户前缀切换到 storefront 常量。
+- 继续保持 `scripts/check_project.py` 的红线：`app` 内禁止导入 `app.service.miniapp_*`。
 
-### P2：需要设计后再做的中风险收口
+### P2：测试与 helper 命名收口
 
-- 为地址域增加 canonical repo/model 别名，例如 `CustomerAddressRepo`、`CustomerAddress`，先映射到既有表和既有字段。
-- 让 `app/service/customer/address.py`、`address_admin.py` 依赖 customer 命名的 repo/model 别名。
-- 继续保留 `MiniappAddressRepo`、`MiniappAddress` 作为兼容导出，避免一次性冲击测试和历史调用。
-- 等客户主档和企微绑定路径稳定后，再评估是否需要新增真正的 `customer_addresses` 表；现阶段不建议做表重命名。
+- 已新增 `tests/helpers/catalog_seed.py`，作为商品目录测试 canonical 造数入口。
+- `tests/helpers/miniapp_catalog_seed.py` 保留为 API 契约测试兼容入口。
+- 服务测试已从 `test_miniapp_*` 分批重命名为 `test_customer_address.py`、`test_catalog.py`、`test_catalog_item_base_category.py`、`test_storefront_conversation.py`、`test_order.py`。
+- API 测试文件名继续保留 `test_miniapp_*`。
 
-### P3：后续产品化再评估
+### P3：压缩 `app/service/miniapp_*.py` facade
+
+- 已审计 `app/service/miniapp_*.py`，当前均为薄兼容导出。
+- `lifespan` 真实装配继续优先使用 canonical service/repo key，旧 key 只通过集中 alias map 保留兼容。
+- 新代码仍不得新增 `app.service.miniapp_*` 依赖。
+
+### P4：API 文件夹切换设计，暂不实施
+
+未来可引入：
+
+```text
+app/api/
+  channels/
+    storefront/
+      auth.py
+      addresses.py
+      catalog.py
+      chat.py
+      orders.py
+      payments.py
+  miniapp_auth.py
+  miniapp_addresses.py
+  miniapp_catalog.py
+  miniapp_chat.py
+  miniapp_orders.py
+  miniapp_payments.py
+```
+
+实施方式应是先让 `channels/storefront/*` 承载真实实现，再让 `miniapp_*.py` 退为兼容 wrapper；在明确 H5 或多渠道前台需求前，不新增 `/api/v1/storefront/*`。
+
+### P5：SaaS / 多租户阶段再评估
 
 - 是否把 `/api/v1/miniapp/*` 对外路径另起 `/api/v1/storefront/*`。
 - 是否改仓库 slug。
 - 是否把 `x-miniapp-user-id` 升级为通用渠道身份头。
+- 是否引入租户级配置目录，或把 `Yunxi` 全部降级为 seed data / tenant config。
+- 是否新增更多 `tenant_id` 隔离策略。
 - 是否将前台渠道从微信小程序扩展到 H5、抖音、小红书或其他入口。
 
 这些属于渠道产品化阶段，不应混入当前内部领域治理。
 
 ## 建议执行批次
 
-1. **测试依赖迁移批次**
-   - 修改服务层测试，让它们直接导入 `app.service.order.*`、`app.service.customer.*`、`app.service.catalog.*`、`app.service.conversation.*`。
-   - 保留 API 测试文件名中的 `miniapp`，因为它们验证的是外部兼容路径。
+1. **已完成：订单域前台渠道常量收口**
+   - `order` 域不再直接导入 `app.constants.miniapp`。
 
-2. **地址域别名批次**
-   - 新增 customer 语义的 repo/model 别名。
-   - 调整 customer address service 依赖 canonical 名称。
-   - 保持数据库表、迁移和旧 repo/model 导出不变。
+2. **已完成：MiniApp API 内部默认用户常量收口**
+   - 文件名、路由路径、请求头不变，默认用户值来自 storefront 常量。
 
-3. **service facade 降噪批次**
-   - 检查 `app/service/miniapp_*.py` 是否只剩导出。
-   - 如果某个 facade 已无内部测试和内部调用，仅保留最小兼容导出和中文说明。
+3. **已完成：商品测试 helper canonical 命名**
+   - 服务测试使用 `tests.helpers.catalog_seed`，API 测试保留旧兼容 helper。
 
-4. **文档与红线同步批次**
-   - 更新 `project-boundaries.md` 的现状收口段落。
-   - 将新增红线或兼容期约束补到 `docs/AGENTS/quick-reference.md` 或 `scripts/check_project.py`。
+4. **已完成：服务测试文件命名迁移**
+   - 服务测试文件名表达 `customer / catalog / storefront / order` 领域。
+
+5. **已完成：miniapp service facade 审计**
+   - 未发现仍承载真实逻辑的 facade。
+
+6. **后续单独设计：`app/api/channels/storefront` 目录切换**
+   - 触发条件是 MiniApp 仓边界稳定、后端 P1-P3 全部完成，并且出现明确多渠道入口需求。
 
 ## 验证要求
 
@@ -86,10 +123,12 @@
   - `rg "from app\.(service|repository|api)" app/models --include="*.py"` 必须零输出。
   - `python scripts/check_project.py` 必须通过。
 - 回归测试：
-  - 地址：`tests/api/test_miniapp_address_api.py`、`tests/api/test_admin_address_api.py`、`tests/service/test_miniapp_address.py`。
-  - 订单与支付：`tests/service/test_miniapp_order.py`、`tests/api/test_miniapp_order_api.py`、`tests/api/test_miniapp_payment_api.py`。
+  - 地址：`tests/service/test_customer_address.py`、`tests/api/test_miniapp_address_api.py`、`tests/api/test_admin_address_api.py`。
+  - 商品：`tests/service/test_catalog.py`、`tests/service/test_catalog_item_base_category.py`、`tests/api/test_miniapp_catalog_api.py`。
+  - 订单与支付：`tests/service/test_order.py`、`tests/api/test_miniapp_order_api.py`、`tests/api/test_miniapp_payment_api.py`。
+  - 会话：`tests/service/test_storefront_conversation.py`、`tests/api/test_miniapp_chat_api.py`。
   - 路由装配：`tests/test_lifespan_routes_services.py`。
 
 ## 当前判断
 
-`Platform` 的服务层已经完成了第一轮真实收口，下一步的价值不在继续抽象命名，而在把测试和内部依赖慢慢迁到 canonical 名称。地址域是最值得优先处理的残留点，但应采用 repo/model 别名过渡，不碰数据库表名。
+`Platform` 的服务层和服务测试已经完成本轮真实收口。短期只应继续压内部新增依赖和文档入口，不应改仓库名、外部 MiniApp API、请求头、历史表名、迁移文件或微信平台配置名。API 目录切换和 `/api/v1/storefront/*` 属于多渠道产品化阶段，需要单独设计和验收。

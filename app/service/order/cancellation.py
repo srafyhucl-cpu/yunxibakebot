@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from app.constants.miniapp import MINIAPP_DEMO_USER_ID
+from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 from app.models.order import Order, OrderStatus
 from app.repository.order_repo import OrderRepo
 from app.service.order.inventory import OrderInventoryService
@@ -31,7 +31,7 @@ class OrderCancellationService:
         self,
         order_id: str,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """小程序用户取消自己的未制作订单。"""
         order = await self._get_owned_order(order_id, user_id=user_id)

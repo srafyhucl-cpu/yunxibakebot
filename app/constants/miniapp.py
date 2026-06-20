@@ -1,4 +1,6 @@
 """小程序相关公共常量。"""
 
-MINIAPP_CHANNEL = "wechat_miniapp"
-MINIAPP_DEMO_USER_ID = "miniapp-demo-user"
+from app.constants.storefront import STOREFRONT_CHANNEL, STOREFRONT_DEMO_USER_ID
+
+MINIAPP_CHANNEL = STOREFRONT_CHANNEL
+MINIAPP_DEMO_USER_ID = STOREFRONT_DEMO_USER_ID

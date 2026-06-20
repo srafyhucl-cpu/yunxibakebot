@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from uuid import uuid4
 
-from app.constants.miniapp import MINIAPP_CHANNEL, MINIAPP_DEMO_USER_ID
+from app.constants.storefront import STOREFRONT_CHANNEL, STOREFRONT_DEMO_USER_ID
 from app.models.order import Order, OrderStatus
 from app.models.session import SessionCreate
 from app.repository.order_repo import OrderRepo
@@ -39,7 +39,7 @@ class OrderCreationService:
         self,
         payload: dict,
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """创建小程序订单草稿。"""
         order_items = await self._inventory_service.normalize_items(
@@ -82,13 +82,13 @@ class OrderCreationService:
         user_id: str,
     ) -> Order:
         session = await self._session_repo.get_or_create(
-            SessionCreate(id="", channel=MINIAPP_CHANNEL, user_id=user_id)
+            SessionCreate(id="", channel=STOREFRONT_CHANNEL, user_id=user_id)
         )
         now = datetime.now().strftime(TIME_FORMAT)
         return Order(
             id=self._build_order_id(),
             session_id=session.id,
-            channel=MINIAPP_CHANNEL,
+            channel=STOREFRONT_CHANNEL,
             user_id=user_id,
             products=json.dumps(
                 [item.__dict__ for item in order_items], ensure_ascii=False
