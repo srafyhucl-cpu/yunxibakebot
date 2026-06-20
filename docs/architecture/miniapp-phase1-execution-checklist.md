@@ -12,6 +12,12 @@
 - 它负责前台页面和微信端交互。
 - 它不再承载客户、订单、商品、CRM、配置的业务真相。
 
+如果 MiniApp 侧当前任务与有赞客户迁移相关，请优先参考：
+
+- [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
+- [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+- [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
+
 ## 本阶段的完成定义
 
 当以下四件事完成时，就可以认为 `MiniApp` 的第一阶段已完成：

@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 收束 MiniApp 接力文档的客户迁移入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-miniapp-handoff-customer-links
+- **背景**: MiniApp 的历史接力计划和第一阶段清单仍停留在“边界对齐过渡版”口径，虽然它们本来不是客户迁移主线，但如果不把当前客户迁移闭环入口串进去，后续接手的人还是容易只看到旧的 MiniApp 过渡任务，而忽略 Platform 已经完成的客户迁移三段闭环。
+- **变更范围**:
+  - `docs/architecture/miniapp-ai-handoff-plan.md` - 追加当前客户迁移审计、正式迁移、交接/回滚三份权威材料入口。
+  - `docs/architecture/miniapp-phase1-execution-checklist.md` - 追加当前客户迁移闭环入口，避免历史过渡文档与现状迁移材料脱节。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/miniapp-ai-handoff-plan.md,docs/architecture/miniapp-phase1-execution-checklist.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|youzan-customer-migration-audit-checklist"` 待执行。
+- **结论**:
+  - MiniApp 侧历史接力材料现在也能直接跳到客户迁移闭环入口，减少后续只看旧过渡计划而看不到当前权威材料的风险。
+
 ## [2026-06-20] - docs(architecture): 收束客户迁移入口到边界文档
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-import-boundary-links
