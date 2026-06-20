@@ -9,7 +9,7 @@
 - **变更范围**:
   - `docs/architecture/customer-master-v1.md` - 将“落地建议”和“下一步输出建议”更新为有赞客户迁移审计、正式迁移、迁移后核对与交接/回滚的当前权威入口。
 - **验证结果**:
-  - `Select-String -Path docs/architecture/customer-master-v1.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 待执行。
+  - `Select-String -Path docs/architecture/customer-master-v1.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 通过。
 - **结论**:
   - 客户主档设计基线现在不再停留在旧的抽象建议，而是明确指向已经落地的迁移闭环入口，后续从主档设计进入时能直接走当前权威文档。
 
@@ -20,7 +20,7 @@
 - **变更范围**:
   - `README.md` - 在顶部说明和项目介绍中补充当前有赞客户迁移三份权威入口。
 - **验证结果**:
-  - `Select-String -Path README.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 待执行。
+  - `Select-String -Path README.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 通过。
 - **结论**:
   - 根入口现在也能直接把客户迁移闭环露出来，和 docs 分层导航、边界文档、双仓路线图及 MiniApp 接力材料保持一致。
 
@@ -31,7 +31,7 @@
 - **变更范围**:
   - `docs/architecture/platform-miniapp-api-contract-v1.md` - 在过渡态和下一步建议中追加有赞客户迁移三份权威入口，并强调迁移执行与回滚优先看独立 customer 文档。
 - **验证结果**:
-  - `Select-String -Path docs/architecture/platform-miniapp-api-contract-v1.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 待执行。
+  - `Select-String -Path docs/architecture/platform-miniapp-api-contract-v1.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 通过。
 - **结论**:
   - 双仓 API 契约现在不只描述消费者前台该调哪些接口，也把 `customer` 域的当前迁移闭环入口直接挂上了，减少从契约进入时的跳转成本。
 
@@ -43,7 +43,7 @@
   - `docs/architecture/miniapp-ai-handoff-plan.md` - 追加当前客户迁移审计、正式迁移、交接/回滚三份权威材料入口。
   - `docs/architecture/miniapp-phase1-execution-checklist.md` - 追加当前客户迁移闭环入口，避免历史过渡文档与现状迁移材料脱节。
 - **验证结果**:
-  - `Select-String -Path docs/architecture/miniapp-ai-handoff-plan.md,docs/architecture/miniapp-phase1-execution-checklist.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|youzan-customer-migration-audit-checklist"` 待执行。
+  - `Select-String -Path docs/architecture/miniapp-ai-handoff-plan.md,docs/architecture/miniapp-phase1-execution-checklist.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|youzan-customer-migration-audit-checklist"` 通过。
 - **结论**:
   - MiniApp 侧历史接力材料现在也能直接跳到客户迁移闭环入口，减少后续只看旧过渡计划而看不到当前权威材料的风险。
 
@@ -55,7 +55,7 @@
   - `docs/architecture/project-boundaries.md` - 追加有赞客户迁移审计、正式迁移、交接/回滚 runbook 入口。
   - `docs/architecture/two-repo-rollout-plan.md` - 追加当前 Platform 仓客户迁移全链路入口。
 - **验证结果**:
-  - `Select-String -Path docs/architecture/project-boundaries.md,docs/architecture/two-repo-rollout-plan.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|youzan-customer-migration-audit-checklist"` 待执行。
+  - `Select-String -Path docs/architecture/project-boundaries.md,docs/architecture/two-repo-rollout-plan.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|youzan-customer-migration-audit-checklist"` 通过。
 - **结论**:
   - 客户迁移的文档入口从 README 继续上收到了边界文档层，后续无论从总导航还是从架构入口进入，都能直接找到审计、正式迁移和交接/回滚三段闭环。
 
