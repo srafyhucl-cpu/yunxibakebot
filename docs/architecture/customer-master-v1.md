@@ -365,6 +365,24 @@
 
 首版不建议直接做“正式迁移”，建议先跑一轮“迁移审计 + 试归并”。
 
+### 审计入口与正式入口分工
+
+当前已经有两条脚本链路，职责不要混用：
+
+- 审计入口：`python scripts/audit_youzan_customer_migration.py`
+  - 负责读取有赞客户 / 订单导出，输出汇总、问题和分流结果。
+  - 适合做结构审计、字段对齐和试导入实验。
+- 正式入口：`python scripts/import_youzan_customers.py`
+  - 负责把审计结果落到 `customer master v1` 四表。
+  - 默认只做 `dry-run`，显式加 `--apply` 才写库。
+  - 如果目标数据库不存在，只有在明确允许创建时才使用 `--allow-create`。
+
+建议的执行顺序仍然是：
+
+1. 先跑审计入口，确认手机号标准化、分流和风险样本。
+2. 再跑正式入口的 `dry-run`，确认目标数据库、批次号和输出路径。
+3. 最后显式 `--apply` 执行真实迁移。
+
 ### 第一步：导入来源快照
 
 - 将有赞客户 CSV 每一行先落为 `customer_source_snapshots`
