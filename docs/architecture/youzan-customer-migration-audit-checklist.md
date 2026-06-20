@@ -474,10 +474,14 @@
 
 ## 下一步建议
 
-在这份审计清单之后，建议继续补下面两个产物：
+在这份审计清单之后，建议直接按当前闭环继续执行：
 
-1. `customer master v1` 表结构草案
-2. 有赞客户迁移审计脚本输入输出约定
+1. [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+   - 继续完成 dry-run、`--apply`、批次号约定和报告留档
+2. `scripts/verify_youzan_customer_import.py`
+   - 继续完成迁移后批次核对与 apply 报告对账
+3. [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
+   - 继续处理 apply 后异常中止、交接证据和恢复优先级
 
 ## 与正式迁移入口的关系
 

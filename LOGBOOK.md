@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 更新客户迁移审计清单的后续入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-audit-next-steps
+- **背景**: `youzan-customer-migration-audit-checklist.md` 的尾部还停留在“继续补表结构草案和脚本输入输出约定”的旧阶段，但这些产物当前已经存在，客户迁移也已经进入正式迁移、后验核对和交接/回滚闭环。为了避免审计清单继续把人引回旧路线，需要把它改成当前真实入口。
+- **变更范围**:
+  - `docs/architecture/youzan-customer-migration-audit-checklist.md` - 将“下一步建议”更新为正式迁移 runbook、迁移后核对脚本与交接/回滚 runbook。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/youzan-customer-migration-audit-checklist.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|verify_youzan_customer_import"` 待执行。
+- **结论**:
+  - 审计清单现在不再停留在 schema 前置阶段，而是能直接把执行者引向当前已经落地的正式迁移闭环。
+
 ## [2026-06-20] - docs(architecture): 更新 customer master schema 草案的实施建议
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-master-schema-next-steps
