@@ -31,14 +31,14 @@
 - `docs/api-spec.md`
   - 高层接口总览；真实契约仍以运行中的 OpenAPI 为准。
 
-## 当前设计与过渡方案
+## 历史方案
 
 - `docs/architecture/two-repo-rollout-plan.md`
-  - 双仓推进节奏的历史路线图，当前主要用来解释过渡思路。
+  - 双仓推进节奏的历史路线图，只用于回顾过渡思路。
 - `docs/architecture/miniapp-phase1-execution-checklist.md`
-  - `Storefront MiniApp` 第一阶段边界对齐清单，属于历史过渡文档。
+  - `Storefront MiniApp` 第一阶段边界对齐清单，只保留历史过渡记录。
 - `docs/architecture/miniapp-ai-handoff-plan.md`
-  - 发给 `MiniApp` 仓 AI 的过渡阶段执行说明。
+  - 发给 `MiniApp` 仓 AI 的过渡阶段执行说明，只作为历史参考。
 
 ## 业务与技术背景
 

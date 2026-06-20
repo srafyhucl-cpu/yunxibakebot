@@ -16,6 +16,17 @@
 - **结论**:
   - 现在产品角色、渠道角色和仓库路径的口径更清楚了，后续不容易再把 `YunxiBakeMiniApp` 误认为长期产品名。
 
+## [2026-06-20] - docs(readme): 历史化 docs 导航分层
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-docs-history-layering
+- **背景**: `docs/README.md` 仍把 `two-repo-rollout-plan.md`、`miniapp-phase1-execution-checklist.md`、`miniapp-ai-handoff-plan.md` 放在“当前设计与过渡方案”下。虽然这些文档本身已经被降级为历史摘录，但导航分层还可以再明确一点，避免它们和当前权威口径并排出现时产生误读。为了让读者一眼知道这些材料只是历史方案，需要把这一层改成“历史方案”。
+- **变更范围**:
+  - `docs/README.md` - 将“当前设计与过渡方案”改成“历史方案”，并同步三份历史文档的说明措辞。
+- **验证结果**:
+  - `rg -n "当前设计与过渡方案|历史方案|只用于回顾过渡思路|只保留历史过渡记录|只作为历史参考" docs/README.md` 通过。
+- **结论**:
+  - docs 导航里历史方案与当前权威口径的边界更清楚了。
+
 ## [2026-06-20] - docs(architecture): 继续历史化 MiniApp 过渡文档的行动语气
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-history-only

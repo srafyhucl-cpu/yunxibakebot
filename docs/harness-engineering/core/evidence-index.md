@@ -129,6 +129,20 @@ ______________________________________________________________________
 - retention_note: 仅记录双仓路线图再压缩命中结果，不含业务数据
 - summary: 双仓路线图的历史行动语气已进一步压缩，读起来更像只读历史索引。
 
+## E-20260620-014：docs 导航历史分层
+
+- trace_id: 20260620-docs-history-layering
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\README.md`
+- command: `rg -n "当前设计与过渡方案|历史方案|只用于回顾过渡思路|只保留历史过渡记录|只作为历史参考" docs/README.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(readme): 历史化 docs 导航分层
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录 docs 导航历史分层命中结果，不含业务数据
+- summary: docs 导航中历史材料已放入“历史方案”层，和当前权威口径分开。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
