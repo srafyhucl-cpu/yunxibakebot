@@ -150,6 +150,18 @@
 - **结论**:
   - README 和速查文档里的初始化、知识种子和商品同步入口现在已经指向当前仓库真实存在的脚本，不会再把人带到死链接。
 
+## [2026-06-20] - docs(agents): 修正 quick reference 的数据库初始化路径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-quick-reference-database-path
+- **背景**: 在继续做文档真实性审计时，发现 `docs/AGENTS/quick-reference.md` 里的“数据库初始化”路径仍写成 `app/repository/database.py`，但当前真实入口在 `app/database.py`。这会让按速查定位代码的同学和 Agent 直接跳到不存在的文件。
+- **变更范围**:
+  - `docs/AGENTS/quick-reference.md` - 将数据库初始化路径修正为 `app/database.py`。
+- **验证结果**:
+  - `Test-Path app/database.py; Test-Path app/repository/database.py` 通过。
+  - `rg -n "app/repository/database.py|app/database.py" docs/AGENTS/quick-reference.md` 通过。
+- **结论**:
+  - quick reference 里的关键路径和当前代码结构再次对齐，减少了按图索骥时跳到死路径的概率。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

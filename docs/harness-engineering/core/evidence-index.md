@@ -283,6 +283,20 @@ ______________________________________________________________________
 - retention_note: 仅记录 README 与速查文档的脚本入口校正结果，不含业务数据
 - summary: README、quick-reference 和 api-spec 中的旧脚本入口已替换为当前仓库真实存在的初始化、知识种子和商品同步脚本。
 
+## E-20260620-025：quick reference 数据库初始化路径修正
+
+- trace_id: 20260620-quick-reference-database-path
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\AGENTS\quick-reference.md`
+- command: `Test-Path app/database.py; Test-Path app/repository/database.py`; `rg -n "app/repository/database.py|app/database.py" docs/AGENTS/quick-reference.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(agents): 修正 quick reference 的数据库初始化路径
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录 quick reference 路径修正结果，不含业务数据
+- summary: `docs/AGENTS/quick-reference.md` 中数据库初始化入口已从不存在的 `app/repository/database.py` 改成当前真实存在的 `app/database.py`。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
