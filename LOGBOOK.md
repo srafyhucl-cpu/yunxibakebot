@@ -16,6 +16,18 @@
 - **结论**:
   - 现在产品角色、渠道角色和仓库路径的口径更清楚了，后续不容易再把 `YunxiBakeMiniApp` 误认为长期产品名。
 
+## [2026-06-20] - docs(architecture): 降级 MiniApp 过渡文档为历史记录
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-miniapp-history-only
+- **背景**: `miniapp-ai-handoff-plan.md` 与 `miniapp-phase1-execution-checklist.md` 仍保留着较强的“执行计划 / 完成定义 / 推荐执行顺序”语气，虽然文件头已经标注为历史过渡版，但正文仍可能被误读为当前实施蓝图。为了让当前实施依据只剩 `project-boundaries.md`、API 契约和客户迁移四段闭环，需要把这两份文档再降一级，明确它们只是历史记录。
+- **变更范围**:
+  - `docs/architecture/miniapp-ai-handoff-plan.md` - 将目标、边界、执行、验收和联动章节统一改写为历史叙事口径。
+  - `docs/architecture/miniapp-phase1-execution-checklist.md` - 将完成定义、必做项、推荐顺序和验收章节统一标记为历史材料。
+- **验证结果**:
+  - `rg -n "历史过渡记录|历史任务边界|历史执行原则|历史推荐执行顺序|历史验收标准" docs/architecture/miniapp-ai-handoff-plan.md docs/architecture/miniapp-phase1-execution-checklist.md` 通过。
+- **结论**:
+  - 这两份文档现在只适合作为历史过渡材料，不再容易被误读成当前实施蓝图。
+
 ## [2026-06-20] - docs(architecture): 统一 MiniApp 接力计划的交付物口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-handoff-deliverable-flow

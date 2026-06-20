@@ -73,6 +73,34 @@ ______________________________________________________________________
 - retention_note: 仅记录命名澄清的文档命中结果，不含业务数据
 - summary: 产品角色名、渠道角色名和仓库路径名的口径已重新压实，历史仓名只保留在路径和过渡引用里。
 
+## E-20260620-010：MiniApp 过渡文档历史化
+
+- trace_id: 20260620-miniapp-history-only
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\architecture\miniapp-ai-handoff-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\miniapp-phase1-execution-checklist.md`
+- command: `rg -n "历史过渡记录|历史任务边界|历史执行原则|历史推荐执行顺序|历史验收标准" docs/architecture/miniapp-ai-handoff-plan.md docs/architecture/miniapp-phase1-execution-checklist.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 降级 MiniApp 过渡文档为历史记录
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录历史化命中结果，不含业务数据
+- summary: 两份 MiniApp 过渡文档已经降级为历史记录，不再作为当前实施蓝图。
+
+## E-20260620-009：产品角色名与仓库路径名澄清
+
+- trace_id: 20260620-name-clarification-role-vs-slug
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\docs\architecture\project-boundaries.md`; `D:\Project\YunxiBakeBot\docs\README.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `rg -n "仓库名|仓库 slug|历史过渡材料|命名约束|Storefront MiniApp" README.md docs/architecture/project-boundaries.md docs/README.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 澄清产品角色名与仓库路径名
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录命名澄清的文档命中结果，不含业务数据
+- summary: 产品角色名、渠道角色名和仓库路径名的口径已重新压实，历史仓名只保留在路径和过渡引用里。
+
 ## E-20260620-003：客户迁移闭环入口收束
 
 - trace_id: 20260620-customer-master-next-steps; 20260620-root-readme-customer-links; 20260620-platform-miniapp-contract-customer-links; 20260620-miniapp-handoff-customer-links; 20260620-customer-import-boundary-links; 20260620-customer-master-schema-next-steps; 20260620-customer-audit-next-steps; 20260620-customer-loop-four-sections
