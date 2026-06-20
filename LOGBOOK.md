@@ -2,6 +2,20 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - feat(customer): 新增正式有赞客户迁移入口脚本
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-pipeline
+- **背景**: `customer master v1` 已经有了 schema、customer 主档服务、试导入编排和 `audit_youzan_customer_migration.py --apply-import` 实验入口，但真正进入后续人工迁移、补跑和留档时，还缺一个“默认只 dry-run、显式 `--apply` 才写库”的正式命令。继续沿用 `audit` 入口会让“审计”和“迁移”职责混在一起，不利于后续批次执行和运维口径统一。
+- **变更范围**:
+  - `scripts/import_youzan_customers.py` - 新增正式迁移入口脚本，默认基于现有审计规则输出 dry-run 报告，显式 `--apply` 时复用现有 customer 导入链路执行写库；同时补充 `--allow-create`、`--json`、`--output`、批次号和数据库可用性判断，形成更接近 `apply_migrations.py` 的执行体验。
+  - `tests/scripts/test_import_youzan_customers.py` - 新增脚本级测试，覆盖缺库 dry-run 拒绝、`--allow-create` dry-run 机器可读报告、显式 `--apply` 导入成功、同批次幂等重跑和 `--output` / `--json` 约束。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_import_youzan_customers.py tests\scripts\test_audit_youzan_customer_migration.py tests\service\test_customer_import_service.py tests\repository\test_customer_master_repo.py tests\service\test_customer_master_service.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\import_youzan_customers.py tests\scripts\test_import_youzan_customers.py scripts\audit_youzan_customer_migration.py` 通过。
+  - `python -m compileall scripts\import_youzan_customers.py tests\scripts\test_import_youzan_customers.py` 通过。
+- **结论**:
+  - customer 域现在同时具备“审计入口”和“正式迁移入口”两条清晰链路：`audit_youzan_customer_migration.py` 继续承担可复核审计与试导入实验，`import_youzan_customers.py` 则成为后续正式批次迁移、dry-run 留档、显式 apply 执行的标准入口。
+
 ## [2026-06-20] - fix(customer): 补齐 customer 试导入重跑幂等与复核复用
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-import-pipeline
