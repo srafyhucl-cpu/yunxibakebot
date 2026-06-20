@@ -65,6 +65,20 @@
 - **结论**:
   - 当前实施入口、客户迁移闭环和历史参考材料之间的边界再次被压紧，后续阅读路径更不容易走偏。
 
+## [2026-06-20] - adr(architecture): 固化逻辑总项目与双仓边界命名决策
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-storefront-boundaries-and-naming
+- **背景**: 经过多轮文档收口后，当前已经形成稳定共识：采用逻辑总项目、不新建第三仓、`YunxiBakeBot` 作为 `Platform` 主仓、`YunxiBakeMiniApp` 作为 `Storefront MiniApp` 渠道仓、`Yunxi` 只作为首个实例名。为了避免后续又在 README、边界文档或历史路线图之间来回讨论同一个问题，需要把这个决策升级为 ADR。
+- **变更范围**:
+  - `docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md` - 新增长期架构决策记录。
+  - `docs/architecture/project-boundaries.md` - 挂载 ADR 入口，明确边界文档背后的长期决策来源。
+  - `docs/README.md` - 在 Harness 与证据区补充 ADR 导航入口。
+- **验证结果**:
+  - `Test-Path docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md` 通过。
+  - `rg -n "ADR 0002|逻辑总项目|双仓边界|Yunxi 降级为实例名" docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md docs/architecture/project-boundaries.md docs/README.md` 通过。
+- **结论**:
+  - 这次双仓边界与命名收口从“当前文档共识”升级成了“长期决策记录”，后续不容易再回到原点重谈。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

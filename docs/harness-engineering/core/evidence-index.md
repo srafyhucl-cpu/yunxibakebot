@@ -199,6 +199,20 @@ ______________________________________________________________________
 - retention_note: 仅记录入口边界收口命中结果，不含业务数据
 - summary: 当前权威入口文档已统一强调执行起点与四段闭环，历史方案与背景材料只作为参考入口。
 
+## E-20260620-019：逻辑总项目与双仓边界命名 ADR
+
+- trace_id: 20260620-platform-storefront-boundaries-and-naming
+- generated_at: 2026-06-20
+- evidence_type: adr
+- file: `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0002-platform-storefront-boundaries-and-instance-naming.md`; `D:\Project\YunxiBakeBot\docs\architecture\project-boundaries.md`; `D:\Project\YunxiBakeBot\docs\README.md`
+- command: `Test-Path docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md`; `rg -n "ADR 0002|逻辑总项目|双仓边界|Yunxi 降级为实例名" docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md docs/architecture/project-boundaries.md docs/README.md`
+- result: pass
+- related_logbook: 2026-06-20 - adr(architecture): 固化逻辑总项目与双仓边界命名决策
+- related_adr: 0002-platform-storefront-boundaries-and-instance-naming
+- contains_sensitive_data: no
+- retention_note: 仅记录 ADR 建立与入口挂载结果，不含业务数据
+- summary: 双仓边界、逻辑总项目命名和 `Yunxi` 实例名定位已升级为长期决策记录，并挂到当前边界入口。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug

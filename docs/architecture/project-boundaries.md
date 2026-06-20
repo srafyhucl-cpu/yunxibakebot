@@ -1,5 +1,7 @@
 # Bakery Commerce Platform 项目边界
 
+相关长期决策见：[ADR 0002：采用逻辑总项目 + 双仓边界，并将 Yunxi 降级为实例名](../harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md)
+
 ## 定位
 
 - `Bakery Commerce Platform`

@@ -50,6 +50,8 @@
 
 - `docs/harness-engineering/README.md`
   - Harness Engineering 总入口。
+- `docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md`
+  - 固化逻辑总项目、双仓边界和 `Yunxi` 实例名定位的长期决策。
 - `docs/harness-engineering/core/evidence-index.md`
   - 历史证据索引，只做追溯，不作为当前架构口径来源。
 
