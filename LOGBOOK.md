@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 统一 MiniApp 接力计划的交付物口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-miniapp-handoff-deliverable-flow
+- **背景**: `miniapp-ai-handoff-plan.md` 的交付物列表里还写着“一份后续建议执行顺序”，这在四段闭环统一后显得过于泛化。为了让交付物列表也和当前口径一致，需要把它改成“四段闭环执行顺序”。
+- **变更范围**:
+  - `docs/architecture/miniapp-ai-handoff-plan.md` - 将交付物第 5 项从“后续建议执行顺序”改为“四段闭环执行顺序”。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/miniapp-ai-handoff-plan.md -Pattern "四段闭环执行顺序"` 通过。
+- **结论**:
+  - MiniApp 接力计划的交付物列表现在也和客户迁移四段闭环口径一致，不再留有泛化的“后续建议”措辞。
+
 ## [2026-06-20] - docs(architecture): 统一客户迁移闭环为四段口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-loop-four-sections
