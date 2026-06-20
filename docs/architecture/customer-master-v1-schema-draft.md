@@ -554,4 +554,5 @@ customer_merge_reviews
 
 1. 继续以 [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md) 作为迁移前审计入口
 2. 以 [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md) 作为 dry-run / apply 标准执行入口
-3. 以 `scripts/verify_youzan_customer_import.py` 和 [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md) 作为迁移后核对与异常处理入口
+3. 以 `scripts/verify_youzan_customer_import.py` 作为迁移后批次核对与 apply 报告对账入口
+4. 以 [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md) 作为迁移后异常处理入口

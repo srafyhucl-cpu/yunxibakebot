@@ -484,5 +484,7 @@
    - 明确统计口径、输出字段和风险分类
 2. [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
    - 明确审计、dry-run、apply、报告留档和重跑语义
-3. [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
+3. `scripts/verify_youzan_customer_import.py`
+   - 明确迁移后批次核对和 apply 报告对账
+4. [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
    - 明确 apply 后异常中止、交接证据、同批次重跑和恢复优先级

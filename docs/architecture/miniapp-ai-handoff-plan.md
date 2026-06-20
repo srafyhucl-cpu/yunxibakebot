@@ -45,10 +45,11 @@
 - 订单、支付、地址、商品相关业务规则真相都应继续留在 `Platform`。
 - `MiniApp` 只消费现有 API，不要再在前台复制规则。
 
-如果你现在要接手的是“客户迁移闭环”相关工作，先看这三份当前权威材料：
+如果你现在要接手的是“客户迁移闭环”相关工作，先看这四段当前权威材料：
 
 - [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
 - [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+- `scripts/verify_youzan_customer_import.py`
 - [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
 
 ## MiniApp 侧本轮任务边界

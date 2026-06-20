@@ -18,12 +18,12 @@
   - 当前有赞客户迁移审计清单，明确输入、标准化规则、风险分级、输出表头和分流规则。
 - `docs/architecture/youzan-customer-formal-import-runbook.md`
   - 当前有赞客户正式迁移执行 runbook，明确审计、dry-run、apply、报告留档和重跑语义。
+- `scripts/verify_youzan_customer_import.py`
+  - 当前有赞客户迁移后核对脚本，按批次核对快照、主档、身份与复核汇总，可选对比正式导入报告。
 - `docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`
   - 当前有赞客户迁移交接与回滚 runbook，明确异常中止、交接证据、同批次重跑和恢复优先级。
 - `scripts/import_youzan_customers.py`
   - 当前有赞客户正式迁移入口；默认 dry-run，显式 `--apply` 才写库。
-- `scripts/verify_youzan_customer_import.py`
-  - 当前有赞客户迁移后核对脚本；按批次核对快照、主档、身份与复核汇总，可选对比正式导入报告。
 - `项目进度与配置清单.md`
   - 当前进度、生产同步检查和阶段记录。
 - `docs/api-spec.md`

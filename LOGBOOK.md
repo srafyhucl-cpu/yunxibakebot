@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 统一客户迁移闭环为四段口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-loop-four-sections
+- **背景**: 前一轮入口统一已经基本完成，但 `miniapp-ai-handoff-plan.md` 仍写着“三份当前权威材料”，口径上还没把迁移后核对脚本正式并入为第四段。为了让所有入口都一致指向审计、正式迁移、迁移后核对、交接/回滚四段闭环，需要把最后这一处表述统一掉。
+- **变更范围**:
+  - `docs/architecture/miniapp-ai-handoff-plan.md` - 将“客户迁移闭环”表述从三份改为四段。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/miniapp-ai-handoff-plan.md -Pattern "四段当前权威材料|verify_youzan_customer_import"` 通过。
+- **结论**:
+  - 客户迁移闭环的入口和表述现在统一成四段口径，迁移后核对脚本不再只是“隐藏在文档里的工具”，而是和其他三段一样的正式入口。
+
 ## [2026-06-20] - docs(architecture): 更新客户迁移审计清单的后续入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-audit-next-steps

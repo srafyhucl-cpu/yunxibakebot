@@ -415,6 +415,7 @@
 - `customer` 域的当前权威入口已经单独收束到三份文档：
   - [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
   - [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+  - `scripts/verify_youzan_customer_import.py`
   - [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
 
 ## v1 冻结建议
