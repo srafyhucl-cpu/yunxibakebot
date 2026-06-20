@@ -3,6 +3,21 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-20] - refactor(lifespan): 集中管理兼容期旧 key
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-lifespan-legacy-key-aliases
+- **背景**: 地址域和测试依赖已经切到 canonical 命名，但 `lifespan_services.py` 与 `main.py` 仍直接散落旧 `miniapp_*` service/repo key。为了降低后续继续缩减兼容层的认知成本，需要把旧 key 集中到明确的 alias map。
+- **变更范围**:
+  - `app/lifespan_services.py` - 新增 `LEGACY_SERVICE_ALIASES` 与 `_with_legacy_service_aliases()`，真实服务字典只先声明 canonical key，再统一补旧 key。
+  - `app/main.py` - 新增 `LEGACY_REPOSITORY_ALIASES` 与 `_with_legacy_repository_aliases()`，真实仓储字典只先声明 canonical key，再统一补旧 key。
+  - `tests/test_lifespan_routes_services.py` - 测试数据改用 storefront/customer/order/catalog 语义标签，并增加旧 service/repo alias 指向 canonical 对象的断言。
+- **验证结果**:
+  - `python -m pytest tests\test_lifespan_routes_services.py -q --tb=short --no-cov` 通过。
+  - `rg -n 'miniapp_.*service|miniapp_.*repo|miniapp-auth-service|miniapp-address-service|miniapp-catalog-service|miniapp-order-service|miniapp-chat-service' app tests -g '*.py'` 仅剩 alias map、兼容断言和外部 MiniApp API 命名。
+  - `python scripts/check_project.py` 通过；函数行数警告为既有非阻断项。
+- **结论**:
+  - `lifespan` 内部真实装配已经优先 canonical key，旧 `miniapp_*` key 只通过集中 alias map 保留兼容。
+
 ## [2026-06-20] - refactor(customer): 地址域仓储和模型切到 canonical 命名
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-address-canonical-repo

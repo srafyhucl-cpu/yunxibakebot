@@ -4,7 +4,7 @@ import sys
 import types
 from typing import Any
 
-from app import lifespan_routes, lifespan_services
+from app import lifespan_routes, lifespan_services, main
 
 
 class FakeApp:
@@ -145,11 +145,11 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "reconcile_service": "reconcile",
         "knowledge_sync_service": "knowledge-sync",
         "shop_page_configuration_service": "shop-pages-service",
-        "storefront_auth_service": "miniapp-auth-service",
-        "customer_address_service": "miniapp-address-service",
-        "catalog_service": "miniapp-catalog-service",
-        "order_service": "miniapp-order-service",
-        "storefront_conversation_service": "miniapp-chat-service",
+        "storefront_auth_service": "storefront-auth-service",
+        "customer_address_service": "customer-address-service",
+        "catalog_service": "catalog-service",
+        "order_service": "order-service",
+        "storefront_conversation_service": "storefront-conversation-service",
     }
 
     lifespan_routes.register_routes(app, services)
@@ -367,8 +367,31 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         created["storefront_conversation_service"]["transfer_mgr"]
         is services["transfer_mgr"]
     )
+    assert services["miniapp_auth_service"] is services["storefront_auth_service"]
+    assert services["miniapp_catalog_service"] is services["catalog_service"]
+    assert services["miniapp_order_service"] is services["order_service"]
+    assert services["miniapp_address_service"] is services["customer_address_service"]
+    assert (
+        services["miniapp_chat_service"] is services["storefront_conversation_service"]
+    )
+    assert (
+        services["shop_page_config_service"]
+        is services["shop_page_configuration_service"]
+    )
     assert created["shop_page_configuration_service"] == "config-repo"
     assert (
         created["reconcile_service"]["knowledge_product_repo"]
         == "knowledge-product-repo"
     )
+
+
+def test_legacy_repository_aliases_point_to_canonical_repositories() -> None:
+    repos = {
+        "customer_address_repo": object(),
+        "customer_address_audit_repo": object(),
+    }
+
+    result = main._with_legacy_repository_aliases(repos)
+
+    assert result["miniapp_address_repo"] is result["customer_address_repo"]
+    assert result["miniapp_address_audit_repo"] is result["customer_address_audit_repo"]

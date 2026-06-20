@@ -12,6 +12,15 @@ from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_handler import YouzanEventHandler
 from app.service.youzan.product_reconciler import ProductReconcileService
 
+LEGACY_SERVICE_ALIASES = {
+    "miniapp_auth_service": "storefront_auth_service",
+    "miniapp_catalog_service": "catalog_service",
+    "miniapp_order_service": "order_service",
+    "miniapp_address_service": "customer_address_service",
+    "miniapp_chat_service": "storefront_conversation_service",
+    "shop_page_config_service": "shop_page_configuration_service",
+}
+
 
 def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str, Any]:
     """初始化 Service 层，返回服务字典。"""
@@ -117,7 +126,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         transfer_mgr=transfer_mgr,
     )
 
-    return {
+    services = {
         "admin_service": admin_service,
         "observability_service": observability_service,
         "knowledge_sync_service": knowledge_sync_service,
@@ -134,11 +143,12 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "reconcile_service": reconcile_service,
         "chat_service": chat_service,
         "storefront_conversation_service": storefront_conversation_service,
-        # 兼容旧命名，后续逐步缩减
-        "miniapp_auth_service": storefront_auth_service,
-        "miniapp_catalog_service": catalog_service,
-        "miniapp_order_service": order_service,
-        "miniapp_address_service": customer_address_service,
-        "miniapp_chat_service": storefront_conversation_service,
-        "shop_page_config_service": shop_page_configuration_service,
     }
+    return _with_legacy_service_aliases(services)
+
+
+def _with_legacy_service_aliases(services: dict[str, Any]) -> dict[str, Any]:
+    """补齐兼容期旧 service key，真实装配仍以 canonical key 为准。"""
+    for legacy_key, canonical_key in LEGACY_SERVICE_ALIASES.items():
+        services[legacy_key] = services[canonical_key]
+    return services

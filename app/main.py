@@ -48,10 +48,16 @@ from app.repository.transfer_repo import TransferRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+
 # 以下5个服务类由lifespan_services模块内部按需导入，避免顶层循环依赖
 # （顶层仅做类型标注用）：ChatService、KnowledgeRetriever、YouzanClient、YouzanEventHandler、ProductReconcileService
 
 logger = setup_logger()
+
+LEGACY_REPOSITORY_ALIASES = {
+    "miniapp_address_repo": "customer_address_repo",
+    "miniapp_address_audit_repo": "customer_address_audit_repo",
+}
 
 
 def _check_startup_safety() -> None:
@@ -151,7 +157,7 @@ async def _init_database() -> None:
 
 def _init_repositories() -> dict[str, object]:
     """初始化 Repository 层（使用 None 占位，运行时通过 ContextVar 动态路由）。"""
-    return {
+    repos = {
         "session_repo": SessionRepo(None),
         "message_repo": MessageRepo(None),
         "knowledge_repo": KnowledgeRepo(None),
@@ -172,9 +178,15 @@ def _init_repositories() -> dict[str, object]:
         "order_event_repo": OrderEventRepo(None),
         "customer_address_repo": CustomerAddressRepo(None),
         "customer_address_audit_repo": CustomerAddressAuditRepo(None),
-        "miniapp_address_repo": CustomerAddressRepo(None),
-        "miniapp_address_audit_repo": CustomerAddressAuditRepo(None),
     }
+    return _with_legacy_repository_aliases(repos)
+
+
+def _with_legacy_repository_aliases(repos: dict[str, object]) -> dict[str, object]:
+    """补齐兼容期旧 repository key，避免旧入口立刻失效。"""
+    for legacy_key, canonical_key in LEGACY_REPOSITORY_ALIASES.items():
+        repos[legacy_key] = repos[canonical_key]
+    return repos
 
 
 async def _startup_notify() -> None:

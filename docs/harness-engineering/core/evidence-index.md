@@ -1382,3 +1382,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记地址域命名收口和本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: 地址域新增 customer 语义模型和仓储，旧 `MiniappAddress*` 模块退为兼容导出；数据库表名、历史迁移文件和 `/api/v1/miniapp/addresses` 路径保持不变。
+
+## E-20260620-030：lifespan 兼容 key 集中管理
+
+- trace_id: 20260620-lifespan-legacy-key-aliases
+- generated_at: 2026-06-20
+- evidence_type: refactor/test
+- file: `D:\Project\YunxiBakeBot\app\lifespan_services.py`; `D:\Project\YunxiBakeBot\app\main.py`; `D:\Project\YunxiBakeBot\tests\test_lifespan_routes_services.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\test_lifespan_routes_services.py -q --tb=short --no-cov`; `rg -n 'miniapp_.*service|miniapp_.*repo|miniapp-auth-service|miniapp-address-service|miniapp-catalog-service|miniapp-order-service|miniapp-chat-service' app tests -g '*.py'`; `python scripts/check_project.py`
+- result: pass
+- related_logbook: 2026-06-20 - refactor(lifespan): 集中管理兼容期旧 key
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记 `lifespan` 兼容 key 收口和本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: `lifespan` 真实装配优先 canonical key，旧 `miniapp_*` service/repo key 通过集中 alias map 保留兼容，并由测试确认别名指向 canonical 对象。
