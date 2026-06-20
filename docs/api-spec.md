@@ -222,7 +222,8 @@ docker-compose up -d
 curl http://127.0.0.1:7001/health
 
 # 知识种子导入
-python scripts/seed_knowledge.py
+python scripts/seed_baseline_knowledge.py
+python scripts/seed_baseline_knowledge.py --apply
 
 # 锁文件更新（依赖变更后）
 pip-compile requirements.in --output-file requirements.txt

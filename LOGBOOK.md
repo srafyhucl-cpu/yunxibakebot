@@ -136,6 +136,20 @@
 - **结论**:
   - README 中剩余的仓库地址示例现在更接近可直接执行状态，读者不需要再自己猜主仓地址。
 
+## [2026-06-20] - docs(readme): 清理 README 中已失效的脚本入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-readme-stale-script-entrypoints
+- **背景**: 在继续检查 README 可用性时，发现快速开始、安装配置、运维命令和 FAQ 里仍引用 `scripts/init_db.py`、`scripts/seed_knowledge.py`、`scripts/sync_youzan_products.py` 这类当前仓库已不存在的旧脚本名。继续保留这些入口会让读者照着文档执行时直接失败。
+- **变更范围**:
+  - `README.md` - 将数据库初始化、知识种子、商品同步和 FAQ 中的旧脚本名替换为当前真实入口。
+  - `docs/AGENTS/quick-reference.md` - 将知识种子命令替换为 `seed_baseline_knowledge.py`。
+  - `docs/api-spec.md` - 将知识种子命令替换为 `seed_baseline_knowledge.py`。
+- **验证结果**:
+  - `rg -n "init_db.py|seed_knowledge.py|sync_youzan_products.py|apply_migrations.py|seed_baseline_knowledge.py|sync_real_products_from_youzan.py" README.md docs/AGENTS/quick-reference.md docs/api-spec.md` 通过。
+  - `Test-Path scripts/apply_migrations.py; Test-Path scripts/seed_baseline_knowledge.py; Test-Path scripts/sync_real_products_from_youzan.py` 通过。
+- **结论**:
+  - README 和速查文档里的初始化、知识种子和商品同步入口现在已经指向当前仓库真实存在的脚本，不会再把人带到死链接。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

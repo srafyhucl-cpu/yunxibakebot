@@ -269,6 +269,20 @@ ______________________________________________________________________
 - retention_note: 仅记录 README 仓库链接示例更新结果，不含业务数据
 - summary: README 中快速开始、部署和 fork 场景的主仓地址已统一为真实仓库链接，fork 示例保留用户变量但不再使用旧占位仓名。
 
+## E-20260620-024：README 失效脚本入口清理
+
+- trace_id: 20260620-readme-stale-script-entrypoints
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\quick-reference.md`; `D:\Project\YunxiBakeBot\docs\api-spec.md`
+- command: `rg -n "init_db.py|seed_knowledge.py|sync_youzan_products.py|apply_migrations.py|seed_baseline_knowledge.py|sync_real_products_from_youzan.py" README.md docs/AGENTS/quick-reference.md docs/api-spec.md`; `Test-Path scripts/apply_migrations.py; Test-Path scripts/seed_baseline_knowledge.py; Test-Path scripts/sync_real_products_from_youzan.py`
+- result: pass
+- related_logbook: 2026-06-20 - docs(readme): 清理 README 中已失效的脚本入口
+- related_adr: 0002-platform-storefront-boundaries-and-instance-naming
+- contains_sensitive_data: no
+- retention_note: 仅记录 README 与速查文档的脚本入口校正结果，不含业务数据
+- summary: README、quick-reference 和 api-spec 中的旧脚本入口已替换为当前仓库真实存在的初始化、知识种子和商品同步脚本。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug

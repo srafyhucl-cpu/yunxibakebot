@@ -320,11 +320,11 @@ pip install -r requirements.txt
 cp .env.example .env
 # 编辑 .env 文件，填入 DeepSeek API Key
 
-# 5. 初始化数据库
-python scripts/init_db.py
+# 5. 初始化数据库 schema（默认 dry-run）
+python scripts/apply_migrations.py
 
-# 6. 导入知识种子数据
-python scripts/seed_knowledge.py
+# 6. 导入基础知识种子（默认 dry-run）
+python scripts/seed_baseline_knowledge.py
 
 # 7. 启动后端服务
 python -m uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
@@ -410,26 +410,26 @@ LOG_LEVEL=info
 #### 1.5 初始化数据库
 
 ```bash
-python scripts/init_db.py
+python scripts/apply_migrations.py
 ```
 
-这将创建 `data/bot.db` 数据库文件，并初始化所有表结构。
+这会先以 dry-run 方式检查目标数据库的缺失表；确认路径无误后，再使用 `python scripts/apply_migrations.py --apply` 实际补齐 schema。
 
 #### 1.6 导入知识种子数据
 
 ```bash
-python scripts/seed_knowledge.py
+python scripts/seed_baseline_knowledge.py
 ```
 
-这将导入 FAQ、产品信息、规则话术等基础知识到知识库。
+这会先以 dry-run 方式检查基础知识种子写入条件；确认目标库无误后，再使用 `python scripts/seed_baseline_knowledge.py --apply` 写入 FAQ、规则和兜底话术。
 
 #### 1.7（可选）同步有赞商品
 
 ```bash
-python scripts/sync_youzan_products.py
+python scripts/sync_real_products_from_youzan.py
 ```
 
-这将从有赞 API 同步商品信息到本地数据库和知识库。
+这会从有赞 API 拉取当前在售商品，并同步到本地数据库与知识库。
 
 ### 2. 前端安装（可选）
 
@@ -575,11 +575,12 @@ cp data/bot.db data/bot.db.backup.$(date +%Y%m%d)
 # 恢复数据库
 cp data/bot.db.backup.20260104 data/bot.db
 
-# 重新导入知识种子
-python scripts/seed_knowledge.py --force
+# 重新检查并导入基础知识种子
+python scripts/seed_baseline_knowledge.py
+python scripts/seed_baseline_knowledge.py --apply
 
 # 重新同步有赞商品
-python scripts/sync_youzan_products.py --force
+python scripts/sync_real_products_from_youzan.py
 ```
 
 ---
@@ -643,9 +644,9 @@ Platform (repo: YunxiBakeBot)/
 │       ├── vite.config.ts         # Vite 配置
 │       └── tsconfig.json          # TypeScript 配置
 ├── scripts/                      # 脚本目录
-│   ├── init_db.py                 # 数据库初始化脚本
-│   ├── seed_knowledge.py          # 知识种子导入脚本
-│   ├── sync_youzan_products.py   # 有赞商品同步脚本
+│   ├── apply_migrations.py        # 数据库迁移脚本（默认 dry-run）
+│   ├── seed_baseline_knowledge.py # 基础知识种子脚本（默认 dry-run）
+│   ├── sync_real_products_from_youzan.py # 有赞商品同步脚本
 │   └── ...
 ├── tests/                        # 测试目录
 │   ├── api/                       # API 测试
@@ -808,10 +809,12 @@ cp .env.example .env
 # 编辑 .env 文件
 
 # 5. 初始化数据库
-python scripts/init_db.py
+python scripts/apply_migrations.py
+python scripts/apply_migrations.py --apply
 
 # 6. 导入知识种子
-python scripts/seed_knowledge.py
+python scripts/seed_baseline_knowledge.py
+python scripts/seed_baseline_knowledge.py --apply
 
 # 7. 创建 systemd 服务
 sudo nano /etc/systemd/system/yunxibakebot.service
@@ -1061,7 +1064,7 @@ pip cache purge
 
 1. 确保 `data/` 目录存在且有写权限
 2. 确保 SQLite 版本 >= 3.x
-3. 查看错误日志：`python scripts/init_db.py 2>&1 | tee init_db.log`
+3. 查看错误日志：`python scripts/apply_migrations.py 2>&1 | tee init_db.log`
 
 ### 2. 运行问题
 
