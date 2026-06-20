@@ -2,6 +2,19 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(customer): 定义 customer master v1 迁移底盘方案
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-master-v1
+- **背景**: 在双仓边界和 MiniApp API 契约已经明确后，下一步最容易反复争论的就是“客户主档到底怎么起步”。结合当前有赞客户导出、订单导出、小程序 `openid` 身份以及未来企微承接诉求，本轮先不做完整 CRM 终局设计，而是定义一版可支撑迁移对账的 `customer master v1`：有主档表，但自动合并首版只认手机号，其他身份先挂关联表。
+- **变更范围**:
+  - `docs/architecture/customer-master-v1.md` - 新增客户主档 v1 设计文档，覆盖三层结构、字段分层、自动合并规则、来源快照策略、迁移流程和有赞客户结构审计落点。
+  - `docs/README.md` - 将客户主档 v1 文档纳入当前权威口径入口。
+- **验证结果**:
+  - 已对照 `app/models/customer_profile.py`、`app/repository/customer_profile_repo.py`、`app/migrations/schema.py`，确认现有 `customer_profiles` 定位仍是 AI 长期记忆画像，不适合作为统一客户主档直接承接。
+  - 已对照本地有赞客户导出和订单导出表头，确认手机号、昵称、生日、性别、来源时间、会员/积分/储值等字段分层方案具备现实依据。
+- **遗留风险**:
+  - 本轮仍是文档设计，不含 schema 和导入脚本实现；后续落库前还需要补一版表结构草案和有赞客户迁移审计清单。
+
 ## [2026-06-20] - docs(architecture): 补齐 Platform 与 MiniApp 双仓 API 契约 v1
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-platform-miniapp-api-contract-v1

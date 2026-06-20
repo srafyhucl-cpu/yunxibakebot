@@ -10,6 +10,8 @@
   - 当前 `Platform` / `Storefront MiniApp` 边界与 canonical 领域职责。
 - `docs/architecture/platform-miniapp-api-contract-v1.md`
   - 当前双仓对接的 API 契约基线，明确 MiniApp 应消费哪些公开接口以及背后 canonical 归属域。
+- `docs/architecture/customer-master-v1.md`
+  - 当前客户主档 v1 设计基线，明确主档、身份链接、来源快照三层结构，以及有赞迁移审计落点。
 - `项目进度与配置清单.md`
   - 当前进度、生产同步检查和阶段记录。
 - `docs/api-spec.md`
