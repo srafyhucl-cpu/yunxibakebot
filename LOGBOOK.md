@@ -2,6 +2,19 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(customer): 补齐有赞客户迁移审计清单
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-youzan-customer-migration-audit
+- **背景**: `customer master v1` 已经明确了主档、身份链接和来源快照三层结构，但在正式做 schema 或导入脚本前，团队还缺一份可执行的有赞客户迁移审计 runbook，用来统一统计口径、风险分级、输出结构和客户分流规则。本轮补一份执行型审计清单，确保后续脚本实现和人工复核都围绕同一套标准。
+- **变更范围**:
+  - `docs/architecture/youzan-customer-migration-audit-checklist.md` - 新增有赞客户迁移审计清单文档，覆盖输入范围、标准化规则、P0/P1/P2 审计项、风险等级、输出表头、分流规则和通过标准。
+  - `docs/README.md` - 将迁移审计清单纳入当前权威口径入口。
+- **验证结果**:
+  - 已对照本地有赞客户导出和订单导出表头，确保手机号、昵称、会员字段、来源字段、买家手机号等关键字段均已纳入审计口径。
+  - 已与 `docs/architecture/customer-master-v1.md` 中的 `auto_merge / new_master / pending_review` 分流结论保持一致。
+- **遗留风险**:
+  - 本轮仍是 runbook 级文档，不含真正的审计脚本实现；后续需要把这份清单继续固化为脚本输入输出约定与统计产物格式。
+
 ## [2026-06-20] - docs(customer): 定义 customer master v1 迁移底盘方案
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-master-v1
