@@ -38,8 +38,8 @@ from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
-from app.repository.miniapp_address_audit_repo import MiniappAddressAuditRepo
-from app.repository.miniapp_address_repo import MiniappAddressRepo
+from app.repository.customer_address_audit_repo import CustomerAddressAuditRepo
+from app.repository.customer_address_repo import CustomerAddressRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
 from app.repository.order_event_repo import OrderEventRepo
 from app.repository.order_repo import OrderRepo
@@ -170,8 +170,10 @@ def _init_repositories() -> dict[str, object]:
         "offline_session_repo": OfflineSessionRepo(None),
         "order_repo": OrderRepo(None),
         "order_event_repo": OrderEventRepo(None),
-        "miniapp_address_repo": MiniappAddressRepo(None),
-        "miniapp_address_audit_repo": MiniappAddressAuditRepo(None),
+        "customer_address_repo": CustomerAddressRepo(None),
+        "customer_address_audit_repo": CustomerAddressAuditRepo(None),
+        "miniapp_address_repo": CustomerAddressRepo(None),
+        "miniapp_address_audit_repo": CustomerAddressAuditRepo(None),
     }
 
 

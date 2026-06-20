@@ -77,8 +77,8 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         config_repo=repos["config_repo"],
     )
     customer_address_service = CustomerAddressService(
-        address_repo=repos["miniapp_address_repo"],
-        audit_repo=repos["miniapp_address_audit_repo"],
+        address_repo=repos["customer_address_repo"],
+        audit_repo=repos["customer_address_audit_repo"],
     )
     storefront_auth_service = StorefrontAuthService()
     transfer_mgr = TransferManager(repos["transfer_repo"])

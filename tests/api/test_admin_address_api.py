@@ -7,15 +7,15 @@ from fastapi import FastAPI
 
 from app.api.admin_addresses import create_admin_addresses_router
 from app.config import settings
-from app.repository.miniapp_address_audit_repo import MiniappAddressAuditRepo
-from app.repository.miniapp_address_repo import MiniappAddressRepo
+from app.repository.customer_address_audit_repo import CustomerAddressAuditRepo
+from app.repository.customer_address_repo import CustomerAddressRepo
 from app.service.customer import CustomerAddressService
 
 
 @pytest.fixture
 def service(db: aiosqlite.Connection) -> CustomerAddressService:
     """构建后台地址 API 使用的真实服务。"""
-    return CustomerAddressService(MiniappAddressRepo(db), MiniappAddressAuditRepo(db))
+    return CustomerAddressService(CustomerAddressRepo(db), CustomerAddressAuditRepo(db))
 
 
 @pytest.fixture
@@ -312,8 +312,8 @@ async def test_admin_address_service_records_delete_audit(
     db: aiosqlite.Connection,
 ) -> None:
     """后台删除地址会留下可追溯的操作审计。"""
-    audit_repo = MiniappAddressAuditRepo(db)
-    service = CustomerAddressService(MiniappAddressRepo(db), audit_repo)
+    audit_repo = CustomerAddressAuditRepo(db)
+    service = CustomerAddressService(CustomerAddressRepo(db), audit_repo)
     await service.save_admin_address(
         {
             "userId": "admin-audit-user",

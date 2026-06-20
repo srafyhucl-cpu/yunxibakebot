@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.api.miniapp_addresses import create_miniapp_addresses_router
-from app.repository.miniapp_address_repo import MiniappAddressRepo
+from app.repository.customer_address_repo import CustomerAddressRepo
 from app.service.customer import CustomerAddressService
 
 
@@ -14,7 +14,7 @@ from app.service.customer import CustomerAddressService
 def app(db: aiosqlite.Connection) -> FastAPI:
     """构建只包含小程序地址路由的测试应用。"""
     test_app = FastAPI()
-    service = CustomerAddressService(MiniappAddressRepo(db))
+    service = CustomerAddressService(CustomerAddressRepo(db))
     test_app.include_router(create_miniapp_addresses_router(service))
     return test_app
 

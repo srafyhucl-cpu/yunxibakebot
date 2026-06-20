@@ -306,6 +306,8 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "youzan_inventory_repo": "youzan-inventory-repo",
         "order_repo": "order-repo",
         "order_event_repo": "order-event-repo",
+        "customer_address_repo": "customer-address-repo",
+        "customer_address_audit_repo": "customer-address-audit-repo",
         "miniapp_address_repo": "miniapp-address-repo",
         "miniapp_address_audit_repo": "miniapp-address-audit-repo",
         "webhook_event_repo": "webhook-event-repo",
@@ -350,10 +352,12 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     assert created["chat_service"]["customer_profile_repo"] == "customer-profile-repo"
     assert created["order_service"]["order_repo"] == "order-repo"
     assert created["order_service"]["event_repo"] == "order-event-repo"
-    assert created["customer_address_service"]["address_repo"] == "miniapp-address-repo"
+    assert (
+        created["customer_address_service"]["address_repo"] == "customer-address-repo"
+    )
     assert (
         created["customer_address_service"]["audit_repo"]
-        == "miniapp-address-audit-repo"
+        == "customer-address-audit-repo"
     )
     assert (
         created["storefront_conversation_service"]["chat_service"]

@@ -3,14 +3,14 @@
 import aiosqlite
 import pytest
 
-from app.repository.miniapp_address_repo import MiniappAddressRepo
+from app.repository.customer_address_repo import CustomerAddressRepo
 from app.service.customer import CustomerAddressService
 
 
 @pytest.fixture
 def service(db: aiosqlite.Connection) -> CustomerAddressService:
     """使用真实内存库仓储构建地址簿服务。"""
-    return CustomerAddressService(MiniappAddressRepo(db))
+    return CustomerAddressService(CustomerAddressRepo(db))
 
 
 async def test_first_address_becomes_default(service: CustomerAddressService) -> None:

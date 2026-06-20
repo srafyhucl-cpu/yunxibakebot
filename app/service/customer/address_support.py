@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from app.models.miniapp_address import MiniappAddress, MiniappAddressAuditEntry
+from app.models.customer_address import CustomerAddress, CustomerAddressAuditEntry
 
 MAINLAND_PHONE_PATTERN_PREFIXES = tuple(str(prefix) for prefix in range(13, 20))
 
@@ -15,7 +15,7 @@ def build_address(
     user_id: str,
     *,
     should_default: bool,
-) -> MiniappAddress:
+) -> CustomerAddress:
     """根据输入载荷构建地址模型。"""
     address_id = str(payload.get("id") or f"addr_{uuid4().hex[:16]}")
     receiver_name = str(payload.get("receiverName", "")).strip()
@@ -23,7 +23,7 @@ def build_address(
     address = str(payload.get("address", "")).strip()
     validate_address(receiver_name, receiver_phone, address)
     now = utc_now()
-    return MiniappAddress(
+    return CustomerAddress(
         id=address_id,
         user_id=user_id,
         receiver_name=receiver_name,
@@ -50,7 +50,7 @@ def validate_address(receiver_name: str, receiver_phone: str, address: str) -> N
 
 
 def serialize_address(
-    item: MiniappAddress,
+    item: CustomerAddress,
     *,
     include_user: bool = False,
 ) -> dict[str, Any]:
@@ -69,7 +69,7 @@ def serialize_address(
     return payload
 
 
-def serialize_audit(entry: MiniappAddressAuditEntry) -> dict[str, Any]:
+def serialize_audit(entry: CustomerAddressAuditEntry) -> dict[str, Any]:
     """序列化地址审计日志。"""
     return {
         "id": entry.id,
@@ -107,9 +107,9 @@ def build_audit_entry(
     before: dict[str, Any] | None,
     after: dict[str, Any] | None,
     note: str,
-) -> MiniappAddressAuditEntry:
+) -> CustomerAddressAuditEntry:
     """构建地址审计模型。"""
-    return MiniappAddressAuditEntry(
+    return CustomerAddressAuditEntry(
         address_id=address_id,
         user_id=user_id,
         operator=operator or "admin",

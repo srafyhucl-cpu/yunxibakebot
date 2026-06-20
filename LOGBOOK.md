@@ -3,6 +3,23 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-20] - refactor(customer): 地址域仓储和模型切到 canonical 命名
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-address-canonical-repo
+- **背景**: `Platform` 领域迁移盘点确认地址域是剩余高价值收口点：业务归属已经是 `customer`，但模型、仓储和测试仍以 `MiniappAddress*` 为真实命名。为了继续减少内部职责混淆，需要在不改数据库表名和外部 API 的前提下，引入 customer 语义的 canonical repo/model。
+- **变更范围**:
+  - `app/models/customer_address.py` - 新增 `CustomerAddress` 与 `CustomerAddressAuditEntry`。
+  - `app/repository/customer_address_repo.py`、`app/repository/customer_address_audit_repo.py` - 新增 customer 语义的地址仓储和审计仓储，继续读写既有 `miniapp_addresses` 与 `miniapp_address_audit` 表。
+  - `app/models/miniapp_address.py`、`app/repository/miniapp_address_repo.py`、`app/repository/miniapp_address_audit_repo.py` - 退为兼容导出入口。
+  - `app/service/customer/address.py`、`app/service/customer/address_admin.py`、`app/service/customer/address_support.py` - 改为依赖 customer 语义模型和仓储。
+  - `app/main.py`、`app/lifespan_services.py`、地址相关测试 - 优先使用 `customer_address_repo` 与 `customer_address_audit_repo`，保留旧 key 作为兼容别名。
+- **验证结果**:
+  - `python -m pytest tests\service\test_miniapp_address.py tests\api\test_miniapp_address_api.py tests\api\test_admin_address_api.py tests\test_lifespan_routes_services.py -q --tb=short --no-cov` 通过。
+  - `rg -n "MiniappAddress|miniapp_address_repo|miniapp_address_audit_repo|models\.miniapp_address|repository\.miniapp_address" app tests -g "*.py"` 仅剩兼容 facade、兼容 key 和兼容测试样例。
+  - `python scripts/check_project.py` 通过；函数行数警告为既有非阻断项。
+- **结论**:
+  - 地址域内部真实命名已收口到 `customer`；`miniapp_addresses` / `miniapp_address_audit` 表名、历史迁移文件和 `/api/v1/miniapp/addresses` 路径保持不变。
+
 ## [2026-06-20] - test(architecture): 迁移测试依赖到 canonical 服务
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-platform-test-dependency-migration

@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from app.repository.miniapp_address_audit_repo import MiniappAddressAuditRepo
-from app.repository.miniapp_address_repo import MiniappAddressRepo
+from app.repository.customer_address_audit_repo import CustomerAddressAuditRepo
+from app.repository.customer_address_repo import CustomerAddressRepo
 from app.service.customer.address_support import (
     build_address,
     build_audit_entry,
@@ -18,8 +18,8 @@ class CustomerAddressAdminCoordinator:
 
     def __init__(
         self,
-        address_repo: MiniappAddressRepo,
-        audit_repo: MiniappAddressAuditRepo | None = None,
+        address_repo: CustomerAddressRepo,
+        audit_repo: CustomerAddressAuditRepo | None = None,
     ) -> None:
         self._address_repo = address_repo
         self._audit_repo = audit_repo

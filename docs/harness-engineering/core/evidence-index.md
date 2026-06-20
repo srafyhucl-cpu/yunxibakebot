@@ -1368,3 +1368,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记测试依赖迁移和本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: 订单、支付和会话 API 相关测试已改为依赖 canonical 服务名；兼容层引用只保留在红线测试样例和 `app/service/miniapp_*.py` facade 中。
+
+## E-20260620-029：地址域仓储和模型 canonical 命名收口
+
+- trace_id: 20260620-customer-address-canonical-repo
+- generated_at: 2026-06-20
+- evidence_type: refactor/test
+- file: `D:\Project\YunxiBakeBot\app\models\customer_address.py`; `D:\Project\YunxiBakeBot\app\repository\customer_address_repo.py`; `D:\Project\YunxiBakeBot\app\repository\customer_address_audit_repo.py`; `D:\Project\YunxiBakeBot\app\service\customer\address.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\test_miniapp_address.py tests\api\test_miniapp_address_api.py tests\api\test_admin_address_api.py tests\test_lifespan_routes_services.py -q --tb=short --no-cov`; `rg -n "MiniappAddress|miniapp_address_repo|miniapp_address_audit_repo|models\.miniapp_address|repository\.miniapp_address" app tests -g "*.py"`; `python scripts/check_project.py`
+- result: pass
+- related_logbook: 2026-06-20 - refactor(customer): 地址域仓储和模型切到 canonical 命名
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记地址域命名收口和本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: 地址域新增 customer 语义模型和仓储，旧 `MiniappAddress*` 模块退为兼容导出；数据库表名、历史迁移文件和 `/api/v1/miniapp/addresses` 路径保持不变。
