@@ -517,7 +517,7 @@ curl -X POST http://127.0.0.1:7001/api/v1/chat \
 
 ```ini
 [Unit]
-Description=YunxiBakeBot AI Customer Service
+Description=Bakery Commerce Platform - Platform Service
 After=network.target
 
 [Service]

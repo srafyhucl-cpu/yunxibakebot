@@ -572,7 +572,7 @@ def print_report(
 ) -> None:
     failed_checks = [check for check in checks if not check.passed]
     metadata = build_report_metadata(db_path_value, index_path_value, smoke_base_url)
-    print("YunxiBakeBot production preflight")
+    print("Platform production preflight")
     print(f"generated_at={metadata['generated_at']}")
     print(f"project_root={metadata['project_root']}")
     print(f"db_path={metadata['database_path']}")
@@ -632,7 +632,7 @@ def build_json_report(
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="YunxiBakeBot production preflight")
+    parser = argparse.ArgumentParser(description="Platform production preflight")
     parser.add_argument(
         "--json",
         action="store_true",

@@ -53,9 +53,7 @@ class MigrationReport:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Apply YunxiBakeBot database migrations"
-    )
+    parser = argparse.ArgumentParser(description="Apply Platform database migrations")
     parser.add_argument(
         "--db-path",
         default=settings.DB_PATH,
@@ -127,7 +125,7 @@ async def run_migration(
 
 def print_report(report: MigrationReport) -> None:
     mode = "apply" if report.applied else "dry-run"
-    print("YunxiBakeBot database migration")
+    print("Platform database migration")
     print(f"mode={mode}")
     print(f"db_path={report.database_path}")
     print(f"allow_create={report.allow_create}")

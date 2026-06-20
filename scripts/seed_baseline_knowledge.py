@@ -192,7 +192,7 @@ BASELINE_ENTRIES: tuple[BaselineKnowledgeEntry, ...] = (
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Seed YunxiBakeBot baseline knowledge")
+    parser = argparse.ArgumentParser(description="Seed Platform baseline knowledge")
     parser.add_argument(
         "--db-path",
         default=settings.DB_PATH,
@@ -342,7 +342,7 @@ def seed_baseline_knowledge(
 
 def print_report(report: BaselineSeedReport) -> None:
     mode = "apply" if report.applied else "dry-run"
-    print("YunxiBakeBot baseline knowledge seed")
+    print("Platform baseline knowledge seed")
     print(f"mode={mode}")
     print(f"db_path={report.database_path}")
     print(f"schema_ready={report.schema_ready}")

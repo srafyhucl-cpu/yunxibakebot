@@ -79,6 +79,22 @@
 - **结论**:
   - 这次双仓边界与命名收口从“当前文档共识”升级成了“长期决策记录”，后续不容易再回到原点重谈。
 
+## [2026-06-20] - chore(naming): 收口可见脚本与部署展示名
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-visible-naming-platform-surface
+- **背景**: 当前边界与命名 ADR 已经落地，但 README 的 systemd 展示名，以及 `apply_migrations.py`、`preflight_production.py`、`rebuild_embeddings.py`、`seed_baseline_knowledge.py` 这类脚本对外打印的标题仍使用 `YunxiBakeBot`。这些位置属于用户可见展示口径，更适合切回通用平台角色名；而仓库路径、目录名和 systemd 服务名仍应保留现有历史 slug。
+- **变更范围**:
+  - `README.md` - 将 systemd `Description` 展示名改为通用平台口径。
+  - `scripts/apply_migrations.py` - 将命令描述与输出标题改为 `Platform` 口径。
+  - `scripts/preflight_production.py` - 将命令描述与输出标题改为 `Platform` 口径。
+  - `scripts/rebuild_embeddings.py` - 将命令描述与输出标题改为 `Platform` 口径。
+  - `scripts/seed_baseline_knowledge.py` - 将命令描述与输出标题改为 `Platform` 口径。
+- **验证结果**:
+  - `rg -n "Platform (database migration|production preflight|embedding rebuild|baseline knowledge seed)|Description=Bakery Commerce Platform - Platform Service" README.md scripts/apply_migrations.py scripts/preflight_production.py scripts/rebuild_embeddings.py scripts/seed_baseline_knowledge.py` 通过。
+  - `python -m compileall scripts/apply_migrations.py scripts/preflight_production.py scripts/rebuild_embeddings.py scripts/seed_baseline_knowledge.py` 通过。
+- **结论**:
+  - 现在用户可见展示名与通用平台口径更一致，同时没有动到仓库路径、目录名或现有服务标识。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

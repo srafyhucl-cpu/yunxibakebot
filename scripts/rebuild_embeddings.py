@@ -40,7 +40,7 @@ class EmbeddingRebuildReport:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Rebuild YunxiBakeBot embeddings")
+    parser = argparse.ArgumentParser(description="Rebuild Platform embeddings")
     parser.add_argument(
         "--db-path",
         default=settings.DB_PATH,
@@ -106,7 +106,7 @@ async def rebuild_embeddings(
 
 def print_report(report: EmbeddingRebuildReport) -> None:
     mode = "apply" if report.applied else "dry-run"
-    print("YunxiBakeBot embedding rebuild")
+    print("Platform embedding rebuild")
     print(f"mode={mode}")
     print(f"db_path={report.database_path}")
     print(f"index_path={report.index_path}")

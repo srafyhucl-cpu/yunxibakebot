@@ -213,6 +213,20 @@ ______________________________________________________________________
 - retention_note: 仅记录 ADR 建立与入口挂载结果，不含业务数据
 - summary: 双仓边界、逻辑总项目命名和 `Yunxi` 实例名定位已升级为长期决策记录，并挂到当前边界入口。
 
+## E-20260620-020：可见脚本与部署展示名收口
+
+- trace_id: 20260620-visible-naming-platform-surface
+- generated_at: 2026-06-20
+- evidence_type: doc-and-script-sweep
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\scripts\apply_migrations.py`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\rebuild_embeddings.py`; `D:\Project\YunxiBakeBot\scripts\seed_baseline_knowledge.py`
+- command: `rg -n "Platform (database migration|production preflight|embedding rebuild|baseline knowledge seed)|Description=Bakery Commerce Platform - Platform Service" README.md scripts/apply_migrations.py scripts/preflight_production.py scripts/rebuild_embeddings.py scripts/seed_baseline_knowledge.py`; `python -m compileall scripts/apply_migrations.py scripts/preflight_production.py scripts/rebuild_embeddings.py scripts/seed_baseline_knowledge.py`
+- result: pass
+- related_logbook: 2026-06-20 - chore(naming): 收口可见脚本与部署展示名
+- related_adr: 0002-platform-storefront-boundaries-and-instance-naming
+- contains_sensitive_data: no
+- retention_note: 仅记录展示口径与脚本标题收口结果，不含业务数据
+- summary: 用户可见部署展示名和运维脚本标题已切换为 `Platform` 口径，仓库路径与服务标识保持不变。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
