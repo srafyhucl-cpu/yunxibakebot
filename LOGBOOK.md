@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 更新 customer master schema 草案的实施建议
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-master-schema-next-steps
+- **背景**: `customer-master-v1-schema-draft.md` 的“下一步建议”还停留在“先落 schema / 再补 repository / 最后把迁移脚本从审计模式推进到试导入模式”的旧阶段，但这些步骤当前已经完成。为了避免 schema 草案继续把人带回旧路线，需要把它改成当前真实的迁移闭环入口。
+- **变更范围**:
+  - `docs/architecture/customer-master-v1-schema-draft.md` - 将“下一步建议”更新为迁移审计、正式迁移和迁移后核对/交接回滚的当前权威入口。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/customer-master-v1-schema-draft.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|verify_youzan_customer_import"` 待执行。
+- **结论**:
+  - schema 草案现在也和当前 customer 迁移闭环对齐，不再把后续执行者引回已经完成的历史实施阶段。
+
 ## [2026-06-20] - docs(architecture): 更新 customer master v1 的后续入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-master-next-steps
