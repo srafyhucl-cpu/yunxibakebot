@@ -44,6 +44,7 @@ dist.tar.gz
 # 旧导出/临时脚本
 exported_knowledge*.json
 fetch_knowledge.py
+docs/有赞导出/*.csv
 
 # 覆盖率报告
 .coverage
