@@ -26,6 +26,10 @@ def load_apply_migrations_module() -> ModuleType:
 def _remove_late_migration_state(db_path: Path) -> None:
     with closing(sqlite3.connect(db_path)) as conn, conn:
         for table_name in (
+            "customer_master",
+            "customer_identity_links",
+            "customer_source_snapshots",
+            "customer_merge_reviews",
             "customer_profiles",
             "conversation_reviews",
             "knowledge_gaps",
@@ -50,6 +54,7 @@ async def test_run_migration_dry_run_does_not_create_database(tmp_path: Path) ->
 
     assert report.applied is False
     assert db_path.exists() is False
+    assert "customer_master" in report.missing_before
     assert "customer_profiles" in report.missing_before
     assert report.missing_after == report.missing_before
 
@@ -68,6 +73,7 @@ async def test_run_migration_apply_creates_required_tables(tmp_path: Path) -> No
     report = await apply_migrations.run_migration(str(db_path), should_apply=True)
 
     assert report.applied is True
+    assert "customer_master" in report.missing_before
     assert "customer_profiles" in report.missing_before
     assert report.missing_after == []
 

@@ -2,6 +2,103 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - fix(customer): 补齐 customer 试导入重跑幂等与复核复用
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-pipeline
+- **背景**: `customer master v1` 四表与 `--apply-import` 试导入闭环打通后，真正影响后续可维护性的风险还在“重跑安全”上：同一批次重跑是否会重复造主档、跨批次同一有赞客户是否会重复挂身份、`pending_review` 是否会无限重复生成。没有这层保护，后续真实迁移补跑会持续污染 customer 域。
+- **变更范围**:
+  - `app/repository/customer_master_repo.py` - 补充来源快照按来源唯一键读取、客户最新复核记录读取和复核证据快照更新能力，支撑同批次跳过、跨批次复用与复核单复用。
+  - `app/service/customer/importer.py` - customer 试导入改为显式维护 `youzan_customer(source_record_id)` 来源身份与 `phone` 归并身份两条链路；新增同批次快照去重、跨批次来源身份复用、`pending_review` 复核记录复用与证据快照追加逻辑。
+  - `tests/service/test_customer_import_service.py` - 补充同批次重跑跳过、跨批次来源身份复用、待复核跨批次复用测试，并将既有断言调整为双身份模型。
+  - `tests/scripts/test_audit_youzan_customer_migration.py` - 新增脚本层文件库双跑测试，验证同一 `db-path + source_batch_id` 第二次导入会全部走 `skip_existing_batch_row`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_audit_youzan_customer_migration.py tests\service\test_customer_import_service.py tests\repository\test_customer_master_repo.py tests\service\test_customer_master_service.py tests\scripts\test_apply_migrations.py tests\scripts\test_preflight_production.py tests\scripts\test_smoke_test.py -q --no-cov` 通过。
+  - `python -m ruff check app\repository\customer_master_repo.py app\service\customer\importer.py scripts\audit_youzan_customer_migration.py tests\service\test_customer_import_service.py tests\scripts\test_audit_youzan_customer_migration.py` 通过。
+  - `python -m compileall app\models\customer_master.py app\repository\customer_master_repo.py app\service\customer\master.py app\service\customer\importer.py scripts\audit_youzan_customer_migration.py` 通过。
+  - 脚本层文件库双跑结果：首轮动作分布为 `create_master=1`、`create_review_queue=2`、`create_weak_master=2`；第二轮同批次重跑动作分布为 `skip_existing_batch_row=5`。
+- **结论**:
+  - `customer import` 现在具备最低可重复执行安全性：同批次重跑不会重复造快照/主档，跨批次会复用既有 `youzan_customer` 来源身份，`pending_review` 会复用同一条复核记录并追加证据快照，而不是无限堆新单。
+
+## [2026-06-20] - feat(customer): 打通 customer 试导入闭环并完成真实 CSV 内存导入验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-pipeline
+- **背景**: 前两轮已经先后完成 `customer master v1` 四表 schema 落地和 customer 主档最小 repository / service 骨架，但真正的迁移闭环仍未打通：`customer_source_snapshots`、`customer_merge_reviews` 尚无编排入口，有赞客户审计脚本也还停留在“只产出报告、不落新表”的状态。本轮继续向前推进，补齐快照与复核读写，并把有赞审计脚本推进到 `--apply-import` 试导入模式。
+- **变更范围**:
+  - `app/models/customer_master.py` - 扩充 `CustomerSourceSnapshot`、`CustomerMergeReview` 及对应 create 参数和枚举，补齐来源快照与人工复核的数据表达。
+  - `app/repository/customer_master_repo.py` - 新增来源快照与合并复核的创建、读取、列表方法，并新增按标准化身份值读取身份链接的查询。
+  - `app/service/customer/importer.py` - 新增 customer 试导入编排服务，按 `auto_merge / new_master / pending_review` 三类分流结果创建主档、挂身份、落快照并写入复核队列。
+  - `app/service/customer/master.py` - 新增批次快照读取、客户快照读取和复核队列读取入口，补齐 customer 域最小读链路。
+  - `scripts/audit_youzan_customer_migration.py` - 在原审计模式之外新增 `--apply-import`、`--db-path`、`--tenant-id`、`--source-batch-id`、`--import-output`，可直接按审计结果把客户试导入到 `customer master v1` 四表，并输出 JSON 导入报告。
+  - `tests/service/test_customer_import_service.py`、`tests/service/test_customer_master_service.py`、`tests/scripts/test_audit_youzan_customer_migration.py` - 新增与扩充试导入测试，覆盖自动归并、待复核入队、快照读取和脚本 `--apply-import` 分支。
+  - 本地输出 `reports/youzan-customer-import-20260620-101607.json` - 已用真实有赞客户 CSV 与订单 CSV 在内存库完成一次试导入，作为当前导入规则的真实证据，不纳入版本管理。
+- **验证结果**:
+  - `python -m pytest tests\repository\test_customer_master_repo.py tests\service\test_customer_master_service.py tests\service\test_customer_import_service.py tests\scripts\test_apply_migrations.py tests\scripts\test_preflight_production.py tests\scripts\test_smoke_test.py tests\scripts\test_audit_youzan_customer_migration.py -q --no-cov` 通过。
+  - `python -m ruff check app\models\customer_master.py app\repository\customer_master_repo.py app\service\customer\master.py app\service\customer\importer.py scripts\audit_youzan_customer_migration.py tests\repository\test_customer_master_repo.py tests\service\test_customer_master_service.py tests\service\test_customer_import_service.py tests\scripts\test_audit_youzan_customer_migration.py` 通过。
+  - `python -m compileall app\models\customer_master.py app\repository\customer_master_repo.py app\service\customer\master.py app\service\customer\importer.py scripts\audit_youzan_customer_migration.py` 通过。
+  - `python scripts\audit_youzan_customer_migration.py --customer-csv "docs\有赞导出\客户数据_0002000408539943.csv" --orders-csv "docs\有赞导出\订单数据.csv" --apply-import --db-path ":memory:" --tenant-id "yunxi" --source-batch-id "youzan-batch-20260620" --import-output "reports\youzan-customer-import-{timestamp}.json"` 通过。
+  - 真实试导入结果摘要：
+    - `total_records=24726`
+    - `bucket_summary.auto_merge=13551`
+    - `bucket_summary.new_master=11175`
+    - `bucket_summary.pending_review=0`
+    - `actions_summary.create_master=13551`
+    - `actions_summary.create_weak_master=11175`
+- **遗留风险**:
+  - 当前真实试导入结果中 `pending_review=0`，与首轮审计结论一致，但这也意味着真正的人工复核闭环暂时没有在真实数据上被触发；后续接入企微身份或多来源补强时，要再次观察是否出现待复核样本。
+  - 试导入目前仍是“逐条创建新主档”的安全路径，还没有实现“复用已有 customer master 正式增量导入”的更复杂策略；进入正式迁移前，需要再明确重复导入幂等、批次重跑和冲突回滚策略。
+
+## [2026-06-20] - feat(customer): 新增 customer 主档最小 repository 与 service 骨架
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-master-repo-service
+- **背景**: 上一轮已经把 `customer master v1` 四表正式落到迁移层，但 customer 域仍缺最小业务入口，导致这批表虽然存在，却还没有可复用的读写骨架。本轮继续向前推进，新增主档模型、仓库和薄服务层，为后续有赞客户试导入和企微身份挂接准备统一落点。
+- **变更范围**:
+  - `app/models/customer_master.py` - 新增客户主档域模型，覆盖 `CustomerMaster`、`CustomerIdentityLink` 及对应创建参数和枚举。
+  - `app/repository/customer_master_repo.py` - 新增客户主档仓库，先承接主档创建、按手机号查询、身份链接创建与读取。
+  - `app/service/customer/master.py` - 新增客户主档薄服务层，先承接“创建主档 / 读取主档 / 挂身份 / 按手机号查询”四个最小动作，并提供手机号身份构造辅助。
+  - `app/models/__init__.py`、`app/repository/__init__.py`、`app/service/customer/__init__.py` - 同步导出 customer 主档相关对象，便于后续接入。
+  - `tests/repository/test_customer_master_repo.py`、`tests/service/test_customer_master_service.py` - 新增 customer 域仓库与服务测试，覆盖主档创建、手机号查询、身份挂接和缺失客户保护。
+- **验证结果**:
+  - `python -m pytest tests\repository\test_customer_master_repo.py tests\service\test_customer_master_service.py -q --no-cov` 通过。
+  - `python -m pytest tests\repository\test_agent_foundation_repos.py tests\service\test_miniapp_address.py -q --no-cov` 通过。
+  - `python -m ruff check app\models\customer_master.py app\repository\customer_master_repo.py app\service\customer\master.py tests\repository\test_customer_master_repo.py tests\service\test_customer_master_service.py` 通过。
+  - 分层红线扫描通过：`app/service` 未出现 `aiosqlite` 直连，`app/api` 未直接导入 `repository`。
+- **遗留风险**:
+  - 当前 service 仍是最小骨架，尚未接入 `customer_source_snapshots` 和 `customer_merge_reviews` 的写入编排，因此还不构成完整迁移闭环。
+  - 目前手机号身份构造采用“原值与标准化值一致”的保守做法；正式接入有赞客户导入前，还需要把手机号标准化逻辑统一收敛到 customer 域公共入口。
+
+## [2026-06-20] - feat(customer): 落地 customer master v1 四表迁移基线
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-master-v1-schema-implementation
+- **背景**: 上一轮已经补齐 `customer master v1` 四表 schema 草案，本轮继续把该方案正式落到迁移层，让数据库初始化、迁移 dry-run、生产预检和冒烟门禁都认识这四张 customer 域基线表，为后续 repository / service 实现铺路。
+- **变更范围**:
+  - `app/migrations/schema.py` - 新增 `customer_master`、`customer_identity_links`、`customer_source_snapshots`、`customer_merge_reviews` 四张表及对应索引、约束；其中 `customer_identity_links.identity_value_normalized` 改为可空，以匹配“只有已标准化身份才参与该唯一约束”的设计意图。
+  - `app/readiness.py` - 将四张 customer 域新表加入 `REQUIRED_DATABASE_TABLES`，确保 `/ready`、preflight 和 smoke 的数据库表结构门禁同步升级。
+  - `tests/scripts/test_apply_migrations.py` - 更新迁移测试，确保 dry-run / apply 都能识别四张新表缺失与补齐结果。
+  - 继承验证：`tests/scripts/test_preflight_production.py`、`tests/scripts/test_smoke_test.py` 已回归通过，说明生产预检与冒烟门禁可以正确识别这批新表。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_apply_migrations.py -q --no-cov` 通过。
+  - `python -m pytest tests\scripts\test_preflight_production.py tests\scripts\test_smoke_test.py -q --no-cov` 通过。
+  - `python -m ruff check app\migrations\schema.py app\readiness.py tests\scripts\test_apply_migrations.py` 通过。
+  - `python -m compileall app\migrations\schema.py app\readiness.py` 通过。
+- **遗留风险**:
+  - 当前只完成了迁移层与门禁层落地，尚未补 `customer` 域 repository / service，因此这四张表还没有正式业务写入入口。
+  - `customer_identity_links` 目前同时保留 `(tenant_id, identity_type, identity_value)` 与 `(tenant_id, identity_type, identity_value_normalized)` 唯一约束，后续进入真实导入脚本时要统一手机号原值与标准化值写入策略，避免人为制造不必要冲突。
+
+## [2026-06-20] - docs(customer): 补充 customer master v1 四表 schema 草案
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-master-v1-schema-draft
+- **背景**: 前两轮已经完成 `customer master v1` 设计基线、有赞迁移审计清单和真实 CSV 审计脚本，但后续真正落 `app/migrations/schema.py` 之前，仍缺一份把四表方案具体收口到字段、索引、唯一约束和人工复核闭环的 schema 草案。本轮先按“文档先行、不改现网行为”的方式，补出 `customer master v1` 四表结构底稿。
+- **变更范围**:
+  - `docs/architecture/customer-master-v1-schema-draft.md` - 新增四表 schema 草案，明确 `customer_master`、`customer_identity_links`、`customer_source_snapshots`、`customer_merge_reviews` 的字段、必填项、PK/FK、唯一约束、索引、枚举值、`pending_review` 流转和落库顺序。
+  - `docs/README.md` - 新增当前权威口径入口，避免后续实现时仍只参考概念设计文档。
+  - `项目进度与配置清单.md` - 补记当前 customer 域已经进入“四表 schema 草案已定、待正式迁移实现”的阶段状态。
+- **验证结果**:
+  - 文档自检通过：四张表的职责边界、字段分类、索引意图和 `pending_review` 闭环已与 `docs/architecture/customer-master-v1.md`、`docs/architecture/youzan-customer-migration-audit-checklist.md` 对齐。
+  - 本轮仅修改文档，未触发数据库 schema、脚本行为或线上接口变化。
+- **遗留风险**:
+  - 当前仍是 schema 草案，不代表 SQLite DDL 已落地；真正进入 `app/migrations/schema.py` 时，还需要根据 SQLite 索引表达能力和现有迁移风格做一轮实现级收口。
+  - `customer_source_snapshots.customer_id` 与 `identity_link_id` 允许为空，是为了兼容“先留证据、后归并”的迁移路径；后续实现时要保证 service 层不会误把“空关联快照”当成坏数据。
+
 ## [2026-06-20] - feat(customer): 新增有赞客户迁移审计脚本并跑出首轮结果
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-youzan-customer-audit-script

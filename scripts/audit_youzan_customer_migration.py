@@ -14,11 +14,16 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+from app.database import close_db, init_db  # noqa: E402
+from app.repository.customer_master_repo import CustomerMasterRepo  # noqa: E402
+from app.service.customer import CustomerImportService, CustomerMasterService  # noqa: E402
+
 UTF8_BOM = b"\xef\xbb\xbf"
 OUTPUT_TIMESTAMP_PLACEHOLDER = "{timestamp}"
 OUTPUT_TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S"
 DEFAULT_CUSTOMER_CSV = ROOT_DIR / "docs" / "有赞导出" / "客户数据_0002000408539943.csv"
 DEFAULT_ORDERS_CSV = ROOT_DIR / "docs" / "有赞导出" / "订单数据.csv"
+DEFAULT_IMPORT_REPORT = ROOT_DIR / "reports" / "youzan-customer-import-{timestamp}.json"
 VALID_PHONE_LENGTH = 11
 VALID_PHONE_PREFIX = "1"
 HIGH_MISSING_PHONE_RATE = 0.3
@@ -219,6 +224,42 @@ class AuditArtifacts:
     buckets: list[BucketRow]
 
 
+@dataclass(frozen=True)
+class ImportRow:
+    """客户试导入结果行。"""
+
+    source_record_id: str
+    customer_id: str
+    identity_link_id: str
+    snapshot_id: str
+    merge_review_id: str
+    resolved_bucket: str
+    action: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "source_record_id": self.source_record_id,
+            "customer_id": self.customer_id,
+            "identity_link_id": self.identity_link_id,
+            "snapshot_id": self.snapshot_id,
+            "merge_review_id": self.merge_review_id,
+            "resolved_bucket": self.resolved_bucket,
+            "action": self.action,
+        }
+
+
+@dataclass(frozen=True)
+class ImportArtifacts:
+    """客户试导入输出集合。"""
+
+    tenant_id: str
+    source_batch_id: str
+    total_records: int
+    imported_rows: list[ImportRow]
+    bucket_summary: dict[str, int]
+    actions_summary: dict[str, int]
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit Youzan customer migration")
     parser.add_argument(
@@ -255,6 +296,31 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--buckets-output",
         default=None,
         help="将客户分流表写入 CSV，支持 {timestamp}。",
+    )
+    parser.add_argument(
+        "--apply-import",
+        action="store_true",
+        help="按审计结果试导入 customer master v1 四表。",
+    )
+    parser.add_argument(
+        "--db-path",
+        default=":memory:",
+        help="试导入目标 SQLite 路径，默认 :memory:。",
+    )
+    parser.add_argument(
+        "--tenant-id",
+        default="yunxi",
+        help="试导入租户 ID，默认 yunxi。",
+    )
+    parser.add_argument(
+        "--source-batch-id",
+        default="",
+        help="试导入批次 ID；不传则自动按时间生成。",
+    )
+    parser.add_argument(
+        "--import-output",
+        default=str(DEFAULT_IMPORT_REPORT),
+        help="配合 --apply-import 输出试导入 JSON 报告，支持 {timestamp}。",
     )
     return parser.parse_args(argv)
 
@@ -376,6 +442,15 @@ def build_order_records(order_rows: list[dict[str, str]]) -> list[OrderRecord]:
             )
         )
     return records
+
+
+def build_customer_row_map(
+    customer_rows: list[dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    return {
+        f"customer-row-{row_index}": dict(row)
+        for row_index, row in enumerate(customer_rows, start=1)
+    }
 
 
 def build_duplicate_groups(
@@ -779,6 +854,142 @@ def run_audit(customer_csv_path: Path, orders_csv_path: Path) -> AuditArtifacts:
     )
 
 
+def build_import_payloads(
+    *,
+    customer_rows: list[dict[str, str]],
+    customer_records: list[CustomerRecord],
+    audit_artifacts: AuditArtifacts,
+    tenant_id: str,
+    source_batch_id: str,
+) -> list[dict[str, object]]:
+    row_map = build_customer_row_map(customer_rows)
+    bucket_map = {row.source_record_id: row for row in audit_artifacts.buckets}
+    issue_map = {row.source_record_id: row for row in audit_artifacts.issues}
+    payloads: list[dict[str, object]] = []
+    for record in customer_records:
+        bucket = bucket_map[record.source_record_id]
+        issue = issue_map.get(record.source_record_id)
+        raw_row = row_map[record.source_record_id]
+        normalized_payload = {
+            "source_record_id": record.source_record_id,
+            "proposed_bucket": bucket.proposed_bucket,
+            "primary_phone": record.normalized_phone,
+            "display_name": record.display_name_candidate,
+            "birthday": record.birthday,
+            "gender": _normalize_gender(record.gender),
+            "wechat_region": record.wechat_region,
+            "first_seen_at": record.first_seen_at_candidate,
+            "last_seen_at": record.last_seen_at_candidate,
+            "source_channel": record.source_channel,
+            "source_method": record.source_method,
+            "member_flag": record.member_flag,
+            "growth_value": record.growth_value,
+            "balance_value": record.balance_value,
+            "tag_value": record.tag_value,
+            "matched_order_phone": issue.matched_order_phone if issue else "",
+        }
+        payloads.append(
+            {
+                "tenant_id": tenant_id,
+                "source_record_id": record.source_record_id,
+                "source_batch_id": source_batch_id,
+                "proposed_bucket": bucket.proposed_bucket,
+                "confidence_level": bucket.confidence_level,
+                "source_system": "youzan",
+                "source_channel": record.source_channel,
+                "source_method": record.source_method,
+                "primary_phone": record.normalized_phone,
+                "display_name": record.display_name_candidate,
+                "birthday": record.birthday,
+                "gender": _normalize_gender(record.gender),
+                "wechat_region": record.wechat_region,
+                "first_seen_at": record.first_seen_at_candidate,
+                "last_seen_at": record.last_seen_at_candidate,
+                "source_label": record.source_channel or "有赞客户导出",
+                "conflict_flags": tuple(
+                    flag for flag in bucket.conflict_flags.split("|") if flag.strip()
+                ),
+                "matched_order_phone": issue.matched_order_phone if issue else "",
+                "snapshot_payload": raw_row,
+                "normalized_payload": normalized_payload,
+            }
+        )
+    return payloads
+
+
+def _normalize_gender(gender: str) -> str:
+    if gender == "男":
+        return "male"
+    if gender == "女":
+        return "female"
+    if gender:
+        return "other"
+    return "unknown"
+
+
+def default_source_batch_id() -> str:
+    return "youzan-import-" + datetime.now().strftime(OUTPUT_TIMESTAMP_FORMAT)
+
+
+async def run_import(
+    *,
+    db_path_value: str,
+    tenant_id: str,
+    source_batch_id: str,
+    customer_csv_path: Path,
+    orders_csv_path: Path,
+) -> ImportArtifacts:
+    customer_rows = read_csv_rows(customer_csv_path, CUSTOMER_REQUIRED_FIELDS)
+    order_rows = read_csv_rows(orders_csv_path, ORDER_REQUIRED_FIELDS)
+    customer_records = build_customer_records(customer_rows)
+    _ = build_order_records(order_rows)
+    audit_artifacts = run_audit(customer_csv_path, orders_csv_path)
+    payloads = build_import_payloads(
+        customer_rows=customer_rows,
+        customer_records=customer_records,
+        audit_artifacts=audit_artifacts,
+        tenant_id=tenant_id,
+        source_batch_id=source_batch_id,
+    )
+
+    imported_rows: list[ImportRow] = []
+    conn = await init_db(db_path_value)
+    try:
+        repo = CustomerMasterRepo(conn)
+        service = CustomerImportService(repo, CustomerMasterService(repo))
+        for payload_dict in payloads:
+            result = await service.import_record(
+                service_payload_from_dict(payload_dict)
+            )
+            imported_rows.append(
+                ImportRow(
+                    source_record_id=result.source_record_id,
+                    customer_id=result.customer_id,
+                    identity_link_id=result.identity_link_id or "",
+                    snapshot_id=result.snapshot_id,
+                    merge_review_id=result.merge_review_id or "",
+                    resolved_bucket=result.resolved_bucket,
+                    action=result.action,
+                )
+            )
+    finally:
+        await close_db(conn)
+    return ImportArtifacts(
+        tenant_id=tenant_id,
+        source_batch_id=source_batch_id,
+        total_records=len(imported_rows),
+        imported_rows=imported_rows,
+        bucket_summary=dict(Counter(row.resolved_bucket for row in imported_rows)),
+        actions_summary=dict(Counter(row.action for row in imported_rows)),
+    )
+
+
+def service_payload_from_dict(payload_dict: dict[str, object]):
+    from app.service.customer.importer import CustomerImportPayload
+
+    return CustomerImportPayload(**payload_dict)
+
+
 def build_json_report(
     artifacts: AuditArtifacts,
     customer_csv_path: Path,
@@ -802,6 +1013,32 @@ def build_json_report(
     }
 
 
+def build_import_json_report(
+    artifacts: ImportArtifacts,
+    *,
+    db_path_value: str,
+) -> dict[str, object]:
+    generated_at = (
+        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
+    return {
+        "status": "ready",
+        "metadata": {
+            "generated_at": generated_at,
+            "project_root": str(ROOT_DIR),
+            "database_path": db_path_value,
+            "tenant_id": artifacts.tenant_id,
+            "source_batch_id": artifacts.source_batch_id,
+        },
+        "summary": {
+            "total_records": artifacts.total_records,
+            "bucket_summary": artifacts.bucket_summary,
+            "actions_summary": artifacts.actions_summary,
+        },
+        "rows": [row.to_dict() for row in artifacts.imported_rows],
+    }
+
+
 def print_report(artifacts: AuditArtifacts) -> None:
     summary = artifacts.summary
     print("Youzan customer migration audit")
@@ -822,9 +1059,18 @@ def print_report(artifacts: AuditArtifacts) -> None:
 
 def resolve_output_paths(args: argparse.Namespace) -> dict[str, Path | None]:
     resolved_paths: dict[str, Path | None] = {}
-    for key in ("output", "metrics_output", "issues_output", "buckets_output"):
+    for key in (
+        "output",
+        "metrics_output",
+        "issues_output",
+        "buckets_output",
+        "import_output",
+    ):
         path_value = getattr(args, key)
         if path_value is None:
+            resolved_paths[key] = None
+            continue
+        if key == "import_output" and not args.apply_import:
             resolved_paths[key] = None
             continue
         resolved_paths[key] = ensure_output_path_available(path_value)
@@ -844,6 +1090,37 @@ def main(argv: list[str] | None = None) -> int:
     except (FileExistsError, FileNotFoundError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
+
+    if args.apply_import:
+        source_batch_id = args.source_batch_id or default_source_batch_id()
+        import_artifacts = __import__("asyncio").run(
+            run_import(
+                db_path_value=args.db_path,
+                tenant_id=args.tenant_id,
+                source_batch_id=source_batch_id,
+                customer_csv_path=customer_csv_path,
+                orders_csv_path=orders_csv_path,
+            )
+        )
+        import_output_path = output_paths["import_output"]
+        import_json_bytes = (
+            json.dumps(
+                build_import_json_report(
+                    import_artifacts,
+                    db_path_value=str(resolve_project_path(args.db_path))
+                    if args.db_path != ":memory:"
+                    else ":memory:",
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n"
+        ).encode("utf-8")
+        if import_output_path is None:
+            sys.stdout.buffer.write(import_json_bytes)
+        else:
+            write_json_report(import_output_path, import_json_bytes)
+        return 0
 
     if args.json:
         json_bytes = (

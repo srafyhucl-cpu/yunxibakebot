@@ -166,3 +166,109 @@ def test_main_writes_json_and_csv_reports(monkeypatch, tmp_path: Path) -> None:
     assert payload["status"] == "ready"
     assert payload["metadata"]["generated_at"] == "2026-06-20T10:30:00Z"
     assert payload["summary"]["pending_review_customer_count"] == 2
+
+
+def test_main_apply_import_writes_import_report(monkeypatch, tmp_path: Path) -> None:
+    audit = load_audit_module()
+    customer_csv = tmp_path / "customers.csv"
+    orders_csv = tmp_path / "orders.csv"
+    database_path = tmp_path / "bot.db"
+    _write_customer_csv(customer_csv)
+    _write_orders_csv(orders_csv)
+    monkeypatch.setattr(audit, "datetime", _FrozenDateTime)
+
+    import_path = tmp_path / "reports" / "import-{timestamp}.json"
+
+    exit_code = audit.main(
+        [
+            "--customer-csv",
+            str(customer_csv),
+            "--orders-csv",
+            str(orders_csv),
+            "--apply-import",
+            "--db-path",
+            str(database_path),
+            "--tenant-id",
+            "tenant-yunxi",
+            "--source-batch-id",
+            "batch-20260620",
+            "--import-output",
+            str(import_path),
+        ]
+    )
+
+    assert exit_code == 0
+    expected_import_path = tmp_path / "reports" / "import-20260620-103000.json"
+    payload = json.loads(expected_import_path.read_text(encoding="utf-8-sig"))
+    assert payload["status"] == "ready"
+    assert payload["metadata"]["tenant_id"] == "tenant-yunxi"
+    assert payload["metadata"]["source_batch_id"] == "batch-20260620"
+    assert payload["summary"]["total_records"] == 5
+    assert payload["summary"]["bucket_summary"]["pending_review"] == 2
+
+
+def test_main_apply_import_is_idempotent_for_same_file_db_batch(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    audit = load_audit_module()
+    customer_csv = tmp_path / "customers.csv"
+    orders_csv = tmp_path / "orders.csv"
+    database_path = tmp_path / "bot.db"
+    _write_customer_csv(customer_csv)
+    _write_orders_csv(orders_csv)
+    monkeypatch.setattr(audit, "datetime", _FrozenDateTime)
+
+    first_import_path = tmp_path / "reports" / "import-first-{timestamp}.json"
+    second_import_path = tmp_path / "reports" / "import-second-{timestamp}.json"
+    common_args = [
+        "--customer-csv",
+        str(customer_csv),
+        "--orders-csv",
+        str(orders_csv),
+        "--apply-import",
+        "--db-path",
+        str(database_path),
+        "--tenant-id",
+        "tenant-yunxi",
+        "--source-batch-id",
+        "batch-20260620",
+    ]
+
+    first_exit_code = audit.main(
+        [
+            *common_args,
+            "--import-output",
+            str(first_import_path),
+        ]
+    )
+    second_exit_code = audit.main(
+        [
+            *common_args,
+            "--import-output",
+            str(second_import_path),
+        ]
+    )
+
+    assert first_exit_code == 0
+    assert second_exit_code == 0
+
+    first_payload = json.loads(
+        (tmp_path / "reports" / "import-first-20260620-103000.json").read_text(
+            encoding="utf-8-sig"
+        )
+    )
+    second_payload = json.loads(
+        (tmp_path / "reports" / "import-second-20260620-103000.json").read_text(
+            encoding="utf-8-sig"
+        )
+    )
+
+    assert first_payload["summary"]["actions_summary"] == {
+        "create_master": 1,
+        "create_review_queue": 2,
+        "create_weak_master": 2,
+    }
+    assert second_payload["summary"]["actions_summary"] == {
+        "skip_existing_batch_row": 5,
+    }

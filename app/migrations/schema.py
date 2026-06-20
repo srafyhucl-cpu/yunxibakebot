@@ -274,6 +274,124 @@ SCHEMA_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_cch_source ON content_change_history(source)",
     "CREATE INDEX IF NOT EXISTS idx_cch_status ON content_change_history(status)",
     "CREATE INDEX IF NOT EXISTS idx_cch_entity ON content_change_history(entity_type, entity_key)",
+    # 客户主档：一个逻辑客户一行，只保存稳定主档真相
+    """CREATE TABLE IF NOT EXISTS customer_master (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active'
+            CHECK(status IN ('active','merged','archived')),
+        merge_into_customer_id TEXT REFERENCES customer_master(id),
+        primary_phone TEXT DEFAULT '',
+        phone_verified INTEGER NOT NULL DEFAULT 0
+            CHECK(phone_verified IN (0,1)),
+        display_name TEXT DEFAULT '',
+        gender TEXT NOT NULL DEFAULT 'unknown'
+            CHECK(gender IN ('unknown','male','female','other')),
+        birthday TEXT DEFAULT '',
+        wechat_region TEXT DEFAULT '',
+        first_seen_at TEXT DEFAULT '',
+        last_seen_at TEXT DEFAULT '',
+        first_source TEXT DEFAULT ''
+            CHECK(first_source IN ('','youzan','miniapp','wecom','import','manual')),
+        identity_confidence TEXT NOT NULL DEFAULT 'low'
+            CHECK(identity_confidence IN ('high','medium','low')),
+        has_youzan_identity INTEGER NOT NULL DEFAULT 0
+            CHECK(has_youzan_identity IN (0,1)),
+        has_miniapp_identity INTEGER NOT NULL DEFAULT 0
+            CHECK(has_miniapp_identity IN (0,1)),
+        has_wecom_identity INTEGER NOT NULL DEFAULT 0
+            CHECK(has_wecom_identity IN (0,1)),
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cm_tenant_status ON customer_master(tenant_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_cm_tenant_phone ON customer_master(tenant_id, primary_phone)",
+    "CREATE INDEX IF NOT EXISTS idx_cm_tenant_first_seen ON customer_master(tenant_id, first_seen_at)",
+    "CREATE INDEX IF NOT EXISTS idx_cm_tenant_last_seen ON customer_master(tenant_id, last_seen_at)",
+    "CREATE INDEX IF NOT EXISTS idx_cm_merge_into ON customer_master(merge_into_customer_id)",
+    # 客户身份链接：承接手机号、有赞、小程序、企微等多来源身份
+    """CREATE TABLE IF NOT EXISTS customer_identity_links (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL REFERENCES customer_master(id),
+        identity_type TEXT NOT NULL
+            CHECK(identity_type IN ('phone','youzan_customer','miniapp_openid','wecom_external_user','wecom_union','manual')),
+        identity_value TEXT NOT NULL,
+        identity_value_normalized TEXT,
+        source_system TEXT NOT NULL
+            CHECK(source_system IN ('youzan','miniapp','wecom','import','manual')),
+        source_record_id TEXT DEFAULT '',
+        source_label TEXT DEFAULT '',
+        link_status TEXT NOT NULL DEFAULT 'active'
+            CHECK(link_status IN ('active','pending_review','rejected','merged')),
+        verification_status TEXT NOT NULL DEFAULT 'unverified'
+            CHECK(verification_status IN ('unverified','inferred','verified','manual_confirmed')),
+        confidence_score INTEGER NOT NULL DEFAULT 0
+            CHECK(confidence_score >= 0 AND confidence_score <= 100),
+        first_seen_at TEXT DEFAULT '',
+        last_seen_at TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(tenant_id, identity_type, identity_value),
+        UNIQUE(tenant_id, identity_type, identity_value_normalized)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cil_customer ON customer_identity_links(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cil_tenant_type_norm ON customer_identity_links(tenant_id, identity_type, identity_value_normalized)",
+    "CREATE INDEX IF NOT EXISTS idx_cil_tenant_status ON customer_identity_links(tenant_id, link_status)",
+    "CREATE INDEX IF NOT EXISTS idx_cil_source_record ON customer_identity_links(source_system, source_record_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cil_seen_at ON customer_identity_links(tenant_id, last_seen_at)",
+    # 客户来源快照：保留来源原始真相和标准化真相
+    """CREATE TABLE IF NOT EXISTS customer_source_snapshots (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        customer_id TEXT REFERENCES customer_master(id),
+        identity_link_id TEXT REFERENCES customer_identity_links(id),
+        source_system TEXT NOT NULL
+            CHECK(source_system IN ('youzan','miniapp','wecom','import','manual')),
+        source_object_type TEXT NOT NULL
+            CHECK(source_object_type IN ('customer','order_buyer','member','contact')),
+        source_record_id TEXT NOT NULL,
+        source_batch_id TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL DEFAULT '{}',
+        normalized_json TEXT NOT NULL DEFAULT '{}',
+        field_hash TEXT NOT NULL DEFAULT '',
+        captured_at TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(tenant_id, source_system, source_object_type, source_record_id, source_batch_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_css_customer ON customer_source_snapshots(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_css_identity_link ON customer_source_snapshots(identity_link_id)",
+    "CREATE INDEX IF NOT EXISTS idx_css_source_record ON customer_source_snapshots(source_system, source_record_id)",
+    "CREATE INDEX IF NOT EXISTS idx_css_batch ON customer_source_snapshots(source_batch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_css_captured_at ON customer_source_snapshots(captured_at)",
+    "CREATE INDEX IF NOT EXISTS idx_css_field_hash ON customer_source_snapshots(field_hash)",
+    # 客户合并复核：承接 pending_review 人工判断闭环
+    """CREATE TABLE IF NOT EXISTS customer_merge_reviews (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        review_type TEXT NOT NULL
+            CHECK(review_type IN ('identity_conflict','candidate_merge','weak_identity_enrichment')),
+        review_status TEXT NOT NULL DEFAULT 'open'
+            CHECK(review_status IN ('open','in_progress','approved_merge','rejected_merge','needs_more_evidence')),
+        source_customer_id TEXT REFERENCES customer_master(id),
+        target_customer_id TEXT REFERENCES customer_master(id),
+        primary_identity_link_id TEXT REFERENCES customer_identity_links(id),
+        review_reason TEXT NOT NULL DEFAULT '',
+        conflict_summary_json TEXT NOT NULL DEFAULT '{}',
+        evidence_snapshot_ids_json TEXT NOT NULL DEFAULT '[]',
+        decision TEXT DEFAULT ''
+            CHECK(decision IN ('','merge','keep_separate','reject_identity','wait')),
+        decision_notes TEXT DEFAULT '',
+        reviewed_by TEXT DEFAULT '',
+        reviewed_at TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cmr_tenant_status ON customer_merge_reviews(tenant_id, review_status)",
+    "CREATE INDEX IF NOT EXISTS idx_cmr_source_customer ON customer_merge_reviews(source_customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cmr_target_customer ON customer_merge_reviews(target_customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cmr_identity_link ON customer_merge_reviews(primary_identity_link_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cmr_reviewed_at ON customer_merge_reviews(reviewed_at)",
     # 顾客长期记忆画像
     """CREATE TABLE IF NOT EXISTS customer_profiles (
         id TEXT PRIMARY KEY,

@@ -12,6 +12,8 @@
   - 当前双仓对接的 API 契约基线，明确 MiniApp 应消费哪些公开接口以及背后 canonical 归属域。
 - `docs/architecture/customer-master-v1.md`
   - 当前客户主档 v1 设计基线，明确主档、身份链接、来源快照三层结构，以及有赞迁移审计落点。
+- `docs/architecture/customer-master-v1-schema-draft.md`
+  - 当前客户主档 v1 四表 schema 草案，明确 `customer_master / customer_identity_links / customer_source_snapshots / customer_merge_reviews` 的字段、索引、唯一约束和 `pending_review` 闭环。
 - `docs/architecture/youzan-customer-migration-audit-checklist.md`
   - 当前有赞客户迁移审计清单，明确输入、标准化规则、风险分级、输出表头和分流规则。
 - `项目进度与配置清单.md`

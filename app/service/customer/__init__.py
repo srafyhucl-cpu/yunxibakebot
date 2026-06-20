@@ -5,5 +5,11 @@
 """
 
 from app.service.customer.address import CustomerAddressService
+from app.service.customer.importer import CustomerImportService
+from app.service.customer.master import CustomerMasterService
 
-__all__ = ["CustomerAddressService"]
+__all__ = [
+    "CustomerAddressService",
+    "CustomerImportService",
+    "CustomerMasterService",
+]
