@@ -16,6 +16,8 @@
   - 当前客户主档 v1 四表 schema 草案，明确 `customer_master / customer_identity_links / customer_source_snapshots / customer_merge_reviews` 的字段、索引、唯一约束和 `pending_review` 闭环。
 - `docs/architecture/youzan-customer-migration-audit-checklist.md`
   - 当前有赞客户迁移审计清单，明确输入、标准化规则、风险分级、输出表头和分流规则。
+- `docs/architecture/youzan-customer-formal-import-runbook.md`
+  - 当前有赞客户正式迁移执行 runbook，明确审计、dry-run、apply、报告留档和重跑语义。
 - `scripts/import_youzan_customers.py`
   - 当前有赞客户正式迁移入口；默认 dry-run，显式 `--apply` 才写库。
 - `项目进度与配置清单.md`

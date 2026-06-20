@@ -2,6 +2,21 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(customer): 补齐正式客户迁移执行 runbook
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-pipeline
+- **背景**: `scripts/import_youzan_customers.py` 已经落地并通过脚本级测试，但真正进入后续执行时，团队仍缺一份“按什么顺序跑、报告怎么留、`source_batch_id` 怎么定、什么时候不能直接 `--apply`”的仓内 runbook。如果只靠聊天记录传递迁移步骤，后续补跑和交接时仍会反复确认边界。
+- **变更范围**:
+  - `docs/architecture/youzan-customer-formal-import-runbook.md` - 新增正式客户迁移执行 runbook，覆盖审计入口与正式入口分工、批次号约定、报告命名、标准执行顺序、幂等重跑语义、禁止直接 apply 的场景和迁移后最小验证。
+  - `docs/README.md` - 将正式迁移 runbook 纳入当前权威口径导航。
+  - `docs/harness-engineering/core/verification-matrix.md` - 新增“客户正式迁移”验证项，并把客户审计 / dry-run 报告纳入生产同步最低证据示例。
+- **验证结果**:
+  - `Test-Path docs/architecture/youzan-customer-formal-import-runbook.md` 通过。
+  - `Select-String -Path docs/README.md,docs/harness-engineering/core/verification-matrix.md -Pattern "youzan-customer-formal-import-runbook|test_import_youzan_customers|youzan-customer-import-dry-run"` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **结论**:
+  - customer 域现在不只是“有正式迁移脚本”，而是已经补齐到“有可执行 runbook + 验证矩阵口径 + 文档导航入口”的状态；后续做真实迁移、补跑和交接时，可以直接按仓库内文档执行。
+
 ## [2026-06-20] - feat(customer): 新增正式有赞客户迁移入口脚本
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-import-pipeline
