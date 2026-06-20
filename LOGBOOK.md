@@ -16,6 +16,18 @@
 - **结论**:
   - 现在产品角色、渠道角色和仓库路径的口径更清楚了，后续不容易再把 `YunxiBakeMiniApp` 误认为长期产品名。
 
+## [2026-06-20] - docs(architecture): 继续历史化 MiniApp 过渡文档的行动语气
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-miniapp-history-only
+- **背景**: `miniapp-ai-handoff-plan.md` 和 `miniapp-phase1-execution-checklist.md` 已经标注为历史过渡版，但正文里仍保留了较多“完成定义 / 推荐顺序 / 验收清单 / 建议格式”这类执行语气。为了让当前实施依据更聚焦，进一步把这些章节标题压成“摘录”口径，让后续读者更直观地把它们当历史材料，而不是行动方案。
+- **变更范围**:
+  - `docs/architecture/miniapp-ai-handoff-plan.md` - 将关键章节标题改为“摘录”口径，并保留历史叙述。
+  - `docs/architecture/miniapp-phase1-execution-checklist.md` - 将关键章节标题改为“摘录”口径，并保留历史叙述。
+- **验证结果**:
+  - `rg -n "摘录|历史过渡记录|历史示例要求摘录|历史验收标准摘录|当前实施蓝图" docs/architecture/miniapp-ai-handoff-plan.md docs/architecture/miniapp-phase1-execution-checklist.md` 通过。
+- **结论**:
+  - 两份 MiniApp 过渡文档现在更像历史索引，而不是当前可执行清单。
+
 ## [2026-06-20] - docs(architecture): 降级 MiniApp 过渡文档为历史记录
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-history-only

@@ -87,6 +87,20 @@ ______________________________________________________________________
 - retention_note: 仅记录历史化命中结果，不含业务数据
 - summary: 两份 MiniApp 过渡文档已经降级为历史记录，不再作为当前实施蓝图。
 
+## E-20260620-011：MiniApp 过渡文档行动语气再压缩
+
+- trace_id: 20260620-miniapp-history-only
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\architecture\miniapp-ai-handoff-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\miniapp-phase1-execution-checklist.md`
+- command: `rg -n "摘录|历史过渡记录|历史示例要求摘录|历史验收标准摘录|当前实施蓝图" docs/architecture/miniapp-ai-handoff-plan.md docs/architecture/miniapp-phase1-execution-checklist.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 继续历史化 MiniApp 过渡文档的行动语气
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录过渡文档再压缩的命中结果，不含业务数据
+- summary: 两份 MiniApp 过渡文档的章节标题已进一步压成“摘录”口径，历史索引味道更强。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
