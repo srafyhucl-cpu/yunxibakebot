@@ -27,6 +27,17 @@
 - **结论**:
   - docs 导航里历史方案与当前权威口径的边界更清楚了。
 
+## [2026-06-20] - docs(readme): 去重历史方案区的路线图条目
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-docs-history-dedup
+- **背景**: `docs/README.md` 的“历史方案”区里，`two-repo-rollout-plan.md` 出现了两次。即便两条说明都在说同一份历史路线图，重复出现还是会让导航显得不够干净，也容易让读者误以为有两份不同路线图。为了让历史方案区更明确，需要把重复条目去掉，只保留一处。
+- **变更范围**:
+  - `docs/README.md` - 删除历史方案区中重复的 `two-repo-rollout-plan.md` 条目。
+- **验证结果**:
+  - `rg -n "two-repo-rollout-plan.md" docs/README.md` 只剩一处命中。
+- **结论**:
+  - 历史方案区现在只保留一份双仓路线图引用，导航更干净。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering
