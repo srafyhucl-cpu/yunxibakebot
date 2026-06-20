@@ -171,6 +171,20 @@ ______________________________________________________________________
 - retention_note: 仅记录历史方案区去重命中结果，不含业务数据
 - summary: 历史方案区中的双仓路线图引用已去重，只保留一处。
 
+## E-20260620-017：总入口历史材料分流
+
+- trace_id: 20260620-entrypoints-history-redirect
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\docs\architecture\project-boundaries.md`
+- command: `rg -n "历史方案区|历史过渡材料|当前实施蓝图|two-repo-rollout-plan|miniapp-phase1-execution-checklist|miniapp-ai-handoff-plan" README.md docs/architecture/project-boundaries.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(readme): 总入口改为历史方案区分流
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录总入口分流命中结果，不含业务数据
+- summary: README 与边界文档已不再直接把读者送到历史路线图，历史材料统一从 docs 导航进入。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug

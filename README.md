@@ -13,7 +13,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 >
 > 如果你现在关注的是有赞客户迁移，请优先看这四段当前权威入口：`docs/architecture/youzan-customer-migration-audit-checklist.md`、`docs/architecture/youzan-customer-formal-import-runbook.md`、`scripts/verify_youzan_customer_import.py`、`docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`。
 >
-> 双仓推进节奏与 `Storefront MiniApp` 第一阶段最小改造清单见 [docs/architecture/two-repo-rollout-plan.md](docs/architecture/two-repo-rollout-plan.md)，其中不少内容已属于历史过渡记录。
+> 如果你需要回看双仓推进的历史过渡材料，请到 [docs/README.md](docs/README.md) 的“历史方案”区统一查看，不要把这些材料当作当前实施蓝图。
 >
 > 文档分层导航见 [docs/README.md](docs/README.md)。
 

@@ -72,6 +72,4 @@
 - `YunxiBakeBot` / `YunxiBakeMiniApp` 只用于仓库路径、历史过渡材料或明确的迁移引用。
 - 新文档默认使用通用名，除非在讲历史仓、文件路径或兼容层命名。
 
-详细节奏见：[two-repo-rollout-plan.md](./two-repo-rollout-plan.md)
-MiniApp 第一阶段执行清单见：[miniapp-phase1-execution-checklist.md](./miniapp-phase1-execution-checklist.md)
-MiniApp AI 接力计划书见：[miniapp-ai-handoff-plan.md](./miniapp-ai-handoff-plan.md)
+如需回看双仓推进与 MiniApp 对齐的历史过渡材料，请统一从 [docs/README.md](../README.md) 的“历史方案”区进入，避免把这些历史文档当作当前实施依据。

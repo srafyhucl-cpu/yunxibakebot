@@ -38,6 +38,18 @@
 - **结论**:
   - 历史方案区现在只保留一份双仓路线图引用，导航更干净。
 
+## [2026-06-20] - docs(readme): 总入口改为历史方案区分流
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-entrypoints-history-redirect
+- **背景**: `README.md` 和 `docs/architecture/project-boundaries.md` 之前都还直接列出了 `two-repo-rollout-plan.md`、`miniapp-phase1-execution-checklist.md`、`miniapp-ai-handoff-plan.md` 这类历史材料入口。虽然文案已多次强调它们不是当前实施蓝图，但总入口直接跳历史文档，仍会增加误读概率。为了让当前入口更聚焦，需要统一改成“去 docs/README.md 的历史方案区查看”。
+- **变更范围**:
+  - `README.md` - 将历史路线图直链改为历史方案区分流提示。
+  - `docs/architecture/project-boundaries.md` - 将三份历史过渡材料入口收束为 docs 导航分流提示。
+- **验证结果**:
+  - `rg -n "历史方案区|历史过渡材料|当前实施蓝图|two-repo-rollout-plan|miniapp-phase1-execution-checklist|miniapp-ai-handoff-plan" README.md docs/architecture/project-boundaries.md` 通过。
+- **结论**:
+  - 当前总入口现在更集中指向权威口径，历史材料统一从 docs 导航进入。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

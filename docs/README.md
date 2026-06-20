@@ -37,6 +37,7 @@
   - `Storefront MiniApp` 第一阶段边界对齐清单，只保留历史过渡记录。
 - `docs/architecture/miniapp-ai-handoff-plan.md`
   - 发给 `MiniApp` 仓 AI 的过渡阶段执行说明，只作为历史参考。
+
 ## 业务与技术背景
 
 - `docs/design/`
