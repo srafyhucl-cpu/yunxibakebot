@@ -124,6 +124,18 @@
 - **结论**:
   - README 中最容易误导读者的高可见仓库名示例又少了一层，同时真实路径和仓库 slug 仍保持可见。
 
+## [2026-06-20] - docs(readme): 清理 README 旧仓库占位链接
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-readme-repo-link-placeholders
+- **背景**: README 里虽然已经补了真实仓库链接入口，但快速开始、安装部署和贡献指南仍残留 `your-repo`、`your-username`、`original-repo` 这类旧占位地址。它们会降低文档可直接使用性，也容易让读者误以为仓库地址尚未确定。
+- **变更范围**:
+  - `README.md` - 将快速开始、安装配置、部署示例中的主仓 clone 地址切换为真实仓库地址。
+  - `README.md` - 将 fork 场景中的 clone 示例改成 `your-github-name/yunxibakebot`，并把 `upstream` 明确指向真实主仓。
+- **验证结果**:
+  - `rg -n "your-repo|your-username|original-repo|github.com/srafyhucl-cpu/yunxibakebot.git" README.md` 通过。
+- **结论**:
+  - README 中剩余的仓库地址示例现在更接近可直接执行状态，读者不需要再自己猜主仓地址。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

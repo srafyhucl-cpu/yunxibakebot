@@ -255,6 +255,20 @@ ______________________________________________________________________
 - retention_note: 仅记录 README 高可见示例收口结果，不含业务数据
 - summary: README 的目录树根节点、仓库链接占位和 UTF-8 控制台脚本注释已改成更明确的 repo 语义或真实仓库地址。
 
+## E-20260620-023：README 旧仓库占位链接清理
+
+- trace_id: 20260620-readme-repo-link-placeholders
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\README.md`
+- command: `rg -n "your-repo|your-username|original-repo|github.com/srafyhucl-cpu/yunxibakebot.git" README.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(readme): 清理 README 旧仓库占位链接
+- related_adr: 0002-platform-storefront-boundaries-and-instance-naming
+- contains_sensitive_data: no
+- retention_note: 仅记录 README 仓库链接示例更新结果，不含业务数据
+- summary: README 中快速开始、部署和 fork 场景的主仓地址已统一为真实仓库链接，fork 示例保留用户变量但不再使用旧占位仓名。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug

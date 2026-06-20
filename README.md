@@ -305,7 +305,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-repo/YunxiBakeBot.git
+git clone https://github.com/srafyhucl-cpu/yunxibakebot.git
 cd YunxiBakeBot
 
 # 2. 创建虚拟环境
@@ -348,7 +348,7 @@ npm run dev
 #### 1.1 克隆项目
 
 ```bash
-git clone https://github.com/your-repo/YunxiBakeBot.git
+git clone https://github.com/srafyhucl-cpu/yunxibakebot.git
 cd YunxiBakeBot
 ```
 
@@ -793,7 +793,7 @@ sudo apt install nginx -y
 
 ```bash
 # 1. 克隆代码
-git clone https://github.com/your-repo/YunxiBakeBot.git /opt/yunxibakebot
+git clone https://github.com/srafyhucl-cpu/yunxibakebot.git /opt/yunxibakebot
 cd /opt/yunxibakebot
 
 # 2. 创建虚拟环境
@@ -1141,11 +1141,11 @@ sudo systemctl restart yunxibakebot
 # 1. Fork 项目（在 GitHub 上操作）
 
 # 2. 克隆你的 Fork
-git clone https://github.com/your-username/YunxiBakeBot.git
+git clone https://github.com/your-github-name/yunxibakebot.git
 cd YunxiBakeBot
 
 # 3. 添加上游仓库
-git remote add upstream https://github.com/original-repo/YunxiBakeBot.git
+git remote add upstream https://github.com/srafyhucl-cpu/yunxibakebot.git
 
 # 4. 创建开发分支
 git checkout -b feature/xxx
