@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(readme): 在根入口补齐客户迁移闭环
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-root-readme-customer-links
+- **背景**: 当前客户迁移的审计、正式迁移、后验核对和交接/回滚都已经在 `docs/architecture/` 中有了权威入口，但根 `README.md` 还没有把这条线显式展示出来。为了让任何从项目首页进入的人都能直接找到客户迁移闭环，需要把入口补到主 README。
+- **变更范围**:
+  - `README.md` - 在顶部说明和项目介绍中补充当前有赞客户迁移三份权威入口。
+- **验证结果**:
+  - `Select-String -Path README.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 待执行。
+- **结论**:
+  - 根入口现在也能直接把客户迁移闭环露出来，和 docs 分层导航、边界文档、双仓路线图及 MiniApp 接力材料保持一致。
+
 ## [2026-06-20] - docs(architecture): 补齐双仓 API 契约中的客户迁移权威入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-platform-miniapp-contract-customer-links

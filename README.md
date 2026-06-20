@@ -11,6 +11,8 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 > 当前仓库仍沿用 `YunxiBakeBot` 代码仓路径，但产品口径已升级为通用平台：`Bakery Commerce Platform`。如果你正在找的是历史上的 `YunxiBakeMiniApp` 口径，请把它理解为前台渠道仓的旧称。
 >
+> 如果你现在关注的是有赞客户迁移，请优先看这三份当前权威入口：`docs/architecture/youzan-customer-migration-audit-checklist.md`、`docs/architecture/youzan-customer-formal-import-runbook.md`、`docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`。
+>
 > 双仓推进节奏与 `Storefront MiniApp` 第一阶段最小改造清单见 [docs/architecture/two-repo-rollout-plan.md](docs/architecture/two-repo-rollout-plan.md)，其中不少内容已属于历史过渡记录。
 >
 > 文档分层导航见 [docs/README.md](docs/README.md)。
@@ -48,6 +50,12 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 3. **智能推荐商品**（根据客户需求推荐合适的烘焙产品）
 4. **无缝转接人工**（复杂问题自动转接人工客服）
 5. **多渠道接入**（有赞小程序、企业微信等）
+
+如果你关注的是当前有赞客户迁移工作，完整入口见：
+
+- [有赞客户迁移审计清单](docs/architecture/youzan-customer-migration-audit-checklist.md)
+- [有赞客户正式迁移执行 Runbook](docs/architecture/youzan-customer-formal-import-runbook.md)
+- [有赞客户迁移交接与回滚 Runbook](docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md)
 
 ### 💡 解决方案
 
