@@ -2,6 +2,17 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 补齐双仓 API 契约中的客户迁移权威入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-miniapp-contract-customer-links
+- **背景**: 当前双仓 API 契约 v1 已经写明 `customer` 归属域和稳定接口，但还没有把有赞客户迁移的审计、正式迁移和交接/回滚三段闭环明确挂到这份契约上。为了避免读契约的人还要再自己去找迁移入口，需要把这部分当前权威文档写进去。
+- **变更范围**:
+  - `docs/architecture/platform-miniapp-api-contract-v1.md` - 在过渡态和下一步建议中追加有赞客户迁移三份权威入口，并强调迁移执行与回滚优先看独立 customer 文档。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/platform-miniapp-api-contract-v1.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook"` 待执行。
+- **结论**:
+  - 双仓 API 契约现在不只描述消费者前台该调哪些接口，也把 `customer` 域的当前迁移闭环入口直接挂上了，减少从契约进入时的跳转成本。
+
 ## [2026-06-20] - docs(architecture): 收束 MiniApp 接力文档的客户迁移入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-handoff-customer-links
