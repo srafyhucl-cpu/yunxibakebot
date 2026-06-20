@@ -9,7 +9,7 @@
 - **变更范围**:
   - `docs/architecture/youzan-customer-migration-audit-checklist.md` - 将“下一步建议”更新为正式迁移 runbook、迁移后核对脚本与交接/回滚 runbook。
 - **验证结果**:
-  - `Select-String -Path docs/architecture/youzan-customer-migration-audit-checklist.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|verify_youzan_customer_import"` 待执行。
+  - `Select-String -Path docs/architecture/youzan-customer-migration-audit-checklist.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|verify_youzan_customer_import"` 通过。
 - **结论**:
   - 审计清单现在不再停留在 schema 前置阶段，而是能直接把执行者引向当前已经落地的正式迁移闭环。
 
@@ -20,7 +20,7 @@
 - **变更范围**:
   - `docs/architecture/customer-master-v1-schema-draft.md` - 将“下一步建议”更新为迁移审计、正式迁移和迁移后核对/交接回滚的当前权威入口。
 - **验证结果**:
-  - `Select-String -Path docs/architecture/customer-master-v1-schema-draft.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|verify_youzan_customer_import"` 待执行。
+  - `Select-String -Path docs/architecture/customer-master-v1-schema-draft.md -Pattern "youzan-customer-migration-audit-checklist|youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|verify_youzan_customer_import"` 通过。
 - **结论**:
   - schema 草案现在也和当前 customer 迁移闭环对齐，不再把后续执行者引回已经完成的历史实施阶段。
 
