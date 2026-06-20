@@ -2,7 +2,12 @@
 
 from uuid import uuid4
 
-from app.constants.miniapp import MINIAPP_CHANNEL, MINIAPP_DEMO_USER_ID
+from app.constants.storefront import (
+    DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON,
+    STOREFRONT_CHANNEL,
+    STOREFRONT_CHANNEL_MESSAGE_PREFIX,
+    STOREFRONT_DEMO_USER_ID,
+)
 from app.models.session import SessionCreate
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
@@ -10,7 +15,7 @@ from app.service.chat import ChatService
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 from app.service.transfer_manager import TransferManager
 
-STOREFRONT_CHAT_CHANNEL = MINIAPP_CHANNEL
+STOREFRONT_CHAT_CHANNEL = STOREFRONT_CHANNEL
 DEFAULT_CHAT_MESSAGE_LIMIT = 50
 CHAT_STATUS_LABELS = {
     "active": "AI 客服接待中",
@@ -27,7 +32,7 @@ CHAT_STATUS_DESCRIPTIONS = {
 
 
 class StorefrontConversationService:
-    """为前台小程序提供客服消息发送与历史拉取。"""
+    """为前台渠道提供客服消息发送与历史拉取。"""
 
     def __init__(
         self,
@@ -42,7 +47,7 @@ class StorefrontConversationService:
         self._transfer_mgr = transfer_mgr
 
     async def send_message(
-        self, content: str, *, user_id: str = MINIAPP_DEMO_USER_ID
+        self, content: str, *, user_id: str = STOREFRONT_DEMO_USER_ID
     ) -> dict:
         """发送一条前台用户消息，并返回 AI 回复。"""
         normalized_content = content.strip()
@@ -52,7 +57,7 @@ class StorefrontConversationService:
             channel=STOREFRONT_CHAT_CHANNEL,
             user_id=user_id,
             content=normalized_content,
-            channel_msg_id=f"miniapp:{user_id}:{uuid4().hex}",
+            channel_msg_id=f"{STOREFRONT_CHANNEL_MESSAGE_PREFIX}:{user_id}:{uuid4().hex}",
         )
         session = await self._session_repo.get_active(user_id, STOREFRONT_CHAT_CHANNEL)
         return {
@@ -62,7 +67,7 @@ class StorefrontConversationService:
             "status": await self.get_chat_status(user_id=user_id),
         }
 
-    async def get_chat_payload(self, *, user_id: str = MINIAPP_DEMO_USER_ID) -> dict:
+    async def get_chat_payload(self, *, user_id: str = STOREFRONT_DEMO_USER_ID) -> dict:
         """返回前台客服页所需的消息和会话状态。"""
         return {
             "messages": await self.list_messages(user_id=user_id),
@@ -73,10 +78,10 @@ class StorefrontConversationService:
         self,
         reason: str = "",
         *,
-        user_id: str = MINIAPP_DEMO_USER_ID,
+        user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """为前台用户主动创建转人工工单，并返回最新客服页 payload。"""
-        normalized_reason = reason.strip() or "小程序用户主动请求人工客服"
+        normalized_reason = reason.strip() or DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON
         session = await self._session_repo.get_or_create(
             SessionCreate(id="", channel=STOREFRONT_CHAT_CHANNEL, user_id=user_id)
         )
@@ -99,7 +104,7 @@ class StorefrontConversationService:
             raise ValueError("转人工请求失败，请稍后重试")
         return await self.get_chat_payload(user_id=user_id)
 
-    async def get_chat_status(self, *, user_id: str = MINIAPP_DEMO_USER_ID) -> dict:
+    async def get_chat_status(self, *, user_id: str = STOREFRONT_DEMO_USER_ID) -> dict:
         """读取当前前台客服会话状态。"""
         session = await self._session_repo.get_active(user_id, STOREFRONT_CHAT_CHANNEL)
         status = self._normalize_session_status(session.status if session else "active")
@@ -111,7 +116,9 @@ class StorefrontConversationService:
             "isHumanHandoff": status in {"transfer_pending", "human_service"},
         }
 
-    async def list_messages(self, *, user_id: str = MINIAPP_DEMO_USER_ID) -> list[dict]:
+    async def list_messages(
+        self, *, user_id: str = STOREFRONT_DEMO_USER_ID
+    ) -> list[dict]:
         """读取当前前台用户客服消息。"""
         session = await self._session_repo.get_active(user_id, STOREFRONT_CHAT_CHANNEL)
         if session is None:
@@ -153,5 +160,6 @@ __all__ = [
     "CHAT_STATUS_LABELS",
     "DEFAULT_CHAT_MESSAGE_LIMIT",
     "STOREFRONT_CHAT_CHANNEL",
+    "DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON",
     "StorefrontConversationService",
 ]

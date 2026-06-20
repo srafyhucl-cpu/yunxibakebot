@@ -7,10 +7,12 @@ from app.models.session import SessionCreate, SessionStatus
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.service.conversation.storefront import (
+    DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON,
     DEFAULT_CHAT_MESSAGE_LIMIT,
     STOREFRONT_CHAT_CHANNEL,
     StorefrontConversationService,
 )
+from app.constants.storefront import STOREFRONT_CHANNEL_MESSAGE_PREFIX
 
 
 class FakeTransferManager:
@@ -106,7 +108,9 @@ async def test_miniapp_chat_send_message_trims_content_and_returns_history(
     assert fake_chat.calls[0]["channel"] == STOREFRONT_CHAT_CHANNEL
     assert fake_chat.calls[0]["user_id"] == "miniapp-chat-user"
     assert fake_chat.calls[0]["content"] == "我想订生日蛋糕"
-    assert fake_chat.calls[0]["channel_msg_id"].startswith("miniapp:miniapp-chat-user:")
+    assert fake_chat.calls[0]["channel_msg_id"].startswith(
+        f"{STOREFRONT_CHANNEL_MESSAGE_PREFIX}:miniapp-chat-user:"
+    )
     assert [message["role"] for message in result["messages"]] == ["user", "assistant"]
     assert [message["content"] for message in result["messages"]] == [
         "我想订生日蛋糕",
@@ -331,4 +335,6 @@ async def test_miniapp_chat_request_human_transfer_uses_default_reason(
 
     await service.request_human_transfer("   ", user_id="miniapp-transfer-empty-reason")
 
-    assert transfer_mgr.requests[0]["reason"] == "小程序用户主动请求人工客服"
+    assert (
+        transfer_mgr.requests[0]["reason"] == DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON
+    )

@@ -1396,3 +1396,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记 `lifespan` 兼容 key 收口和本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: `lifespan` 真实装配优先 canonical key，旧 `miniapp_*` service/repo key 通过集中 alias map 保留兼容，并由测试确认别名指向 canonical 对象。
+
+## E-20260620-031：前台会话渠道常量收口
+
+- trace_id: 20260620-storefront-conversation-constants
+- generated_at: 2026-06-20
+- evidence_type: refactor/test
+- file: `D:\Project\YunxiBakeBot\app\constants\storefront.py`; `D:\Project\YunxiBakeBot\app\service\conversation\storefront.py`; `D:\Project\YunxiBakeBot\tests\service\test_miniapp_chat.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_chat_api.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\test_miniapp_chat.py tests\api\test_miniapp_chat_api.py -q --tb=short --no-cov`; `rg -n '小程序用户主动请求人工客服|channel_msg_id=.*miniapp:' app tests -g '*.py'`; `python scripts/check_project.py`
+- result: pass
+- related_logbook: 2026-06-20 - refactor(conversation): 收口前台会话渠道常量
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记前台会话常量收口和本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: `StorefrontConversationService` 不再直接依赖 `miniapp` 常量或硬编码消息前缀；兼容期内 channel、消息 ID 前缀、demo 用户和默认转人工原因保持现有值不变。

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.api.miniapp_chat import create_miniapp_chat_router
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
+from app.constants.storefront import DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON
 
 
 class FakeStorefrontConversationService:
@@ -72,7 +73,7 @@ class FakeStorefrontConversationService:
         *,
         user_id: str = MINIAPP_DEMO_USER_ID,
     ) -> dict[str, Any]:
-        normalized_reason = reason.strip() or "小程序用户主动请求人工客服"
+        normalized_reason = reason.strip() or DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON
         self.transfer_requests.append({"reason": normalized_reason, "user_id": user_id})
         return {
             "messages": [
@@ -196,7 +197,7 @@ async def test_miniapp_chat_transfer_uses_default_reason(
     assert response.status_code == 200
     assert service.transfer_requests == [
         {
-            "reason": "小程序用户主动请求人工客服",
+            "reason": DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON,
             "user_id": MINIAPP_DEMO_USER_ID,
         }
     ]

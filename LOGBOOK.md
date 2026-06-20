@@ -3,6 +3,21 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-20] - refactor(conversation): 收口前台会话渠道常量
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-storefront-conversation-constants
+- **背景**: `StorefrontConversationService` 已是 conversation 域 canonical 服务，但仍直接依赖 `MINIAPP_CHANNEL`、`MINIAPP_DEMO_USER_ID`，并在消息 ID 与默认转人工原因处散落 MiniApp 语义。为了继续压清 `Platform` 与 `Storefront MiniApp` 边界，需要把这些兼容语义集中到前台渠道常量层。
+- **变更范围**:
+  - `app/constants/storefront.py` - 新增前台渠道常量入口，统一承接渠道值、demo 用户、渠道消息 ID 前缀和默认转人工原因；兼容期内值保持不变。
+  - `app/service/conversation/storefront.py` - 改为依赖 storefront 语义常量，不再直接依赖 miniapp 常量或硬编码 `miniapp:` 前缀。
+  - `tests/service/test_miniapp_chat.py`、`tests/api/test_miniapp_chat_api.py` - 默认原因与消息 ID 前缀断言改为依赖 storefront 常量，测试文件名和 `/miniapp/*` 外部契约继续保留。
+- **验证结果**:
+  - `python -m pytest tests\service\test_miniapp_chat.py tests\api\test_miniapp_chat_api.py -q --tb=short --no-cov` 通过。
+  - `rg -n '小程序用户主动请求人工客服|channel_msg_id=.*miniapp:' app tests -g '*.py'` 仅剩前台渠道常量兼容值和测试常量引用。
+  - `python scripts/check_project.py` 通过；函数行数警告为既有非阻断项，覆盖率 75.54%。
+- **结论**:
+  - 前台会话服务内部命名进一步收口到 `storefront`，但外部 API 路径、请求头、channel 值、消息 ID 前缀和默认转人工原因均保持兼容期行为不变。
+
 ## [2026-06-20] - refactor(lifespan): 集中管理兼容期旧 key
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-lifespan-legacy-key-aliases
