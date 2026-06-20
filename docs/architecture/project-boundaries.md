@@ -43,6 +43,12 @@
 
 第一阶段保留既有 `miniapp_*` 路径作为兼容 facade，但新代码默认依赖以上 canonical 领域命名。
 
+有赞客户迁移的完整入口见：
+
+- [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+- [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
+- [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
+
 ### 现状收口
 
 - `app/service/miniapp_*.py` 已全部降级为兼容 facade。

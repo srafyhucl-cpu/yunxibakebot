@@ -84,6 +84,12 @@
 执行细则见：[miniapp-phase1-execution-checklist.md](./miniapp-phase1-execution-checklist.md)
 如果需要把具体执行要求交给 `YunxiBakeMiniApp` 仓的 AI，使用：[miniapp-ai-handoff-plan.md](./miniapp-ai-handoff-plan.md)
 
+如果需要查看当前 `Platform` 仓的有赞客户迁移全链路，请优先看：
+
+- [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
+- [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
+- [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
+
 ### 阶段 C：双仓联动治理
 
 只有在 A 和 B 都完成后，再进入这一阶段：

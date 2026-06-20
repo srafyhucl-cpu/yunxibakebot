@@ -2,6 +2,18 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 收束客户迁移入口到边界文档
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-import-boundary-links
+- **背景**: `docs/README.md` 已经能找到有赞客户正式迁移、核对和交接/回滚 runbook，但上层边界文档和双仓路线图还没有把这条完整链路显式串起来。为了让团队从更高层入口检索时不漏掉迁移收口材料，需要把入口再往上收束一层。
+- **变更范围**:
+  - `docs/architecture/project-boundaries.md` - 追加有赞客户迁移审计、正式迁移、交接/回滚 runbook 入口。
+  - `docs/architecture/two-repo-rollout-plan.md` - 追加当前 Platform 仓客户迁移全链路入口。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/project-boundaries.md,docs/architecture/two-repo-rollout-plan.md -Pattern "youzan-customer-formal-import-runbook|youzan-customer-import-handoff-and-rollback-runbook|youzan-customer-migration-audit-checklist"` 待执行。
+- **结论**:
+  - 客户迁移的文档入口从 README 继续上收到了边界文档层，后续无论从总导航还是从架构入口进入，都能直接找到审计、正式迁移和交接/回滚三段闭环。
+
 ## [2026-06-20] - docs(customer): 补齐有赞客户迁移交接回滚 runbook
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-import-handoff
