@@ -2,6 +2,19 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 补齐 Platform 与 MiniApp 双仓 API 契约 v1
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-miniapp-api-contract-v1
+- **背景**: 前一轮双仓边界重组已经明确了 `Platform` 与 `Storefront MiniApp` 的职责，但仓间对接仍主要靠已有接口名和口头理解，缺少一份“当前真实可依赖”的接口契约文档。为了让后续 `MiniApp` API client 整理、`Platform` customer 域推进、以及 CRM/企微接入不再反复讨论边界，本轮补一份以现有代码和测试为准的双仓 API 契约 v1。
+- **变更范围**:
+  - `docs/architecture/platform-miniapp-api-contract-v1.md` - 新增双仓 API 契约文档，覆盖认证、地址、商品、会话、订单、支付通知、装修页面和店铺运营配置 8 组接口，明确路径、用途、canonical 归属域、稳定性、关键字段、兼容行为和下一步冻结建议。
+  - `docs/README.md` - 将 API 契约文档纳入“当前权威口径”导航入口，方便后续双仓统一引用。
+- **验证结果**:
+  - 已逐一对照 `app/api/miniapp_*.py`、`app/api/admin_shop_pages.py`、`app/api/admin_config.py` 的当前实现。
+  - 已对照 `tests/api/test_miniapp_*`、`test_shop_page_config_api.py`、`test_shop_operations_api.py` 提炼稳定字段、状态码和兼容行为。
+- **遗留风险**:
+  - 当前文档仍基于“现有接口行为”定义 v1，不代表正式商业化身份体系已经确定；后续若引入企微绑定或客户主档主键，需要在不破坏现有外部路径的前提下补充 v1.1 或 customer master 设计文档。
+
 ## [2026-06-20] - chore(gitignore): 排除有赞导出 CSV 并修正提交范围
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-export-csv-untrack
