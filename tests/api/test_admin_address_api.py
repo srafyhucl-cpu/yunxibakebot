@@ -9,17 +9,17 @@ from app.api.admin_addresses import create_admin_addresses_router
 from app.config import settings
 from app.repository.miniapp_address_audit_repo import MiniappAddressAuditRepo
 from app.repository.miniapp_address_repo import MiniappAddressRepo
-from app.service.miniapp_address import MiniappAddressService
+from app.service.customer import CustomerAddressService
 
 
 @pytest.fixture
-def service(db: aiosqlite.Connection) -> MiniappAddressService:
+def service(db: aiosqlite.Connection) -> CustomerAddressService:
     """构建后台地址 API 使用的真实服务。"""
-    return MiniappAddressService(MiniappAddressRepo(db), MiniappAddressAuditRepo(db))
+    return CustomerAddressService(MiniappAddressRepo(db), MiniappAddressAuditRepo(db))
 
 
 @pytest.fixture
-def app(service: MiniappAddressService) -> FastAPI:
+def app(service: CustomerAddressService) -> FastAPI:
     """构建只包含后台地址路由的测试应用。"""
     test_app = FastAPI()
     test_app.include_router(create_admin_addresses_router(service))
@@ -42,7 +42,7 @@ async def test_admin_address_api_requires_token(app: FastAPI) -> None:
 @pytest.mark.asyncio
 async def test_admin_address_api_lists_and_searches_addresses(
     app: FastAPI,
-    service: MiniappAddressService,
+    service: CustomerAddressService,
 ) -> None:
     """后台可按关键词查询顾客地址列表。"""
     await service.save_address(
@@ -127,7 +127,7 @@ async def test_admin_address_api_creates_address(app: FastAPI) -> None:
 @pytest.mark.asyncio
 async def test_admin_address_api_updates_address_and_keeps_single_default(
     app: FastAPI,
-    service: MiniappAddressService,
+    service: CustomerAddressService,
 ) -> None:
     """后台编辑地址可更新联系人信息，并保持同一用户只有一个默认地址。"""
     await service.save_address(
@@ -253,7 +253,7 @@ async def test_admin_address_api_update_missing_address_returns_404(
 @pytest.mark.asyncio
 async def test_admin_address_api_set_default_and_delete(
     app: FastAPI,
-    service: MiniappAddressService,
+    service: CustomerAddressService,
 ) -> None:
     """后台可设置默认地址并删除地址，删除默认后自动补默认。"""
     await service.save_address(
@@ -313,7 +313,7 @@ async def test_admin_address_service_records_delete_audit(
 ) -> None:
     """后台删除地址会留下可追溯的操作审计。"""
     audit_repo = MiniappAddressAuditRepo(db)
-    service = MiniappAddressService(MiniappAddressRepo(db), audit_repo)
+    service = CustomerAddressService(MiniappAddressRepo(db), audit_repo)
     await service.save_admin_address(
         {
             "userId": "admin-audit-user",

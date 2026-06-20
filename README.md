@@ -1,11 +1,19 @@
-# 芸熙烘焙 AI 客服系统 (YunxiBakeBot)
+# Bakery Commerce Platform (Platform 仓)
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.4+-brightgreen.svg)](https://vuejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-芸熙烘焙 AI 客服系统是一个基于大语言模型（LLM）的智能客服解决方案，专为烘焙行业设计。系统集成了有赞电商平台、企业微信等渠道，提供7×24小时智能问答、订单查询、物流跟踪、商品推荐等服务，并支持人工客服无缝接管。
+Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主仓，统一承载客户、商品、订单、履约、AI 会话、后台配置和第三方集成能力。当前首个真实落地实例为 `Yunxi`，消费者前台渠道仓为 `Storefront MiniApp`。
+
+> 说明：当前仓库 slug 仍为 `YunxiBakeBot`，本文中的 `Platform` 指产品角色，不等于仓库名。历史文档若出现 `YunxiBakeBot` / `YunxiBakeMiniApp`，优先按“当前仓库名”或“迁移阶段引用”理解，不要当作产品名。
+
+> 当前仓库仍沿用 `YunxiBakeBot` 代码仓路径，但产品口径已升级为通用平台：`Bakery Commerce Platform`。如果你正在找的是历史上的 `YunxiBakeMiniApp` 口径，请把它理解为前台渠道仓的旧称。
+>
+> 双仓推进节奏与 `Storefront MiniApp` 第一阶段最小改造清单见 [docs/architecture/two-repo-rollout-plan.md](docs/architecture/two-repo-rollout-plan.md)，其中不少内容已属于历史过渡记录。
+>
+> 文档分层导航见 [docs/README.md](docs/README.md)。
 
 ## 📋 目录
 

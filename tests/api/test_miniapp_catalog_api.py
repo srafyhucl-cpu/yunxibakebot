@@ -11,7 +11,7 @@ from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_catalog import MiniappCatalogService
+from app.service.catalog import CatalogApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
@@ -53,7 +53,7 @@ class _FakeImageClient:
 def app(db: aiosqlite.Connection) -> FastAPI:
     """构建只包含商品目录路由的测试应用。"""
     test_app = FastAPI()
-    service = MiniappCatalogService(
+    service = CatalogApplicationService(
         product_repo=KnowledgeProductRepo(db),
         knowledge_repo=KnowledgeRepo(db),
         config_repo=ConfigRepo(db),
@@ -164,7 +164,7 @@ async def test_miniapp_product_image_proxy_fetches_configured_product_image(
         content=b"\xff\xd8cake-image",
         content_type="image/jpeg",
     )
-    monkeypatch.setattr("app.service.miniapp_catalog.AsyncClient", _FakeImageClient)
+    monkeypatch.setattr("app.service.catalog.application.AsyncClient", _FakeImageClient)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
@@ -192,7 +192,7 @@ async def test_miniapp_product_image_proxy_rejects_missing_and_unsafe_images(
         db, item_id=72003, title="非法协议蛋糕", image="file:///etc/passwd"
     )
     _FakeImageClient.requested_urls = []
-    monkeypatch.setattr("app.service.miniapp_catalog.AsyncClient", _FakeImageClient)
+    monkeypatch.setattr("app.service.catalog.application.AsyncClient", _FakeImageClient)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(

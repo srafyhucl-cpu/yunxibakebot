@@ -4,10 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 
 
-def create_miniapp_payments_router(service: MiniappOrderService) -> APIRouter:
+def create_miniapp_payments_router(service: OrderApplicationService) -> APIRouter:
     """创建小程序支付回调路由。"""
     router = APIRouter(prefix="/api/v1/miniapp/payments", tags=["miniapp-payments"])
 

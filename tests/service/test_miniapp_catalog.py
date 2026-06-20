@@ -8,14 +8,14 @@ from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_catalog import MiniappCatalogService
+from app.service.catalog import CatalogApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
 @pytest.fixture
-def service(db: aiosqlite.Connection) -> MiniappCatalogService:
+def service(db: aiosqlite.Connection) -> CatalogApplicationService:
     """使用真实内存库仓储构建商品目录服务。"""
-    return MiniappCatalogService(
+    return CatalogApplicationService(
         product_repo=KnowledgeProductRepo(db),
         knowledge_repo=KnowledgeRepo(db),
         config_repo=ConfigRepo(db),
@@ -25,7 +25,7 @@ def service(db: aiosqlite.Connection) -> MiniappCatalogService:
 
 async def test_list_products_returns_sellable_miniapp_shape(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     """商品列表应只返回启用商品，并带上小程序需要的价格、库存、标签和描述。"""
     await seed_miniapp_product(
@@ -69,7 +69,7 @@ async def test_list_products_returns_sellable_miniapp_shape(
 
 async def test_list_products_by_ids_preserves_requested_order_and_dedupes(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     """装修货架按商品 ID 拉取时，应按配置顺序返回并跳过重复或无效 ID。"""
     await seed_miniapp_product(
@@ -99,7 +99,7 @@ async def test_list_products_by_ids_preserves_requested_order_and_dedupes(
 
 async def test_featured_products_use_admin_configured_titles(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     """小程序主推商品应使用后台配置的主推标题过滤。"""
     await seed_miniapp_product(
@@ -123,7 +123,7 @@ async def test_featured_products_use_admin_configured_titles(
 
 async def test_get_product_supports_youzan_item_id_and_local_knowledge_id(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     """商品详情应支持有赞 item_id，以及小程序兜底使用的本地知识 ID。"""
     await seed_miniapp_product(
@@ -150,7 +150,7 @@ async def test_get_product_supports_youzan_item_id_and_local_knowledge_id(
 
 async def test_product_without_image_keeps_empty_image_url(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     """没有原始商品图时，小程序仍拿到空图片地址并走页面兜底。"""
     await seed_miniapp_product(
@@ -169,7 +169,7 @@ async def test_product_without_image_keeps_empty_image_url(
 
 async def test_list_categories_and_filter_by_youzan_tag(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     """商品分类应来自有赞 tag 映射，并支持精确过滤。"""
     await seed_miniapp_product(

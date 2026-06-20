@@ -4,10 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.service.miniapp_auth import MiniappAuthService
+from app.service.channels.storefront import StorefrontAuthService
 
 
-def create_miniapp_auth_router(service: MiniappAuthService) -> APIRouter:
+def create_miniapp_auth_router(service: StorefrontAuthService) -> APIRouter:
     """创建小程序认证路由。"""
     router = APIRouter(prefix="/api/v1/miniapp/auth", tags=["miniapp-auth"])
 

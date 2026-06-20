@@ -1,4 +1,6 @@
-# 芸熙烘焙 AI 客服 — Harness Engineering 成熟度评估报告
+# Bakery Commerce Platform 历史 Harness Engineering 成熟度评估报告
+
+> 说明：这是 2026-06-04 时点的历史评估报告，保留当时的项目口径和判断，用于回溯，不代表当前设计现状。
 
 > 评估时间：2026-06-04 | 版本：v0.8.0 | 评估框架：Harness Engineering 六层模型 + 五级成熟度
 

@@ -19,14 +19,14 @@ from app.service.miniapp_payment import (
     WechatPayPrepayResult,
     build_initial_payment,
 )
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
 @pytest.fixture
-def service(db: aiosqlite.Connection) -> MiniappOrderService:
+def service(db: aiosqlite.Connection) -> OrderApplicationService:
     """使用真实内存库仓储构建订单服务。"""
-    return MiniappOrderService(
+    return OrderApplicationService(
         order_repo=OrderRepo(db),
         event_repo=OrderEventRepo(db),
         session_repo=SessionRepo(db),
@@ -37,7 +37,7 @@ def service(db: aiosqlite.Connection) -> MiniappOrderService:
 
 
 async def test_admin_order_status_chain_updates_miniapp_reads(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """后台完整履约状态链应同步反映到小程序订单详情和列表。"""
     user_id = "miniapp-status-chain-user"
@@ -93,7 +93,9 @@ async def test_admin_order_status_chain_updates_miniapp_reads(
     assert final_detail["timeline"][1]["note"] == "后台确认订单"
 
 
-async def test_user_cannot_read_other_users_order(service: MiniappOrderService) -> None:
+async def test_user_cannot_read_other_users_order(
+    service: OrderApplicationService,
+) -> None:
     """小程序订单详情必须校验用户归属。"""
     created = await service.create_order(
         {
@@ -121,7 +123,7 @@ async def test_user_cannot_read_other_users_order(service: MiniappOrderService) 
 
 async def test_create_order_uses_catalog_price_when_stock_is_enough(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """真实商品库存足够时，应使用商品宽表价格创建订单。"""
     await seed_miniapp_product(
@@ -156,7 +158,7 @@ async def test_create_order_uses_catalog_price_when_stock_is_enough(
 
 
 async def test_create_order_initializes_unpaid_payment_state(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """创建订单后应处于待支付状态。"""
     created = await service.create_order(
@@ -182,7 +184,7 @@ async def test_create_order_initializes_unpaid_payment_state(
     assert detail["paymentMethod"] == ""
 
 
-async def test_mock_payment_marks_order_paid(service: MiniappOrderService) -> None:
+async def test_mock_payment_marks_order_paid(service: OrderApplicationService) -> None:
     """MVP mock 支付应把订单支付状态切到已支付。"""
     user_id = "payment-paid-user"
     created = await service.create_order(
@@ -208,7 +210,7 @@ async def test_mock_payment_marks_order_paid(service: MiniappOrderService) -> No
 
 
 async def test_prepare_payment_falls_back_to_mock_without_wechat_config(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """微信支付配置不完整时，支付准备应返回 mock 兜底会话。"""
     user_id = "payment-prepare-mock-user"
@@ -236,7 +238,7 @@ async def test_prepare_payment_falls_back_to_mock_without_wechat_config(
 
 
 async def test_prepare_payment_returns_wechat_shape_when_configured(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """微信支付配置齐全时，支付准备应返回小程序调起支付字段。"""
@@ -303,7 +305,7 @@ async def test_prepare_payment_returns_wechat_shape_when_configured(
 
 
 async def test_wechat_prepay_requires_bound_openid(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """真实微信支付预下单必须有可用 openid。"""
@@ -349,7 +351,7 @@ async def test_wechat_prepay_requires_bound_openid(
 
 async def test_unpaid_timeout_releases_reserved_stock(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """未支付超时关闭时应释放真实商品预占库存。"""
     await seed_miniapp_product(
@@ -401,7 +403,7 @@ async def test_unpaid_timeout_releases_reserved_stock(
 
 async def test_expire_timeout_unpaid_orders_only_closes_expired_unpaid(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """批量扫描只应关闭超时未支付订单。"""
     await seed_miniapp_product(
@@ -482,7 +484,7 @@ async def test_expire_timeout_unpaid_orders_only_closes_expired_unpaid(
 
 async def test_cancel_pending_order_releases_reserved_stock(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """后台取消未履约订单时，应释放小程序下单预占库存。"""
     await seed_miniapp_product(
@@ -523,7 +525,7 @@ async def test_cancel_pending_order_releases_reserved_stock(
 
 async def test_user_cancel_confirmed_order_releases_reserved_stock(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """小程序用户取消待确认或已确认订单时，应释放预占库存。"""
     await seed_miniapp_product(
@@ -561,7 +563,9 @@ async def test_user_cancel_confirmed_order_releases_reserved_stock(
     assert row["stock"] == 2
 
 
-async def test_user_cannot_cancel_making_order(service: MiniappOrderService) -> None:
+async def test_user_cannot_cancel_making_order(
+    service: OrderApplicationService,
+) -> None:
     """进入制作中的订单不能再由用户取消。"""
     user_id = "user-cancel-making"
     created = await service.create_order(
@@ -589,7 +593,7 @@ async def test_user_cannot_cancel_making_order(service: MiniappOrderService) -> 
 
 async def test_duplicate_items_are_aggregated_before_stock_reservation(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """同一商品重复出现时，应按合计数量预占库存。"""
     await seed_miniapp_product(
@@ -629,7 +633,7 @@ async def test_duplicate_items_are_aggregated_before_stock_reservation(
 
 async def test_create_order_rejects_insufficient_stock(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """真实商品下单数量不能超过库存。"""
     await seed_miniapp_product(
@@ -661,7 +665,7 @@ async def test_create_order_rejects_insufficient_stock(
 
 async def test_create_order_rejects_sold_out_or_inactive_product(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """真实商品售罄或下架时不能创建订单。"""
     await seed_miniapp_product(
@@ -714,7 +718,7 @@ async def test_create_order_rejects_sold_out_or_inactive_product(
 
 
 async def test_create_order_rejects_invalid_expect_time(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """预约时间必须使用稳定格式。"""
     with pytest.raises(ValueError, match="预约时间格式应为 YYYY-MM-DD HH:mm"):
@@ -735,7 +739,7 @@ async def test_create_order_rejects_invalid_expect_time(
 
 
 async def test_create_order_rejects_time_outside_business_hours(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """预约时间必须落在店铺营业时间内。"""
     with pytest.raises(ValueError, match="预约时间不在营业时间内"):
@@ -757,7 +761,7 @@ async def test_create_order_rejects_time_outside_business_hours(
 
 async def test_create_order_uses_configured_business_hours(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """后台营业时间配置应成为订单预约时间的后端准入规则。"""
     await ConfigRepo(db).set(
@@ -804,7 +808,7 @@ async def test_create_order_uses_configured_business_hours(
 
 async def test_invalid_expect_time_does_not_reserve_stock(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
 ) -> None:
     """预约时间非法时不能先扣减真实商品库存。"""
     await seed_miniapp_product(

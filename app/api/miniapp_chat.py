@@ -5,10 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException
 
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
-from app.service.miniapp_chat import MiniappChatService
+from app.service.conversation import StorefrontConversationService
 
 
-def create_miniapp_chat_router(service: MiniappChatService) -> APIRouter:
+def create_miniapp_chat_router(service: StorefrontConversationService) -> APIRouter:
     """创建小程序客服消息路由。"""
     router = APIRouter(prefix="/api/v1/miniapp/chat", tags=["miniapp-chat"])
 

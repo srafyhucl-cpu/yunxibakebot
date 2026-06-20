@@ -5,10 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.api.admin import verify_token
-from app.service.miniapp_address import MiniappAddressService
+from app.service.customer import CustomerAddressService
 
 
-def create_admin_addresses_router(service: MiniappAddressService) -> APIRouter:
+def create_admin_addresses_router(service: CustomerAddressService) -> APIRouter:
     """创建后台顾客地址管理路由。"""
     router = APIRouter(
         prefix="/api/v1/admin/addresses",

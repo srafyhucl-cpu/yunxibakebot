@@ -40,7 +40,7 @@
 
   <rect class="bg" x="0" y="0" width="1800" height="1160"/>
 
-  <text class="title" x="90" y="66">芸熙烘焙 AI 客服：Agent 化升级落地前 / 落地后流程差异</text>
+  <text class="title" x="90" y="66">Bakery Commerce Platform：Agent 化升级落地前 / 落地后流程差异</text>
   <text class="subtitle" x="90" y="100">核心变化：热路径只加确定性低成本能力；昂贵、多 Agent、非确定性步骤全部下沉到离线冷路径。</text>
 
   <rect class="panel before" x="70" y="135" width="805" height="970"/>

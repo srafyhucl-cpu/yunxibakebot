@@ -177,12 +177,12 @@ def _init_repositories() -> dict[str, object]:
 
 async def _startup_notify() -> None:
     """发送启动通知。"""
-    logger.info("芸熙烘焙 AI 客服启动完成，监听端口: %d", settings.SERVER_PORT)
+    logger.info("Bakery Commerce Platform 已启动，监听端口: %d", settings.SERVER_PORT)
     asyncio.create_task(
         alert_service.alert(
             AlertLevel.INFO,
             "服务已启动",
-            f"芸熙烘焙 AI 客服 v{APP_VERSION} 已启动，监听端口 {settings.SERVER_PORT}",
+            f"Bakery Commerce Platform v{APP_VERSION} 已启动，监听端口 {settings.SERVER_PORT}",
         )
     )
 
@@ -194,14 +194,12 @@ def _start_background_tasks(
     bg_tasks: set[asyncio.Task[None]] = set()
 
     from app.service.offline.bootstrap import register_offline_review_scheduler
-    from app.service.miniapp_order_timeout import (
-        register_miniapp_order_timeout_scheduler,
-    )
+    from app.service.ops import register_order_timeout_scheduler
 
     register_offline_review_scheduler(app, repos, bg_tasks, db_session_scope)
-    register_miniapp_order_timeout_scheduler(
+    register_order_timeout_scheduler(
         app,
-        services["miniapp_order_service"],
+        services["order_service"],
         bg_tasks,
         db_session_scope,
     )
@@ -253,9 +251,9 @@ async def _shutdown_lifespan_services(
 
     await stop_offline_review_scheduler(app)
 
-    from app.service.miniapp_order_timeout import stop_miniapp_order_timeout_scheduler
+    from app.service.ops import stop_order_timeout_scheduler
 
-    await stop_miniapp_order_timeout_scheduler(app)
+    await stop_order_timeout_scheduler(app)
 
     # 关闭企微客户端
     from app.service.wecom.client import close_wecom_client
@@ -264,14 +262,16 @@ async def _shutdown_lifespan_services(
 
     # 发送关闭通知
     await alert_service.alert(
-        AlertLevel.INFO, "服务已关闭", f"芸熙烘焙 AI 客服 v{APP_VERSION} 已正常关闭"
+        AlertLevel.INFO,
+        "服务已关闭",
+        f"Bakery Commerce Platform v{APP_VERSION} 已正常关闭",
     )
     logger.info("服务已关闭")
 
 
 app = FastAPI(
-    title="芸熙烘焙 AI 客服",
-    description="Yunxi BakeBot - 多渠道 AI 智能客服系统",
+    title="Bakery Commerce Platform",
+    description="Platform 主仓：统一承载经营中枢、后台与渠道集成",
     version=APP_VERSION,
     lifespan=lifespan,
 )

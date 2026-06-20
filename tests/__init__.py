@@ -1,1 +1,1 @@
-"""YunxiBakeBot 测试包。"""
+"""Bakery Commerce Platform 测试包。"""

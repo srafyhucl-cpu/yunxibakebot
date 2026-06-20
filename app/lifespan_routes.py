@@ -1,4 +1,8 @@
-"""lifespan 阶段 API 路由注册逻辑。"""
+"""lifespan 阶段 API 路由注册逻辑。
+
+第一阶段平台化重组后，路由继续保留现有外部 path，
+但装配时优先依赖 Platform 的 canonical 服务名。
+"""
 
 from typing import Any
 
@@ -43,24 +47,22 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     app.include_router(create_admin_assets_router())
     app.include_router(create_shop_config_router(services["admin_service"]))
     app.include_router(
-        create_shop_page_config_router(services["shop_page_config_service"])
+        create_shop_page_config_router(services["shop_page_configuration_service"])
     )
     app.include_router(
-        create_admin_addresses_router(services["miniapp_address_service"])
+        create_admin_addresses_router(services["customer_address_service"])
     )
-    app.include_router(create_miniapp_auth_router(services["miniapp_auth_service"]))
+    app.include_router(create_miniapp_auth_router(services["storefront_auth_service"]))
     app.include_router(
-        create_miniapp_addresses_router(services["miniapp_address_service"])
+        create_miniapp_addresses_router(services["customer_address_service"])
     )
+    app.include_router(create_miniapp_catalog_router(services["catalog_service"]))
+    app.include_router(create_miniapp_orders_router(services["order_service"]))
+    app.include_router(create_miniapp_payments_router(services["order_service"]))
     app.include_router(
-        create_miniapp_catalog_router(services["miniapp_catalog_service"])
+        create_miniapp_chat_router(services["storefront_conversation_service"])
     )
-    app.include_router(create_miniapp_orders_router(services["miniapp_order_service"]))
-    app.include_router(
-        create_miniapp_payments_router(services["miniapp_order_service"])
-    )
-    app.include_router(create_miniapp_chat_router(services["miniapp_chat_service"]))
-    app.include_router(create_admin_orders_router(services["miniapp_order_service"]))
+    app.include_router(create_admin_orders_router(services["order_service"]))
     app.include_router(
         create_admin_knowledge_router(services["knowledge_admin_service"])
     )

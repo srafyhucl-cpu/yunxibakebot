@@ -1,7 +1,7 @@
 # Vibe Coding Harness Engineering 生产级设计
 
 > 日期：2026-06-11
-> 适用范围：YunxiBakeBot 的 AI Coding、Vibe Coding、上线前验证、生产值守与复盘沉淀。
+> 适用范围：Bakery Commerce Platform 当前 `Platform` 仓（仓库名仍为 `YunxiBakeBot`）的 AI Coding、Vibe Coding、上线前验证、生产值守与复盘沉淀。
 > 目标：让每次 AI 协作都可追溯、可验证、可交接、可复盘；同一类问题不能靠“提醒 AI”避免第二次，而要沉淀为机械化 Harness。
 
 ______________________________________________________________________

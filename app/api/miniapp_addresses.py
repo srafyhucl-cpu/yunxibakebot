@@ -5,14 +5,14 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException
 
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
-from app.service.miniapp_address import MiniappAddressService
+from app.service.customer import CustomerAddressService
 
 
 def _miniapp_user_id(value: str | None) -> str:
     return (value or MINIAPP_DEMO_USER_ID).strip() or MINIAPP_DEMO_USER_ID
 
 
-def create_miniapp_addresses_router(service: MiniappAddressService) -> APIRouter:
+def create_miniapp_addresses_router(service: CustomerAddressService) -> APIRouter:
     """创建小程序地址簿路由。"""
     router = APIRouter(prefix="/api/v1/miniapp/addresses", tags=["miniapp-addresses"])
 

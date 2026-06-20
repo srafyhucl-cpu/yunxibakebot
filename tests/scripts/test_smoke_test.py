@@ -761,7 +761,7 @@ async def test_main_prints_text_report_by_default(monkeypatch, capsys) -> None:
 
     assert exit_code == 1
     output = capsys.readouterr().out
-    assert "YunxiBakeBot production smoke" in output
+    assert "Bakery Commerce Platform production smoke" in output
     assert f"app_version={smoke_test.APP_VERSION}" in output
     assert "total=2 failed=1" in output
     assert "PASS ok: ready" in output

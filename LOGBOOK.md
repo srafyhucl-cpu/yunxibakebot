@@ -2,6 +2,317 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - docs(architecture): 统一当前设计口径并补文档导航
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-doc-current-design-alignment
+- **背景**: `Platform` / `Storefront MiniApp` 双仓边界已经完成一轮 canonical 收口，但仓内文档仍混杂产品名、仓库名、历史阶段路线和评估报告口径，容易让团队把早期方案误读成当前设计。本轮集中收口活跃文档，并补一份文档导航，明确哪些是现状、哪些是过渡、哪些只是历史材料。
+- **变更范围**:
+  - `README.md` - 补充当前产品命名、仓角色说明和文档导航入口。
+  - `docs/README.md` - 新增文档导航，区分当前权威口径、过渡方案、业务技术背景、Harness 证据与历史评估。
+  - `docs/architecture/project-boundaries.md`、`two-repo-rollout-plan.md`、`miniapp-phase1-execution-checklist.md`、`miniapp-ai-handoff-plan.md` - 统一为“现状 / 过渡 / 历史路线”口径。
+  - `docs/api-spec.md`、`docs/design/1-业务方案.md`、`2-工作流设计.md`、`3-技术架构.md`、`4-上线检查清单.md`、`5-Agent化升级架构设计.md`、`docs/AI对话页面原型设计说明.md`、`项目进度与配置清单.md` - 补充当前产品边界说明，并把早期路线或实例化表述显式标注出来。
+  - `docs/评估报告.md`、`docs/HarnessEngineering评估报告_20260604.md`、`docs/VibeCoding可持续性评估报告_20260604.md`、`docs/superpowers/specs/admin-frontend-refactor-v1.md`、`docs/design/DevelopmentPlan/*.md`、`docs/harness-engineering/README.md`、`docs/harness-engineering/core/traceability-model.md`、`docs/harness-engineering/specs/2026-06-11-vibe-coding-harness-engineering-design.md` - 标注历史报告或当前适用仓范围，避免继续被当作现行架构说明。
+  - `docs/production-readiness-before-after.html`、`docs/design/5-Agent化升级落地前后对比.svg` - 同步图文标题口径，避免静态可视化继续展示旧产品名。
+- **验证结果**:
+  - `Test-Path docs/README.md`、`Test-Path docs/architecture/project-boundaries.md`、`Test-Path docs/architecture/two-repo-rollout-plan.md` 通过。
+  - `rg -n "# 芸熙烘焙 AI 客服|# Bakery Commerce Platform|历史评估报告|历史过渡|当前产品边界|当前真实接口" docs README.md 项目进度与配置清单.md` 通过，确认活跃文档已切到新口径，历史文档也已显式标注。
+  - `rg -n "芸熙烘焙 AI 客服|YunxiBakeBot|YunxiBakeMiniApp" docs README.md 项目进度与配置清单.md --glob '!docs/harness-engineering/core/evidence-index.md'` 通过，确认剩余命名主要出现在真实仓库路径、MiniApp 过渡文档和实例化历史语境中。
+  - 未运行代码测试：本轮仅修改文档口径，无代码行为变更。
+- **遗留风险**:
+  - `项目进度与配置清单.md` 标题仍保留历史实例化命名，但正文已增加当前口径说明；后续若需要彻底统一所有一级标题，可在编码/BOM 风险可控时单独清理。
+  - `docs/harness-engineering/core/evidence-index.md` 等证据索引保留真实历史路径和仓名，用于追溯，不应被误改为产品化命名。
+
+## [2026-06-19] - refactor(harness): 为 miniapp 兼容层新增内部依赖红线
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-miniapp-compat-redline-phase6
+- **背景**: `app/service` 下的 `miniapp_*` 已经全部降级为兼容 facade，但如果不把“内部代码不得再直接依赖兼容层”写成机械检查，后续新代码仍可能顺手回连旧命名。为避免阶段 A 收口后再次回流，本轮把这条约束固化到 `check_project.py` 与红线自测里，并清理文件体量门禁里已经不再需要的 `miniapp_*` 存量豁免。
+- **变更范围**:
+  - `scripts/check_project.py` - 新增 `app 内禁止依赖 miniapp service 兼容层` 红线。
+  - `tests/test_red_line_rules.py` - 为新红线补充违规/合规样本和规则覆盖断言。
+  - `scripts/check_file_sizes.py` - 移除已拆分完成的 `miniapp_catalog.py`、`miniapp_order.py`、`miniapp_payment.py` 存量豁免。
+- **验证结果**:
+  - `python -m pytest tests/test_red_line_rules.py -q --no-cov` 通过，27 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+  - `python scripts/check_file_sizes.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，41 passed。
+- **遗留风险**:
+  - 目前仍有 `miniapp_*` 路由名和兼容导出存在于对外接口与测试里，属于有意保留的过渡态，不应再在内部实现里被当成真实源。
+  - `app/service/order/payment_runtime.py` 与 `app/service/integrations/wechat_pay.py` 已经分层，但第三方适配后续若继续扩展到有赞、企微，仍需要类似机械红线同步补齐。
+
+## [2026-06-19] - refactor(integrations): 抽离微信支付第三方适配
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-integrations-wechat-pay-phase5
+- **背景**: `miniapp_payment` 已退为兼容层，`order/payment_runtime.py` 也已成为 canonical 订单支付真实实现，但其中仍混杂微信支付签名、预下单、通知验签与解密等第三方协议细节。为继续落实 `order` 只承接业务编排、`integrations` 承接外部适配的边界，本轮把微信支付第三方细节抽到独立集成层，同时保留原有兼容方法名，避免 API 和测试补丁点失效。
+- **变更范围**:
+  - `app/service/integrations/wechat_pay.py` - 新增微信支付第三方适配实现，承接配置就绪检查、通知验签、资源解密、JSAPI 预下单、支付参数构造与 RSA 签名。
+  - `app/service/integrations/__init__.py` - 导出微信支付集成服务。
+  - `app/service/order/payment_runtime.py` - 改为依赖 `WechatPayIntegrationService`，自身只保留订单业务编排与兼容包装方法。
+  - `app/service/miniapp_payment.py` - 继续保持兼容导出，同时把 `settings` 兼容入口切到 `integrations` 域来源。
+  - `docs/architecture/project-boundaries.md` / `two-repo-rollout-plan.md` / `miniapp-ai-handoff-plan.md` - 同步 `integrations` 域已开始承接支付第三方适配。
+- **验证结果**:
+  - `python -m compileall app/service/integrations/wechat_pay.py app/service/integrations/__init__.py app/service/order/payment_runtime.py app/service/miniapp_payment.py` 通过。
+  - `python -m ruff check app/service/integrations/wechat_pay.py app/service/integrations/__init__.py app/service/order/payment_runtime.py app/service/miniapp_payment.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，41 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `order/payment_runtime.py` 仍保留少量兼容包装方法，以兼容现有测试补丁点和旧调用约定；等双仓联动阶段稳定后，可再评估是否继续缩减这些包装。
+  - `integrations` 域目前主要落地的是微信支付，后续若继续抽有赞、企微等第三方适配，还需要统一该领域的导出与命名策略。
+
+## [2026-06-19] - refactor(platform-services): miniapp 支付与订单超时调度降级为兼容层
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-platform-service-facade-phase4
+- **背景**: 上一轮已将 `miniapp_order` 及其内部 helper 收缩为兼容入口，但支付真实实现仍停留在 `miniapp_payment.py`，订单超时后台扫描仍停留在 `miniapp_order_timeout.py`。这会继续模糊 `Platform` 内部 canonical 领域与旧渠道命名的边界。本轮继续推进，把支付真实实现收口到 `order` 域，把超时调度收口到 `ops` 域，并让 `app/service` 下所有 `miniapp_*.py` 统一退为兼容 facade。
+- **变更范围**:
+  - `app/service/order/payment_runtime.py` - 新增 canonical 订单支付真实实现，承接支付准备、mock 支付确认、微信支付通知、超时关闭与批量超时扫描。
+  - `app/service/order/payment.py` / `application.py` / `creation.py` / `expiration.py` - 切换为依赖 canonical 订单支付实现。
+  - `app/service/miniapp_payment.py` - 降级为兼容 re-export。
+  - `app/service/ops/order_timeout_scheduler.py` - 新增 canonical 超时扫描调度实现。
+  - `app/service/ops/__init__.py` - 导出订单超时调度能力。
+  - `app/service/miniapp_order_timeout.py` - 降级为兼容 re-export。
+  - `docs/architecture/project-boundaries.md` / `two-repo-rollout-plan.md` / `miniapp-ai-handoff-plan.md` - 同步当前 canonical 收口进度，明确 `miniapp_*` 已统一退为兼容层。
+- **验证结果**:
+  - `python -m compileall app/service/order/payment_runtime.py app/service/miniapp_payment.py app/service/order/payment.py app/service/order/application.py app/service/order/creation.py app/service/order/expiration.py app/service/ops/order_timeout_scheduler.py app/service/ops/__init__.py app/service/miniapp_order_timeout.py` 通过。
+  - `python -m ruff check app/service/order/payment_runtime.py app/service/miniapp_payment.py app/service/order/payment.py app/service/order/application.py app/service/order/creation.py app/service/order/expiration.py app/service/ops/order_timeout_scheduler.py app/service/ops/__init__.py app/service/miniapp_order_timeout.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，41 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `integrations` 域目前仍主要是目录骨架，微信支付签名、预下单、通知验签/解密等第三方适配逻辑还在 `order/payment_runtime.py` 内，后续可继续拆向 `integrations`。
+  - 旧 `miniapp_*` API 路由和 service key 仍处于兼容期，后续双仓联动阶段还需要统一命名与对外口径。
+
+## [2026-06-19] - refactor(order): 将 miniapp_order 收缩为兼容入口并收口内部 helper
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-order-compat-phase3
+- **背景**: `OrderApplicationService` 已成为订单域对外主入口，但 `miniapp_order.py` 仍保留一整套旧依赖组装和旧命名 helper 引用，容易让后续维护继续误把兼容层当成真实实现。本轮继续推进双仓边界重组，把 `miniapp_order` 收缩为兼容 alias，同时让订单内部库存/预约/序列化 helper 全部以 canonical `order/*` 为真实来源。
+- **变更范围**:
+  - `app/service/order/inventory.py` - 承接订单商品标准化、库存校验、预占与释放真实实现。
+  - `app/service/order/schedule.py` - 承接订单预约时间与配送信息构建真实实现。
+  - `app/service/order/serialization.py` - 承接订单详情与时间线序列化真实实现。
+  - `app/service/order/application.py` - 继续以 canonical 订单应用服务组装 `inventory`、`schedule`、`serialization` 与支付协作。
+  - `app/service/miniapp_order.py` - 降级为 `OrderApplicationService` 的兼容别名入口。
+  - `app/service/miniapp_order_inventory.py` / `app/service/miniapp_order_schedule.py` / `app/service/miniapp_order_serialization.py` - 降级为兼容 re-export。
+  - `app/service/miniapp_payment.py` - 改为依赖 canonical `order` helper，并清理无用导入。
+- **验证结果**:
+  - `python -m compileall app/service/order app/service/miniapp_order.py app/service/miniapp_order_inventory.py app/service/miniapp_order_schedule.py app/service/miniapp_order_serialization.py app/service/miniapp_payment.py app/api/miniapp_orders.py app/api/admin_orders.py` 通过。
+  - `python -m ruff check app/service/order app/service/miniapp_order.py app/service/miniapp_order_inventory.py app/service/miniapp_order_schedule.py app/service/miniapp_order_serialization.py app/service/miniapp_payment.py app/api/miniapp_orders.py app/api/admin_orders.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，39 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `miniapp_payment.py` 仍是支付真实实现承载点，后续若继续推进 `order` / `integrations` 边界，需要把微信支付通知、签名校验与超时关闭继续拆向 canonical 域。
+  - `OrderCreationService` 当前仍通过 `miniapp_payment.build_initial_payment()` 初始化支付信息，后续可继续把这类纯订单内聚逻辑挪回 `order` 域。
+
+## [2026-06-19] - refactor(conversation): 将小程序客服真实实现收口到 conversation/storefront
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-conversation-storefront-phase2
+- **背景**: `lifespan` 已按 canonical 口径装配 `StorefrontConversationService`，但真实前台客服实现仍停留在 `miniapp_chat.py`，导致 `conversation/storefront` 只是兼容壳层。为延续 `auth` 的迁移模式，并为双仓边界治理提供稳定前台会话域，本轮将真实实现迁入 canonical `conversation/storefront`。
+- **变更范围**:
+  - `app/service/conversation/storefront.py` - 承接前台客服消息发送、历史拉取、转人工申请与会话状态展示真实实现。
+  - `app/service/miniapp_chat.py` - 降级为兼容入口，仅 re-export canonical 服务和常量。
+  - `app/api/miniapp_chat.py` - 路由签名切换为依赖 `StorefrontConversationService`。
+  - `tests/service/test_miniapp_chat.py` - 服务测试主入口切换到 canonical `conversation/storefront` 服务。
+- **验证结果**:
+  - `python -m compileall app/service/conversation/storefront.py app/service/miniapp_chat.py app/api/miniapp_chat.py tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py` 通过。
+  - `python -m ruff check app/service/conversation/storefront.py app/service/miniapp_chat.py app/api/miniapp_chat.py tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，14 passed。
+- **遗留风险**:
+  - `ChatService` 主实现仍是更大的平台会话引擎，后续若继续推进 `conversation` 域，需要评估是否把前台 conversation 所依赖的最小能力进一步抽象成更稳定的 canonical 接口。
+  - 外部 API 仍保持 `/api/v1/miniapp/chat/*` 不变，命名统一仍需放到双仓联动阶段处理。
+
+## [2026-06-19] - refactor(storefront-auth): 将小程序登录真实实现收口到 channels/storefront
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-storefront-auth-phase2
+- **背景**: `lifespan` 已经按 canonical 口径装配 `StorefrontAuthService`，但真实登录实现仍停留在 `miniapp_auth.py`，导致 `channels/storefront` 只是别名壳层。为给后续 `conversation` 与 `MiniApp` 边界治理建立统一模式，本轮先将登录能力真正迁入 `channels/storefront`。
+- **变更范围**:
+  - `app/service/channels/storefront/auth.py` - 承接微信小程序登录真实实现。
+  - `app/service/miniapp_auth.py` - 降级为兼容入口，仅 re-export `StorefrontAuthService` 为 `MiniappAuthService`。
+  - `app/api/miniapp_auth.py` - 路由签名切换为依赖 `StorefrontAuthService`。
+  - `tests/api/test_miniapp_auth_api.py` - 测试主入口切换到 canonical `channels/storefront` 服务。
+- **验证结果**:
+  - `python -m compileall app/service/channels/storefront/auth.py app/service/miniapp_auth.py app/api/miniapp_auth.py tests/api/test_miniapp_auth_api.py` 通过。
+  - `python -m ruff check app/service/channels/storefront/auth.py app/service/miniapp_auth.py app/api/miniapp_auth.py tests/api/test_miniapp_auth_api.py` 通过。
+  - `python -m pytest tests/api/test_miniapp_auth_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，4 passed。
+- **遗留风险**:
+  - `conversation/storefront` 仍只是兼容壳层，下一步应继续把 `miniapp_chat.py` 中的真实实现收口到 `conversation` 域。
+  - API 路径仍保持 `/api/v1/miniapp/auth/*` 不变，后续如要统一外部产品命名，只能在双仓联动阶段再处理。
+
+## [2026-06-19] - docs(architecture): 新增 MiniApp 仓 AI 接力计划书
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-miniapp-ai-handoff
+- **背景**: 用户要求在最终收口时提供一份可以直接发给 `YunxiBakeMiniApp` 仓 AI 的计划书，帮助另一边按相同节奏继续推进，而不是只给抽象建议。
+- **变更范围**:
+  - `docs/architecture/miniapp-ai-handoff-plan.md` - 新增可直接转发给 MiniApp 仓 AI 的执行计划，覆盖目标、范围、禁区、分阶段顺序、验收标准与可直接粘贴的任务说明。
+  - `docs/architecture/project-boundaries.md`、`docs/architecture/two-repo-rollout-plan.md` - 增加计划书入口，便于统一检索。
+- **验证结果**:
+  - 人工复核文档口径，确认与当前 Platform 真实状态一致：`catalog / customer / order` 已完成一轮真实收口，MiniApp 当前重点仍是边界对齐而非业务重写。
+- **遗留风险**:
+  - 由于当前工作区不包含 `YunxiBakeMiniApp` 仓，这份计划书仍基于边界和流程要求编写，后续对方仓执行时需要按真实目录结构映射文件落点。
+
+## [2026-06-19] - refactor(order): 将下单与支付入口链路收口到 order 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-order-domain-phase2-create-payment
+- **背景**: 在取消、后台状态流转和未支付关闭已经收口到 `order` 域后，`create_order`、`prepare_payment`、`confirm_mock_payment` 和 `handle_wechat_payment_notify` 仍通过 `MiniappOrderService` 间接暴露，`OrderApplicationService` 也还依赖 `miniapp_order.py` 中的历史常量。为真正完成 `order` 域第二阶段，需要把下单与支付入口一并抽离，并切断 `Platform/order` 对旧兼容服务的核心依赖。
+- **变更范围**:
+  - `app/service/order/creation.py` - 新增 `OrderCreationService`，承接小程序下单创建、配送构建、库存预占回滚、订单主档写入与首条时间线事件记录。
+  - `app/service/order/payment.py` - 新增 `OrderPaymentService`，承接支付准备、mock 支付确认与微信支付通知三个公开入口，并统一支付会话序列化。
+  - `app/service/order/read_models.py` - 将后台订单看板常量迁入 canonical `order` 域，去掉对 `miniapp_order.py` 的反向依赖。
+  - `app/service/order/application.py` - `OrderApplicationService` 改为直接装配 `creation/payment/cancellation/status_flow/expiration/timeline` 服务，彻底移除对 `MiniappOrderService` 的依赖；文件体量回收至 216 行。
+  - `app/service/miniapp_order.py` - 降级为兼容 facade，继续保留旧类名，但核心链路全部委托到 `order` 域服务；文件体量降至 226 行。
+- **验证结果**:
+  - `python -m compileall app/service/order app/service/miniapp_order.py app/service/miniapp_order_timeout.py app/api/miniapp_orders.py app/api/admin_orders.py app/api/miniapp_payments.py` 通过。
+  - `python -m ruff check app/service/order app/service/miniapp_order.py app/service/miniapp_order_timeout.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov` 通过，37 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `miniapp_order_timeout.py` 仍以 `MiniappOrderService` 作为类型口径，虽然运行时已通过 canonical `order_service` 驱动，但命名层仍有一层历史兼容痕迹。
+  - `MiniappPaymentService` 仍是支付核心实现载体，后续如继续推进 `integrations`/`channels` 域，还需要评估微信支付通知验签、预下单和支付状态回写应如何进一步拆到更清晰的 canonical 边界。
+
+## [2026-06-19] - refactor(order): 将未支付关闭链路收口到 order 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-order-domain-phase2-expiration
+- **背景**: 在后台状态流转已经收口到 `order` 域后，`expire_unpaid_order` 和 `expire_timeout_unpaid_orders` 仍停留在 `miniapp_order.py` 中，继续把支付超时关闭、库存释放、事件补记和详情回填混在旧兼容层里。由于这组链路与订单领域本身强相关，且已有较完整测试覆盖，本轮继续按同一节奏将其抽离。
+- **变更范围**:
+  - `app/service/order/expiration.py` - 新增 `OrderExpirationService`，承接后台手动关闭未支付订单、批量扫描超时未支付订单、事件补记与详情回填。
+  - `app/service/order/application.py` - `OrderApplicationService.expire_unpaid_order` 与 `expire_timeout_unpaid_orders` 改为直接调用 `order` 域过期关闭服务。
+  - `app/service/miniapp_order.py` - 旧未支付关闭链路降级为兼容委托，继续保持 API 与测试主入口稳定。
+- **验证结果**:
+  - `python -m compileall app/service/order app/service/miniapp_order.py app/api/miniapp_orders.py app/api/admin_orders.py app/api/miniapp_payments.py` 通过。
+  - `python -m ruff check app/service/order app/service/miniapp_order.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov` 通过，37 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `order` 域的创建订单、支付准备、mock 支付确认和微信支付回调仍委托 `MiniappOrderService` / `MiniappPaymentService`，支付主链路尚未完全脱离旧兼容层。
+  - `app/service/order/application.py` 当前 214 行，仍在 service 警戒线内；若继续推进支付相关写链路，应优先再拆小协调器，避免把 canonical 应用服务重新堆回上帝文件。
+
+## [2026-06-19] - refactor(order): 将后台状态流转链路收口到 order 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-order-domain-phase2-admin-status
+- **背景**: 在用户取消订单链路已经收口到 `order` 域后，`update_admin_order_status` 仍停留在 `miniapp_order.py` 中，继续把后台履约状态校验、事件记录和取消释放库存混在旧兼容层里。为保持第二阶段节奏一致，本轮继续抽离低风险但覆盖面较广的后台状态流转链路。
+- **变更范围**:
+  - `app/service/order/status_flow.py` - 新增 `OrderAdminStatusService`，承接后台状态校验、允许流转判断、状态更新、后台取消释放库存与事件记录。
+  - `app/service/order/timeline.py` - 新增 `OrderTimelineService`，统一订单事件记录、时间线读取与详情序列化，供 `cancellation` 与 `status_flow` 复用。
+  - `app/service/order/cancellation.py` - 改为依赖共享时间线支撑服务，减少重复事件记录和详情组装逻辑。
+  - `app/service/order/application.py` - `OrderApplicationService.update_admin_order_status` 改为直接调用 `order` 域后台状态服务；用户/后台订单详情也统一走时间线支撑服务。
+  - `app/service/miniapp_order.py` - 旧 `update_admin_order_status` 降级为兼容委托，保留既有外部 API 与测试入口不变。
+- **验证结果**:
+  - `python -m compileall app/service/order app/service/miniapp_order.py app/api/miniapp_orders.py app/api/admin_orders.py app/api/miniapp_payments.py` 通过。
+  - `python -m ruff check app/service/order app/service/miniapp_order.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov` 通过，37 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `order` 域的后台关闭未支付、超时未支付扫描、支付准备和支付回调仍委托 `MiniappOrderService`，写链路尚未完全脱离旧兼容层。
+  - `miniapp_order.py` 已降到 381 行，但仍承载下单、支付、超时关闭等多个职责；下一步仍应优先继续拆 `expire_unpaid_order` / `expire_timeout_unpaid_orders` 这类独立切口，而不是直接重写下单与支付主链路。
+
+## [2026-06-19] - refactor(order): 将用户取消订单链路收口到 order 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-order-domain-phase2-cancel
+- **背景**: 在订单读取、详情和后台看板已经收口到 `order` 域后，`cancel_user_order` 仍停留在 `miniapp_order.py` 中，继续让旧文件同时承担读取、写入、库存释放和事件记录职责。为避免直接触碰支付回调与下单主链路，本轮先抽离低风险的用户取消订单写链路。
+- **变更范围**:
+  - `app/service/order/cancellation.py` - 新增 `OrderCancellationService`，承接用户归属校验、可取消状态校验、状态更新、取消事件记录与库存释放。
+  - `app/service/order/application.py` - `OrderApplicationService.cancel_user_order` 改为直接调用 `order` 域取消服务，正式由 canonical 领域接管这条写链路。
+  - `app/service/miniapp_order.py` - 旧 `cancel_user_order` 降级为兼容委托，保留既有外部 API 与测试入口不变。
+- **验证结果**:
+  - `python -m compileall app/service/order app/service/miniapp_order.py app/api/miniapp_orders.py app/api/admin_orders.py app/api/miniapp_payments.py` 通过。
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov` 通过，37 passed。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **遗留风险**:
+  - `order` 域的后台状态流转、支付超时关闭、支付准备和支付回调仍委托 `MiniappOrderService`，写链路尚未完全脱离旧兼容层。
+  - `OrderApplicationService` 当前 208 行，仍在 service 警戒线内，但后续继续抽写链路时要优先拆小协调器，避免再次回流成单文件上帝服务。
+
+## [2026-06-19] - refactor(order): 将订单读取与看板能力收口到 order 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-order-domain-phase2
+- **背景**: `order` 域仍只是对 `miniapp_order` 的兼容包装层，而 `miniapp_order.py` 同时混合了下单、支付、超时关闭、后台看板和订单读取，文件已达 463 行。为避免直接撞上支付与核心写链路，本轮只先迁移低风险的订单读取、详情和后台看板能力。
+- **变更范围**:
+  - `app/service/order/application.py` - 新增 `OrderApplicationService` 真正实现，承接 `list_user_orders`、`get_user_order`、`list_admin_orders`、`get_admin_order`、`get_admin_order_summary` 等读链路；创建订单、支付、取消、超时关闭、后台状态流转仍委托既有 `MiniappOrderService`。
+  - `app/service/order/read_models.py` - 抽出后台看板筛选和汇总辅助函数，避免主服务文件超线。
+  - `app/api/miniapp_orders.py`、`app/api/admin_orders.py`、`app/api/miniapp_payments.py` - 路由签名切换为依赖 `OrderApplicationService`，保持外部 HTTP 路径与响应契约不变。
+  - `tests/service/test_miniapp_order.py`、`tests/api/test_admin_order_api.py`、`tests/api/test_miniapp_order_api.py`、`tests/api/test_miniapp_payment_api.py` - 订单与支付相关测试主入口切换到 `order` 域。
+- **验证结果**:
+  - `python -m pytest tests/service/test_miniapp_order.py tests/api/test_admin_order_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov` 通过，37 passed。
+  - `app/service/order/application.py` 194 行，`read_models.py` 47 行，均保持在 service 警戒线以内。
+- **遗留风险**:
+  - 当前 `order` 域仍通过委托保留既有写链路，`create_order`、`prepare_payment`、`handle_wechat_payment_notify`、`cancel_user_order`、`update_admin_order_status`、超时关闭等核心流程还未脱离 `miniapp_order.py`。
+  - 如果继续推进 `order` 第二阶段，建议下一步优先抽“事件记录 + 状态流转 + 支付超时关闭”中的一个单独切口，不要一次性重写整个订单写链路。
+
+## [2026-06-19] - refactor(customer): 将地址簿真实实现收口到 customer 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-customer-domain-phase2
+- **背景**: 在 `catalog` 域完成第二阶段稳定读能力收口后，`customer` 域仍只是对 `miniapp_address` 的兼容包装层。地址簿同时承载小程序用户地址链路和后台地址审计，是继续推进 canonical 域收口的低风险入口。
+- **变更范围**:
+  - `app/service/customer/address.py` - 新增 `CustomerAddressService` 真正实现，负责用户地址簿主链路，并委托后台地址管理协调器。
+  - `app/service/customer/address_admin.py` - 拆出后台地址分页、后台写操作、默认地址修正与审计写入逻辑，避免主服务文件超线。
+  - `app/service/customer/address_support.py` - 抽出地址构建、字段校验、地址序列化、审计序列化与时间/JSON 工具。
+  - `app/service/miniapp_address.py` - 降级为兼容入口，仅 re-export `CustomerAddressService` 为 `MiniappAddressService`。
+  - `app/api/miniapp_addresses.py`、`app/api/admin_addresses.py` - 路由签名切换为依赖 `CustomerAddressService`，保持外部 HTTP 路径与响应契约不变。
+  - `tests/service/test_miniapp_address.py`、`tests/api/test_miniapp_address_api.py`、`tests/api/test_admin_address_api.py` - 测试主入口切换到新 `customer` 域。
+- **验证结果**:
+  - `python -m pytest tests/service/test_miniapp_address.py tests/api/test_miniapp_address_api.py tests/api/test_admin_address_api.py -q --no-cov` 通过，16 passed。
+  - `app/service/customer/address.py` 121 行，`address_admin.py` 185 行，`address_support.py` 136 行，均保持在 service 警戒线以内。
+- **遗留风险**:
+  - 当前只完成 `customer` 域中的地址簿收口，客户主档、迁移与 CRM 相关能力尚未开始迁入 canonical `customer` 域。
+  - `order` 域仍主要依赖 `miniapp_order*` 旧实现，后续如继续推进第二阶段，建议优先拆分订单读模型或下单前校验链路，而不要直接触碰支付回调核心流程。
+
+## [2026-06-19] - refactor(catalog): 将商品目录真实实现收口到 catalog 领域
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-catalog-domain-phase2
+- **背景**: 在完成 Platform 第一阶段 canonical 领域骨架后，`catalog` 域仍只是对 `miniapp_catalog` 的兼容包装层。为继续推进第二阶段，需要把稳定的商品目录读取能力真正迁入 `app/service/catalog/`，同时避免继续向超线的 `miniapp_catalog.py` 追加职责。
+- **变更范围**:
+  - `app/service/catalog/application.py` - 新增 `CatalogApplicationService` 真正实现，承接商品列表、详情、图片代理与有赞分类过滤等公开商品读模型能力。
+  - `app/service/catalog/serialization.py` - 拆出商品序列化、分类解析与前台分类 ID 转换逻辑，避免新领域文件再次超线。
+  - `app/service/miniapp_catalog.py` - 降级为兼容入口，仅 re-export `CatalogApplicationService` 为 `MiniappCatalogService`。
+  - `app/api/miniapp_catalog.py` - 路由签名切换为依赖 `CatalogApplicationService`，但外部 HTTP 路径与响应契约不变。
+  - `tests/service/test_miniapp_catalog.py`、`tests/service/test_miniapp_catalog_item_base_category.py`、`tests/api/test_miniapp_catalog_api.py`、`tests/api/test_admin_featured_catalog_api.py` - 测试主入口切换到新 `catalog` 域，并更新图片代理 monkeypatch 路径。
+- **验证结果**:
+  - `python -m pytest tests/service/test_miniapp_catalog.py tests/service/test_miniapp_catalog_item_base_category.py tests/api/test_miniapp_catalog_api.py tests/api/test_admin_featured_catalog_api.py -q --no-cov` 通过，11 passed。
+  - `app/service/catalog/application.py` 216 行，`app/service/catalog/serialization.py` 212 行，均保持在 service 警戒线以内。
+- **遗留风险**:
+  - 当前只完成 `catalog` 域的稳定读能力收口，`customer` 与 `order` 域仍以兼容包装层为主，后续需要继续按相同方式逐步迁移。
+  - `tests` 与其他调用方仍保留部分 `miniapp_*` 历史命名，当前依赖兼容入口维持稳定，后续还需分批切换到 canonical 命名。
+
+## [2026-06-19] - docs(architecture): 补充 MiniApp 第一阶段最小改造执行清单
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-miniapp-phase1-checklist
+- **背景**: 用户要求继续按既定节奏推进，并明确希望拿到 `YunxiBakeMiniApp` 第一阶段的可执行清单，而不是继续停留在抽象边界讨论。
+- **变更范围**:
+  - `docs/architecture/miniapp-phase1-execution-checklist.md` - 新增 `Storefront MiniApp` 第一阶段最小改造执行清单，覆盖 README 口径、边界文档、API client 说明、禁区清单、历史命名处理和验收标准。
+  - `docs/architecture/two-repo-rollout-plan.md` - 补充 MiniApp 第一阶段执行清单链接。
+  - `docs/architecture/project-boundaries.md` - 补充 MiniApp 执行清单入口，便于统一检索。
+- **验证结果**:
+  - 人工复核文档结构，确认与现有双仓推进结论一致：本轮仍然不要求 MiniApp 大改业务，不改变“Platform 先收口、MiniApp 先对齐边界”的节奏。
+- **遗留风险**:
+  - `YunxiBakeMiniApp` 仓不在当前工作区，这次仍然只是交付执行清单，尚未真实落 README、边界文档和 API client 说明。
+  - 由于尚未读取 MiniApp 仓真实目录结构，文档中的 API client 路径示例采用通用表述，后续实施时仍需按实际仓结构映射。
+
+## [2026-06-19] - docs(architecture): 固化双仓推进节奏与 MiniApp 第一阶段对齐策略
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-two-repo-rollout
+- **背景**: 用户确认按既定节奏推进，但进一步追问“是不是得把第一阶段的 `YunxiBakeMiniApp` 也改了才能进行第二阶段”。需要把这一判断固化为明确的双仓推进顺序，避免团队后续又回到“先大改 MiniApp 还是先收口 Platform”的争论。
+- **变更范围**:
+  - `docs/architecture/two-repo-rollout-plan.md` - 新增双仓推进节奏文档，明确 `Platform` 可先继续做 canonical 领域收口，`MiniApp` 先补轻量第一阶段边界对齐，并把仓库改名延后到双仓边界稳定后。
+  - `docs/architecture/project-boundaries.md` - 补充推进顺序摘要，并链接到详细节奏文档。
+  - `README.md` - 增加双仓推进文档入口，方便后续团队统一口径。
+- **验证结果**:
+  - 人工复核文档口径，确认与当前第一阶段实施结果一致：不新建第三仓、不要求 `MiniApp` 先大改、`Yunxi` 仍只作为实例名。
+- **遗留风险**:
+  - `YunxiBakeMiniApp` 仓当前不在本工作区内，本次只能先在 `Platform` 仓留下执行基线，后续仍需在 MiniApp 仓补落 README、边界说明和 API client 口径对齐。
+  - 当前只是推进顺序和口径固化，未开始双仓 API 契约表整理，也未触及仓库 rename、CI、部署路径迁移。
+
+## [2026-06-19] - fix(miniapp): 修正 ITEM_INFO 分类批量同步漏数
+- **操作人**: AI (Codex)
+- **trace_id**: 20260619-platform-boundary-phase1
+- **背景**: 用户要求落地“通用产品总项目与双仓边界重组计划”，先把产品口径从 `Yunxi` 中抽离，并让当前主仓开始以 Platform / 领域服务 canonical 名称运行，而不是继续只停留在 `miniapp_*` 语义上。
+- **变更范围**:
+  - `app/service/customer/`、`order/`、`catalog/`、`conversation/`、`ops/`、`integrations/`、`channels/storefront/` - 新增第一阶段 Platform canonical 领域骨架与兼容包装层，避免继续向超线 `miniapp_*` 大文件追加职责。
+  - `app/lifespan_services.py`、`app/lifespan_routes.py`、`app/main.py` - 生命周期装配、后台任务注册和应用元信息优先切换到 `order_service`、`catalog_service`、`customer_address_service`、`storefront_auth_service`、`storefront_conversation_service`、`shop_page_configuration_service` 等 canonical 命名，同时保留旧 key 兼容。
+  - `README.md`、`docs/architecture/project-boundaries.md`、`app/static/init_landing.html`、`tests/__init__.py`、`scripts/smoke_test.py`、`tests/scripts/test_smoke_test.py` - 统一产品口径为 `Bakery Commerce Platform`，明确 `Yunxi` 仅是首个落地实例，补双仓边界文档并同步烟测标题。
+  - `tests/test_lifespan_routes_services.py` - 更新装配测试，覆盖 canonical service key 与旧别名共存场景。
+- **验证计划**:
+  - 运行 `python -m pytest tests/test_lifespan_routes_services.py tests/scripts/test_smoke_test.py -q --no-cov`。
+  - 运行 `python -m compileall app` 检查新增包装层与装配入口语法。
+  - 运行 `python scripts/check_project.py --skip-tests` 复核红线。
+- **遗留风险**:
+  - 这次只完成第一阶段骨架与命名落地，`miniapp_*` 大文件仍是实际实现载体，后续还需按 `customer/order/catalog/conversation/ops/integrations` 继续把核心实现逐步收口。
+  - 文档中仍存在大量历史 `YunxiBakeBot`、`芸熙烘焙 AI 客服` 表述和旧证据路径，后续需要分批整理，避免一次性重写历史资料。
+
 ## [2026-06-19] - fix(miniapp): 修正 ITEM_INFO 分类批量同步漏数
 - **操作人**: AI (Codex)
 - **trace_id**: 20260619-miniapp-category-batch-limit

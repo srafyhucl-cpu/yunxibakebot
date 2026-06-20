@@ -1,0 +1,63 @@
+# Bakery Commerce Platform 项目边界
+
+## 定位
+
+- `Bakery Commerce Platform`
+  - 通用产品级逻辑总项目。
+  - 当前不新建第三个代码仓，只用来统一命名、边界和文档口径。
+- `Platform` 仓
+  - 当前代码仓：`YunxiBakeBot`
+  - 承担经营中枢、业务真相源、后台与集成主仓职责。
+- `Storefront MiniApp` 仓
+  - 当前代码仓：`YunxiBakeMiniApp`
+  - 承担消费者前台渠道职责。
+- `Yunxi`
+  - 首个真实落地实例、配置集合、迁移来源和样板客户名。
+  - 不是产品名，也不是长期能力命名。
+
+## Platform 仓职责
+
+- 客户主档、客户迁移、企微绑定、CRM
+- 商品主档、分类、同步消费
+- 订单主档、支付、履约、退款、事件流
+- AI 会话、人工接管、运营规则
+- 店铺配置、装修配置、管理后台
+- 有赞、企微、支付通知、Webhook 集成
+
+## Storefront MiniApp 仓职责
+
+- 页面、组件、交互、微信能力
+- 购物车、下单页、用户订单页、地址页
+- API client、登录态、本地缓存
+- 用户侧客服入口展示
+
+## Platform 内部 canonical 领域
+
+- `customer`
+- `order`
+- `catalog`
+- `conversation`
+- `ops`
+- `integrations`
+- `channels/storefront`
+
+第一阶段保留既有 `miniapp_*` 路径作为兼容 facade，但新代码默认依赖以上 canonical 领域命名。
+
+### 现状收口
+
+- `app/service/miniapp_*.py` 已全部降级为兼容 facade。
+- `customer / catalog / order / conversation / channels/storefront / ops` 已有对应 canonical 实现承接真实逻辑。
+- `order` 域已直接承接下单、支付准备、mock 支付确认、微信支付通知、用户取消、后台状态流转、未支付关闭与超时扫描。
+- `integrations/wechat_pay.py` 已开始承接微信支付签名、预下单、通知验签与通知解密等第三方适配细节。
+
+## 推进顺序
+
+> 说明：下面的“推进顺序”描述的是历史上的分阶段路线，不等于当前仍在执行的最新方案。当前真实现状以 `Platform` 已完成 canonical 收口、`MiniApp` 保留前台渠道与兼容边界为准。
+
+- `Platform` 可以先继续做第二阶段内部收口，不依赖 `MiniApp` 先完成大改。
+- `MiniApp` 历史上曾需要补一轮轻量第一阶段对齐，用来校正边界认知；如果当前仍有旧文档引用它，应按过渡态理解。
+- 双仓联动治理、仓库改名和接口统一，属于后续评估项，不应被误读为已经开始的实施动作。
+
+详细节奏见：[two-repo-rollout-plan.md](./two-repo-rollout-plan.md)
+MiniApp 第一阶段执行清单见：[miniapp-phase1-execution-checklist.md](./miniapp-phase1-execution-checklist.md)
+MiniApp AI 接力计划书见：[miniapp-ai-handoff-plan.md](./miniapp-ai-handoff-plan.md)

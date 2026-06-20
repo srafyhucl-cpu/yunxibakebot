@@ -17,7 +17,7 @@ from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.admin import AdminService
-from app.service.miniapp_catalog import MiniappCatalogService
+from app.service.catalog import CatalogApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
@@ -40,7 +40,7 @@ def app(db: aiosqlite.Connection) -> FastAPI:
         config_repo=config_repo,
         youzan_product_repo=youzan_product_repo,
     )
-    catalog_service = MiniappCatalogService(
+    catalog_service = CatalogApplicationService(
         product_repo=product_repo,
         knowledge_repo=knowledge_repo,
         config_repo=config_repo,

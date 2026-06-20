@@ -494,7 +494,7 @@ def _format_service_reachability_error(exc: OSError) -> str:
 def print_results(results: list[SmokeResult]) -> None:
     metadata = build_report_metadata()
     recovery_hints = build_recovery_hints(results)
-    print("YunxiBakeBot production smoke")
+    print("Bakery Commerce Platform production smoke")
     print(f"generated_at={metadata['generated_at']}")
     print(f"project_root={metadata['project_root']}")
     print(f"db_path={metadata['database_path']}")
@@ -656,7 +656,9 @@ def build_recovery_hints(results: list[SmokeResult]) -> list[SmokeRecoveryHint]:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="YunxiBakeBot production smoke test")
+    parser = argparse.ArgumentParser(
+        description="Bakery Commerce Platform production smoke test"
+    )
     parser.add_argument(
         "--json",
         action="store_true",

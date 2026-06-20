@@ -15,7 +15,7 @@ from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
@@ -23,7 +23,7 @@ from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 def app(db: aiosqlite.Connection) -> FastAPI:
     """构建只包含小程序支付路由的测试应用。"""
     test_app = FastAPI()
-    service = MiniappOrderService(
+    service = OrderApplicationService(
         order_repo=OrderRepo(db),
         session_repo=SessionRepo(db),
         product_repo=YouzanProductRepo(db),
@@ -71,7 +71,7 @@ async def test_miniapp_payment_notify_marks_order_paid(
         price_fen=19800,
         stock=1,
     )
-    service = MiniappOrderService(
+    service = OrderApplicationService(
         order_repo=OrderRepo(db),
         session_repo=SessionRepo(db),
         product_repo=YouzanProductRepo(db),
@@ -93,7 +93,7 @@ async def test_miniapp_payment_notify_marks_order_paid(
         user_id="wx_notify_openid",
     )
 
-    service = MiniappOrderService(
+    service = OrderApplicationService(
         order_repo=OrderRepo(db),
         session_repo=SessionRepo(db),
         product_repo=YouzanProductRepo(db),

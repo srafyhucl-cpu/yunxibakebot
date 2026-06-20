@@ -15,15 +15,15 @@ from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 from app.service.miniapp_payment import PAYMENT_TIMEOUT_MINUTES, build_initial_payment
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
 @pytest.fixture
-def service(db: aiosqlite.Connection) -> MiniappOrderService:
+def service(db: aiosqlite.Connection) -> OrderApplicationService:
     """构建后台订单 API 使用的真实服务。"""
-    return MiniappOrderService(
+    return OrderApplicationService(
         order_repo=OrderRepo(db),
         event_repo=OrderEventRepo(db),
         session_repo=SessionRepo(db),
@@ -34,7 +34,7 @@ def service(db: aiosqlite.Connection) -> MiniappOrderService:
 
 
 @pytest.fixture
-def app(service: MiniappOrderService) -> FastAPI:
+def app(service: OrderApplicationService) -> FastAPI:
     """构建只包含后台订单路由的测试应用。"""
     test_app = FastAPI()
     test_app.include_router(create_admin_orders_router(service))
@@ -44,7 +44,7 @@ def app(service: MiniappOrderService) -> FastAPI:
 @pytest.mark.asyncio
 async def test_admin_order_api_expire_unpaid_releases_stock(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
     app: FastAPI,
 ) -> None:
     """后台关闭未支付订单时应释放真实商品库存。"""
@@ -89,7 +89,7 @@ async def test_admin_order_api_expire_unpaid_releases_stock(
 
 @pytest.mark.asyncio
 async def test_admin_order_api_status_update_writes_timeline(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
     app: FastAPI,
 ) -> None:
     """后台更新订单状态后，订单详情应返回真实状态事件。"""
@@ -132,7 +132,7 @@ async def test_admin_order_api_status_update_writes_timeline(
 @pytest.mark.asyncio
 async def test_admin_order_api_expire_timeout_unpaid_orders(
     db: aiosqlite.Connection,
-    service: MiniappOrderService,
+    service: OrderApplicationService,
     app: FastAPI,
 ) -> None:
     """后台可手动触发一次超时未支付扫描。"""
@@ -184,7 +184,7 @@ async def test_admin_order_api_expire_timeout_unpaid_orders(
 
 @pytest.mark.asyncio
 async def test_admin_order_summary_and_board_filter(
-    service: MiniappOrderService,
+    service: OrderApplicationService,
     app: FastAPI,
 ) -> None:
     """后台订单经营看板应使用全量汇总口径，并支持同口径列表筛选。"""

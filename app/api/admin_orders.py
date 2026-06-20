@@ -5,10 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.api.admin import verify_token
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 
 
-def create_admin_orders_router(service: MiniappOrderService) -> APIRouter:
+def create_admin_orders_router(service: OrderApplicationService) -> APIRouter:
     """创建后台订单路由。"""
     router = APIRouter(
         prefix="/api/v1/admin/orders",

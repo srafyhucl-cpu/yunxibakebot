@@ -4,16 +4,16 @@ import aiosqlite
 import pytest
 
 from app.repository.miniapp_address_repo import MiniappAddressRepo
-from app.service.miniapp_address import MiniappAddressService
+from app.service.customer import CustomerAddressService
 
 
 @pytest.fixture
-def service(db: aiosqlite.Connection) -> MiniappAddressService:
+def service(db: aiosqlite.Connection) -> CustomerAddressService:
     """使用真实内存库仓储构建地址簿服务。"""
-    return MiniappAddressService(MiniappAddressRepo(db))
+    return CustomerAddressService(MiniappAddressRepo(db))
 
 
-async def test_first_address_becomes_default(service: MiniappAddressService) -> None:
+async def test_first_address_becomes_default(service: CustomerAddressService) -> None:
     """首个地址自动成为默认地址。"""
     saved = await service.save_address(
         {
@@ -31,7 +31,7 @@ async def test_first_address_becomes_default(service: MiniappAddressService) -> 
     assert items[0]["isDefault"] is True
 
 
-async def test_default_address_is_unique(service: MiniappAddressService) -> None:
+async def test_default_address_is_unique(service: CustomerAddressService) -> None:
     """设置默认地址后，同一用户只能保留一个默认地址。"""
     first = await service.save_address(
         {
@@ -61,7 +61,7 @@ async def test_default_address_is_unique(service: MiniappAddressService) -> None
 
 
 async def test_user_cannot_set_other_users_address_default(
-    service: MiniappAddressService,
+    service: CustomerAddressService,
 ) -> None:
     """地址默认切换必须校验用户归属。"""
     await service.save_address(
@@ -79,7 +79,7 @@ async def test_user_cannot_set_other_users_address_default(
 
 
 async def test_delete_default_promotes_next_address(
-    service: MiniappAddressService,
+    service: CustomerAddressService,
 ) -> None:
     """删除默认地址后，剩余地址应自动补一个默认地址。"""
     await service.save_address(
@@ -107,7 +107,7 @@ async def test_delete_default_promotes_next_address(
     assert items[0]["isDefault"] is True
 
 
-async def test_rejects_invalid_phone(service: MiniappAddressService) -> None:
+async def test_rejects_invalid_phone(service: CustomerAddressService) -> None:
     """保存地址时应校验大陆手机号格式。"""
     with pytest.raises(ValueError, match="请填写正确的 11 位手机号"):
         await service.save_address(

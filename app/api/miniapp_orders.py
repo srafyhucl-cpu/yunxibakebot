@@ -5,10 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException
 
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 
 
-def create_miniapp_orders_router(service: MiniappOrderService) -> APIRouter:
+def create_miniapp_orders_router(service: OrderApplicationService) -> APIRouter:
     """创建小程序订单公开路由。"""
     router = APIRouter(prefix="/api/v1/miniapp/orders", tags=["miniapp-orders"])
 

@@ -37,6 +37,11 @@ RED_LINE_RULES: tuple[ScanRule, ...] = (
     ScanRule("禁止 TODO 占位", r"# TODO", (APP_DIR,)),
     ScanRule("禁止 SELECT 星号", r"SELECT\s+\*", (APP_DIR,)),
     ScanRule(
+        "app 内禁止依赖 miniapp service 兼容层",
+        r"from app\.service\.miniapp_|import app\.service\.miniapp_",
+        (APP_DIR,),
+    ),
+    ScanRule(
         "api 层禁止直接导入 repository", r"from app\.repository", (APP_DIR / "api",)
     ),
     ScanRule(

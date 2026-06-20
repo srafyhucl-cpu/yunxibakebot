@@ -144,12 +144,12 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "observability_service": "observability",
         "reconcile_service": "reconcile",
         "knowledge_sync_service": "knowledge-sync",
-        "shop_page_config_service": "shop-pages-service",
-        "miniapp_auth_service": "miniapp-auth-service",
-        "miniapp_address_service": "miniapp-address-service",
-        "miniapp_catalog_service": "miniapp-catalog-service",
-        "miniapp_order_service": "miniapp-order-service",
-        "miniapp_chat_service": "miniapp-chat-service",
+        "shop_page_configuration_service": "shop-pages-service",
+        "storefront_auth_service": "miniapp-auth-service",
+        "customer_address_service": "miniapp-address-service",
+        "catalog_service": "miniapp-catalog-service",
+        "order_service": "miniapp-order-service",
+        "storefront_conversation_service": "miniapp-chat-service",
     }
 
     lifespan_routes.register_routes(app, services)
@@ -200,29 +200,33 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         def __init__(self, repo: Any) -> None:
             created["transfer_mgr"] = repo
 
-    class FakeMiniappAuthService:
+    class FakeStorefrontAuthService:
         def __init__(self) -> None:
-            created["miniapp_auth_service"] = True
+            created["storefront_auth_service"] = True
 
-    class FakeMiniappAddressService:
+    class FakeCustomerAddressService:
         def __init__(self, **kwargs: Any) -> None:
-            created["miniapp_address_service"] = kwargs
+            created["customer_address_service"] = kwargs
 
-    class FakeMiniappCatalogService:
+    class FakeCatalogApplicationService:
         def __init__(self, **kwargs: Any) -> None:
-            created["miniapp_catalog_service"] = kwargs
+            created["catalog_service"] = kwargs
 
-    class FakeMiniappOrderService:
+    class FakeOrderApplicationService:
         def __init__(self, **kwargs: Any) -> None:
-            created["miniapp_order_service"] = kwargs
+            created["order_service"] = kwargs
 
-    class FakeMiniappChatService:
+    class FakeStorefrontConversationService:
         def __init__(self, **kwargs: Any) -> None:
-            created["miniapp_chat_service"] = kwargs
+            created["storefront_conversation_service"] = kwargs
 
-    class FakeShopPageConfigService:
+    class FakeShopPageConfigurationService:
         def __init__(self, config_repo: Any) -> None:
-            created["shop_page_config_service"] = config_repo
+            created["shop_page_configuration_service"] = config_repo
+
+    class FakeShopConfigurationService:
+        def __init__(self, config_repo: Any) -> None:
+            created["shop_configuration_service"] = config_repo
 
     class FakeChatService:
         def __init__(self, **kwargs: Any) -> None:
@@ -250,28 +254,28 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     )
     _install_module(
         monkeypatch,
-        "app.service.miniapp_auth",
-        MiniappAuthService=FakeMiniappAuthService,
+        "app.service.channels.storefront",
+        StorefrontAuthService=FakeStorefrontAuthService,
     )
     _install_module(
         monkeypatch,
-        "app.service.miniapp_address",
-        MiniappAddressService=FakeMiniappAddressService,
+        "app.service.customer",
+        CustomerAddressService=FakeCustomerAddressService,
     )
     _install_module(
         monkeypatch,
-        "app.service.miniapp_catalog",
-        MiniappCatalogService=FakeMiniappCatalogService,
+        "app.service.catalog",
+        CatalogApplicationService=FakeCatalogApplicationService,
     )
     _install_module(
         monkeypatch,
-        "app.service.miniapp_order",
-        MiniappOrderService=FakeMiniappOrderService,
+        "app.service.order",
+        OrderApplicationService=FakeOrderApplicationService,
     )
     _install_module(
         monkeypatch,
-        "app.service.miniapp_chat",
-        MiniappChatService=FakeMiniappChatService,
+        "app.service.conversation",
+        StorefrontConversationService=FakeStorefrontConversationService,
     )
     _install_module(
         monkeypatch,
@@ -280,8 +284,9 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     )
     _install_module(
         monkeypatch,
-        "app.service.shop_page_config",
-        ShopPageConfigService=FakeShopPageConfigService,
+        "app.service.ops",
+        ShopPageConfigurationService=FakeShopPageConfigurationService,
+        ShopConfigurationService=FakeShopConfigurationService,
     )
     _install_module(
         monkeypatch,
@@ -315,17 +320,24 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "observability_service",
         "knowledge_sync_service",
         "knowledge_admin_service",
+        "storefront_auth_service",
+        "customer_address_service",
+        "catalog_service",
+        "order_service",
+        "storefront_conversation_service",
+        "transfer_mgr",
+        "shop_page_configuration_service",
+        "shop_configuration_service",
+        "youzan_client",
+        "youzan_event_handler",
+        "reconcile_service",
+        "chat_service",
         "miniapp_auth_service",
         "miniapp_address_service",
         "miniapp_catalog_service",
         "miniapp_order_service",
         "miniapp_chat_service",
-        "transfer_mgr",
         "shop_page_config_service",
-        "youzan_client",
-        "youzan_event_handler",
-        "reconcile_service",
-        "chat_service",
     }
     assert created["knowledge_retriever"] == (
         "knowledge-repo",
@@ -336,15 +348,22 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     assert created["transfer_mgr"] == "transfer-repo"
     assert created["chat_service"]["youzan_client"] is services["youzan_client"]
     assert created["chat_service"]["customer_profile_repo"] == "customer-profile-repo"
-    assert created["miniapp_order_service"]["order_repo"] == "order-repo"
-    assert created["miniapp_order_service"]["event_repo"] == "order-event-repo"
-    assert created["miniapp_address_service"]["address_repo"] == "miniapp-address-repo"
+    assert created["order_service"]["order_repo"] == "order-repo"
+    assert created["order_service"]["event_repo"] == "order-event-repo"
+    assert created["customer_address_service"]["address_repo"] == "miniapp-address-repo"
     assert (
-        created["miniapp_address_service"]["audit_repo"] == "miniapp-address-audit-repo"
+        created["customer_address_service"]["audit_repo"]
+        == "miniapp-address-audit-repo"
     )
-    assert created["miniapp_chat_service"]["chat_service"] is services["chat_service"]
-    assert created["miniapp_chat_service"]["transfer_mgr"] is services["transfer_mgr"]
-    assert created["shop_page_config_service"] == "config-repo"
+    assert (
+        created["storefront_conversation_service"]["chat_service"]
+        is services["chat_service"]
+    )
+    assert (
+        created["storefront_conversation_service"]["transfer_mgr"]
+        is services["transfer_mgr"]
+    )
+    assert created["shop_page_configuration_service"] == "config-repo"
     assert (
         created["reconcile_service"]["knowledge_product_repo"]
         == "knowledge-product-repo"

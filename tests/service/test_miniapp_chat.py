@@ -6,10 +6,10 @@ from app.models.message import Message, MessageRole
 from app.models.session import SessionCreate, SessionStatus
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
-from app.service.miniapp_chat import (
+from app.service.conversation.storefront import (
     DEFAULT_CHAT_MESSAGE_LIMIT,
-    MINIAPP_CHAT_CHANNEL,
-    MiniappChatService,
+    STOREFRONT_CHAT_CHANNEL,
+    StorefrontConversationService,
 )
 
 
@@ -90,7 +90,7 @@ async def test_miniapp_chat_send_message_trims_content_and_returns_history(
     message_repo = MessageRepo(db)
     session_repo = SessionRepo(db)
     fake_chat = FakeChatService(session_repo, message_repo)
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=fake_chat,
         session_repo=session_repo,
         message_repo=message_repo,
@@ -103,7 +103,7 @@ async def test_miniapp_chat_send_message_trims_content_and_returns_history(
 
     assert result["reply"] == "收到：我想订生日蛋糕"
     assert result["sessionId"]
-    assert fake_chat.calls[0]["channel"] == MINIAPP_CHAT_CHANNEL
+    assert fake_chat.calls[0]["channel"] == STOREFRONT_CHAT_CHANNEL
     assert fake_chat.calls[0]["user_id"] == "miniapp-chat-user"
     assert fake_chat.calls[0]["content"] == "我想订生日蛋糕"
     assert fake_chat.calls[0]["channel_msg_id"].startswith("miniapp:miniapp-chat-user:")
@@ -120,7 +120,7 @@ async def test_miniapp_chat_list_messages_creates_session_and_filters_internal_r
     """历史拉取应自动建立会话，只返回用户和助手消息。"""
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=FakeChatService(session_repo, message_repo),
         session_repo=session_repo,
         message_repo=message_repo,
@@ -128,7 +128,7 @@ async def test_miniapp_chat_list_messages_creates_session_and_filters_internal_r
     )
     session = await session_repo.get_or_create(
         SessionCreate(
-            id="", channel=MINIAPP_CHAT_CHANNEL, user_id="miniapp-history-user"
+            id="", channel=STOREFRONT_CHAT_CHANNEL, user_id="miniapp-history-user"
         )
     )
     await message_repo.save(
@@ -163,14 +163,16 @@ async def test_miniapp_chat_list_messages_uses_stable_limit(
     """历史消息数量上限应集中由服务常量控制。"""
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=FakeChatService(session_repo, message_repo),
         session_repo=session_repo,
         message_repo=message_repo,
         transfer_mgr=FakeTransferManager(),
     )
     session = await session_repo.get_or_create(
-        SessionCreate(id="", channel=MINIAPP_CHAT_CHANNEL, user_id="miniapp-limit-user")
+        SessionCreate(
+            id="", channel=STOREFRONT_CHAT_CHANNEL, user_id="miniapp-limit-user"
+        )
     )
     for index in range(DEFAULT_CHAT_MESSAGE_LIMIT + 3):
         await message_repo.save(
@@ -195,7 +197,7 @@ async def test_miniapp_chat_payload_exposes_handoff_status(
     """小程序客服 payload 应暴露当前 AI/人工接待状态。"""
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=FakeChatService(session_repo, message_repo),
         session_repo=session_repo,
         message_repo=message_repo,
@@ -203,7 +205,7 @@ async def test_miniapp_chat_payload_exposes_handoff_status(
     )
     session = await session_repo.get_or_create(
         SessionCreate(
-            id="", channel=MINIAPP_CHAT_CHANNEL, user_id="miniapp-handoff-user"
+            id="", channel=STOREFRONT_CHAT_CHANNEL, user_id="miniapp-handoff-user"
         )
     )
     await session_repo.update_status(session.id, SessionStatus.TRANSFER_PENDING)
@@ -225,7 +227,7 @@ async def test_miniapp_chat_payload_includes_human_reply_saved_as_assistant(
     """后台人工回复写入会话后，小程序应能在消息列表中刷新看到。"""
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=FakeChatService(session_repo, message_repo),
         session_repo=session_repo,
         message_repo=message_repo,
@@ -233,7 +235,7 @@ async def test_miniapp_chat_payload_includes_human_reply_saved_as_assistant(
     )
     session = await session_repo.get_or_create(
         SessionCreate(
-            id="", channel=MINIAPP_CHAT_CHANNEL, user_id="miniapp-human-reply-user"
+            id="", channel=STOREFRONT_CHAT_CHANNEL, user_id="miniapp-human-reply-user"
         )
     )
     await message_repo.save(
@@ -277,7 +279,7 @@ async def test_miniapp_chat_request_human_transfer_creates_ticket_and_payload(
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
     transfer_mgr = FakeTransferManager()
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=FakeChatService(session_repo, message_repo),
         session_repo=session_repo,
         message_repo=message_repo,
@@ -291,7 +293,8 @@ async def test_miniapp_chat_request_human_transfer_creates_ticket_and_payload(
     )
 
     session = await session_repo.get_active(
-        "miniapp-transfer-user", MINIAPP_CHAT_CHANNEL
+        "miniapp-transfer-user",
+        STOREFRONT_CHAT_CHANNEL,
     )
     assert session is not None
     assert session.status == SessionStatus.TRANSFER_PENDING
@@ -319,7 +322,7 @@ async def test_miniapp_chat_request_human_transfer_uses_default_reason(
     session_repo = SessionRepo(db)
     message_repo = MessageRepo(db)
     transfer_mgr = FakeTransferManager()
-    service = MiniappChatService(
+    service = StorefrontConversationService(
         chat_service=FakeChatService(session_repo, message_repo),
         session_repo=session_repo,
         message_repo=message_repo,

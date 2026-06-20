@@ -4,10 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response
 
-from app.service.miniapp_catalog import MiniappCatalogService
+from app.service.catalog import CatalogApplicationService
 
 
-def create_miniapp_catalog_router(service: MiniappCatalogService) -> APIRouter:
+def create_miniapp_catalog_router(service: CatalogApplicationService) -> APIRouter:
     """创建小程序商品公开路由。"""
     router = APIRouter(prefix="/api/v1/miniapp", tags=["miniapp-catalog"])
 

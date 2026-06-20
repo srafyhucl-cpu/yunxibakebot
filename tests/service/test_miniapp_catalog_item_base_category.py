@@ -5,13 +5,13 @@ from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_catalog import MiniappCatalogService
+from app.service.catalog import CatalogApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
 @pytest.fixture
-def service(db: aiosqlite.Connection) -> MiniappCatalogService:
-    return MiniappCatalogService(
+def service(db: aiosqlite.Connection) -> CatalogApplicationService:
+    return CatalogApplicationService(
         product_repo=KnowledgeProductRepo(db),
         knowledge_repo=KnowledgeRepo(db),
         config_repo=ConfigRepo(db),
@@ -21,7 +21,7 @@ def service(db: aiosqlite.Connection) -> MiniappCatalogService:
 
 async def test_list_categories_and_filter_by_item_base_classification(
     db: aiosqlite.Connection,
-    service: MiniappCatalogService,
+    service: CatalogApplicationService,
 ) -> None:
     await seed_miniapp_product(
         db,

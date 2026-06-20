@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.api.miniapp_auth import create_miniapp_auth_router
-from app.service.miniapp_auth import MiniappAuthService
+from app.service.channels.storefront import StorefrontAuthService
 
 
 @pytest.mark.asyncio
@@ -13,12 +13,16 @@ async def test_miniapp_auth_login_returns_demo_session_when_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """未配置微信 AppID/Secret 时返回稳定 demo 会话。"""
-    monkeypatch.setattr("app.service.miniapp_auth.settings.WECHAT_MINIAPP_APP_ID", "")
     monkeypatch.setattr(
-        "app.service.miniapp_auth.settings.WECHAT_MINIAPP_APP_SECRET", ""
+        "app.service.channels.storefront.auth.settings.WECHAT_MINIAPP_APP_ID",
+        "",
+    )
+    monkeypatch.setattr(
+        "app.service.channels.storefront.auth.settings.WECHAT_MINIAPP_APP_SECRET",
+        "",
     )
     app = FastAPI()
-    app.include_router(create_miniapp_auth_router(MiniappAuthService()))
+    app.include_router(create_miniapp_auth_router(StorefrontAuthService()))
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
@@ -47,14 +51,20 @@ async def test_miniapp_auth_login_returns_wechat_user_when_configured(
         return {"openid": "openid_abc"}
 
     monkeypatch.setattr(
-        "app.service.miniapp_auth.settings.WECHAT_MINIAPP_APP_ID", "wx-app"
+        "app.service.channels.storefront.auth.settings.WECHAT_MINIAPP_APP_ID",
+        "wx-app",
     )
     monkeypatch.setattr(
-        "app.service.miniapp_auth.settings.WECHAT_MINIAPP_APP_SECRET", "secret"
+        "app.service.channels.storefront.auth.settings.WECHAT_MINIAPP_APP_SECRET",
+        "secret",
     )
-    monkeypatch.setattr(MiniappAuthService, "_request_wechat_session", fake_request)
+    monkeypatch.setattr(
+        StorefrontAuthService,
+        "_request_wechat_session",
+        fake_request,
+    )
     app = FastAPI()
-    app.include_router(create_miniapp_auth_router(MiniappAuthService()))
+    app.include_router(create_miniapp_auth_router(StorefrontAuthService()))
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(

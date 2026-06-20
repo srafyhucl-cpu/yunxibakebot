@@ -1,6 +1,8 @@
-# 芸熙烘焙 AI 客服 — API 接口规范
+# Bakery Commerce Platform — API 接口规范
 
 > 版本：v0.2.0 | 最后更新：2026-06-04 | 在线文档：`http://<host>:7001/docs`
+>
+> 说明：本文件是早期人工整理的接口总览，适合快速扫读，不是当前唯一权威契约。当前真实接口以运行中的 FastAPI OpenAPI 文档和现网兼容路由为准；其中 `/api/v1/miniapp/*` 与 `/api/v1/admin/*` 仍作为对外稳定路径保留。
 
 ---
 

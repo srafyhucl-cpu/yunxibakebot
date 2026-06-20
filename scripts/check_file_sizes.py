@@ -39,9 +39,6 @@ KNOWN_OVERSIZE = {
     "app/service/llm/function_tool_order.py",  # 181行，超出1行
     "app/service/llm/function_tool_product.py",  # 252行，待拆 product_rag_helper
     "app/service/llm/intent.py",  # 183行，格式化后超出3行，待继续拆词表/规则
-    "app/service/miniapp_catalog.py",  # 375行，商城目录过滤与分类组装待拆分
-    "app/service/miniapp_order.py",  # 430行，订单编排与后台看板待拆分
-    "app/service/miniapp_payment.py",  # 494行，支付签名与通知处理待拆分
     "app/service/youzan/client.py",  # 354行，有赞开放接口客户端待按域拆分
     "app/service/youzan/event_item.py",  # 396行，待拆 item_builder
     "app/service/youzan/product_reconciler.py",  # 356行，商品对账与分类回填待拆分

@@ -12,7 +12,7 @@ from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
-from app.service.miniapp_order import MiniappOrderService
+from app.service.order import OrderApplicationService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
@@ -20,7 +20,7 @@ from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 def app(db: aiosqlite.Connection) -> FastAPI:
     """构建只包含小程序订单路由的测试应用。"""
     test_app = FastAPI()
-    service = MiniappOrderService(
+    service = OrderApplicationService(
         order_repo=OrderRepo(db),
         event_repo=OrderEventRepo(db),
         session_repo=SessionRepo(db),
