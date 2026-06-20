@@ -7,7 +7,7 @@
 
 Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主仓，统一承载客户、商品、订单、履约、AI 会话、后台配置和第三方集成能力。当前首个真实落地实例为 `Yunxi`，消费者前台渠道仓为 `Storefront MiniApp`。
 
-> 说明：当前仓库 slug 仍为 `YunxiBakeBot`，本文中的 `Platform` 指产品角色，不等于仓库名。历史文档若出现 `YunxiBakeBot` / `YunxiBakeMiniApp`，优先按“当前仓库名”或“迁移阶段引用”理解，不要当作产品名。
+> 说明：当前仓库 slug 仍为 `YunxiBakeBot`，本文中的 `Platform` 指产品角色，不等于仓库名；`Storefront MiniApp` 也是前台渠道角色名，不等于仓库名。历史文档若出现 `YunxiBakeBot` / `YunxiBakeMiniApp`，优先按“当前仓库名”或“迁移阶段引用”理解，不要当作产品名。
 
 > 当前仓库仍沿用 `YunxiBakeBot` 代码仓路径，但产品口径已升级为通用平台：`Bakery Commerce Platform`。如果你正在找的是历史上的 `YunxiBakeMiniApp` 口径，请把它理解为前台渠道仓的旧称。
 >

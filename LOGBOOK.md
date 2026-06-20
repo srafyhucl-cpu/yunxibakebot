@@ -3,6 +3,19 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-20] - docs(architecture): 澄清产品角色名与仓库路径名
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-name-clarification-role-vs-slug
+- **背景**: 虽然当前已经把双仓边界和客户迁移闭环统一了，但 `README.md`、`project-boundaries.md`、`docs/README.md` 里对 `Platform`、`Storefront MiniApp`、`YunxiBakeBot`、`YunxiBakeMiniApp` 的角色关系还可以再压紧一点，避免后续把产品角色名误读成仓库名。为了让通用产品名、渠道角色名和历史仓库路径一眼区分，需要补一轮命名澄清。
+- **变更范围**:
+  - `README.md` - 明确 `Platform` / `Storefront MiniApp` 都是产品角色，不等于仓库名。
+  - `docs/architecture/project-boundaries.md` - 新增命名约束，明确 `YunxiBakeBot` / `YunxiBakeMiniApp` 只用于仓库路径、历史过渡材料或明确迁移引用。
+  - `docs/README.md` - 标注 `two-repo-rollout-plan.md` 为历史路线图，不作为新的实施起点。
+- **验证结果**:
+  - `rg -n "仓库名|仓库 slug|历史过渡材料|命名约束|Storefront MiniApp" README.md docs/architecture/project-boundaries.md docs/README.md` 通过。
+- **结论**:
+  - 现在产品角色、渠道角色和仓库路径的口径更清楚了，后续不容易再把 `YunxiBakeMiniApp` 误认为长期产品名。
+
 ## [2026-06-20] - docs(architecture): 统一 MiniApp 接力计划的交付物口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-handoff-deliverable-flow

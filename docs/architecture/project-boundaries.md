@@ -11,6 +11,7 @@
 - `Storefront MiniApp` 仓
   - 当前代码仓：`YunxiBakeMiniApp`
   - 承担消费者前台渠道职责。
+  - 这里的名称是角色口径，不是产品名；仓库路径名只是历史实现载体。
 - `Yunxi`
   - 首个真实落地实例、配置集合、迁移来源和样板客户名。
   - 不是产品名，也不是长期能力命名。
@@ -64,6 +65,12 @@
 - `Platform` 可以先继续做第二阶段内部收口，不依赖 `MiniApp` 先完成大改。
 - `MiniApp` 历史上曾需要补一轮轻量第一阶段对齐，用来校正边界认知；如果当前仍有旧文档引用它，应按过渡态理解。
 - 双仓联动治理、仓库改名和接口统一，属于后续评估项，不应被误读为已经开始的实施动作。
+
+## 命名约束
+
+- `Platform` / `Storefront MiniApp` 是产品角色，不是仓库 slug。
+- `YunxiBakeBot` / `YunxiBakeMiniApp` 只用于仓库路径、历史过渡材料或明确的迁移引用。
+- 新文档默认使用通用名，除非在讲历史仓、文件路径或兼容层命名。
 
 详细节奏见：[two-repo-rollout-plan.md](./two-repo-rollout-plan.md)
 MiniApp 第一阶段执行清单见：[miniapp-phase1-execution-checklist.md](./miniapp-phase1-execution-checklist.md)
