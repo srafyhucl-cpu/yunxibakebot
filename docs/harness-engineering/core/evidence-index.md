@@ -115,6 +115,20 @@ ______________________________________________________________________
 - retention_note: 仅记录双仓路线图历史化命中结果，不含业务数据
 - summary: 双仓路线图已压成历史摘录口径，不再像当前实施蓝图。
 
+## E-20260620-013：双仓路线图历史行动语气再压缩
+
+- trace_id: 20260620-two-repo-rollout-history
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\architecture\two-repo-rollout-plan.md`
+- command: `rg -n "历史摘录|历史目标|历史结论先行|历史三个阶段|当时原则|当时不要求|为什么当时不是先改 MiniApp|历史验收标准" docs/architecture/two-repo-rollout-plan.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 压缩双仓路线图的历史行动语气
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录双仓路线图再压缩命中结果，不含业务数据
+- summary: 双仓路线图的历史行动语气已进一步压缩，读起来更像只读历史索引。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug

@@ -39,6 +39,17 @@
 - **结论**:
   - 双仓路线图现在只适合作为历史参考，不再像当前实施蓝图。
 
+## [2026-06-20] - docs(architecture): 压缩双仓路线图的历史行动语气
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-two-repo-rollout-history
+- **背景**: `two-repo-rollout-plan.md` 已经改成历史摘录版，但正文里的“当前原则 / 结论先行 / 历史执行顺序 / 历史验收标准”仍然偏像行动方案。为了继续降低误读概率，把这些章节再压成更明确的历史摘录表述。
+- **变更范围**:
+  - `docs/architecture/two-repo-rollout-plan.md` - 将标题和关键章节统一改成历史摘录口径。
+- **验证结果**:
+  - `rg -n "历史摘录|历史目标|历史结论先行|历史三个阶段|当时原则|当时不要求|为什么当时不是先改 MiniApp|历史验收标准" docs/architecture/two-repo-rollout-plan.md` 通过。
+- **结论**:
+  - 双仓路线图现在更像只读历史记录，不再容易被当成现行推进蓝图。
+
 ## [2026-06-20] - docs(architecture): 降级 MiniApp 过渡文档为历史记录
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-history-only
