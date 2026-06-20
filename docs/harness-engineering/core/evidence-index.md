@@ -87,6 +87,20 @@ ______________________________________________________________________
 - retention_note: 仅记录客户迁移入口四段稳定态的机械审计结果，不含客户数据与执行报告正文。
 - summary: 客户迁移闭环入口已统一为审计、正式迁移、迁移后核对、交接/回滚四段口径，并且活文档与 LOGBOOK 中不再残留旧的三段/待执行表述；这套入口当前处于稳定态。
 
+## E-20260620-006：MiniApp 接力文档建议项机械核对
+
+- trace_id: 20260620-miniapp-ai-handoff-plan-regression-scan
+- generated_at: 2026-06-20
+- evidence_type: audit/doc
+- file: `D:\Project\YunxiBakeBot\docs\architecture\miniapp-ai-handoff-plan.md`
+- command: `rg -n "后续建议执行顺序|执行顺序|建议执行顺序" docs/architecture/miniapp-ai-handoff-plan.md`; `Get-Content -Path docs/architecture/miniapp-ai-handoff-plan.md -Encoding UTF8 | Select-Object -Skip 150 -First 120`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 统一客户迁移闭环为四段口径
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录 MiniApp 接力文档建议项机械核对结果，不含业务数据和执行报告正文。
+- summary: `miniapp-ai-handoff-plan.md` 中“后续建议执行顺序”仅作为交付物项存在，没有独立残留的旧建议段落；MiniApp 接力文档本身无需继续改正文。
+
 ## E-20260617-045：生产后台 MVP 前端 dist 部署
 
 - trace_id: 20260617-production-admin-frontend-check
