@@ -2,6 +2,7 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+
 ## [2026-06-20] - docs(architecture): 统一 MiniApp 接力计划的交付物口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-handoff-deliverable-flow
@@ -6556,3 +6557,16 @@ ______________________________________________________________________
 
 
 
+## [2026-06-20] - docs(architecture): 收口客户迁移四段闭环残留表述
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-customer-doc-closure-residuals
+- **背景**: 前几轮已经把客户迁移统一成四段闭环，但 `customer-master-v1.md`、`customer-master-v1-schema-draft.md`、`youzan-customer-migration-audit-checklist.md`、`platform-miniapp-api-contract-v1.md` 里还残留“下一步建议 / 后续建议 / 进入下一步 schema 或脚本设计”这类未来态口径，容易让人误以为闭环还没完成。为了让文档只描述当前真实运行方式，需要把这些残留段落收口成“当前权威入口 / 当前闭环入口 / 当前协作入口”。
+- **变更范围**:
+  - `docs/architecture/customer-master-v1.md` - 将“落地建议”“下一步输出建议”收口为当前闭环顺序与当前权威入口。
+  - `docs/architecture/customer-master-v1-schema-draft.md` - 将“下一步建议”收口为当前权威入口。
+  - `docs/architecture/youzan-customer-migration-audit-checklist.md` - 将“进入下一步 schema 或脚本设计”“下一步建议”收口为当前闭环入口。
+  - `docs/architecture/platform-miniapp-api-contract-v1.md` - 将“下一步建议”收口为当前协作入口。
+- **验证结果**:
+  - `rg -n "下一步建议|后续建议|进入下一步 schema 或脚本设计" docs/architecture` 仅剩历史意图表述或已改名段落，不再影响当前闭环口径。
+- **结论**:
+  - 客户迁移相关文档现在统一以当前闭环描述，不再给人“还有一层未来步骤没做完”的感觉。

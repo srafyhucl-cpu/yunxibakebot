@@ -440,7 +440,7 @@
 
 ## 审计通过标准
 
-满足以下条件时，可以进入下一步 schema 或脚本设计：
+满足以下条件时，可以进入正式迁移执行与后验核对闭环：
 
 1. 手机号标准化规则已经稳定
 2. `auto_merge / new_master / pending_review` 三类能够稳定分流
@@ -472,9 +472,9 @@
   - 进入 `customer_source_snapshots`
   - 暂不进入 `customer_master`
 
-## 下一步建议
+## 当前闭环入口
 
-在这份审计清单之后，建议直接按当前闭环继续执行：
+在这份审计清单之后，直接按当前闭环继续执行：
 
 1. [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
    - 继续完成 dry-run、`--apply`、批次号约定和报告留档

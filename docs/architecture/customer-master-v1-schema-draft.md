@@ -548,9 +548,9 @@ customer_merge_reviews
 - `customer_master` 解决“这个客户是谁”
 - `customer_profiles` 解决“AI 该记住这个客户什么偏好”
 
-## 下一步建议
+## 当前权威入口
 
-这份文档确认后，下一步就可以进入实现准备：
+这份文档确认后，直接按下面四个入口执行：
 
 1. 继续以 [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md) 作为迁移前审计入口
 2. 以 [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md) 作为 dry-run / apply 标准执行入口

@@ -39,11 +39,25 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\docs\architecture\youzan-customer-import-handoff-and-rollback-runbook.md`; `D:\Project\YunxiBakeBot\docs\README.md`
 - command: `Test-Path docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`; `Select-String -Path docs/README.md -Pattern "youzan-customer-import-handoff-and-rollback-runbook"`
 - result: pass
-- related_logbook: 2026-06-20 - docs(customer): 补齐有赞客户迁移交接回滚 runbook
+- related_logbook: 2026-06-20 - docs(architecture): 统一客户迁移闭环为四段口径
 - related_adr: none
 - contains_sensitive_data: no
-- retention_note: 保留交接与回滚 runbook 的摘要索引；不包含具体客户数据、数据库内容或报告正文。
-- summary: 有赞客户正式迁移现在同时具备“怎么迁、怎么核对、出事后怎么停、怎么交接、怎么恢复”的完整文档链路；后续补跑、事故处理和换手不必再靠聊天记录临场拼接。
+- retention_note: 保留 runbook 文档作为迁移后异常处理和证据留档入口
+- summary: 客户迁移交接与回滚 runbook 已纳入文档入口索引。
+
+## E-20260620-008：客户迁移四段闭环残留表述收口
+
+- trace_id: 20260620-customer-doc-closure-residuals
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1.md`; `D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1-schema-draft.md`; `D:\Project\YunxiBakeBot\docs\architecture\youzan-customer-migration-audit-checklist.md`; `D:\Project\YunxiBakeBot\docs\architecture\platform-miniapp-api-contract-v1.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `rg -n "下一步建议|后续建议|进入下一步 schema 或脚本设计" docs/architecture`; `Get-Content -LiteralPath "D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1.md" -Encoding UTF8 | Select-Object -Skip 468 -First 30`; `Get-Content -LiteralPath "D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1-schema-draft.md" -Encoding UTF8 | Select-Object -Skip 548 -First 20`; `Get-Content -LiteralPath "D:\Project\YunxiBakeBot\docs\architecture\youzan-customer-migration-audit-checklist.md" -Encoding UTF8 | Select-Object -Skip 438 -First 25`; `Get-Content -LiteralPath "D:\Project\YunxiBakeBot\docs\architecture\platform-miniapp-api-contract-v1.md" -Encoding UTF8 | Select-Object -Skip 428 -First 15`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 收口客户迁移四段闭环残留表述
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅保留文档收口命令与结果，不含业务数据
+- summary: 四份客户迁移相关文档的结尾口径已收口为当前入口，不再保留未来态“下一步”措辞。
 
 ## E-20260620-003：客户迁移闭环入口收束
 
