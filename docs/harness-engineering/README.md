@@ -1,6 +1,6 @@
 # Harness Engineering
 
-本目录是 Bakery Commerce Platform 当前 `Platform` 仓（仓库名仍为 `YunxiBakeBot`）的 AI 驾驭系统父目录。后续只需要记住一个入口：
+本目录是 Bakery Commerce Platform 当前 `Platform` 主仓的 AI 驾驭系统父目录；对应代码仓路径仍为 `YunxiBakeBot`。后续只需要记住一个入口：
 
 ```text
 docs/harness-engineering/README.md

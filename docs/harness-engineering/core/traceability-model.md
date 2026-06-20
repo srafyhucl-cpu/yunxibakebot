@@ -1,6 +1,6 @@
 # Traceability Model
 
-本文件定义 Bakery Commerce Platform 当前 `Platform` 仓（仓库名仍为 `YunxiBakeBot`）的任务级追溯模型。目标是让任何一次 Vibe Coding 变更都能回答：为什么改、改了什么、怎么证明、还剩什么风险。
+本文件定义 Bakery Commerce Platform 当前 `Platform` 主仓的任务级追溯模型；对应代码仓路径仍为 `YunxiBakeBot`。目标是让任何一次 Vibe Coding 变更都能回答：为什么改、改了什么、怎么证明、还剩什么风险。
 
 ______________________________________________________________________
 

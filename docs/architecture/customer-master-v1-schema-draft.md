@@ -20,7 +20,7 @@
 
 ## 适用范围
 
-- 当前 `Platform` 仓：`YunxiBakeBot`
+- 当前 `Platform` 代码仓路径：`YunxiBakeBot`
 - 当前 customer 域阶段：迁移底盘优先
 - 当前数据库：SQLite
 - 当前首个实例：`Yunxi`

@@ -13,8 +13,8 @@
 
 ## 适用范围
 
-- 当前 `Platform` 仓：`YunxiBakeBot`
-- 当前 `Storefront MiniApp` 仓：`YunxiBakeMiniApp`
+- 当前 `Platform` 代码仓路径：`YunxiBakeBot`
+- 当前 `Storefront MiniApp` 代码仓路径：`YunxiBakeMiniApp`
 - 当前逻辑总项目名：`Bakery Commerce Platform`
 - 当前首个实例名：`Yunxi`
 

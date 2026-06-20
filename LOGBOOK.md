@@ -95,6 +95,23 @@
 - **结论**:
   - 现在用户可见展示名与通用平台口径更一致，同时没有动到仓库路径、目录名或现有服务标识。
 
+## [2026-06-20] - docs(naming): 将当前权威文档中的仓库名改写为代码仓路径语义
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-current-docs-repo-path-wording
+- **背景**: 虽然当前入口、ADR 和脚本展示名已经逐步完成通用命名收口，但几份当前权威文档和 Harness 父入口里仍存在“当前 Platform 仓：`YunxiBakeBot`”这类表述。它们描述的是代码仓路径事实，不是产品名或角色名，因此更适合显式写成“代码仓路径”，避免读者把仓库名再次误读成长期产品命名。
+- **变更范围**:
+  - `docs/architecture/customer-master-v1.md`
+  - `docs/architecture/customer-master-v1-schema-draft.md`
+  - `docs/architecture/platform-miniapp-api-contract-v1.md`
+  - `docs/architecture/youzan-customer-migration-audit-checklist.md`
+  - `docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`
+  - `docs/harness-engineering/README.md`
+  - `docs/harness-engineering/core/traceability-model.md`
+- **验证结果**:
+  - `rg -n "代码仓路径|Platform 主仓|Storefront MiniApp 代码仓路径" docs/architecture/customer-master-v1.md docs/architecture/customer-master-v1-schema-draft.md docs/architecture/platform-miniapp-api-contract-v1.md docs/architecture/youzan-customer-migration-audit-checklist.md docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md docs/harness-engineering/README.md docs/harness-engineering/core/traceability-model.md` 通过。
+- **结论**:
+  - 当前权威文档对 `YunxiBakeBot` / `YunxiBakeMiniApp` 的提法进一步收敛到“代码仓路径”语义，产品角色名与仓库名的边界更稳了。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

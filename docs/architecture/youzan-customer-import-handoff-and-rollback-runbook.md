@@ -14,7 +14,7 @@
 
 ## 适用范围
 
-- 当前 `Platform` 仓：`YunxiBakeBot`
+- 当前 `Platform` 代码仓路径：`YunxiBakeBot`
 - 当前实例：`Yunxi`
 - 当前主档：`customer master v1`
 - 当前正式迁移入口：`scripts/import_youzan_customers.py`

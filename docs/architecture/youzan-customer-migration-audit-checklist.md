@@ -13,7 +13,7 @@
 
 ## 适用范围
 
-- 当前 `Platform` 仓：`YunxiBakeBot`
+- 当前 `Platform` 代码仓路径：`YunxiBakeBot`
 - 当前主档方案：`docs/architecture/customer-master-v1.md`
 - 当前已拿到的输入：
   - `docs/有赞导出/客户数据_0002000408539943.csv`

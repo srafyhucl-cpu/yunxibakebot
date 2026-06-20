@@ -18,7 +18,7 @@
 
 ## 适用范围
 
-- 当前 `Platform` 仓：`YunxiBakeBot`
+- 当前 `Platform` 代码仓路径：`YunxiBakeBot`
 - 当前逻辑总项目：`Bakery Commerce Platform`
 - 当前首个实例：`Yunxi`
 - 当前目标阶段：迁移底盘优先，不做完整 CRM 一步到位
