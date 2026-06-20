@@ -2,6 +2,32 @@
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
+## [2026-06-20] - feat(customer): 新增有赞客户迁移审计脚本并跑出首轮结果
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-youzan-customer-audit-script
+- **背景**: 前两轮已经先后定义了 `customer master v1` 和有赞客户迁移审计清单，但团队仍缺一个真正可执行的脚本来把客户 CSV 和订单 CSV 转成可复核的审计产物。本轮新增第一版审计脚本，直接读取现有有赞导出，输出汇总 JSON、汇总指标表、客户问题表和客户分流表，并完成一次真实数据试跑。
+- **变更范围**:
+  - `scripts/audit_youzan_customer_migration.py` - 新增有赞客户迁移审计脚本，覆盖手机号标准化、客户/订单 CSV 读取、重复手机号冲突分析、`auto_merge / new_master / pending_review` 分流、JSON/CSV 报告输出与时间戳文件命名。
+  - `tests/scripts/test_audit_youzan_customer_migration.py` - 新增脚本级测试，覆盖手机号标准化、审计汇总逻辑、分流结果、`--output` 与多份报告输出。
+  - 本地输出 `reports/youzan-customer-audit-*` - 已完成真实 CSV 试跑，产出 JSON、metrics、issues、buckets 四份本地报告；这些文件仅用于本地分析，不纳入版本管理。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_audit_youzan_customer_migration.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\audit_youzan_customer_migration.py tests\scripts\test_audit_youzan_customer_migration.py` 通过。
+  - `python -m compileall scripts\audit_youzan_customer_migration.py` 通过。
+  - `python scripts\audit_youzan_customer_migration.py --customer-csv "docs\有赞导出\客户数据_0002000408539943.csv" --orders-csv "docs\有赞导出\订单数据.csv" --json --output "reports\youzan-customer-audit-{timestamp}.json" --metrics-output "reports\youzan-customer-audit-metrics-{timestamp}.csv" --issues-output "reports\youzan-customer-audit-issues-{timestamp}.csv" --buckets-output "reports\youzan-customer-audit-buckets-{timestamp}.csv"` 通过。
+  - 首轮真实数据结果摘要：
+    - `total_customers=24726`
+    - `customers_with_phone=13551`
+    - `valid_phone_rate=0.548`
+    - `invalid_phone_count=243`
+    - `auto_merge_customer_count=13551`
+    - `new_master_customer_count=11175`
+    - `pending_review_customer_count=0`
+    - `customers_missing_phone_but_order_matchable=21`
+- **遗留风险**:
+  - 当前重复手机号结果为 0，说明首轮有赞客户表在手机号层面异常干净，但这也意味着后续还要重点补查“无手机号客户”的经营价值和身份补强路径。
+  - 真实输出中的问题表和分流表体积较大，后续如果要长期复跑，建议再补筛选参数或分批输出策略。
+
 ## [2026-06-20] - docs(customer): 补齐有赞客户迁移审计清单
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-youzan-customer-migration-audit
