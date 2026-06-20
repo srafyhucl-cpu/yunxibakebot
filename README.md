@@ -587,7 +587,7 @@ python scripts/sync_youzan_products.py --force
 ## 目录结构
 
 ```
-YunxiBakeBot/
+Platform (repo: YunxiBakeBot)/
 ├── app/                          # 后端应用目录
 │   ├── api/                      # API 路由层
 │   │   ├── wecom.py              # 企微回调 API
@@ -1186,9 +1186,9 @@ git push origin feature/xxx
 
 ## 联系方式
 
-- **项目主页**：https://github.com/your-repo/YunxiBakeBot
-- **Issue Tracker**：https://github.com/your-repo/YunxiBakeBot/issues
-- **讨论区**：https://github.com/your-repo/YunxiBakeBot/discussions
+- **项目主页**：https://github.com/srafyhucl-cpu/yunxibakebot
+- **Issue Tracker**：https://github.com/srafyhucl-cpu/yunxibakebot/issues
+- **讨论区**：https://github.com/srafyhucl-cpu/yunxibakebot/discussions
 
 ---
 

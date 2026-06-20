@@ -1,4 +1,4 @@
-# YunxiBakeBot PowerShell UTF-8 bootstrap.
+# Platform repo (YunxiBakeBot) PowerShell UTF-8 bootstrap.
 # Use this in Windows PowerShell 5.1 before reading Chinese Markdown or Skill files.
 
 [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)

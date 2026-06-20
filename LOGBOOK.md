@@ -112,6 +112,18 @@
 - **结论**:
   - 当前权威文档对 `YunxiBakeBot` / `YunxiBakeMiniApp` 的提法进一步收敛到“代码仓路径”语义，产品角色名与仓库名的边界更稳了。
 
+## [2026-06-20] - docs(readme): 收口 README 残留高可见仓库名示例
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-readme-visible-repo-example-cleanup
+- **背景**: 当前权威文档已经压实，但 README 仍有少量高可见残留会把 `YunxiBakeBot` 放在容易被误读成产品名的位置，例如目录树根节点、底部联系方式占位链接，以及 UTF-8 控制台脚本的顶部注释。它们不影响运行，但会继续把“仓库名”和“产品展示名”混在一起。
+- **变更范围**:
+  - `README.md` - 将目录树根节点显式写成 `Platform (repo: YunxiBakeBot)/`，并把底部联系方式切到真实仓库地址。
+  - `scripts/enable_utf8_console.ps1` - 将顶部注释改成 `Platform repo (YunxiBakeBot)` 语义。
+- **验证结果**:
+  - `rg -n "Platform \\(repo: YunxiBakeBot\\)|github.com/srafyhucl-cpu/yunxibakebot|Platform repo \\(YunxiBakeBot\\)" README.md scripts/enable_utf8_console.ps1` 通过。
+- **结论**:
+  - README 中最容易误导读者的高可见仓库名示例又少了一层，同时真实路径和仓库 slug 仍保持可见。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

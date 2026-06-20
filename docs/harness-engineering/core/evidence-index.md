@@ -241,6 +241,20 @@ ______________________________________________________________________
 - retention_note: 仅记录当前权威文档的命名措辞收口结果，不含业务数据
 - summary: 当前权威文档和 Harness 入口已把 `YunxiBakeBot` / `YunxiBakeMiniApp` 进一步明确为代码仓路径语义，而不是产品角色名。
 
+## E-20260620-022：README 残留高可见仓库名示例收口
+
+- trace_id: 20260620-readme-visible-repo-example-cleanup
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\scripts\enable_utf8_console.ps1`
+- command: `rg -n "Platform \\(repo: YunxiBakeBot\\)|github.com/srafyhucl-cpu/yunxibakebot|Platform repo \\(YunxiBakeBot\\)" README.md scripts/enable_utf8_console.ps1`
+- result: pass
+- related_logbook: 2026-06-20 - docs(readme): 收口 README 残留高可见仓库名示例
+- related_adr: 0002-platform-storefront-boundaries-and-instance-naming
+- contains_sensitive_data: no
+- retention_note: 仅记录 README 高可见示例收口结果，不含业务数据
+- summary: README 的目录树根节点、仓库链接占位和 UTF-8 控制台脚本注释已改成更明确的 repo 语义或真实仓库地址。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
