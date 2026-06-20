@@ -480,6 +480,8 @@
 
 在本文件之后，直接按下面四个入口继续：
 
+不要再回双仓历史过渡方案或 MiniApp 旧执行清单里寻找客户迁移步骤，迁移执行以这四段闭环为准。
+
 1. [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
    - 明确统计口径、输出字段和风险分类
 2. [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)

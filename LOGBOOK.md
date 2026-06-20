@@ -50,6 +50,21 @@
 - **结论**:
   - 当前总入口现在更集中指向权威口径，历史材料统一从 docs 导航进入。
 
+## [2026-06-20] - docs(architecture): 压紧当前入口与历史材料边界
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-entrypoints-current-authority-tightening
+- **背景**: 虽然 `README.md`、`project-boundaries.md` 已把历史路线图入口改成 docs 导航分流，但 `docs/README.md`、客户主档文档和 `platform-miniapp-api-contract-v1.md` 里的“当前权威入口”措辞还可以再收紧一点。为了避免读者在当前实施、迁移或双仓协作时又退回历史方案区或背景材料，需要把“当前入口才是执行起点”这层说明明确写出来。
+- **变更范围**:
+  - `docs/README.md` - 明确“当前权威口径”是实施起点，历史方案与背景材料只用于参考。
+  - `docs/architecture/customer-master-v1.md` - 明确客户迁移执行不要回退到双仓历史过渡材料。
+  - `docs/architecture/customer-master-v1-schema-draft.md` - 明确正式迁移执行以四段闭环为准，不再回旧执行清单补步骤。
+  - `docs/architecture/platform-miniapp-api-contract-v1.md` - 明确如需回看历史双仓材料，统一从 docs 导航进入，不在 API 契约里展开旧路线。
+- **验证结果**:
+  - `rg -n "执行起点|四段闭环|历史方案|历史过渡|旧执行清单" docs/README.md docs/architecture/customer-master-v1.md docs/architecture/customer-master-v1-schema-draft.md docs/architecture/platform-miniapp-api-contract-v1.md` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+- **结论**:
+  - 当前实施入口、客户迁移闭环和历史参考材料之间的边界再次被压紧，后续阅读路径更不容易走偏。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering

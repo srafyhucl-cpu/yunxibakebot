@@ -552,6 +552,8 @@ customer_merge_reviews
 
 这份文档确认后，直接按下面四个入口执行：
 
+不要再回双仓历史过渡方案或 MiniApp 旧执行清单里补迁移步骤，正式执行以这四段闭环为准。
+
 1. 继续以 [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md) 作为迁移前审计入口
 2. 以 [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md) 作为 dry-run / apply 标准执行入口
 3. 以 `scripts/verify_youzan_customer_import.py` 作为迁移后批次核对与 apply 报告对账入口

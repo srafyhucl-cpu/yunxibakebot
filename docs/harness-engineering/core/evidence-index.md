@@ -185,6 +185,20 @@ ______________________________________________________________________
 - retention_note: 仅记录总入口分流命中结果，不含业务数据
 - summary: README 与边界文档已不再直接把读者送到历史路线图，历史材料统一从 docs 导航进入。
 
+## E-20260620-018：当前权威入口与历史材料边界压紧
+
+- trace_id: 20260620-entrypoints-current-authority-tightening
+- generated_at: 2026-06-20
+- evidence_type: doc-sweep
+- file: `D:\Project\YunxiBakeBot\docs\README.md`; `D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1.md`; `D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1-schema-draft.md`; `D:\Project\YunxiBakeBot\docs\architecture\platform-miniapp-api-contract-v1.md`
+- command: `rg -n "执行起点|四段闭环|历史方案|历史过渡|旧执行清单" docs/README.md docs/architecture/customer-master-v1.md docs/architecture/customer-master-v1-schema-draft.md docs/architecture/platform-miniapp-api-contract-v1.md`
+- result: pass
+- related_logbook: 2026-06-20 - docs(architecture): 压紧当前入口与历史材料边界
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录入口边界收口命中结果，不含业务数据
+- summary: 当前权威入口文档已统一强调执行起点与四段闭环，历史方案与背景材料只作为参考入口。
+
 ## E-20260620-009：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
