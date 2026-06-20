@@ -28,6 +28,17 @@
 - **结论**:
   - 两份 MiniApp 过渡文档现在更像历史索引，而不是当前可执行清单。
 
+## [2026-06-20] - docs(architecture): 历史化双仓路线图
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-two-repo-rollout-history
+- **背景**: `two-repo-rollout-plan.md` 虽然已经说明自己是历史路线图，但正文里仍以“当前原则 / 结论先行 / 执行顺序 / 验收标准”组织内容，容易被误当成现阶段推进方案。为了让当前实施依据更集中，这份双仓路线图也需要进一步降级成历史摘录。
+- **变更范围**:
+  - `docs/architecture/two-repo-rollout-plan.md` - 将标题、核心章节和执行导向全部压成历史摘录口径。
+- **验证结果**:
+  - `rg -n "历史摘录|历史目标|历史结论先行|历史三个阶段|当时原则|当时不要求|为什么当时不是先改 MiniApp|历史验收标准" docs/architecture/two-repo-rollout-plan.md` 通过。
+- **结论**:
+  - 双仓路线图现在只适合作为历史参考，不再像当前实施蓝图。
+
 ## [2026-06-20] - docs(architecture): 降级 MiniApp 过渡文档为历史记录
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-miniapp-history-only

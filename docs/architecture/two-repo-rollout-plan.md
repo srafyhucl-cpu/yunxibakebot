@@ -1,18 +1,18 @@
-# 双仓推进节奏与 MiniApp 第一阶段最小改造清单
+# 双仓推进节奏与 MiniApp 第一阶段最小改造清单（历史摘录）
 
-> 说明：这份文档记录的是早期双仓推进思路，当前已进入新一轮 canonical 收口阶段。文中“MiniApp 第一阶段”更多是历史过渡方案，不应直接当作现阶段必须执行的最新路线。
+> 说明：这份文档记录的是早期双仓推进思路，当前已进入新一轮 canonical 收口阶段。文中“MiniApp 第一阶段”更多是历史过渡方案，不应直接当作现阶段必须执行的最新路线。本文只保留历史摘录。
 
-## 目标
+## 历史目标
 
 这份文档用于把 `Bakery Commerce Platform` 的双仓推进顺序固定下来，避免 `Platform` 和 `Storefront MiniApp` 在重组过程中再次出现职责回流。
 
-当前原则只有三条：
+当时原则只有三条：
 
 - 继续保留两个代码仓，不新建第三个代码仓。
 - `Platform` 先完成内部 canonical 领域收口，不等待 `MiniApp` 大改。
 - `MiniApp` 先做轻量第一阶段对齐，只校正边界和命名口径，不抢先重写业务。
 
-## 结论先行
+## 历史结论先行
 
 早期观点里曾有一种说法：第二阶段不是必须先把 `YunxiBakeMiniApp` 做完，`Platform` 才能继续推进。
 
@@ -27,9 +27,9 @@
 2. `MiniApp` 补一轮轻量边界对齐。
 3. 双仓再进入联动治理阶段。
 
-## 三个阶段
+## 历史三个阶段
 
-### 阶段 A：Platform 内部收口先行
+### 阶段 A：Platform 内部收口先行（历史）
 
 适用范围：
 
@@ -41,13 +41,13 @@
 - `integrations`
 - `channels/storefront`
 
-本阶段允许继续做的事：
+当时允许继续做的事：
 
 - 把 `miniapp_*` 中的真实实现逐步搬到 canonical 领域。
 - 保持现有 HTTP 路由、数据库 schema、MiniApp API 契约不变。
 - 保留旧 service key 和旧 facade 作为兼容层。
 
-当前已完成的代表性收口：
+当时已完成的代表性收口：
 
 - `catalog`、`customer`、`order`、`conversation/storefront`、`channels/storefront`
 - `order` 内部的库存、预约、序列化、支付真实实现
@@ -55,17 +55,17 @@
 - `integrations/wechat_pay`
 - `app/service` 下既有 `miniapp_*.py` 已全部退为兼容层，不再承载真实实现
 
-本阶段不要求：
+当时不要求：
 
 - 不要求 `MiniApp` 同步改页面逻辑。
 - 不要求立刻改仓库名。
 - 不要求前台渠道一起重写接口。
 
-### 阶段 B：MiniApp 轻量第一阶段对齐
+### 阶段 B：MiniApp 轻量第一阶段对齐（历史）
 
 `YunxiBakeMiniApp` 此时只做“边界澄清”，不做大规模业务重写。当前如需查看最新口径，请以 `docs/architecture/project-boundaries.md` 为准。
 
-最小改造清单：
+最小改造清单（历史）：
 
 1. README 和项目标题改为 `Storefront MiniApp` 口径，明确它是消费者前台渠道仓。
 2. 文档中把 `Yunxi` 改成首个实例名，而不是产品名。
@@ -74,7 +74,7 @@
 5. 标记禁区：`MiniApp` 不再新增客户主档、商品规则、订单规则真相。
 6. 把“后台配置嵌在 Bot 管理页里”的现状写成过渡态，而不是长期架构。
 
-本阶段刻意不做的事：
+本阶段刻意不做的事（历史）：
 
 - 不重写页面。
 - 不重做前台状态管理。
@@ -91,7 +91,7 @@
 - [有赞客户迁移后核对脚本](../../scripts/verify_youzan_customer_import.py)
 - [有赞客户迁移交接与回滚 Runbook](./youzan-customer-import-handoff-and-rollback-runbook.md)
 
-### 阶段 C：双仓联动治理
+### 阶段 C：双仓联动治理（历史）
 
 只有在 A 和 B 都完成后，再进入这一阶段：
 
@@ -100,7 +100,7 @@
 - 收缩旧 `miniapp_*` 命名。
 - 准备后续可能的仓库改名或 monorepo 评估。
 
-## 为什么不是先改 MiniApp
+## 为什么当时不是先改 MiniApp
 
 原因很实际：
 
@@ -110,7 +110,7 @@
 
 所以 `MiniApp` 当前最该做的是“认清自己是谁”，不是“先把所有代码改漂亮”。
 
-## 仓库改名时机
+## 仓库改名时机（历史）
 
 当前不建议立刻修改仓库名。
 
@@ -133,7 +133,7 @@
 - `bakery-commerce-platform`
 - `bakery-storefront-miniapp`
 
-## 执行顺序
+## 历史执行顺序
 
 推荐按下面顺序推进：
 
@@ -142,7 +142,7 @@
 3. 梳理双仓 API 契约和命名映射表。
 4. 再考虑仓库改名、部署链路和外部引用迁移。
 
-## 验收标准
+## 历史验收标准
 
 当满足以下条件时，说明双仓节奏是健康的：
 
