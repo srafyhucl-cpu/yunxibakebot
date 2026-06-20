@@ -624,7 +624,7 @@ Platform (repo: YunxiBakeBot)/
 │   │   ├── session.py             # 会话模型
 │   │   ├── message.py             # 消息模型
 │   │   ├── knowledge.py           # 知识条目模型
-│   │   └── youzan_product.py      # 有赞商品模型
+│   │   └── order.py               # 订单模型
 │   ├── config.py                  # 配置管理
 │   ├── main.py                    # FastAPI 应用入口
 │   ├── database.py                # 数据库初始化

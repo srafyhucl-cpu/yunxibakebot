@@ -162,6 +162,18 @@
 - **结论**:
   - quick reference 里的关键路径和当前代码结构再次对齐，减少了按图索骥时跳到死路径的概率。
 
+## [2026-06-20] - docs(readme): 修正目录树中的过时模型文件示例
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-readme-tree-stale-model
+- **背景**: 在继续核对 README 目录树时，发现其中仍列着 `app/models/youzan_product.py`，但当前仓库已不存在这个文件。目录树作为高可见结构示意，如果继续列死路径，会让读者误判模型层的真实结构。
+- **变更范围**:
+  - `README.md` - 将目录树中的 `app/models/youzan_product.py` 替换为当前真实存在的 `app/models/order.py`。
+- **验证结果**:
+  - `Test-Path app/models/youzan_product.py; Test-Path app/models/order.py` 通过。
+  - `rg -n "youzan_product.py|order.py" README.md` 通过。
+- **结论**:
+  - README 目录树与当前模型层结构进一步对齐，不再展示已经消失的模型文件。
+
 ## [2026-06-20] - docs(readme): 将双仓路线图移入历史方案区
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-docs-history-layering
