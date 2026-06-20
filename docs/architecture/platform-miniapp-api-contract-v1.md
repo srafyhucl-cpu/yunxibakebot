@@ -412,7 +412,7 @@
 - 外部路径仍沿用 `/api/v1/miniapp/*`，这是兼容命名，不代表业务真相仍属于 `miniapp_*`。
 - 部分接口仍支持 demo 用户回退，这更适合联调阶段，不适合长期正式身份方案。
 - `mock-pay` 仍保留，后续应只作为开发或测试兜底能力存在。
-- `customer` 域的当前权威入口已经单独收束到三份文档：
+- `customer` 域的当前权威入口已经单独收束到四段闭环：
   - [有赞客户迁移审计清单](./youzan-customer-migration-audit-checklist.md)
   - [有赞客户正式迁移执行 Runbook](./youzan-customer-formal-import-runbook.md)
   - `scripts/verify_youzan_customer_import.py`
@@ -426,11 +426,11 @@
 2. 字段层：本文件列出的稳定字段视为当前前后台共享契约。
 3. 权责层：客户、商品、订单、会话、装修、运营配置真相全部只在 `Platform`。
 4. 组织层：`Yunxi` 只作为实例名存在，不再进入新增接口命名。
-5. 迁移层：客户主档落地、正式迁移执行和 apply 后交接回滚，优先看上面的三份 `customer` 文档，而不是在 API 契约里继续追加迁移步骤。
+5. 迁移层：客户主档落地、正式迁移执行、迁移后核对和 apply 后交接回滚，优先看上面的四段闭环，而不是在 API 契约里继续追加迁移步骤。
 
 ## 下一步建议
 
 1. 让 `Storefront MiniApp` 仓按本文件补齐 API client 命名映射，明确每个页面依赖哪组接口。
 2. 在 `Platform` 仓继续把 `customer` 域做成后续 CRM 与企微绑定入口，但不改当前外部契约。
-3. 迁移相关执行与恢复，优先沿用三份 `customer` 文档。
+3. 迁移相关执行与恢复，优先沿用四段闭环的 `customer` 文档。
 4. 等双仓都稳定消费这份 v1 契约后，再讨论是否推出 v2 命名收口，而不是现在提前改路径。

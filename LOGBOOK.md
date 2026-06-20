@@ -13,6 +13,17 @@
 - **结论**:
   - MiniApp 接力计划的交付物列表现在也和客户迁移四段闭环口径一致，不再留有泛化的“后续建议”措辞。
 
+## [2026-06-20] - docs(architecture): 统一 API 契约页的 customer 闭环口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260620-platform-miniapp-contract-four-sections
+- **背景**: `platform-miniapp-api-contract-v1.md` 的 `v1 冻结建议` 与 `下一步建议` 里仍写着“三份 customer 文档”，这和当前已经完成的审计、正式迁移、迁移后核对、交接/回滚四段闭环不一致。为了避免契约页继续用旧口径描述 customer 迁移，需要把这两处改成四段闭环。
+- **变更范围**:
+  - `docs/architecture/platform-miniapp-api-contract-v1.md` - 将 customer 权威入口与迁移层、下一步建议统一为四段闭环口径。
+- **验证结果**:
+  - `Select-String -Path docs/architecture/platform-miniapp-api-contract-v1.md -Pattern "四段闭环|verify_youzan_customer_import|三份 customer"` 待执行。
+- **结论**:
+  - API 契约页现在也不再把 customer 迁移描述成“三份文档”，而是统一成审计、正式迁移、迁移后核对、交接/回滚四段闭环。
+
 ## [2026-06-20] - docs(architecture): 统一客户迁移闭环为四段口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-customer-loop-four-sections
