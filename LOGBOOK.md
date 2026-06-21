@@ -3,6 +3,24 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-21] - chore(release): 完成 P4 后双仓联动预检与残留口径收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260621-post-p4-release-sweep
+- **背景**: 后端 API 目录统一后，需要确认 Bot 主仓与 MiniApp 渠道仓是否仍能联动发布，并清理会误导后续维护的旧内部路径口径。
+- **变更范围**:
+  - `docs/AGENTS/quick-reference.md` - 将有赞 Webhook、后台根路由、后台前端入口、知识配置后台和观察台后台路径更新为 `app/api/integrations/*` 与 `app/api/admin/*` canonical 目录。
+  - `scripts/check_file_sizes.py` - 移除已完成拆分的旧 `app/api/webhook.py` 文件体量豁免，避免兼容壳继续被误认为真实大文件。
+  - MiniApp 仓 `scripts/release-readiness.mjs` - 将 backend transfer target tests 的服务测试路径从已迁移的 `tests/service/test_miniapp_chat.py` 更新为 `tests/service/test_storefront_conversation.py`。
+  - MiniApp 仓 `scripts/check-secret-hygiene.mjs` - 收紧 secret 扫描规则，避免把 `settings.*`、`process.env.*`、测试假 token、`*_TOKENS` 展示常量和 shell 写入命令误判为真实密钥。
+- **验证结果**:
+  - Bot `python scripts\preflight_production.py` 已执行，失败项为本地生产数据/配置环境缺口：customer 四表缺失、知识库 active_rows=0、人工接手人未配置；不是 API 目录收口导致。
+  - Bot `python scripts\smoke_test.py` 已执行，失败项为同一批本地数据/配置缺口以及 `http://127.0.0.1:7001` 服务未启动；不是 API 目录收口导致。
+  - MiniApp `npm run check:secrets` 通过。
+  - MiniApp `npm run release:readiness` 从 19/22 修复到 21/22，唯一剩余失败为生产 `/api/v1/miniapp/products` 中 4 个商品仍返回 `categoryId/categoryName = "商品"`；其他生产域名、后台浏览器、后台结构、小程序静态检查、typecheck 和后端目标测试均通过。
+  - Bot `python scripts\check_file_sizes.py`、`python scripts\check_project.py --skip-tests` 通过。
+- **结论**:
+  - P4 后代码联动面完好：MiniApp 无需因后端内部目录变化调整调用路径。当前唯一 release readiness 阻断来自生产商品分类数据质量，需要后续通过生产商品分类回填/同步修复，不属于本次目录收口回归。
+
 ## [2026-06-21] - refactor(api): 统一后端 API 目录结构
 - **操作人**: AI (Codex)
 - **trace_id**: 20260621-api-directory-unification

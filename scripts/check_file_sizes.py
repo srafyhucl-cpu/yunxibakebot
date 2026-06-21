@@ -29,7 +29,6 @@ IGNORE_DIRS = {"__pycache__", ".git", "venv", "node_modules", "migrations"}
 # 已知超线但尚未完成拆分的存量文件（仅发出警告，不阻断提交）
 # 完成拆分后请从此名单移除
 KNOWN_OVERSIZE = {
-    "app/api/webhook.py",  # 360行，有赞与托管消息双链路待继续拆分
     "app/repository/knowledge_repo.py",  # 254行，超出4行，待微调
     "app/repository/knowledge_product_repo.py",  # 271行，商城目录查询与分类序列化待拆分
     "app/repository/youzan_repo.py",  # 411行，有赞商品宽表与分类回写链路待拆分

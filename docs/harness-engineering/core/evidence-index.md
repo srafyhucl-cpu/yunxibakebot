@@ -17,6 +17,20 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## E-20260621-002：P4 后双仓联动预检与残留口径收口
+
+- trace_id: 20260621-post-p4-release-sweep
+- generated_at: 2026-06-21
+- evidence_type: release/doc-sweep/regression
+- file: `D:\Project\YunxiBakeBot\docs\AGENTS\quick-reference.md`; `D:\Project\YunxiBakeBot\scripts\check_file_sizes.py`; `D:\Project\YunxiBakeMiniApp\scripts\release-readiness.mjs`; `D:\Project\YunxiBakeMiniApp\scripts\check-secret-hygiene.mjs`; `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260621-090556.json`
+- command: `python scripts\preflight_production.py`; `python scripts\smoke_test.py`; MiniAPP `npm run check:secrets`; MiniAPP `npm run release:readiness`; Bot `python scripts\check_file_sizes.py`; Bot `python scripts\check_project.py --skip-tests`
+- result: partial-pass
+- related_logbook: 2026-06-21 - chore(release): 完成 P4 后双仓联动预检与残留口径收口
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记命令、报告路径和失败摘要；生产 API 响应片段不写入本索引
+- summary: 双仓代码联动面正常，MiniApp release readiness 已修复到 21/22；唯一剩余失败为生产商品列表中 4 个商品仍返回 `categoryId/categoryName = "商品"`。Bot 本地 preflight/smoke 失败来自本地生产数据/配置缺口和服务未启动，不属于 API 目录收口回归。
+
 ## E-20260621-001：后端 API 目录统一收口
 
 - trace_id: 20260621-api-directory-unification
