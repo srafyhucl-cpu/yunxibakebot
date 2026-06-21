@@ -17,6 +17,20 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## E-20260621-003：小程序商品泛化分类兜底修复
+
+- trace_id: 20260621-catalog-generic-category-guard
+- generated_at: 2026-06-21
+- evidence_type: bugfix/regression/release
+- file: `D:\Project\YunxiBakeBot\app\service\catalog\serialization.py`; `D:\Project\YunxiBakeBot\tests\service\test_catalog.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_catalog_api.py`; `D:\Project\YunxiBakeMiniApp\reports\production-api-check\production-miniapp-api-20260621-012007.json`; `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260621-092107.json`
+- command: Bot `python -m pytest tests\service\test_catalog.py tests\api\test_miniapp_catalog_api.py -q --tb=short --no-cov`; Bot `python -m compileall app\service\catalog tests\service\test_catalog.py tests\api\test_miniapp_catalog_api.py`; Bot `python scripts\check_project.py --skip-tests`; Bot `python scripts\check_file_sizes.py`; Bot `python scripts\check_mistake_ledger.py`; Bot `python -m ruff check app\service\catalog\serialization.py tests\service\test_catalog.py tests\api\test_miniapp_catalog_api.py`; MiniApp `npm run check:production-miniapp-api`; MiniApp `npm run release:readiness`
+- result: partial-pass
+- related_logbook: 2026-06-21 - fix(catalog): 阻止泛化标签穿透小程序商品分类
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记本地验证命令、生产门禁报告路径和失败摘要；不复制生产商品响应明细
+- summary: Bot 本地 catalog service/API 回归、编译、红线、体量和 ruff 均通过；MiniApp 生产门禁仍为 21/22，因为生产环境尚未部署本轮后端分类兜底修复。
+
 ## E-20260621-002：P4 后双仓联动预检与残留口径收口
 
 - trace_id: 20260621-post-p4-release-sweep

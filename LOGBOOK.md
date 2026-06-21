@@ -3,6 +3,24 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-21] - fix(catalog): 阻止泛化标签穿透小程序商品分类
+- **操作人**: AI (Codex)
+- **trace_id**: 20260621-catalog-generic-category-guard
+- **背景**: MiniApp release readiness 唯一剩余失败来自生产 `/api/v1/miniapp/products` 中少量商品返回 `categoryId/categoryName = "商品"`。排查确认 API 路径和目录收口无回归，问题源于商品目录序列化在无法解析公开有赞分类时，把同步关键词里的泛化标签当作分类兜底。
+- **变更范围**:
+  - `app/service/catalog/serialization.py` - 新增稳定兜底分类标题 `有赞同步商品`，并过滤 `商品`、`价格`、`推荐`、`在售`、纯数字和原始分类键前缀，避免无意义标签成为小程序分类。
+  - `tests/service/test_catalog.py` - 增加 service 回归测试，覆盖 `商品,价格,在售` 只走稳定有赞同步兜底分类。
+  - `tests/api/test_miniapp_catalog_api.py` - 增加 `/api/v1/miniapp/products` API 回归测试，确认外部响应不再透出 `商品` 分类。
+  - `docs/harness-engineering/core/evidence-index.md` - 登记本轮本地验证与 MiniApp 生产门禁复测报告路径。
+- **验证结果**:
+  - Bot `python -m pytest tests\service\test_catalog.py tests\api\test_miniapp_catalog_api.py -q --tb=short --no-cov` 通过。
+  - Bot `python -m compileall app\service\catalog tests\service\test_catalog.py tests\api\test_miniapp_catalog_api.py` 通过。
+  - Bot `python scripts\check_project.py --skip-tests`、`python scripts\check_file_sizes.py`、`python scripts\check_mistake_ledger.py`、`python -m ruff check app\service\catalog\serialization.py tests\service\test_catalog.py tests\api\test_miniapp_catalog_api.py` 通过；函数行数警告为既有非阻断项。
+  - MiniApp `npm run check:production-miniapp-api` 仍失败，报告 `reports\production-api-check\production-miniapp-api-20260621-012007.json` 显示生产商品列表仍未通过分类校验。
+  - MiniApp `npm run release:readiness` 仍为 21/22，报告 `reports\release-readiness\readiness-20260621-092107.json`；失败项仍为 production miniapp API smoke。
+- **结论**:
+  - 本地后端代码已修复并补齐回归测试；生产环境在部署本次 Bot 主仓变更前仍会返回旧分类结果，因此 readiness 需要部署后复测才能达到 22/22。
+
 ## [2026-06-21] - chore(release): 完成 P4 后双仓联动预检与残留口径收口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260621-post-p4-release-sweep

@@ -167,6 +167,26 @@ async def test_product_without_image_keeps_empty_image_url(
     assert product["imageUrl"] == ""
 
 
+async def test_generic_youzan_tags_do_not_leak_as_category(
+    db: aiosqlite.Connection,
+    service: CatalogApplicationService,
+) -> None:
+    """有赞同步噪声标签不应作为小程序商品分类返回。"""
+    await seed_catalog_product(
+        db,
+        item_id=65002,
+        title="泛化标签商品",
+        keywords="商品,价格,在售",
+        updated_at="2026-06-16 10:00:00",
+    )
+
+    product = await service.get_product("65002")
+
+    assert product is not None
+    assert product["categoryId"] == "youzan-products"
+    assert product["categoryName"] == "有赞同步商品"
+
+
 async def test_list_categories_and_filter_by_youzan_tag(
     db: aiosqlite.Connection,
     service: CatalogApplicationService,

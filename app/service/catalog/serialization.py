@@ -6,8 +6,17 @@ from app.models.knowledge import KnowledgeEntry
 from app.repository.youzan_repo import YouzanProductRepo
 
 FALLBACK_CATEGORY_ID = "youzan-products"
+FALLBACK_CATEGORY_TITLE = "有赞同步商品"
 DEFAULT_PRODUCT_NOTICE = "手工现制商品，请下单前确认取货或配送时间。"
 IMAGE_PROXY_PATH_TEMPLATE = "/api/v1/miniapp/products/{product_id}/image"
+GENERIC_CATEGORY_TOKENS = frozenset({"商品", "价格", "推荐", "在售"})
+RAW_CATEGORY_ID_PREFIXES = (
+    "youzan-",
+    "classification-",
+    "group-",
+    "second-group-",
+    "leaf-category-",
+)
 
 
 class CatalogProductSerializer:
@@ -76,8 +85,7 @@ class CatalogProductSerializer:
         )
         if tag_category is not None:
             return tag_category
-        fallback_id = infer_category_id(tags)
-        return {"id": fallback_id, "title": fallback_id}
+        return infer_category(tags)
 
     async def _resolve_classification_category(
         self,
@@ -133,8 +141,7 @@ class CatalogProductSerializer:
                     "title": str(category["title"]),
                 }
         if ordered_tag_ids:
-            fallback_id = infer_category_id(tags)
-            return {"id": fallback_id, "title": fallback_id}
+            return infer_category(tags)
         return None
 
 
@@ -155,9 +162,24 @@ def build_sold_text(sold_num: int, stock: int) -> str:
     return "可咨询客服"
 
 
-def infer_category_id(tags: list[str]) -> str:
-    """推导兜底分类 ID。"""
-    return tags[0] if tags else FALLBACK_CATEGORY_ID
+def infer_category(tags: list[str]) -> dict:
+    """推导兜底分类。"""
+    for tag in tags:
+        normalized_tag = tag.strip()
+        if is_specific_category_token(normalized_tag):
+            return {"id": normalized_tag, "title": normalized_tag}
+    return {"id": FALLBACK_CATEGORY_ID, "title": FALLBACK_CATEGORY_TITLE}
+
+
+def is_specific_category_token(tag: str) -> bool:
+    """判断标签是否适合作为前台分类。"""
+    if not tag:
+        return False
+    if tag in GENERIC_CATEGORY_TOKENS:
+        return False
+    if tag.isdigit():
+        return False
+    return not any(tag.startswith(prefix) for prefix in RAW_CATEGORY_ID_PREFIXES)
 
 
 def build_youzan_category_id(tag_id: str) -> str:

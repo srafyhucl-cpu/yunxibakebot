@@ -147,6 +147,31 @@ async def test_miniapp_products_api_lists_filters_and_reads_detail(
 
 
 @pytest.mark.asyncio
+async def test_miniapp_products_api_hides_generic_youzan_category(
+    db: aiosqlite.Connection,
+    app: FastAPI,
+) -> None:
+    """小程序商品接口不应把有赞泛化标签透出成分类。"""
+    await seed_miniapp_product(
+        db,
+        item_id=71004,
+        title="API 泛化标签商品",
+        keywords="商品,价格,在售",
+    )
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.get("/api/v1/miniapp/products")
+
+    assert response.status_code == 200
+    product = response.json()["data"][0]
+    assert product["categoryId"] == "youzan-products"
+    assert product["categoryName"] == "有赞同步商品"
+
+
+@pytest.mark.asyncio
 async def test_miniapp_product_image_proxy_fetches_configured_product_image(
     db: aiosqlite.Connection,
     app: FastAPI,
