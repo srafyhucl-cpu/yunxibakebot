@@ -1,67 +1,7 @@
-"""小程序收货地址 API。"""
+"""小程序收货地址 API 兼容入口。"""
 
-from typing import Any
+from app.api.channels.storefront.addresses import (
+    create_storefront_addresses_router as create_miniapp_addresses_router,
+)
 
-from fastapi import APIRouter, Header, HTTPException
-
-from app.constants.storefront import STOREFRONT_DEMO_USER_ID
-from app.service.customer import CustomerAddressService
-
-
-def _miniapp_user_id(value: str | None) -> str:
-    return (value or STOREFRONT_DEMO_USER_ID).strip() or STOREFRONT_DEMO_USER_ID
-
-
-def create_miniapp_addresses_router(service: CustomerAddressService) -> APIRouter:
-    """创建小程序地址簿路由。"""
-    router = APIRouter(prefix="/api/v1/miniapp/addresses", tags=["miniapp-addresses"])
-
-    @router.get("")
-    async def list_addresses(
-        x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
-    ) -> dict[str, Any]:
-        return {
-            "code": 0,
-            "data": await service.list_addresses(_miniapp_user_id(x_miniapp_user_id)),
-        }
-
-    @router.post("")
-    async def save_address(
-        payload: dict[str, Any],
-        x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
-    ) -> dict[str, Any]:
-        try:
-            item = await service.save_address(
-                payload, _miniapp_user_id(x_miniapp_user_id)
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return {"code": 0, "data": item}
-
-    @router.post("/{address_id}/default")
-    async def set_default_address(
-        address_id: str,
-        x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
-    ) -> dict[str, Any]:
-        try:
-            item = await service.set_default(
-                address_id, _miniapp_user_id(x_miniapp_user_id)
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return {"code": 0, "data": item}
-
-    @router.delete("/{address_id}")
-    async def delete_address(
-        address_id: str,
-        x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
-    ) -> dict[str, Any]:
-        try:
-            items = await service.delete_address(
-                address_id, _miniapp_user_id(x_miniapp_user_id)
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return {"code": 0, "data": items}
-
-    return router
+__all__ = ["create_miniapp_addresses_router"]

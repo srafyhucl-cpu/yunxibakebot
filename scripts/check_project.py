@@ -42,6 +42,18 @@ RED_LINE_RULES: tuple[ScanRule, ...] = (
         (APP_DIR,),
     ),
     ScanRule(
+        "miniapp API 仅作为兼容入口",
+        r"from fastapi import|APIRouter\(|@router\.",
+        (
+            APP_DIR / "api" / "miniapp_auth.py",
+            APP_DIR / "api" / "miniapp_addresses.py",
+            APP_DIR / "api" / "miniapp_catalog.py",
+            APP_DIR / "api" / "miniapp_chat.py",
+            APP_DIR / "api" / "miniapp_orders.py",
+            APP_DIR / "api" / "miniapp_payments.py",
+        ),
+    ),
+    ScanRule(
         "api 层禁止直接导入 repository", r"from app\.repository", (APP_DIR / "api",)
     ),
     ScanRule(

@@ -8,6 +8,7 @@
 - 真实服务实现已主要落在 `customer / order / catalog / conversation / channels/storefront / integrations / ops`。
 - 订单域、前台认证服务和 MiniApp API 内部默认用户已经改为依赖 `app.constants.storefront`，`app.constants.miniapp` 只保留兼容导出。
 - 服务测试文件名和商品测试 helper 已切到 canonical 语义；API 测试继续保留 `test_miniapp_*`，因为它们验证 `/api/v1/miniapp/*` 外部契约。
+- `app/api/channels/storefront/*` 已承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出；外部 `/api/v1/miniapp/*` 路径和 `x-miniapp-user-id` 请求头不变。
 - 下一阶段不应优先改 HTTP 路径、数据库表名或 MiniApp API 契约，而应继续压缩内部引用和文档入口里的历史命名。
 
 ## 当前分层现状
@@ -60,9 +61,9 @@
 - `lifespan` 真实装配继续优先使用 canonical service/repo key，旧 key 只通过集中 alias map 保留兼容。
 - 新代码仍不得新增 `app.service.miniapp_*` 依赖。
 
-### P4：API 文件夹切换设计，暂不实施
+### P4：API 文件夹切换
 
-未来可引入：
+已引入：
 
 ```text
 app/api/
@@ -82,7 +83,11 @@ app/api/
   miniapp_payments.py
 ```
 
-实施方式应是先让 `channels/storefront/*` 承载真实实现，再让 `miniapp_*.py` 退为兼容 wrapper；在明确 H5 或多渠道前台需求前，不新增 `/api/v1/storefront/*`。
+- `channels/storefront/*` 已承载真实前台 API 实现。
+- `miniapp_*.py` 已退为兼容 wrapper，只 re-export 旧函数名。
+- `lifespan_routes.py` 已优先导入 canonical storefront router。
+- `scripts/check_project.py` 已新增红线：`miniapp API 仅作为兼容入口`。
+- 在明确 H5 或多渠道前台需求前，仍不新增 `/api/v1/storefront/*`。
 
 ### P5：SaaS / 多租户阶段再评估
 
@@ -112,8 +117,8 @@ app/api/
 5. **已完成：miniapp service facade 审计**
    - 未发现仍承载真实逻辑的 facade。
 
-6. **后续单独设计：`app/api/channels/storefront` 目录切换**
-   - 触发条件是 MiniApp 仓边界稳定、后端 P1-P3 全部完成，并且出现明确多渠道入口需求。
+6. **已完成：`app/api/channels/storefront` 目录切换**
+   - 真实前台 API 实现已迁入 canonical 目录，MiniApp API 文件保留为兼容导出。
 
 ## 验证要求
 
@@ -131,4 +136,4 @@ app/api/
 
 ## 当前判断
 
-`Platform` 的服务层和服务测试已经完成本轮真实收口。短期只应继续压内部新增依赖和文档入口，不应改仓库名、外部 MiniApp API、请求头、历史表名、迁移文件或微信平台配置名。API 目录切换和 `/api/v1/storefront/*` 属于多渠道产品化阶段，需要单独设计和验收。
+`Platform` 的服务层、服务测试和前台 API 真实实现目录已经完成本轮收口。短期只应继续压内部新增依赖和文档入口，不应改仓库名、外部 MiniApp API、请求头、历史表名、迁移文件或微信平台配置名。`/api/v1/storefront/*` 属于多渠道产品化阶段，需要单独设计和验收。

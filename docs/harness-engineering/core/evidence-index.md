@@ -1424,3 +1424,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记架构收口与本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: 订单域、前台认证服务和 MiniApp API 内部默认用户已切到 storefront 常量；服务测试与商品测试 helper 已迁到 canonical 领域语义；旧 MiniApp API 契约、请求头、历史表名、迁移文件和微信平台配置保持不变。
+
+## E-20260621-001：前台渠道 API 目录切换 P4
+
+- trace_id: 20260621-storefront-api-directory
+- generated_at: 2026-06-21
+- evidence_type: refactor/test/guardrail
+- file: `D:\Project\YunxiBakeBot\app\api\channels\storefront\auth.py`; `D:\Project\YunxiBakeBot\app\api\channels\storefront\orders.py`; `D:\Project\YunxiBakeBot\app\api\miniapp_orders.py`; `D:\Project\YunxiBakeBot\app\lifespan_routes.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\tests\test_red_line_rules.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/test_red_line_rules.py tests/test_lifespan_routes_services.py tests/api/test_miniapp_auth_api.py tests/api/test_miniapp_catalog_api.py tests/api/test_miniapp_chat_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/api/test_miniapp_address_api.py -q --tb=short --no-cov`; `python -m compileall app\api\channels app\api\miniapp_auth.py app\api\miniapp_catalog.py app\api\miniapp_addresses.py app\api\miniapp_chat.py app\api\miniapp_orders.py app\api\miniapp_payments.py app\lifespan_routes.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_project.py`; MiniAPP `npm run check:miniapp`; MiniAPP `npm run typecheck`
+- result: pass
+- related_logbook: 2026-06-21 - refactor(api): 完成前台渠道 API 目录切换 P4
+- related_adr: ADR 0002
+- contains_sensitive_data: no
+- retention_note: 仅登记 API 目录切换和本地验证命令结论，不包含客户数据或导出 CSV。
+- summary: `app/api/channels/storefront/*` 承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出，`lifespan` 装配优先使用 canonical router；新增红线防止 MiniApp API 兼容文件重新承载真实 FastAPI router。外部 `/api/v1/miniapp/*` 和 `x-miniapp-user-id` 保持不变。

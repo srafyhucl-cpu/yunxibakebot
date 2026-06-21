@@ -3,6 +3,25 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-21] - refactor(api): 完成前台渠道 API 目录切换 P4
+- **操作人**: AI (Codex)
+- **trace_id**: 20260621-storefront-api-directory
+- **背景**: P1-P3 已把服务层、测试 helper 和兼容 facade 收口到 canonical 领域语义；继续推进 P4 时，需要让 `app/api/channels/storefront/*` 承载真实前台 API 实现，同时保持既有 MiniApp 外部路径、请求头和契约不变。
+- **变更范围**:
+  - `app/api/channels/storefront/*` - 新增前台渠道 API 真实实现目录，承载 auth、addresses、catalog、chat、orders、payments 路由实现；路由 prefix 仍为 `/api/v1/miniapp/*`。
+  - `app/api/miniapp_*.py` - 压缩为兼容 re-export，仅保留旧函数名导出，不再承载 FastAPI router 实现。
+  - `app/lifespan_routes.py` - 路由装配改为优先导入 `app.api.channels.storefront.*` 的 canonical router。
+  - `scripts/check_project.py`、`tests/test_red_line_rules.py` - 新增红线 `miniapp API 仅作为兼容入口`，防止真实 router 逻辑回流到 `app/api/miniapp_*.py`。
+  - `docs/architecture/platform-domain-migration-inventory.md`、`项目进度与配置清单.md` - 更新 P4 状态，明确内部目录切换已完成，仍不新增 `/api/v1/storefront/*`。
+- **验证结果**:
+  - `python -m pytest tests/test_red_line_rules.py tests/test_lifespan_routes_services.py tests/api/test_miniapp_auth_api.py tests/api/test_miniapp_catalog_api.py tests/api/test_miniapp_chat_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/api/test_miniapp_address_api.py -q --tb=short --no-cov` 通过。
+  - `python -m compileall app\api\channels app\api\miniapp_auth.py app\api\miniapp_catalog.py app\api\miniapp_addresses.py app\api\miniapp_chat.py app\api\miniapp_orders.py app\api\miniapp_payments.py app\lifespan_routes.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过；新增红线已生效，函数行数警告为既有非阻断项。
+  - `python scripts/check_project.py` 通过；完整 pytest 通过，覆盖率 75.58%。
+  - MiniAPP 仓 `npm run check:miniapp`、`npm run typecheck` 通过，确认外部 MiniApp 契约保持兼容。
+- **结论**:
+  - P4 已完成内部 API 目录切换：真实前台 API 实现位于 `channels/storefront`，旧 `miniapp_*` API 文件只作为兼容入口；外部 MiniApp 契约、请求头、历史数据表和微信平台配置保持不变，`/api/v1/storefront/*` 仍不开放。
+
 ## [2026-06-20] - refactor(platform): 完成 Platform 架构收口 P1-P3
 - **操作人**: AI (Codex)
 - **trace_id**: 20260620-platform-architecture-closure

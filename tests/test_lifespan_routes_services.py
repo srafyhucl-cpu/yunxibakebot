@@ -101,33 +101,39 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
-        "app.api.miniapp_auth",
-        create_miniapp_auth_router=lambda service: ("miniapp-auth", service),
+        "app.api.channels.storefront.auth",
+        create_storefront_auth_router=lambda service: ("miniapp-auth", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.miniapp_addresses",
-        create_miniapp_addresses_router=lambda service: ("miniapp-addresses", service),
+        "app.api.channels.storefront.addresses",
+        create_storefront_addresses_router=lambda service: (
+            "miniapp-addresses",
+            service,
+        ),
     )
     _install_module(
         monkeypatch,
-        "app.api.miniapp_catalog",
-        create_miniapp_catalog_router=lambda service: ("miniapp-catalog", service),
+        "app.api.channels.storefront.catalog",
+        create_storefront_catalog_router=lambda service: ("miniapp-catalog", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.miniapp_chat",
-        create_miniapp_chat_router=lambda service: ("miniapp-chat", service),
+        "app.api.channels.storefront.chat",
+        create_storefront_chat_router=lambda service: ("miniapp-chat", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.miniapp_orders",
-        create_miniapp_orders_router=lambda service: ("miniapp-orders", service),
+        "app.api.channels.storefront.orders",
+        create_storefront_orders_router=lambda service: ("miniapp-orders", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.miniapp_payments",
-        create_miniapp_payments_router=lambda service: ("miniapp-payments", service),
+        "app.api.channels.storefront.payments",
+        create_storefront_payments_router=lambda service: (
+            "miniapp-payments",
+            service,
+        ),
     )
     _install_module(
         monkeypatch,

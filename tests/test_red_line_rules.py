@@ -9,13 +9,11 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 # 将项目根目录加入 sys.path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.check_project import RED_LINE_RULES, ScanRule, scan_rule
+from scripts.check_project import RED_LINE_RULES, ScanRule, scan_rule  # noqa: E402
 
 
 class TestRedLineRuleViolations:
@@ -116,99 +114,114 @@ def parse(value: str | int) -> str:
         code = """from app.service.order.payment_runtime import OrderPaymentRuntimeService\n"""
         self._assert_no_violations(RED_LINE_RULES[3], code)
 
-    # ── 规则 5: api 层禁止直接导入 repository ───────────────────────────────────
+    # ── 规则 5: miniapp API 仅作为兼容入口 ─────────────────────────────────────
 
-    def test_rule_5_api_import_repo_violation(self) -> None:
-        """检测 api 层直接导入 repository。"""
-        code = """from app.repository.message_repo import MessageRepo\n"""
-        self._assert_violations(RED_LINE_RULES[4], code)
+    def test_rule_5_miniapp_api_real_router_violation(self) -> None:
+        """检测 miniapp API 兼容文件重新承载真实路由实现。"""
+        code = """from fastapi import APIRouter\nrouter = APIRouter()\n"""
+        self._assert_violations(RED_LINE_RULES[4], code, expected_line_count=2)
 
-    def test_rule_5_api_import_repo_compliant(self) -> None:
-        """api 层导入 service 不误报。"""
-        code = """from app.service.chat import ChatService\n"""
+    def test_rule_5_miniapp_api_wrapper_compliant(self) -> None:
+        """miniapp API 兼容文件只导出 storefront canonical 路由。"""
+        code = (
+            "from app.api.channels.storefront.orders import "
+            "create_storefront_orders_router as create_miniapp_orders_router\n"
+        )
         self._assert_no_violations(RED_LINE_RULES[4], code)
 
-    # ── 规则 6: service 层禁止直连 aiosqlite ────────────────────────────────────
+    # ── 规则 6: api 层禁止直接导入 repository ───────────────────────────────────
 
-    def test_rule_6_service_aiosqlite_violation(self) -> None:
-        """检测 service 层直接导入 aiosqlite。"""
-        code = """import aiosqlite\nconn = aiosqlite.connect(":memory:")\n"""
+    def test_rule_6_api_import_repo_violation(self) -> None:
+        """检测 api 层直接导入 repository。"""
+        code = """from app.repository.message_repo import MessageRepo\n"""
         self._assert_violations(RED_LINE_RULES[5], code)
 
-    def test_rule_6_service_aiosqlite_compliant(self) -> None:
-        """service 层通过 repository 访问数据库不误报。"""
-        code = """from app.repository.database import db_session_scope\n"""
+    def test_rule_6_api_import_repo_compliant(self) -> None:
+        """api 层导入 service 不误报。"""
+        code = """from app.service.chat import ChatService\n"""
         self._assert_no_violations(RED_LINE_RULES[5], code)
 
-    # ── 规则 7: models 层禁止引用上层模块 ────────────────────────────────────────
+    # ── 规则 7: service 层禁止直连 aiosqlite ────────────────────────────────────
 
-    def test_rule_7_models_upper_violation(self) -> None:
-        """检测 models 层引用 service/repository/api。"""
-        code = """from app.service.wecom.client import send_message\n"""
+    def test_rule_7_service_aiosqlite_violation(self) -> None:
+        """检测 service 层直接导入 aiosqlite。"""
+        code = """import aiosqlite\nconn = aiosqlite.connect(":memory:")\n"""
         self._assert_violations(RED_LINE_RULES[6], code)
 
-    def test_rule_7_models_upper_compliant(self) -> None:
-        """models 层只使用标准库和 pydantic 不误报。"""
-        code = """from pydantic import BaseModel\nfrom datetime import datetime\n"""
+    def test_rule_7_service_aiosqlite_compliant(self) -> None:
+        """service 层通过 repository 访问数据库不误报。"""
+        code = """from app.repository.database import db_session_scope\n"""
         self._assert_no_violations(RED_LINE_RULES[6], code)
 
-    # ── 规则 8: 禁止 SQL f-string 拼接 ──────────────────────────────────────────
+    # ── 规则 8: models 层禁止引用上层模块 ────────────────────────────────────────
 
-    def test_rule_8_sql_fstring_violation(self) -> None:
-        """检测 SQL f-string 拼接。"""
-        code = 'sql = f"SELECT * FROM users WHERE id = {uid}"\n'
+    def test_rule_8_models_upper_violation(self) -> None:
+        """检测 models 层引用 service/repository/api。"""
+        code = """from app.service.wecom.client import send_message\n"""
         self._assert_violations(RED_LINE_RULES[7], code)
 
-    def test_rule_8_sql_fstring_compliant(self) -> None:
-        """参数化查询不误报。"""
-        code = 'sql = "SELECT id, name FROM users WHERE id = ?"\n'
+    def test_rule_8_models_upper_compliant(self) -> None:
+        """models 层只使用标准库和 pydantic 不误报。"""
+        code = """from pydantic import BaseModel\nfrom datetime import datetime\n"""
         self._assert_no_violations(RED_LINE_RULES[7], code)
 
-    # ── 规则 9: 禁止静默吞异常 ───────────────────────────────────────────────────
+    # ── 规则 9: 禁止 SQL f-string 拼接 ──────────────────────────────────────────
 
-    def test_rule_9_silent_except_violation(self) -> None:
-        """检测 except: pass（单行）。"""
-        code = "try:\n    risky()\nexcept: pass\n"
+    def test_rule_9_sql_fstring_violation(self) -> None:
+        """检测 SQL f-string 拼接。"""
+        code = 'sql = f"SELECT * FROM users WHERE id = {uid}"\n'
         self._assert_violations(RED_LINE_RULES[8], code)
 
-    def test_rule_9_silent_except_compliant(self) -> None:
-        """有日志记录的异常处理不误报。"""
-        code = "try:\n    risky()\nexcept Exception:\n    logger.error('失败')\n"
+    def test_rule_9_sql_fstring_compliant(self) -> None:
+        """参数化查询不误报。"""
+        code = 'sql = "SELECT id, name FROM users WHERE id = ?"\n'
         self._assert_no_violations(RED_LINE_RULES[8], code)
 
-    # ── 规则 10: 禁止硬编码密钥 ─────────────────────────────────────────────────
+    # ── 规则 10: 禁止静默吞异常 ───────────────────────────────────────────────────
 
-    def test_rule_10_hardcoded_key_violation(self) -> None:
-        """检测硬编码 api_key。"""
-        code = 'api_key = "sk-xxxxxxxxxxxxxxx"\n'
+    def test_rule_10_silent_except_violation(self) -> None:
+        """检测 except: pass（单行）。"""
+        code = "try:\n    risky()\nexcept: pass\n"
         self._assert_violations(RED_LINE_RULES[9], code)
 
-    def test_rule_10_hardcoded_key_compliant(self) -> None:
-        """通过 config 获取密钥不误报。"""
-        code = "from app.config import settings\napi_key = settings.DEEPSEEK_API_KEY\n"
+    def test_rule_10_silent_except_compliant(self) -> None:
+        """有日志记录的异常处理不误报。"""
+        code = "try:\n    risky()\nexcept Exception:\n    logger.error('失败')\n"
         self._assert_no_violations(RED_LINE_RULES[9], code)
 
-    # ── 规则 11: app 内禁止裸 print ─────────────────────────────────────────────
+    # ── 规则 11: 禁止硬编码密钥 ─────────────────────────────────────────────────
 
-    def test_rule_11_bare_print_violation(self) -> None:
+    def test_rule_11_hardcoded_key_violation(self) -> None:
+        """检测硬编码 api_key。"""
+        code = 'api_key = "sk-xxxxxxxxxxxxxxx"\n'
+        self._assert_violations(RED_LINE_RULES[10], code)
+
+    def test_rule_11_hardcoded_key_compliant(self) -> None:
+        """通过 config 获取密钥不误报。"""
+        code = "from app.config import settings\napi_key = settings.DEEPSEEK_API_KEY\n"
+        self._assert_no_violations(RED_LINE_RULES[10], code)
+
+    # ── 规则 12: app 内禁止裸 print ─────────────────────────────────────────────
+
+    def test_rule_12_bare_print_violation(self) -> None:
         """检测函数体内裸 print 调用。"""
         code = """
 def debug() -> None:
     print("hello world")
 """
-        self._assert_violations(RED_LINE_RULES[10], code)
+        self._assert_violations(RED_LINE_RULES[11], code)
 
-    def test_rule_11_bare_print_compliant(self) -> None:
+    def test_rule_12_bare_print_compliant(self) -> None:
         """使用 logger 不误报。"""
         code = """
 def debug() -> None:
     logger.debug("hello world")
 """
-        self._assert_no_violations(RED_LINE_RULES[10], code)
+        self._assert_no_violations(RED_LINE_RULES[11], code)
 
-    # ── 规则 12: 禁止英文注释 ───────────────────────────────────────────────────
+    # ── 规则 13: 禁止英文注释 ───────────────────────────────────────────────────
 
-    def test_rule_12_english_comment_violation(self) -> None:
+    def test_rule_13_english_comment_violation(self) -> None:
         """检测英文注释。"""
         code = """
 # This is an English comment
@@ -216,9 +229,9 @@ def debug() -> None:
 def get_user() -> None:
     pass
 """
-        self._assert_violations(RED_LINE_RULES[11], code, expected_line_count=2)
+        self._assert_violations(RED_LINE_RULES[12], code, expected_line_count=2)
 
-    def test_rule_12_english_comment_compliant(self) -> None:
+    def test_rule_13_english_comment_compliant(self) -> None:
         """中文注释不误报。"""
         code = """
 # 这是中文注释
@@ -226,20 +239,21 @@ def get_user() -> None:
 def get_user() -> None:
     pass
 """
-        self._assert_no_violations(RED_LINE_RULES[11], code)
+        self._assert_no_violations(RED_LINE_RULES[12], code)
 
 
 class TestRedLineRuleCoverage:
-    """验证全部 12 条红线规则均已定义且各有自测。"""
+    """验证全部 13 条红线规则均已定义且各有自测。"""
 
-    def test_all_eleven_rules_defined(self) -> None:
-        """确保 RED_LINE_RULES 包含全部 12 条规则。"""
+    def test_all_rules_defined(self) -> None:
+        """确保 RED_LINE_RULES 包含全部 13 条规则。"""
         rule_names = [r.name for r in RED_LINE_RULES]
         expected = [
             "禁止 Optional/Union",
             "禁止 TODO 占位",
             "禁止 SELECT 星号",
             "app 内禁止依赖 miniapp service 兼容层",
+            "miniapp API 仅作为兼容入口",
             "api 层禁止直接导入 repository",
             "service 层禁止直连 aiosqlite",
             "models 层禁止引用上层模块",
@@ -251,8 +265,8 @@ class TestRedLineRuleCoverage:
         ]
         for name in expected:
             assert name in rule_names, f"缺失规则: {name}"
-        assert len(RED_LINE_RULES) == 12, (
-            f"预期 12 条规则，实际 {len(RED_LINE_RULES)} 条"
+        assert len(RED_LINE_RULES) == 13, (
+            f"预期 13 条规则，实际 {len(RED_LINE_RULES)} 条"
         )
 
     def test_each_rule_has_violation_test(self) -> None:
@@ -262,14 +276,15 @@ class TestRedLineRuleCoverage:
             "禁止 TODO 占位": "test_rule_2_todo_violation",
             "禁止 SELECT 星号": "test_rule_3_select_star_violation",
             "app 内禁止依赖 miniapp service 兼容层": "test_rule_4_import_miniapp_service_violation",
-            "api 层禁止直接导入 repository": "test_rule_5_api_import_repo_violation",
-            "service 层禁止直连 aiosqlite": "test_rule_6_service_aiosqlite_violation",
-            "models 层禁止引用上层模块": "test_rule_7_models_upper_violation",
-            "禁止 SQL f-string 拼接": "test_rule_8_sql_fstring_violation",
-            "禁止静默吞异常": "test_rule_9_silent_except_violation",
-            "禁止硬编码密钥": "test_rule_10_hardcoded_key_violation",
-            "app 内禁止裸 print": "test_rule_11_bare_print_violation",
-            "禁止英文注释": "test_rule_12_english_comment_violation",
+            "miniapp API 仅作为兼容入口": "test_rule_5_miniapp_api_real_router_violation",
+            "api 层禁止直接导入 repository": "test_rule_6_api_import_repo_violation",
+            "service 层禁止直连 aiosqlite": "test_rule_7_service_aiosqlite_violation",
+            "models 层禁止引用上层模块": "test_rule_8_models_upper_violation",
+            "禁止 SQL f-string 拼接": "test_rule_9_sql_fstring_violation",
+            "禁止静默吞异常": "test_rule_10_silent_except_violation",
+            "禁止硬编码密钥": "test_rule_11_hardcoded_key_violation",
+            "app 内禁止裸 print": "test_rule_12_bare_print_violation",
+            "禁止英文注释": "test_rule_13_english_comment_violation",
         }
         for rule_name, test_name in violation_tests.items():
             assert hasattr(TestRedLineRuleViolations, test_name), (
@@ -283,14 +298,15 @@ class TestRedLineRuleCoverage:
             "禁止 TODO 占位": "test_rule_2_todo_compliant",
             "禁止 SELECT 星号": "test_rule_3_select_star_compliant",
             "app 内禁止依赖 miniapp service 兼容层": "test_rule_4_import_miniapp_service_compliant",
-            "api 层禁止直接导入 repository": "test_rule_5_api_import_repo_compliant",
-            "service 层禁止直连 aiosqlite": "test_rule_6_service_aiosqlite_compliant",
-            "models 层禁止引用上层模块": "test_rule_7_models_upper_compliant",
-            "禁止 SQL f-string 拼接": "test_rule_8_sql_fstring_compliant",
-            "禁止静默吞异常": "test_rule_9_silent_except_compliant",
-            "禁止硬编码密钥": "test_rule_10_hardcoded_key_compliant",
-            "app 内禁止裸 print": "test_rule_11_bare_print_compliant",
-            "禁止英文注释": "test_rule_12_english_comment_compliant",
+            "miniapp API 仅作为兼容入口": "test_rule_5_miniapp_api_wrapper_compliant",
+            "api 层禁止直接导入 repository": "test_rule_6_api_import_repo_compliant",
+            "service 层禁止直连 aiosqlite": "test_rule_7_service_aiosqlite_compliant",
+            "models 层禁止引用上层模块": "test_rule_8_models_upper_compliant",
+            "禁止 SQL f-string 拼接": "test_rule_9_sql_fstring_compliant",
+            "禁止静默吞异常": "test_rule_10_silent_except_compliant",
+            "禁止硬编码密钥": "test_rule_11_hardcoded_key_compliant",
+            "app 内禁止裸 print": "test_rule_12_bare_print_compliant",
+            "禁止英文注释": "test_rule_13_english_comment_compliant",
         }
         for rule_name, test_name in compliance_tests.items():
             assert hasattr(TestRedLineRuleViolations, test_name), (

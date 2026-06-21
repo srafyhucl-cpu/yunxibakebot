@@ -60,6 +60,7 @@ await db.execute("SELECT id, content, created_at FROM messages WHERE id = ?", (m
 | 红线 | 说明 |
 |------|------|
 | 禁止 `api/` 直接导入 `repository/` | 必须经过 `service/` 层 |
+| 禁止 `app/api/miniapp_*.py` 承载真实 Router | MiniApp API 文件只做兼容入口，真实实现放在 `app/api/channels/storefront/` |
 | 禁止 `service/` 直接调用 `aiosqlite` | 必须经过 `repository/` 层 |
 | 禁止 `models/` 引用上层模块 | `models/` 只依赖标准库和 pydantic |
 
@@ -75,8 +76,19 @@ api/ → service/ → repository/ → models/
 # app/api/webhook.py
 from app.repository.message_repo import MessageRepo  # ❌ 穿透 service 层
 
+# app/api/miniapp_orders.py
+from fastapi import APIRouter  # ❌ 兼容入口不承载真实 Router
+
 # app/models/session.py
 from app.repository.database import db  # ❌ models 引用上层
+```
+
+**合规示例**：
+```python
+# app/api/miniapp_orders.py
+from app.api.channels.storefront.orders import (
+    create_storefront_orders_router as create_miniapp_orders_router,
+)
 ```
 
 ---
