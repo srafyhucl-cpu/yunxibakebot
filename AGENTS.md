@@ -59,7 +59,7 @@ ______________________________________________________________________
 | 禁止 `# TODO` 占位符 | 要么实现，要么删除 |
 | 禁止 `SELECT *` | 必须明确列出字段 |
 | 禁止 `api/` 直接导入 `repository/` | 必须经过 `service/` |
-| 禁止 `app/api/miniapp_*.py` 承载真实 Router | MiniApp API 文件只做兼容入口，真实实现放在 `app/api/channels/storefront/` |
+| 禁止根 API 兼容文件承载真实 Router | `app/api/miniapp_*.py`、`admin_*.py`、`webhook.py`、`wecom.py`、`channel_router.py` 只做兼容入口，真实实现放在 canonical 子目录 |
 | 禁止 `service/` 直接调用 `aiosqlite` | 必须经过 `repository/` |
 | 禁止 `models/` 引用上层模块 | `models/` 只依赖标准库和 pydantic |
 | 禁止 SQL f-string 拼接 | 必须使用 `?` 参数化绑定 |

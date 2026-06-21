@@ -64,8 +64,8 @@ def create_admin_router(
     transfer_mgr: TransferManager,
 ) -> APIRouter:
     """工厂函数：注入依赖后返回完整路由实例（页面 + API）。"""
-    from app.api.admin_dialog import create_dialog_router
-    from app.api.admin_transfer import create_transfer_router
+    from app.api.admin.dialog import create_dialog_router
+    from app.api.admin.transfer import create_transfer_router
 
     router = APIRouter(tags=["admin"])
 

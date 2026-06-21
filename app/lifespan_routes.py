@@ -12,15 +12,15 @@ from fastapi import FastAPI
 def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     """注册所有 API 路由，并启动消息队列 Worker。"""
     from app.api.admin import create_admin_router
-    from app.api.admin_addresses import create_admin_addresses_router
-    from app.api.admin_assets import create_admin_assets_router
-    from app.api.admin_config import create_shop_config_router
-    from app.api.admin_frontend import create_admin_frontend_router
-    from app.api.admin_knowledge import create_admin_knowledge_router
-    from app.api.admin_observability import create_observability_router
-    from app.api.admin_orders import create_admin_orders_router
-    from app.api.admin_products import create_admin_products_router
-    from app.api.admin_shop_pages import create_shop_page_config_router
+    from app.api.admin.addresses import create_admin_addresses_router
+    from app.api.admin.assets import create_admin_assets_router
+    from app.api.admin.config import create_shop_config_router
+    from app.api.admin.frontend import create_admin_frontend_router
+    from app.api.admin.knowledge import create_admin_knowledge_router
+    from app.api.admin.observability import create_observability_router
+    from app.api.admin.orders import create_admin_orders_router
+    from app.api.admin.products import create_admin_products_router
+    from app.api.admin.shop_pages import create_shop_page_config_router
     from app.api.channels.storefront.addresses import (
         create_storefront_addresses_router,
     )
@@ -29,8 +29,8 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.channels.storefront.chat import create_storefront_chat_router
     from app.api.channels.storefront.orders import create_storefront_orders_router
     from app.api.channels.storefront.payments import create_storefront_payments_router
-    from app.api.webhook import create_webhook_router
-    from app.api.wecom import router as wecom_router
+    from app.api.integrations.wecom import router as wecom_router
+    from app.api.integrations.youzan_webhook import create_webhook_router
     from app.service.wecom.kf_message_queue import kf_queue
     from app.service.wecom.message_queue import wecom_queue
 

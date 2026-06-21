@@ -3,6 +3,26 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-21] - refactor(api): 统一后端 API 目录结构
+- **操作人**: AI (Codex)
+- **trace_id**: 20260621-api-directory-unification
+- **背景**: P4 已先完成前台 `channels/storefront` 目录切换，但后端主仓 `app/api/` 根目录仍混有后台、渠道聚合、有赞 Webhook 和企微回调真实实现。为符合 Platform 分层设计，本轮继续把 API 真实实现按职责收口到 canonical 子目录，同时保持所有外部 HTTP 路径不变。
+- **变更范围**:
+  - `app/api/admin/*` - 承载后台页面、后台配置、装修素材、地址、订单、商品、知识库、观察台、转人工等后台 API 真实实现；`app/api/admin/__init__.py` 继续导出鉴权工具和后台根路由。
+  - `app/api/channels/router.py` - 承载渠道聚合 router，旧 `app/api/channel_router.py` 退为兼容模块别名。
+  - `app/api/integrations/*` - 承载有赞 Webhook、Webhook helper 和企微回调真实实现；旧 `webhook.py`、`webhook_helpers.py`、`wecom.py` 退为兼容模块别名。
+  - `app/api/integrations/youzan_audit.py` - 承接有赞 Webhook 审计创建和状态更新，避免 Webhook 路由入口超过文件体量硬上限。
+  - `app/api/admin_*.py` - 退为兼容模块别名，历史 import 和测试 monkeypatch 仍指向 canonical 模块对象。
+  - `app/lifespan_routes.py` - 路由装配改为优先导入 `admin/`、`channels/storefront/`、`integrations/` canonical router。
+  - `scripts/check_project.py`、`tests/test_red_line_rules.py`、`AGENTS.md`、`docs/AGENTS/coding-red-lines.md` - 将红线扩展为 `根 API 兼容文件仅作为兼容入口`，防止真实 Router 回流到旧根文件。
+- **验证结果**:
+  - `python -m compileall app\api app\lifespan_routes.py` 通过。
+  - `python -m pytest tests\test_red_line_rules.py -q --tb=short --no-cov` 通过。
+  - `python -m pytest tests\test_lifespan_routes_services.py tests\api tests\service\youzan\test_webhook_retry.py -q --tb=short --no-cov` 通过。
+  - `python scripts\check_project.py` 通过；完整 pytest 通过，覆盖率 76.23%；函数行数警告为既有非阻断项。
+- **结论**:
+  - P4 已从“前台 API 目录切换”扩展为“后端主仓 API 目录统一”：真实实现统一落到 canonical 子目录，根目录旧 API 文件只作为兼容入口；`/api/v1/admin/*`、`/api/v1/miniapp/*`、`/api/v1/webhook/*`、`/api/v1/wecom/*` 外部契约保持不变。
+
 ## [2026-06-21] - refactor(api): 完成前台渠道 API 目录切换 P4
 - **操作人**: AI (Codex)
 - **trace_id**: 20260621-storefront-api-directory

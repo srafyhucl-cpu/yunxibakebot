@@ -16,6 +16,30 @@ APP_DIR = ROOT_DIR / "app"
 PYTHON_EXT = ".py"
 TEXT_ENCODING = "utf-8"
 
+ROOT_API_COMPAT_FILES: tuple[Path, ...] = (
+    APP_DIR / "api" / "admin_addresses.py",
+    APP_DIR / "api" / "admin_assets.py",
+    APP_DIR / "api" / "admin_config.py",
+    APP_DIR / "api" / "admin_dialog.py",
+    APP_DIR / "api" / "admin_frontend.py",
+    APP_DIR / "api" / "admin_knowledge.py",
+    APP_DIR / "api" / "admin_observability.py",
+    APP_DIR / "api" / "admin_orders.py",
+    APP_DIR / "api" / "admin_products.py",
+    APP_DIR / "api" / "admin_shop_pages.py",
+    APP_DIR / "api" / "admin_transfer.py",
+    APP_DIR / "api" / "channel_router.py",
+    APP_DIR / "api" / "miniapp_auth.py",
+    APP_DIR / "api" / "miniapp_addresses.py",
+    APP_DIR / "api" / "miniapp_catalog.py",
+    APP_DIR / "api" / "miniapp_chat.py",
+    APP_DIR / "api" / "miniapp_orders.py",
+    APP_DIR / "api" / "miniapp_payments.py",
+    APP_DIR / "api" / "webhook.py",
+    APP_DIR / "api" / "webhook_helpers.py",
+    APP_DIR / "api" / "wecom.py",
+)
+
 
 @dataclass(frozen=True)
 class ScanRule:
@@ -42,16 +66,9 @@ RED_LINE_RULES: tuple[ScanRule, ...] = (
         (APP_DIR,),
     ),
     ScanRule(
-        "miniapp API 仅作为兼容入口",
+        "根 API 兼容文件仅作为兼容入口",
         r"from fastapi import|APIRouter\(|@router\.",
-        (
-            APP_DIR / "api" / "miniapp_auth.py",
-            APP_DIR / "api" / "miniapp_addresses.py",
-            APP_DIR / "api" / "miniapp_catalog.py",
-            APP_DIR / "api" / "miniapp_chat.py",
-            APP_DIR / "api" / "miniapp_orders.py",
-            APP_DIR / "api" / "miniapp_payments.py",
-        ),
+        ROOT_API_COMPAT_FILES,
     ),
     ScanRule(
         "api 层禁止直接导入 repository", r"from app\.repository", (APP_DIR / "api",)

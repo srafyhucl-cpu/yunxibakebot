@@ -17,6 +17,20 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## E-20260621-001：后端 API 目录统一收口
+
+- trace_id: 20260621-api-directory-unification
+- generated_at: 2026-06-21
+- evidence_type: refactor/regression
+- file: `D:\Project\YunxiBakeBot\app\api\admin\`; `D:\Project\YunxiBakeBot\app\api\channels\`; `D:\Project\YunxiBakeBot\app\api\integrations\`; `D:\Project\YunxiBakeBot\app\api\integrations\youzan_audit.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\tests\test_red_line_rules.py`
+- command: `python -m compileall app\api app\lifespan_routes.py`; `python -m pytest tests\test_red_line_rules.py tests\test_lifespan_routes_services.py tests\api tests\service\youzan\test_webhook_retry.py -q --tb=short --no-cov`; `python scripts\check_project.py`
+- result: pass
+- related_logbook: 2026-06-21 - refactor(api): 统一后端 API 目录结构
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录目录收口、红线自测和 API 回归命令，不含业务数据
+- summary: 后端主仓 API 真实实现已统一收口到 admin、channels/storefront、integrations；根目录历史 API 文件仅保留兼容入口，外部 HTTP 路径保持不变。
+
 ## E-20260617-046：生产后台浏览器只读导航 smoke
 
 - trace_id: 20260617-production-admin-browser-smoke

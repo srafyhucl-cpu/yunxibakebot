@@ -9,6 +9,7 @@
 - 订单域、前台认证服务和 MiniApp API 内部默认用户已经改为依赖 `app.constants.storefront`，`app.constants.miniapp` 只保留兼容导出。
 - 服务测试文件名和商品测试 helper 已切到 canonical 语义；API 测试继续保留 `test_miniapp_*`，因为它们验证 `/api/v1/miniapp/*` 外部契约。
 - `app/api/channels/storefront/*` 已承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出；外部 `/api/v1/miniapp/*` 路径和 `x-miniapp-user-id` 请求头不变。
+- 后端主仓 API 目录已按职责统一为 `admin/`、`channels/storefront/`、`integrations/`；根目录旧 API 文件仅保留兼容模块别名，不再承载真实 Router。
 - 下一阶段不应优先改 HTTP 路径、数据库表名或 MiniApp API 契约，而应继续压缩内部引用和文档入口里的历史命名。
 
 ## 当前分层现状
@@ -67,6 +68,19 @@
 
 ```text
 app/api/
+  admin/
+    root.py
+    addresses.py
+    assets.py
+    config.py
+    dialog.py
+    frontend.py
+    knowledge.py
+    observability.py
+    orders.py
+    products.py
+    shop_pages.py
+    transfer.py
   channels/
     storefront/
       auth.py
@@ -75,18 +89,31 @@ app/api/
       chat.py
       orders.py
       payments.py
+    router.py
+  integrations/
+    youzan_webhook.py
+    webhook_helpers.py
+    wecom.py
+  admin_*.py
+  channel_router.py
   miniapp_auth.py
   miniapp_addresses.py
   miniapp_catalog.py
   miniapp_chat.py
   miniapp_orders.py
   miniapp_payments.py
+  webhook.py
+  webhook_helpers.py
+  wecom.py
 ```
 
 - `channels/storefront/*` 已承载真实前台 API 实现。
 - `miniapp_*.py` 已退为兼容 wrapper，只 re-export 旧函数名。
-- `lifespan_routes.py` 已优先导入 canonical storefront router。
-- `scripts/check_project.py` 已新增红线：`miniapp API 仅作为兼容入口`。
+- `admin/*` 已承载后台 API 真实实现，旧 `admin_*.py` 根文件只作为兼容模块别名。
+- `integrations/*` 已承载有赞 Webhook、Webhook helper 和企微回调真实实现，旧 `webhook.py`、`webhook_helpers.py`、`wecom.py` 只作为兼容模块别名。
+- `channels/router.py` 已承载渠道聚合路由，旧 `channel_router.py` 只作为兼容模块别名。
+- `lifespan_routes.py` 已优先导入 canonical API router。
+- `scripts/check_project.py` 已新增红线：`根 API 兼容文件仅作为兼容入口`。
 - 在明确 H5 或多渠道前台需求前，仍不新增 `/api/v1/storefront/*`。
 
 ### P5：SaaS / 多租户阶段再评估
@@ -117,8 +144,8 @@ app/api/
 5. **已完成：miniapp service facade 审计**
    - 未发现仍承载真实逻辑的 facade。
 
-6. **已完成：`app/api/channels/storefront` 目录切换**
-   - 真实前台 API 实现已迁入 canonical 目录，MiniApp API 文件保留为兼容导出。
+6. **已完成：后端 API 目录统一**
+   - 真实 API 实现已迁入 `admin/`、`channels/storefront/`、`integrations/` canonical 目录，根目录历史 API 文件保留为兼容导出。
 
 ## 验证要求
 
@@ -136,4 +163,4 @@ app/api/
 
 ## 当前判断
 
-`Platform` 的服务层、服务测试和前台 API 真实实现目录已经完成本轮收口。短期只应继续压内部新增依赖和文档入口，不应改仓库名、外部 MiniApp API、请求头、历史表名、迁移文件或微信平台配置名。`/api/v1/storefront/*` 属于多渠道产品化阶段，需要单独设计和验收。
+`Platform` 的服务层、服务测试和后端 API 真实实现目录已经完成本轮收口。短期只应继续压内部新增依赖和文档入口，不应改仓库名、外部 MiniApp API、请求头、历史表名、迁移文件或微信平台配置名。`/api/v1/storefront/*` 属于多渠道产品化阶段，需要单独设计和验收。

@@ -114,18 +114,19 @@ def parse(value: str | int) -> str:
         code = """from app.service.order.payment_runtime import OrderPaymentRuntimeService\n"""
         self._assert_no_violations(RED_LINE_RULES[3], code)
 
-    # ── 规则 5: miniapp API 仅作为兼容入口 ─────────────────────────────────────
+    # ── 规则 5: 根 API 兼容文件仅作为兼容入口 ─────────────────────────────────
 
-    def test_rule_5_miniapp_api_real_router_violation(self) -> None:
-        """检测 miniapp API 兼容文件重新承载真实路由实现。"""
+    def test_rule_5_root_api_real_router_violation(self) -> None:
+        """检测根 API 兼容文件重新承载真实路由实现。"""
         code = """from fastapi import APIRouter\nrouter = APIRouter()\n"""
         self._assert_violations(RED_LINE_RULES[4], code, expected_line_count=2)
 
-    def test_rule_5_miniapp_api_wrapper_compliant(self) -> None:
-        """miniapp API 兼容文件只导出 storefront canonical 路由。"""
+    def test_rule_5_root_api_wrapper_compliant(self) -> None:
+        """根 API 兼容文件只指向 canonical 模块。"""
         code = (
-            "from app.api.channels.storefront.orders import "
-            "create_storefront_orders_router as create_miniapp_orders_router\n"
+            "import sys\n"
+            "from app.api.admin import products as _module\n"
+            "sys.modules[__name__] = _module\n"
         )
         self._assert_no_violations(RED_LINE_RULES[4], code)
 
@@ -253,7 +254,7 @@ class TestRedLineRuleCoverage:
             "禁止 TODO 占位",
             "禁止 SELECT 星号",
             "app 内禁止依赖 miniapp service 兼容层",
-            "miniapp API 仅作为兼容入口",
+            "根 API 兼容文件仅作为兼容入口",
             "api 层禁止直接导入 repository",
             "service 层禁止直连 aiosqlite",
             "models 层禁止引用上层模块",
@@ -276,7 +277,7 @@ class TestRedLineRuleCoverage:
             "禁止 TODO 占位": "test_rule_2_todo_violation",
             "禁止 SELECT 星号": "test_rule_3_select_star_violation",
             "app 内禁止依赖 miniapp service 兼容层": "test_rule_4_import_miniapp_service_violation",
-            "miniapp API 仅作为兼容入口": "test_rule_5_miniapp_api_real_router_violation",
+            "根 API 兼容文件仅作为兼容入口": "test_rule_5_root_api_real_router_violation",
             "api 层禁止直接导入 repository": "test_rule_6_api_import_repo_violation",
             "service 层禁止直连 aiosqlite": "test_rule_7_service_aiosqlite_violation",
             "models 层禁止引用上层模块": "test_rule_8_models_upper_violation",
@@ -298,7 +299,7 @@ class TestRedLineRuleCoverage:
             "禁止 TODO 占位": "test_rule_2_todo_compliant",
             "禁止 SELECT 星号": "test_rule_3_select_star_compliant",
             "app 内禁止依赖 miniapp service 兼容层": "test_rule_4_import_miniapp_service_compliant",
-            "miniapp API 仅作为兼容入口": "test_rule_5_miniapp_api_wrapper_compliant",
+            "根 API 兼容文件仅作为兼容入口": "test_rule_5_root_api_wrapper_compliant",
             "api 层禁止直接导入 repository": "test_rule_6_api_import_repo_compliant",
             "service 层禁止直连 aiosqlite": "test_rule_7_service_aiosqlite_compliant",
             "models 层禁止引用上层模块": "test_rule_8_models_upper_compliant",

@@ -25,6 +25,8 @@ class FakeQueue:
 
 def _install_module(monkeypatch: Any, name: str, **attrs: Any) -> None:
     module = types.ModuleType(name)
+    if name in {"app.api.admin", "app.api.integrations"}:
+        module.__path__ = []
     for key, value in attrs.items():
         setattr(module, key, value)
     monkeypatch.setitem(sys.modules, name, module)
@@ -52,37 +54,37 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_addresses",
+        "app.api.admin.addresses",
         create_admin_addresses_router=lambda service: ("admin-addresses", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_assets",
+        "app.api.admin.assets",
         create_admin_assets_router=lambda: "admin-assets",
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_config",
+        "app.api.admin.config",
         create_shop_config_router=lambda admin_service: ("config", admin_service),
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_frontend",
+        "app.api.admin.frontend",
         create_admin_frontend_router=lambda: "frontend",
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_knowledge",
+        "app.api.admin.knowledge",
         create_admin_knowledge_router=lambda service: ("knowledge", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_observability",
+        "app.api.admin.observability",
         create_observability_router=lambda service: ("observability", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_products",
+        "app.api.admin.products",
         create_admin_products_router=lambda reconcile, sync: (
             "products",
             reconcile,
@@ -91,12 +93,12 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_orders",
+        "app.api.admin.orders",
         create_admin_orders_router=lambda service: ("admin-orders", service),
     )
     _install_module(
         monkeypatch,
-        "app.api.admin_shop_pages",
+        "app.api.admin.shop_pages",
         create_shop_page_config_router=lambda service: ("shop-pages", service),
     )
     _install_module(
@@ -137,10 +139,10 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
-        "app.api.webhook",
+        "app.api.integrations.youzan_webhook",
         create_webhook_router=lambda chat_service: ("webhook", chat_service),
     )
-    _install_module(monkeypatch, "app.api.wecom", router="wecom-router")
+    _install_module(monkeypatch, "app.api.integrations.wecom", router="wecom-router")
     app = FakeApp()
     services = {
         "chat_service": "chat",
