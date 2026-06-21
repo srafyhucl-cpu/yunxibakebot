@@ -17,6 +17,20 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## E-20260621-004：生产后台构建入口修复
+
+- trace_id: 20260621-admin-production-build-recovery
+- generated_at: 2026-06-21
+- evidence_type: bugfix/build/release
+- file: `D:\Project\YunxiBakeBot\web\admin\src\services\assets.ts`; `D:\Project\YunxiBakeMiniApp\reports\domain-check\domain-check-20260621-012858.json`; `D:\Project\YunxiBakeMiniApp\reports\production-admin-check\production-admin-20260621-012902.json`; `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260621-093002.json`
+- command: `ssh root@47.94.102.250 "systemctl restart yunxibakebot ..."`；MiniApp `npm run check:production-miniapp-api`; MiniApp `npm run release:readiness`; Admin `npm run build:production`; Admin `npm run check:decoration`; Admin `npm run check:products`; Admin `npm run check:shop-settings`
+- result: partial-pass
+- related_logbook: 2026-06-21 - fix(admin): 修复生产后台构建入口
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记生产检查报告路径和构建命令，不复制后台页面内容或认证信息
+- summary: catalog 修复部署后生产商品 API 已通过；release readiness 剩余失败来自生产后台 `dist` 缺失。后台本机构建失败根因为 `assets.ts` 错用命名导入，已修复并通过 production build，待同步 `dist` 到生产后复测。
+
 ## E-20260621-003：小程序商品泛化分类兜底修复
 
 - trace_id: 20260621-catalog-generic-category-guard

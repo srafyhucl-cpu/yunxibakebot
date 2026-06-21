@@ -3,6 +3,19 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-21] - fix(admin): 修复生产后台构建入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260621-admin-production-build-recovery
+- **背景**: 部署 catalog 修复并重启生产后，MiniApp 商品 API smoke 已通过，但 release readiness 转为 19/22；失败项为生产域名、后台前端和后台浏览器 smoke。报告显示 `/health` 已返回 `0.62.1`，但根路径和 `/admin/` 返回 `admin 尚未构建`。尝试在生产机 `web/admin` 构建时发现生产机无 `npm`，本机构建又暴露 `assets.ts` 导入了不存在的命名导出 `http`。
+- **变更范围**:
+  - `web/admin/src/services/assets.ts` - 将 `http` 从命名导入修正为默认导入，匹配 `services/http.ts` 的真实导出。
+- **验证结果**:
+  - Admin `npm run build:production` 通过，已生成新的 `web/admin/dist`。
+  - Admin `npm run check:decoration`、`npm run check:products`、`npm run check:shop-settings` 通过。
+  - 生产机当前无 `npm`，后台静态产物需要从本机已构建 `dist` 打包同步到 `/opt/yunxibakebot/web/admin/dist` 后复测。
+- **结论**:
+  - 后台构建失败的代码原因已修复；生产 readiness 的剩余 3 项需要同步最新后台 `dist` 后再次验证。
+
 ## [2026-06-21] - fix(catalog): 阻止泛化标签穿透小程序商品分类
 - **操作人**: AI (Codex)
 - **trace_id**: 20260621-catalog-generic-category-guard
