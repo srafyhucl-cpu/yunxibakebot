@@ -23,13 +23,13 @@ ______________________________________________________________________
 - generated_at: 2026-06-21
 - evidence_type: bugfix/regression/release
 - file: `D:\Project\YunxiBakeBot\app\api\admin\frontend.py`; `D:\Project\YunxiBakeBot\tests\api\test_admin_frontend.py`; `D:\Project\YunxiBakeMiniApp\reports\domain-check\domain-check-20260621-013703.json`; `D:\Project\YunxiBakeMiniApp\reports\production-admin-check\production-admin-20260621-013702.json`
-- command: Bot `python -m pytest tests\api\test_admin_frontend.py -q --tb=short --no-cov`; Bot `python -m compileall app\api\admin\frontend.py tests\api\test_admin_frontend.py`; Bot `python scripts\check_project.py --skip-tests`; Admin `npm run build:production`
+- command: Bot `python -m pytest tests\api\test_admin_frontend.py -q --tb=short --no-cov`; Bot `python -m compileall app\api\admin\frontend.py tests\api\test_admin_frontend.py`; Bot `python scripts\check_project.py --skip-tests`; Admin `npm run build:production`; production `systemctl restart yunxibakebot`; MiniApp `npm run check:production-domain`; MiniApp `npm run check:production-admin`; MiniApp `npm run check:production-miniapp-api`; MiniApp `npm run release:readiness`
 - result: pass
 - related_logbook: 2026-06-21 - fix(admin): 修复后台静态入口 dist 路径
 - related_adr: none
 - contains_sensitive_data: no
 - retention_note: 仅登记路径修复和生产失败报告路径，不复制后台 HTML 或认证信息
-- summary: 生产 `web/admin/dist/index.html` 已存在但 `/admin/` 仍返回未构建，根因为 API 目录迁移后 `frontend.py` 的项目根计算少退一层；已修正并补路径回归测试。
+- summary: 生产 `web/admin/dist/index.html` 已存在但 `/admin/` 仍返回未构建，根因为 API 目录迁移后 `frontend.py` 的项目根计算少退一层；已修正并补路径回归测试。生产已部署到 `1e40063 / 0.62.4`，域名、后台、MiniApp API 与 release readiness 均通过，最终 readiness 报告为 `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260621-094445.json`。
 
 ## E-20260621-004：生产后台构建入口修复
 

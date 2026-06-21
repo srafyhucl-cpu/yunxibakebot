@@ -15,8 +15,10 @@
   - Bot `python -m compileall app\api\admin\frontend.py tests\api\test_admin_frontend.py` 通过。
   - Bot `python scripts\check_project.py --skip-tests` 通过；函数行数警告为既有非阻断项。
   - Admin `npm run build:production` 通过。
+  - 生产部署到 `1e40063 / 0.62.4` 后，`https://yunxifood.cn/health` 返回 `0.62.4`，`/admin/` 返回 200，MiniApp `npm run check:production-domain`、`npm run check:production-admin`、`npm run check:production-miniapp-api` 均通过。
+  - MiniApp `npm run release:readiness` 通过，报告 `reports\release-readiness\readiness-20260621-094445.json` 显示 22/22。
 - **结论**:
-  - 后台静态入口的路径问题已修复，后续部署到生产后应能让域名、后台前端和后台浏览器 smoke 恢复通过。
+  - 后台静态入口路径问题已修复并完成生产部署；小程序发布 readiness 已从 21/22 收口到 22/22。
 
 ## [2026-06-21] - fix(admin): 修复生产后台构建入口
 - **操作人**: AI (Codex)
