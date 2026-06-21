@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException, Request
 
 from app.api.admin import create_admin_router
-from app.api.admin_frontend import create_admin_frontend_router
+from app.api.admin_frontend import FRONTEND_INDEX_FILE, create_admin_frontend_router
 from app.config import settings
 
 
@@ -33,6 +33,12 @@ def _build_request(path: str, cookies: dict | None = None) -> Request:
     request = Request(scope)
     request._cookies = cookies or {}
     return request
+
+
+def test_admin_frontend_dist_path_points_to_project_root() -> None:
+    """后台静态入口应指向项目根目录下的构建产物。"""
+    assert FRONTEND_INDEX_FILE.as_posix().endswith("web/admin/dist/index.html")
+    assert FRONTEND_INDEX_FILE.parents[2].name == "web"
 
 
 @pytest.mark.asyncio

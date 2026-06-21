@@ -3,6 +3,21 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-21] - fix(admin): 修复后台静态入口 dist 路径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260621-admin-dist-path-after-api-move
+- **背景**: 后台 `dist` 已同步到生产且服务重启后，`/admin/` 仍返回 `admin 尚未构建`。排查发现 `app/api/admin/frontend.py` 在 P4 API 目录迁移后仍按旧目录深度计算 `BASE_DIR`，导致实际检查路径变成 `app/web/admin/dist/index.html`，没有指向项目根下的 `web/admin/dist/index.html`。
+- **变更范围**:
+  - `app/api/admin/frontend.py` - 将后台静态入口基准目录修正为项目根，恢复 `/admin` 与 `/admin/*` 对 `web/admin/dist` 的访问。
+  - `tests/api/test_admin_frontend.py` - 增加路径回归测试，确认后台静态入口始终指向项目根下的 `web/admin/dist/index.html`。
+- **验证结果**:
+  - Bot `python -m pytest tests\api\test_admin_frontend.py -q --tb=short --no-cov` 通过。
+  - Bot `python -m compileall app\api\admin\frontend.py tests\api\test_admin_frontend.py` 通过。
+  - Bot `python scripts\check_project.py --skip-tests` 通过；函数行数警告为既有非阻断项。
+  - Admin `npm run build:production` 通过。
+- **结论**:
+  - 后台静态入口的路径问题已修复，后续部署到生产后应能让域名、后台前端和后台浏览器 smoke 恢复通过。
+
 ## [2026-06-21] - fix(admin): 修复生产后台构建入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260621-admin-production-build-recovery
