@@ -65,3 +65,11 @@ api/ → service/ → repository/ → models/
 - `models/`：数据模型层，纯 Pydantic 模型，不依赖任何上层模块
 
 禁止任何层级向上穿透调用。
+
+---
+
+## Harness 运行口径
+
+- 中大型任务先分配 `trace_id`，再按 `docs/harness-engineering/core/verification-matrix.md` 选验证。
+- 需要交接时优先用 `scripts/harness_snapshot.py`，不要只留聊天记录。
+- 需要长期记忆的错误先写 `docs/harness-engineering/core/mistake-ledger.md`，再补测试、脚本、pre-commit、AGENTS 或 Skill 中至少一类防线。

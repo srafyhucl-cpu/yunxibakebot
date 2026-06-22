@@ -49,3 +49,11 @@ ______________________________________________________________________
 | 代码 Review | `/review` |
 | 提交 | `/commit` |
 | Skill 同步更新 | `/sync-skills` |
+
+---
+
+## Harness 运行口径
+
+- 任何较大任务先走 `AGENTS.md` → `docs/harness-engineering/README.md` → `traceability-model`。
+- 交接时优先补 `scripts/harness_snapshot.py`，不要把上下文只留在聊天里。
+- 证据、复盘和长期记忆分别落到 `core/evidence-index.md`、`LOGBOOK.md`、`core/mistake-ledger.md`。

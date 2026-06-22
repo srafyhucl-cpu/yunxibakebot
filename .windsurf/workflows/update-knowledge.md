@@ -63,3 +63,7 @@ python scripts/validate_products.py
 ### 6. 更新 LOGBOOK.md
 
 记录本次知识库变更内容和条目数量变化。
+
+### 7. 必要时补 Harness 证据
+
+如果本次知识变更影响生产口径、业务规则或长期记忆，补 `trace_id`，并在 `docs/harness-engineering/core/evidence-index.md` 或 `docs/harness-engineering/core/mistake-ledger.md` 留痕。

@@ -17,6 +17,22 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## E-20260622-001：项目管理手册体系收口
+
+- trace_id: 20260622-management-handbook-closure
+- generated_at: 2026-06-22
+- evidence_type: doc-sweep/harness
+- file: `D:\Project\YunxiBakeBot\AGENTS.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\commit-workflow.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\quick-reference.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\skill-reference.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\README.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\traceability-model.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\verification-matrix.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\agent-handoff-template.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\mistake-ledger.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\evidence-index.md`; `D:\Project\YunxiBakeBot\.windsurf\workflows\check.md`; `D:\Project\YunxiBakeBot\.windsurf\workflows\commit.md`; `D:\Project\YunxiBakeBot\.windsurf\workflows\design.md`; `D:\Project\YunxiBakeBot\.windsurf\workflows\review.md`; `D:\Project\YunxiBakeBot\.windsurf\workflows\sync-skills.md`; `D:\Project\YunxiBakeBot\.windsurf\workflows\update-knowledge.md`; `D:\Project\YunxiBakeBot\.agents\SKILL_AUDIT.md`
+- command: `rg -n "YunxiBakeMiniApp|python -m pytest tests/ -q|systemctl restart yunxibakebot && systemctl is-active yunxibakebot|SKIP_LOGBOOK_CHECK|check_logbook|append_logbook|harness_snapshot|check_mistake_ledger|trace_id|evidence-index|agent-handoff-template|verification-matrix" AGENTS.md docs .windsurf .agents scripts -g "*.md" -g "*.py"`
+- result: pass
+- related_logbook: 2026-06-22 - docs(management): 完善项目管理体系与手册收口
+- related_adr: 0001-traceable-memory-harness, 0002-platform-storefront-boundaries-and-instance-naming
+- contains_sensitive_data: no
+- retention_note: 仅登记管理手册收口的文件与命中结果，不复制任何业务数据或生产凭据
+- summary: 项目管理主入口、提交/验证/交接/证据/防重犯流程、Skill 索引和 Harness 入口已对齐当前真实使用方式；旧的固定全量测试与强制重启语气已收缩为按验证矩阵和变更类型执行。
+
+______________________________________________________________________
+
 ## E-20260621-005：后台静态入口 dist 路径修复
 
 - trace_id: 20260621-admin-dist-path-after-api-move

@@ -11,6 +11,8 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 > 当前仓库仍沿用 `YunxiBakeBot` 代码仓路径，但产品口径已升级为通用平台：`Bakery Commerce Platform`。如果你正在找的是历史上的 `YunxiBakeMiniApp` 口径，请把它理解为前台渠道仓的旧称。
 >
+> 当前最新落地能力是“客户群运营一期”：企业微信客户群触达后，客户通过小程序结构化登记，后台汇总并复制群文案，复杂沟通继续由微信客服单聊承接。对应的 API 入口、后台工作台和 MiniApp 登记页都已接通。
+>
 > 如果你现在关注的是有赞客户迁移，请优先看这四段当前权威入口：`docs/architecture/youzan-customer-migration-audit-checklist.md`、`docs/architecture/youzan-customer-formal-import-runbook.md`、`scripts/verify_youzan_customer_import.py`、`docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md`。
 >
 > 如果你需要回看双仓推进的历史过渡材料，请到 [docs/README.md](docs/README.md) 的“历史方案”区统一查看，不要把这些材料当作当前实施蓝图。
@@ -23,6 +25,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 - [功能特性](#功能特性)
 - [生产级补强流程图](#生产级补强流程图)
 - [Vibe Coding Harness Engineering](#vibe-coding-harness-engineering)
+- [客户群运营一期](#客户群运营一期)
 - [技术栈](#技术栈)
 - [系统架构](#系统架构)
 - [快速开始](#快速开始)
@@ -94,6 +97,24 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 ---
 
+## 客户群运营一期
+
+当前已打通“客户群触达 → 小程序结构化登记 → 后台汇总/复制群文案 → 微信客服单聊承接”的最小闭环。
+
+- 后台客户群运营页：`/customer-groups`
+- 后台 API：`/api/v1/admin/customer-groups`
+- MiniApp 登记页：`/pages/group-registration/index`
+- MiniApp API：`/api/v1/miniapp/group-registrations`
+- 相关说明：[`docs/architecture/customer-group-operations-phase1.md`](docs/architecture/customer-group-operations-phase1.md)
+
+当前不作为一期阻塞项的能力：
+
+- 客户群内实时 AI @ 回复
+- 原生群接龙抓取
+- `opengid_to_chatid` 自动转换
+
+---
+
 ## 功能特性
 
 ### ✨ 核心功能
@@ -132,6 +153,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 - ✅ **商品管理**：管理有赞商品、设置主推款
 - ✅ **知识配置**：管理知识库、批量导入/导出
 - ✅ **转人工队列**：查看和处理转人工请求
+- ✅ **客户群运营**：管理客户群、团购批次、登记汇总与群内文案
 - ✅ **数据观察台**：会话统计、消息分析、性能监控
 - ✅ **系统配置**：管理 API Token、系统参数
 
@@ -140,6 +162,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 - ⏳ **企微消息接收**：接收企微单聊和群聊消息
 - ⏳ **企微消息发送**：通过企微发送 AI 回复
 - ⏳ **客户联系**：管理企微客户联系功能
+- ⏳ **客户群内实时 AI @ 回复**：仍不作为一期阻塞项
 
 ### 🎨 UI/UX 特性
 

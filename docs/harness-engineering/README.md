@@ -8,6 +8,15 @@ docs/harness-engineering/README.md
 
 目标不是多写流程，而是让 Vibe Coding 的每次推进都有证据、能交接、能复盘，并且把犯过的错转成下一次会自动提醒或阻断的防线。
 
+当前使用时优先按下面顺序进入：
+
+1. `AGENTS.md`
+2. `LOGBOOK.md`
+3. `docs/harness-engineering/README.md`
+4. `docs/harness-engineering/core/traceability-model.md`
+5. `docs/harness-engineering/core/verification-matrix.md`
+6. `docs/harness-engineering/core/evidence-index.md`
+
 ______________________________________________________________________
 
 ## 快速入口

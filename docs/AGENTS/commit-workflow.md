@@ -9,15 +9,16 @@ ______________________________________________________________________
 1. **调用相关 Guard Skill** 确认代码符合规范
 2. **更新 `LOGBOOK.md`**（可使用 `python scripts/append_logbook.py` 自动追加，或手动在顶部追加条目）
 3. **更新 `项目进度与配置清单.md`**（修改"最后更新"日期 + 已完成功能 + 已知问题状态）
+3.5 **如本轮是中大型任务或需要交接**：先按 `docs/harness-engineering/core/traceability-model.md` 补 `trace_id` 和验证摘要，再按 `docs/harness-engineering/core/evidence-index.md` 归档证据
 4. **检查代码注释语言**：凡本轮新增或修改的代码注释，必须统一为中文注释；英文注释需改写后再提交
 5. **检查工作区临时产物**：先执行 `git status --short`，确认不存在 `.tmp-*.log`、`.codex-server*.log`、`.superpowers/` 等本地临时文件；如存在，必须先清理
-6. **运行测试**：`python -m pytest tests/ -q`
+6. **运行验证**：按 `docs/harness-engineering/core/verification-matrix.md` 选择最低验证；文档变更至少完成 `Test-Path` / `Select-String` 之类的链接与关键词检查，代码变更再运行对应测试
 7. **git add + commit**（pre-commit 会自动执行以下操作）：
    - **版本号自动递增**：根据提交信息自动递增 `VERSION` 文件（feat→minor, fix→patch, feat!→major）
    - **文档同步检查**：校验 LOGBOOK.md 和项目进度与配置清单.md 已暂存
    - **质量门禁**：密钥扫描 + 文件体量 + 红线规则自测 + 全套测试
 8. **推送到两个远端**：`git push origin master && git push server master`
-9. **重启服务器**：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
+9. **如本轮涉及生产同步**，才重启服务器：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
 
 ---
 
@@ -42,5 +43,7 @@ ______________________________________________________________________
 | 跳过版本递增 | `SKIP_VERSION_BUMP=1 git commit -m "..."` |
 | 强制指定递增类型 | `VERSION_BUMP=minor git commit -m "..."` |
 | 跳过文档同步检查 | `SKIP_LOGBOOK_CHECK=1 git commit -m "..."` |
+
+> 中大型任务的证据归档和换手说明，优先使用 `docs/harness-engineering/core/agent-handoff-template.md` 与 `scripts/harness_snapshot.py`，不要只留在聊天记录里。
 
 > 📄 完整格式参见 `.windsurf/workflows/commit.md`

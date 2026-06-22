@@ -29,9 +29,9 @@ git diff --cached -- "*.py" | Select-String "= '"
 - **任意一项有输出 → 立即修复，不得提交**
 - **检查本轮新增/修改的代码注释语言**：Python / JS / TS / HTML / CSS 注释统一使用中文；若发现英文注释，先改写后再提交
 
-### 2. 测试验证
+### 2. 验证与留痕
 
-根据修改范围选择性运行：
+根据修改范围按 `docs/harness-engineering/core/verification-matrix.md` 选择验证：
 
 ```powershell
 # 当前代码基线测试（默认必跑，防止本地代码落后于 CI 或遗漏依赖）
@@ -47,10 +47,9 @@ python scripts/test_intents.py
 python scripts/validate_products.py
 ```
 
-- 如果 GitHub Actions / CI 处于失败状态，先对齐本地代码与 CI 入口：
-  - 本地必须至少运行 `python -m pytest tests/ -q`。
-  - 若 CI 使用 `scripts/check_project.py`，本地同步运行 `python scripts/check_project.py`。
-  - 若本地通过但 CI 失败，记录失败 job、失败命令和差异原因，再提交修复；不要只依赖局部测试。
+- 文档变更至少完成 `Test-Path` / `Select-String` 链接与关键词检查。
+- 需要交接时，优先补 `trace_id` 与 `scripts/harness_snapshot.py` 快照。
+- 如果 GitHub Actions / CI 处于失败状态，先对齐本地代码与 CI 入口；记录失败 job、失败命令和差异原因，再提交修复。
 
 ### 2.5 工作区整洁检查
 
@@ -97,13 +96,15 @@ curl http://127.0.0.1:7001/health
 ```markdown
 ## [YYYY-MM-DD] - 一句话标题
 
-- **操作人**: AI (Devin) / 开发者
-- **关联任务**: 一句话描述
-- **核心变更文件说明**:
-  - `app/xxx/yyy.py`（修改/新增）: 说明变更内容
-- **数据库状态变更**: 无 / 具体说明
-- **测试覆盖与验证结果**: `pytest -q` → N passed ✅
-- **潜伏风险/遗留未决事项说明**: 无 / 具体说明
+- **操作人**: AI (Codex) / 开发者
+- **trace_id**: YYYYMMDD-topic，较大任务建议填写
+- **背景**: 一句话描述为什么改
+- **变更范围**:
+  - `path/to/file` - 说明
+- **验证结果**:
+  - `command` 通过 / 失败
+- **结论**:
+  - 一句话说明是否收口
 ```
 
 #### 4.2 项目进度与配置清单.md（项目状态）
@@ -111,9 +112,9 @@ curl http://127.0.0.1:7001/health
 同步更新以下内容（按实际变更勾选）：
 
 - **"最后更新"日期**：改为今天
-- **三、已完成功能**：新增 `[x]` 条目描述本次功能
-- **九、已知问题与风险**：将已修复的问题状态改为 `✅ 已解决`，新增新风险条目
-- **七、测试脚本清单**：如新增测试脚本，补充到表格
+- **已完成功能**：新增 `[x]` 条目描述本次功能
+- **待开发功能 / 风险**：将已修复的问题状态改为已解决，新增新风险条目
+- **测试脚本清单**：如新增测试脚本，补充到表格
 
 > 以下文档仅在涉及核心业务流程/架构变更时才需更新：  
 > `1-业务方案.md` / `2-工作流设计.md` / `3-技术架构.md` / `4-上线检查清单.md`
@@ -126,6 +127,10 @@ curl http://127.0.0.1:7001/health
 - 新增 / 删除公开类或核心函数
 - 改变模块间调用关系
 - 修改 LLM 相关逻辑
+
+### 5. Harness 留痕与交接
+
+较大任务、跨文件修改、上线收口或需要换手时，先补 `trace_id`，再用 `scripts/harness_snapshot.py` 生成快照，必要时登记到 `docs/harness-engineering/core/evidence-index.md`。
 
 ### 6. Git 提交
 

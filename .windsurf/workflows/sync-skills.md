@@ -108,3 +108,7 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 - 已评估、明确不适用 → 🔴
 
 更新"审计日期"字段，并在对应行补充"本项目引入状态"说明。
+
+### 7. 同步 Harness 相关入口
+
+若本次 Skill 调整影响 trace、验证、证据、交接或防重犯机制，同步检查 `docs/harness-engineering/README.md`、`docs/AGENTS/skill-reference.md`、`docs/harness-engineering/core/traceability-model.md` 和 `docs/harness-engineering/core/verification-matrix.md`。

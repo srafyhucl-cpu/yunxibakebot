@@ -3,6 +3,63 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-22] - docs(management): 完善项目管理体系与手册收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-management-handbook-closure
+- **背景**: 项目管理体系需要从“能提交”升级到“可追溯、可交接、可复盘、可留证”，因此需要同步更新 AGENTS、docs/AGENTS、Harness 入口、workflow 手册、Skill 审计和证据索引，使提交、验证、交接和防重犯都按同一套口径运行。
+- **变更范围**:
+  - `AGENTS.md` - 补充 Harness / 提交收口关联入口说明。
+  - `docs/AGENTS/commit-workflow.md`、`docs/AGENTS/quick-reference.md`、`docs/AGENTS/skill-reference.md` - 将提交、验证、交接和 Harness 运行口径统一。
+  - `docs/harness-engineering/README.md`、`docs/harness-engineering/core/traceability-model.md`、`docs/harness-engineering/core/evidence-index.md` - 补充入口顺序、当前任务模板和本轮证据索引。
+  - `.windsurf/workflows/check.md`、`commit.md`、`design.md`、`review.md`、`sync-skills.md`、`update-knowledge.md` - 将工作流与 trace / evidence / handoff / skill 同步机制对齐。
+  - `.agents/SKILL_AUDIT.md` - 更新 Skill 审计日期和项目引入状态说明。
+- **验证结果**:
+  - `rg -n "YunxiBakeMiniApp|python -m pytest tests/ -q|systemctl restart yunxibakebot && systemctl is-active yunxibakebot|traceability-model|verification-matrix|agent-handoff-template|evidence-index|check_mistake_ledger|harness_snapshot|SKIP_LOGBOOK_CHECK" ...` 通过，确认旧口径已收缩到当前管理体系。
+  - `git diff` 已确认本轮改动集中在管理手册、workflow 和证据入口。
+- **结论**:
+  - 项目管理体系已对齐为“先定入口、再选验证、留痕交接、证据索引、防重犯闭环”的单一运行口径；后续新增规则优先沉淀到 Harness / workflow / Skill，而不是只留在聊天里。
+
+
+## [2026-06-22] - docs(customer-groups): 同步客户群运营一期文档口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-docs-customer-groups-phase1
+- **背景**: 客户群运营一期已经打通后台工作台、MiniApp 登记页和 `/api/v1/miniapp/group-registrations`，需要把新增能力同步到主 README、文档导航、API 契约、项目边界和进度清单，避免文档仍停留在旧的“企微客户群接入中”口径。
+- **变更范围**:
+  - `README.md` - 新增客户群运营一期入口、能力概览和未阻塞项说明。
+  - `docs/README.md` - 将客户群运营一期加入当前权威口径索引。
+  - `docs/architecture/project-boundaries.md` - 补充客户群运营一期的 canonical 边界说明。
+  - `docs/architecture/platform-miniapp-api-contract-v1.md` - 增加客户群结构化登记接口契约。
+  - `docs/architecture/customer-group-operations-phase1.md` - 新增客户群运营一期专题说明。
+  - `项目进度与配置清单.md` - 更新一期状态与企微接入清单。
+- **验证结果**:
+  - `rg -n "customer-group-operations-phase1|group-registrations|客户群运营一期" README.md docs 项目进度与配置清单.md LOGBOOK.md` 通过。
+  - `git diff` 已确认所有文档改动集中在预期文件。
+- **结论**:
+  - 当前文档已经从根入口到专题页完整覆盖客户群运营一期闭环，后续如果继续推进 `opengid_to_chatid` 或群内能力，可直接在这套口径上追加。
+
+
+## [2026-06-22] - feat(customer-groups): 小程序登记页接入后完成双仓最小闭环
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-customer-group-registration-page
+- **背景**: 企业微信客户群不能作为群内实时 AI @ 回复入口，客户群运营一期改为“客户群触达 → 小程序结构化登记 → 后台汇总/复制群文案 → 微信客服单聊承接”；后端和后台工作台已接通，需要同步记录 MiniApp 登记页接入后的双仓状态。
+- **变更范围**:
+  - `D:\Project\YunxiBakeMiniApp\miniprogram\services\group-registrations.ts` - 新增小程序客户群登记 API client。
+  - `D:\Project\YunxiBakeMiniApp\miniprogram\pages\group-registration\*` - 新增群内登记页，支持活动参数、登记表单、提交成功和联系客服入口。
+  - `D:\Project\YunxiBakeMiniApp\miniprogram\app.json`、`D:\Project\YunxiBakeMiniApp\miniprogram\constants\routes.ts` - 注册小程序页面和路由。
+  - `web/admin/src/pages/customer-groups/CustomerGroupsPage.vue` - 增加“复制登记路径”，生成可投放到客户群的小程序页面路径。
+  - `项目进度与配置清单.md` - 同步客户群团购登记与汇总状态为“双仓最小闭环已接通”。
+- **验证结果**:
+  - MiniApp：`npm run typecheck` 通过。
+  - MiniApp：`npm run check:miniapp` 通过，12 pages / 12 routes。
+  - Bot：`python -m pytest tests\\service\\test_customer_group_operations.py tests\\api\\test_customer_group_api.py tests\\migrations\\test_customer_group_tables.py tests\\scripts\\test_apply_migrations.py tests\\test_health_ready.py -q --no-cov` 通过。
+  - Bot：`python -m pytest tests\\service\\wecom\\test_client_kf.py tests\\service\\wecom\\test_kf_callback_processor.py -q --no-cov` 通过。
+  - Bot 后台：`npm run typecheck` 与 `npm run build:production` 通过。
+  - Bot：`python -m ruff check ...` 通过；API/service/models 分层扫描零命中。
+- **结论**:
+  - 客户群运营一期已具备可真实试用的最小闭环：运营人员在后台建群建批次并复制群文案，客户从客户群进入小程序登记，后台查看汇总与明细，复杂沟通继续进入微信客服单聊。
+  - 后续重点不再是群内机器人实时回复，而是补登记链接/二维码生成、真机群内打开验收、客服单聊结合登记记录、`opengid_to_chatid` 自动转换和群运营数据归因。
+
+
 ## [2026-06-22] - ops(offline-review): 打开夜间沉淀总开关
 - **操作人**: AI (Codex)
 - **trace_id**: 20260622-enable-offline-review
@@ -13,6 +70,57 @@
   - 本次仅变更配置开关，未再次触发完整运行验证。
 - **结论**:
   - 离线沉淀调度已从默认关闭切换为开启，后续需结合服务重启与 ready 状态观察实际运行摘要。
+
+
+## [2026-06-22] - feat(customer-groups): 新后台客户群运营看板
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-customer-group-admin-workbench
+- **背景**: 客户群团购登记后端一期已具备 API 闭环，但运营人员仍缺少可操作界面，需要在新后台提供建群、建批次、看汇总、复制群内文案和确认登记的工作台。
+- **变更范围**:
+  - `web/admin/src/types/customerGroup.ts` - 新增客户群、团购批次、登记和汇总类型。
+  - `web/admin/src/services/customerGroups.ts` - 新增后台客户群运营 API client。
+  - `web/admin/src/pages/customer-groups/CustomerGroupsPage.vue` - 新增客户群运营页，支持客户群列表、批次选择/创建、商品汇总、群内文案复制、登记明细和状态更新。
+  - `web/admin/src/router/routes.ts`、`web/admin/src/constants/adminNavigation.ts` - 接入 `/customer-groups` 路由和侧边栏导航。
+- **验证结果**:
+  - `npm run typecheck` 通过。
+  - `npm run build:production` 通过，并生成 `CustomerGroupsPage` 前端产物。
+- **结论**:
+  - 客户群运营后台已从 API 骨架推进到可用工作台；下一步应接小程序团购登记页，让客户能从客户群入口填写结构化登记。
+
+
+## [2026-06-22] - feat(customer-groups): 客户群团购登记与汇总一期后端骨架
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-customer-group-registration-v1
+- **背景**: 企业微信客户群不能按“群内机器人实时接管聊天”设计，一期改为客户群运营闭环：客户群负责触达，小程序结构化登记，后台汇总并生成可复制群内文案，微信客服继续承接单聊。
+- **变更范围**:
+  - `app/models/customer_group.py` - 新增客户群、群活动批次、群登记领域模型。
+  - `app/migrations/schema.py` - 新增 `customer_groups`、`group_campaigns`、`group_registrations` 三张表及索引。
+  - `app/repository/customer_group_repo.py` - 新增客户群运营仓库，封装群绑定、批次、登记和汇总所需读写。
+  - `app/service/customer/group_operations.py` - 新增客户群运营服务，支持绑定客户群、创建批次、提交登记、更新状态、个人登记查询、批次汇总和群内汇总文案生成。
+  - `app/api/channels/storefront/group_registrations.py`、`app/api/admin/customer_groups.py` - 新增小程序登记 API 与后台客户群运营 API。
+  - `app/api/miniapp_group_registrations.py`、`app/api/admin_customer_groups.py` - 新增兼容入口。
+  - `app/main.py`、`app/lifespan_services.py`、`app/lifespan_routes.py` - 接入 repository/service/router 装配。
+  - `tests/service/test_customer_group_operations.py`、`tests/api/test_customer_group_api.py` - 覆盖客户群登记与汇总 API 闭环。
+- **验证结果**:
+  - `python -m pytest tests\\service\\test_customer_group_operations.py tests\\api\\test_customer_group_api.py -q --no-cov` 通过。
+  - `python -m compileall app\\models\\customer_group.py app\\repository\\customer_group_repo.py app\\service\\customer\\group_operations.py app\\api\\channels\\storefront\\group_registrations.py app\\api\\admin\\customer_groups.py tests\\service\\test_customer_group_operations.py tests\\api\\test_customer_group_api.py` 通过。
+  - `rg "from app\\.repository" app\\api --glob "*.py"`、`rg "import aiosqlite|\\.execute\\(|\\.fetchone\\(|\\.fetchall\\(" app\\service --glob "*.py"`、`rg "from app\\.(service|repository|api)" app\\models --glob "*.py"` 均零输出。
+- **结论**:
+  - 客户群一期后端骨架已具备最小闭环：后台建群建批次、小程序提交登记、后台按批次汇总并生成群内可复制文案；下一步应接小程序页面和后台 UI，再接 `opengid_to_chatid` 真实企微转换。
+
+
+## [2026-06-22] - fix(wecom-kf): 前置人工接待拦截，避免客服自动回复抢答
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-wecom-kf-reception-guard
+- **背景**: 微信客服接待链路已能收到回调、同步消息并进入队列，但人工接待中的会话仍存在被自动回复分支先触发的风险，尤其是非文本兜底和图片/语音消息路径。
+- **变更范围**:
+  - `app/service/wecom/kf_message_queue.py` - 在 worker 开头前置人工接待与会话可回复性检查，人工接待中直接跳过自动回复。
+  - `tests/service/wecom/test_kf_callback_processor.py` - 新增人工接待中拦截文本与非文本自动回复的回归测试。
+- **验证结果**:
+  - `python -m pytest tests/service/wecom/test_client_kf.py tests/service/wecom/test_kf_callback_processor.py -q --no-cov` 通过。
+  - `python -m compileall app\\service\\wecom\\kf_message_queue.py tests\\service\\wecom\\test_kf_callback_processor.py` 通过。
+- **结论**:
+  - 微信客服接待链路已补上“人工接待时不抢答”的保护门，后续再看是否需要把欢迎语、人工转接和生产配置一起做完整验收。
 
 
 ## [2026-06-22] - fix(offline-review): 收口夜间沉淀调度、运行摘要与 readiness 暴露

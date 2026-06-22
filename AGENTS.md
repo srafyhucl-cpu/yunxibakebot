@@ -29,6 +29,8 @@ ______________________________________________________________________
 
 统一入口：[docs/harness-engineering/README.md](./docs/harness-engineering/README.md)
 
+如果本轮还涉及提交收口、技能索引、验证矩阵或交接模板，继续对照 `docs/AGENTS/commit-workflow.md`、`docs/AGENTS/skill-reference.md` 和 `docs/harness-engineering/core/traceability-model.md`。
+
 ### Step 3：识别涉及的代码范围 → 调用对应 Guard Skill
 
 | 涉及范围 | 必须调用的 Skill |

@@ -65,6 +65,12 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 - **不拆**：职责紧密内聚（如意图识别 + query 改写在同一上下文中强耦合）→ 保留 warning，**在 LOGBOOK 记录不拆的论证**
 - **部分拆**：部分职责能拆，部分不能，先拆能拆的，多轮 PR
 
+### 1.4 先对齐 Harness 口径
+
+- 如果这次拆分或重构会产生可追溯结果，先准备 `trace_id`
+- 如果会留下可复用教训，先看 `docs/harness-engineering/core/mistake-ledger.md`
+- 如果会产生交接或证据，先看 `docs/harness-engineering/core/agent-handoff-template.md` 和 `docs/harness-engineering/core/evidence-index.md`
+
 ## 2️⃣ 拆分原则（编码阶段）
 
 ### Python 四象限拆分法
@@ -119,6 +125,7 @@ Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
 - [ ] 原 import 路径无需修改（或已做 re-export）
 - [ ] 测试通过
 - [ ] `LOGBOOK.md` 已更新（含拆分动机论证）
+- [ ] 如有交接或证据留档，已补 `trace_id` / handoff / evidence index
 
 ## 5️⃣ 失败处理
 

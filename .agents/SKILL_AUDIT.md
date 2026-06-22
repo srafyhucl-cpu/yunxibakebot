@@ -1,6 +1,6 @@
 # Skill 死亡风险审计
 
-> 审计日期：2026-05-22（更新：2026-06-11）
+> 审计日期：2026-05-22（更新：2026-06-22）
 > 范围：全局 `c:\Users\srafy\.agents\skills\` + 项目 `.agents\skills\`
 > 操作建议仅供参考，**不自动删除任何文件**
 
@@ -20,7 +20,7 @@
 
 | 状态 | Skill | 功能说明 | 问题 |
 |------|-------|---------|------|
-| KEEP | `芸熙Harness工程守卫` | 较大任务、追溯、复盘、防重犯、证据留档、交接和 Skill 审计的统一入口 | 2026-06-11 新增，已联动 AGENTS、skill-reference 和 4 个项目 Guard Skill |
+| KEEP | `芸熙Harness工程守卫` | 较大任务、追溯、复盘、防重犯、证据留档、交接和 Skill 审计的统一入口 | 2026-06-11 新增，已联动 AGENTS、skill-reference、traceability-model、verification-matrix 和交接模板 |
 | KEEP | `芸熙LLM守卫` | DeepSeek 调用、Function Calling、意图识别、对话循环的专项规范 | 已补充 Harness 联动 |
 | KEEP | `芸熙架构守卫` | api/service/repository/models 分层边界、Webhook 幂等约束 | 已补充 Harness 联动 |
 | KEEP | `芸熙文件体量守卫` | 防止单文件过大，超阻断线强制走拆分工作流 | 已修复：description 加入主动检查触发词；工作流联动升级；已补充 Harness 联动 |
@@ -36,8 +36,8 @@
 |------|-------|---------|--------------|
 | KEEP | `using-superpowers` | **元技能**：建立 skill 检索习惯，任务开始前强制检查可用 skill。核心原则"1% 概率就调用"已写入 `AGENTS.md` 零号章节 | 已引入 AGENTS.md |
 | KEEP | `brainstorming` | **设计前探索**：新功能 / 新需求开发前必须调用，探索需求、提 2-3 方案、用户确认后才动代码 | 已引入 AGENTS.md Step 1，强制调用 |
-| KEEP | `defuddle` | **网页转 Markdown**：查阅有赞 API 文档、DeepSeek 文档、微信开放平台文档时使用，比 WebFetch 省 token | 已引入 AGENTS.md 5.2 场景表 |
-| KEEP | `skill-creator` | **Skill 工厂**：Guard Skill 需要迭代改进时使用，提供草稿→测试→迭代→description 优化全流程 | 已引入 AGENTS.md 5.2，sync-skills.md 联动 |
+| KEEP | `defuddle` | **网页转 Markdown**：查阅有赞 API 文档、DeepSeek 文档、微信开放平台文档时使用，比 WebFetch 省 token | 已引入 AGENTS.md / docs/AGENTS/quick-reference.md |
+| KEEP | `skill-creator` | **Skill 工厂**：Guard Skill 需要迭代改进时使用，提供草稿→测试→迭代→description 优化全流程 | 已引入 AGENTS.md / sync-skills.md 联动 |
 | LOW | `markitdown` | **本地文件转 Markdown**：用微软 markitdown 工具把 PDF/Word/Excel/PPT/图片/音频/YouTube 链接转成 markdown | 低频，保留备用 |
 | PROJECT_SKIP | `json-canvas` | **Obsidian Canvas 文件编辑**：本项目无 Obsidian vault，不适用 | 不引入；全局可保留 |
 | PROJECT_SKIP | `playwright-skill` | **E2E 自动化测试**：本项目用 pytest，不使用 Playwright | 不引入；全局可保留 |

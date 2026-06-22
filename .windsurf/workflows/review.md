@@ -13,6 +13,12 @@ description: 代码 Review 工作流，针对芸熙烘焙 AI 客服项目的变�
 - 涉及任意 `.py` 文件行数增长 → **芸熙文件体量守卫**
 - 发现硬编码 / 命名质量问题 → **芸熙洁净代码守卫**
 
+### 0.5 先对照 Harness 证据
+
+- 如果本轮是较大任务，先看 `docs/harness-engineering/core/traceability-model.md`
+- 如果有产物要留档，先看 `docs/harness-engineering/core/evidence-index.md`
+- 如果发现可复用教训，优先核对 `docs/harness-engineering/core/mistake-ledger.md`
+
 你是一位极其资深的 Python/FastAPI 后端工程师，正在对芸熙烘焙 AI 客服系统的代码变更进行深度 Review。
 
 ## 审查目标
@@ -29,6 +35,7 @@ description: 代码 Review 工作流，针对芸熙烘焙 AI 客服项目的变�
 1. **配置硬编码**：API Key、Token、域名是否写死在代码中
 1. **类型注解**：是否使用了被禁止的 `Optional[X]` / `Union[X, Y]`（应为 `X | None` / `X | Y`）
 1. **现有规范契约**：是否违反 `CLAUDE.md` 中的任一开发红线
+1. **Harness 收口**：是否有对应 `trace_id`、LOGBOOK 记录、证据索引或交接材料
 
 ## 执行要求
 

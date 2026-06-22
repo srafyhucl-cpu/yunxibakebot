@@ -19,6 +19,12 @@ description: 代码规范化检查工作流，用于芸熙烘焙 AI 客服项目
 - 发现函数过长 / 硬编码 / 命名问题 → 调用 **芸熙洁净代码守卫**
 - 任何文件行数接近或超过警戒线 → 调用 **芸熙文件体量守卫**
 
+### 0.5 先对齐 Harness 口径
+
+- 较大任务或跨文件检查，先看 `docs/harness-engineering/core/traceability-model.md`
+- 如果本轮会留下证据，先确认 `docs/harness-engineering/core/evidence-index.md`
+- 需要复盘或交接时，先准备 `scripts/harness_snapshot.py` 的输出
+
 ### 1. 语法红线检查
 
 ```powershell
@@ -140,6 +146,8 @@ except Exception as exc:
 - [ ] 无静默吞异常
 - [ ] 无硬编码密钥
 - [ ] 无裸 `print()` 调用
+- [ ] 若是较大任务，已记录 `trace_id` 或说明不需要
+- [ ] 若本轮有可复用教训，已更新 `core/mistake-ledger.md`
 
 ## 🔗 联动 Skill
 

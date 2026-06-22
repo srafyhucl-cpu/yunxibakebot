@@ -44,6 +44,10 @@ brainstorming 完成后，调用 **`芸熙架构守卫`** 校验设计方案：
 
 方案经 brainstorming 确认后，进入编码阶段。编码完成后走 `/check` → `/review` → `/commit` 标准流程。
 
+### 5. 设计收口
+
+设计完成后，如果本轮是较大任务或跨文件变更，先补 `trace_id`，并预留 `docs/harness-engineering/core/agent-handoff-template.md` 和 `docs/harness-engineering/core/evidence-index.md` 的记录位置。
+
 ## 🔗 联动 Skill
 
 | 步骤 | Skill |
