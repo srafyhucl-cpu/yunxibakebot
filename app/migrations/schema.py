@@ -411,6 +411,60 @@ SCHEMA_STATEMENTS: list[str] = [
         UNIQUE(channel, user_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_cp_channel_user ON customer_profiles(channel, user_id)",
+    # 企业微信客户群绑定：承接 opengid/chat_id 归因与运营批次
+    """CREATE TABLE IF NOT EXISTS customer_groups (
+        id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL UNIQUE,
+        opengid TEXT DEFAULT '',
+        name TEXT DEFAULT '',
+        owner_userid TEXT DEFAULT '',
+        source TEXT DEFAULT '',
+        status TEXT DEFAULT 'active'
+            CHECK(status IN ('active','archived')),
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cg_opengid ON customer_groups(opengid)",
+    "CREATE INDEX IF NOT EXISTS idx_cg_owner ON customer_groups(owner_userid)",
+    # 客户群团购/预订活动批次
+    """CREATE TABLE IF NOT EXISTS group_campaigns (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES customer_groups(id),
+        title TEXT NOT NULL,
+        status TEXT DEFAULT 'active'
+            CHECK(status IN ('active','closed','archived')),
+        starts_at TEXT DEFAULT '',
+        ends_at TEXT DEFAULT '',
+        summary_note TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_gc_group_status ON group_campaigns(group_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_gc_updated ON group_campaigns(updated_at)",
+    # 客户群结构化登记：替代原生群接龙，供后台汇总和微信客服查询
+    """CREATE TABLE IF NOT EXISTS group_registrations (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL REFERENCES group_campaigns(id),
+        group_id TEXT NOT NULL REFERENCES customer_groups(id),
+        user_id TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity > 0),
+        fulfillment_method TEXT DEFAULT 'pickup'
+            CHECK(fulfillment_method IN ('pickup','delivery')),
+        desired_time TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        remark TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending'
+            CHECK(status IN ('pending','confirmed','cancelled')),
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_gr_campaign_status ON group_registrations(campaign_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_gr_group ON group_registrations(group_id)",
+    "CREATE INDEX IF NOT EXISTS idx_gr_user ON group_registrations(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_gr_phone ON group_registrations(customer_phone)",
     # 离线会话质检结果
     """CREATE TABLE IF NOT EXISTS conversation_reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

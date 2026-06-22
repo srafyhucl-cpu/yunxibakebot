@@ -15,6 +15,7 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.admin.addresses import create_admin_addresses_router
     from app.api.admin.assets import create_admin_assets_router
     from app.api.admin.config import create_shop_config_router
+    from app.api.admin.customer_groups import create_admin_customer_groups_router
     from app.api.admin.frontend import create_admin_frontend_router
     from app.api.admin.knowledge import create_admin_knowledge_router
     from app.api.admin.observability import create_observability_router
@@ -27,6 +28,9 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.channels.storefront.auth import create_storefront_auth_router
     from app.api.channels.storefront.catalog import create_storefront_catalog_router
     from app.api.channels.storefront.chat import create_storefront_chat_router
+    from app.api.channels.storefront.group_registrations import (
+        create_storefront_group_registrations_router,
+    )
     from app.api.channels.storefront.orders import create_storefront_orders_router
     from app.api.channels.storefront.payments import create_storefront_payments_router
     from app.api.integrations.wecom import router as wecom_router
@@ -66,7 +70,13 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     app.include_router(
         create_storefront_chat_router(services["storefront_conversation_service"])
     )
+    app.include_router(
+        create_storefront_group_registrations_router(services["customer_group_service"])
+    )
     app.include_router(create_admin_orders_router(services["order_service"]))
+    app.include_router(
+        create_admin_customer_groups_router(services["customer_group_service"])
+    )
     app.include_router(
         create_admin_knowledge_router(services["knowledge_admin_service"])
     )

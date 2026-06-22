@@ -10,6 +10,7 @@ import {
   Service,
   Setting,
   Tickets,
+  UserFilled,
 } from "@element-plus/icons-vue";
 
 export interface AdminNavItem {
@@ -28,6 +29,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: "店铺装修", shortLabel: "装修", to: "/decoration", key: "decoration", icon: MagicStick, mobilePrimary: false },
   { label: "订单管理", shortLabel: "订单", to: "/orders", key: "orders", icon: Tickets, mobilePrimary: true },
   { label: "顾客地址", shortLabel: "地址", to: "/addresses", key: "addresses", icon: Location, mobilePrimary: false },
+  { label: "客户群运营", shortLabel: "群", to: "/customer-groups", key: "customer-groups", icon: UserFilled, mobilePrimary: false },
   { label: "知识配置", shortLabel: "知识", to: "/knowledge", key: "knowledge", icon: Document, mobilePrimary: false },
   {
     label: "数据观察台",

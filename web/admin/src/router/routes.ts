@@ -79,6 +79,15 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/customer-groups",
+    name: "customer-groups",
+    component: () => import("@/pages/customer-groups/CustomerGroupsPage.vue"),
+    meta: {
+      title: "客户群运营",
+      navKey: "customer-groups",
+    },
+  },
+  {
     path: "/knowledge",
     name: "knowledge",
     component: () => import("@/pages/knowledge/KnowledgePage.vue"),

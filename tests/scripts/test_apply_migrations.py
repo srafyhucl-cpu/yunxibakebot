@@ -31,6 +31,9 @@ def _remove_late_migration_state(db_path: Path) -> None:
             "customer_source_snapshots",
             "customer_merge_reviews",
             "customer_profiles",
+            "customer_groups",
+            "group_campaigns",
+            "group_registrations",
             "conversation_reviews",
             "knowledge_gaps",
             "wecom_kf_sync_states",
@@ -56,6 +59,7 @@ async def test_run_migration_dry_run_does_not_create_database(tmp_path: Path) ->
     assert db_path.exists() is False
     assert "customer_master" in report.missing_before
     assert "customer_profiles" in report.missing_before
+    assert "customer_groups" in report.missing_before
     assert report.missing_after == report.missing_before
 
 
@@ -75,6 +79,7 @@ async def test_run_migration_apply_creates_required_tables(tmp_path: Path) -> No
     assert report.applied is True
     assert "customer_master" in report.missing_before
     assert "customer_profiles" in report.missing_before
+    assert "customer_groups" in report.missing_before
     assert report.missing_after == []
 
 
@@ -203,6 +208,7 @@ async def test_async_main_json_output_is_machine_readable(
     assert payload["report"]["applied"] is False
     assert payload["report"]["schema_ready"] is False
     assert "customer_profiles" in payload["report"]["missing_before"]
+    assert "customer_groups" in payload["report"]["missing_before"]
 
 
 async def test_async_main_json_output_can_be_written_to_file(

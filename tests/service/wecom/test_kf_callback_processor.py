@@ -9,6 +9,7 @@ from app.models.session_scope import SessionScope
 from app.models.transfer import TransferStatus
 from app.service.wecom.kf_callback_processor import KfCallbackProcessor
 from app.service.wecom.kf_message_queue import KfIncomingMessage
+from app.service.wecom.kf_message_queue import KfMessageQueue
 
 
 class FakeKfClient:
@@ -56,6 +57,16 @@ class FakeKfQueue:
     async def enqueue(self, msg: KfIncomingMessage) -> bool:
         self.messages.append(msg)
         return True
+
+
+class FakeChatService:
+    def __init__(self, reply: str = "自动回复") -> None:
+        self.reply = reply
+        self.calls: list[dict] = []
+
+    async def handle_message(self, **kwargs) -> str:
+        self.calls.append(kwargs)
+        return self.reply
 
 
 class _FixedDatetime(datetime):
@@ -812,3 +823,79 @@ async def test_duplicate_msgid_does_not_replay_after_callback(
     await processor.handle_callback({"Token": "token-1", "OpenKfId": "kf-1"})
 
     assert [msg.msg_id for msg in queue.messages] == ["dup-text-1"]
+
+
+@pytest.mark.asyncio
+async def test_kf_queue_skips_auto_reply_when_human_service_is_active(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-human",
+            "wecom_kf",
+            "user-1",
+            "human_service",
+            "{}",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ),
+    )
+    await db.commit()
+    await close_db(db)
+
+    queue = KfMessageQueue()
+    queue._chat_service = FakeChatService()  # noqa: SLF001
+    await queue._process_one(  # noqa: SLF001
+        KfIncomingMessage(
+            external_userid="user-1",
+            open_kfid="kf-1",
+            content="我想再问一下",
+            msg_id="text-1",
+        )
+    )
+
+    assert queue._chat_service.calls == []  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_kf_queue_skips_nontext_auto_reply_when_human_service_is_active(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "kf-sync.db"
+    monkeypatch.setattr("app.database.settings.DB_PATH", str(db_path))
+    db = await init_db(str(db_path))
+    await db.execute(
+        "INSERT INTO sessions (id, channel, user_id, status, extra_info, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "session-human",
+            "wecom_kf",
+            "user-1",
+            "transfer_pending",
+            "{}",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ),
+    )
+    await db.commit()
+    await close_db(db)
+
+    queue = KfMessageQueue()
+    queue._chat_service = FakeChatService()  # noqa: SLF001
+    await queue._process_one(  # noqa: SLF001
+        KfIncomingMessage(
+            external_userid="user-1",
+            open_kfid="kf-1",
+            content="[image消息]",
+            msg_id="image-1",
+            msgtype="image",
+            media_id="media-1",
+        )
+    )
+
+    assert queue._chat_service.calls == []  # noqa: SLF001

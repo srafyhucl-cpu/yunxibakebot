@@ -36,6 +36,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     from app.service.channels.storefront import StorefrontAuthService
     from app.service.conversation import StorefrontConversationService
     from app.service.customer import CustomerAddressService
+    from app.service.customer import CustomerGroupOperationsService
     from app.service.knowledge_admin import KnowledgeAdminService
     from app.service.knowledge_sync import KnowledgeSyncService
     from app.service.observability import ObservabilityService
@@ -89,6 +90,9 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         address_repo=repos["customer_address_repo"],
         audit_repo=repos["customer_address_audit_repo"],
     )
+    customer_group_service = CustomerGroupOperationsService(
+        repos["customer_group_repo"]
+    )
     storefront_auth_service = StorefrontAuthService()
     transfer_mgr = TransferManager(repos["transfer_repo"])
     shop_page_configuration_service = ShopPageConfigurationService(repos["config_repo"])
@@ -135,6 +139,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "catalog_service": catalog_service,
         "order_service": order_service,
         "customer_address_service": customer_address_service,
+        "customer_group_service": customer_group_service,
         "transfer_mgr": transfer_mgr,
         "shop_page_configuration_service": shop_page_configuration_service,
         "shop_configuration_service": shop_configuration_service,

@@ -392,6 +392,33 @@
 - 店铺运营配置只在 `Platform.ops`。
 - `MiniApp` 不应复制营业时间、隐私政策、售后政策等业务文案规则。
 
+### 9. 客户群结构化登记
+
+| 方法 | 路径 | 稳定性 | MiniApp 用途 | 归属域 |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/miniapp/group-registrations` | `stable` | 提交客户群团购或预订登记 | `customer` |
+| `GET` | `/api/v1/miniapp/group-registrations/me` | `stable` | 查看当前用户的登记记录 | `customer` |
+
+稳定字段：
+
+- `id`
+- `groupId`
+- `campaignId`
+- `status`
+- `fulfillmentMode`
+- `createdAt`
+
+当前行为约束：
+
+- 登记页必须携带团购批次上下文，不能脱离批次独立提交。
+- `MiniApp` 只负责表单录入和个人记录展示，不保存群运营真相。
+- 运营汇总与状态更新统一由 `Platform.customer` 承接。
+
+真相说明：
+
+- 客户群绑定、批次和登记汇总都在 `Platform.customer`。
+- `group_registrations` 是前台渠道入口，不是新的业务真相源。
+
 ## 对 `Storefront MiniApp` 仓的接入要求
 
 ### 必须做
@@ -399,6 +426,7 @@
 - 所有小程序前台能力统一走本文件列出的公开接口。
 - `x-miniapp-user-id` 由登录结果或正式身份体系统一注入。
 - 页面装修、店铺配置按“后端投影”使用，不在前台再造一套配置中心。
+- 客户群登记页只调用 `/api/v1/miniapp/group-registrations`，不直连后台客户群 API。
 
 ### 不应再做
 

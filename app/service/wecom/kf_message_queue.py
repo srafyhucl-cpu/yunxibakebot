@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from app.logger import setup_logger
 from app.service.wecom.base_queue import BaseWeComMessageQueue
+from app.service.wecom.kf_handoff_checker import DbHandoffSessionChecker
 from app.service.wecom.processed_message_cache import ProcessedMessageCache
 from app.service.wecom.ump import parse_ump_tags
 
@@ -87,6 +88,13 @@ class KfMessageQueue(BaseWeComMessageQueue[KfIncomingMessage]):
         from app.service.wecom.client import get_wecom_client
 
         client = get_wecom_client()
+
+        if await self._should_skip_auto_reply(client, msg.external_userid):
+            logger.info(
+                "客服会话处于人工接待或不可回复状态，跳过自动回复 user=%s",
+                msg.external_userid,
+            )
+            return
 
         # ── 非文本消息预处理 ──
         image_base64: str = ""
@@ -304,6 +312,17 @@ class KfMessageQueue(BaseWeComMessageQueue[KfIncomingMessage]):
                     kf_state,
                     session.id,
                 )
+
+    async def _should_skip_auto_reply(self, client, external_userid: str) -> bool:
+        if not external_userid:
+            return True
+
+        service_state_getter = getattr(client, "get_kf_service_state", None)
+        handoff_checker = DbHandoffSessionChecker(service_state_getter)
+        if await handoff_checker.is_handoff_user(external_userid):
+            return True
+
+        return not await client.ensure_kf_session_active(external_userid)
 
     async def _send_card(self, client, external_userid: str, card: dict) -> None:
         """

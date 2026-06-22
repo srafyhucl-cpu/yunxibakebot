@@ -14,6 +14,8 @@
   - 当前双仓对接的 API 契约基线，明确 MiniApp 应消费哪些公开接口以及背后 canonical 归属域。
 - `docs/architecture/platform-domain-migration-inventory.md`
   - 当前 `Platform` 内部从历史 `miniapp_*` 命名继续迁到 canonical 领域的盘点、风险分级和建议执行批次。
+- `docs/architecture/customer-group-operations-phase1.md`
+  - 当前客户群运营一期说明，覆盖客户群触达、小程序结构化登记、后台汇总和微信客服单聊承接的最小闭环。
 - `docs/architecture/customer-master-v1.md`
   - 当前客户主档 v1 设计基线，明确主档、身份链接、来源快照三层结构，以及有赞迁移审计落点。
 - `docs/architecture/customer-master-v1-schema-draft.md`

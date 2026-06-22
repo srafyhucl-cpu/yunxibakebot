@@ -1,4 +1,19 @@
-﻿# YunxiBakeBot 项目开发日志 (Logbook)
+﻿
+
+## [2026-06-22] - feat(customer-groups): 收口客户群运营一期业务改动
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-customer-groups-business-close
+- **背景**: 客户群运营一期的后端、后台、MiniApp 和文档口径已接通，需要把业务改动补进同一条提交链路，确保项目状态与实际代码一致。
+- **变更范围**:
+  - `app/migrations/schema.py`、`app/models/customer_group.py`、`app/repository/customer_group_repo.py`、`app/service/customer/group_operations.py` - 客户群、批次、登记和汇总领域骨架。
+  - `app/api/channels/storefront/group_registrations.py`、`app/api/admin/customer_groups.py` 及兼容入口 - 小程序登记 API 与后台运营 API。
+  - `web/admin/src/pages/customer-groups/`、`web/admin/src/services/customerGroups.ts`、`web/admin/src/types/customerGroup.ts` - 后台客户群运营页与前端服务类型。
+  - `tests/api/test_customer_group_api.py`、`tests/migrations/test_customer_group_tables.py`、`tests/service/test_customer_group_operations.py` - 客户群一期回归测试。
+- **验证结果**:
+  - 待执行：按 Harness 验证矩阵对业务改动做最小验证与必要的加强验证。
+- **结论**:
+  - 本轮业务改动将与既有文档收口一起提交，形成客户群运营一期的代码、文档和验证闭环。
+# YunxiBakeBot 项目开发日志 (Logbook)
 
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 

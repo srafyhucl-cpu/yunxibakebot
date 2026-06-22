@@ -40,6 +40,7 @@ from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.customer_address_audit_repo import CustomerAddressAuditRepo
 from app.repository.customer_address_repo import CustomerAddressRepo
+from app.repository.customer_group_repo import CustomerGroupRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
 from app.repository.order_event_repo import OrderEventRepo
 from app.repository.order_repo import OrderRepo
@@ -178,6 +179,7 @@ def _init_repositories() -> dict[str, object]:
         "order_event_repo": OrderEventRepo(None),
         "customer_address_repo": CustomerAddressRepo(None),
         "customer_address_audit_repo": CustomerAddressAuditRepo(None),
+        "customer_group_repo": CustomerGroupRepo(None),
     }
     return _with_legacy_repository_aliases(repos)
 

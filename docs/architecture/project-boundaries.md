@@ -59,8 +59,15 @@
 - `customer / catalog / order / conversation / channels/storefront / ops` 已有对应 canonical 实现承接真实逻辑。
 - `order` 域已直接承接下单、支付准备、mock 支付确认、微信支付通知、用户取消、后台状态流转、未支付关闭与超时扫描。
 - `integrations/wechat_pay.py` 已开始承接微信支付签名、预下单、通知验签与通知解密等第三方适配细节。
+- `customer/group_operations.py` 已承接客户群绑定、团购批次、结构化登记和汇总文案生成，后台与前台登记页只是围绕同一份 customer 群运营真相做投影。
 
 更细的内部迁移盘点见：[Platform 领域迁移盘点](./platform-domain-migration-inventory.md)。当前判断是服务层 facade 已基本完成，后续优先迁测试和内部依赖；地址域仍保留 `miniapp_addresses` 等数据库表名，不在兼容期做表重命名。
+
+客户群运营一期的边界也按同样原则处理：
+
+- 运营工作台和 MiniApp 登记页都只消费 `customer` 域的同一份群运营真相。
+- `group_registrations` 只作为前台渠道公开入口，不把登记规则留在前台仓。
+- 后续如果要补 `opengid_to_chatid` 归因，优先放入 `customer` / `integrations` 的 canonical 边界内，不在页面层临时拼接。
 
 ## 推进顺序
 
