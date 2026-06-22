@@ -125,7 +125,10 @@ async def test_health_and_ready_shapes(monkeypatch) -> None:
     monkeypatch.setattr(
         main,
         "build_runtime_feature_flags",
-        lambda: {"reply_guard": True},
+        lambda offline_review_running=False: {
+            "reply_guard": True,
+            "offline_review_running": offline_review_running,
+        },
     )
 
     assert await main.health() == {"status": "ok", "version": main.APP_VERSION}
@@ -133,8 +136,14 @@ async def test_health_and_ready_shapes(monkeypatch) -> None:
         "status": "ready",
         "version": main.APP_VERSION,
         "checks": {"db": True},
-        "features": {"reply_guard": True},
+        "features": {"reply_guard": True, "offline_review_running": False},
     }
+
+
+def test_build_runtime_feature_flags_includes_offline_runtime_state() -> None:
+    flags = main.build_runtime_feature_flags(True)
+
+    assert flags["offline_review_running"] is True
 
 
 async def test_static_file_helpers_return_or_404(monkeypatch, tmp_path) -> None:

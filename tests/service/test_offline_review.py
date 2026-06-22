@@ -20,11 +20,12 @@ from app.repository.session_repo import SessionRepo
 from app.service.offline import agent_qa_review as qa_review_module
 from app.service.offline import agent_knowledge_gap as knowledge_gap_module
 from app.service.offline import agent_memory as memory_module
+from app.service.offline import scheduler as scheduler_module
 from app.service.offline.agent_knowledge_gap import KnowledgeGapAgent
 from app.service.offline.agent_memory import MemoryAgent
 from app.service.offline.agent_qa_review import QaReviewAgent
 from app.service.offline.orchestrator import OfflineReviewOrchestrator
-from app.service.offline.scheduler import OfflineReviewScheduler
+from app.service.offline.scheduler import OfflineReviewScheduler, _is_night_window
 
 
 async def test_session_repo_lists_unreviewed_closed_and_transfer_sessions(
@@ -245,7 +246,9 @@ async def test_orchestrator_runs_p3_agents_after_qa() -> None:
     assert memory_agent.called is True
 
 
-async def test_scheduler_runs_and_stops() -> None:
+async def test_scheduler_runs_and_stops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """调度器应能启动、触发一轮并优雅停止。"""
 
     class FakeOrchestrator:
@@ -262,11 +265,23 @@ async def test_scheduler_runs_and_stops() -> None:
         interval_hours=0.01,
     )
 
+    monkeypatch.setattr(
+        scheduler_module, "_is_night_window", lambda *_args, **_kwargs: True
+    )
     scheduler.start()
     await asyncio.sleep(0.01)
     await scheduler.stop()
 
+    assert scheduler.get_last_summary().ran is True
     assert orchestrator.calls >= 1
+
+
+def test_night_window_wraps_across_midnight() -> None:
+    assert _is_night_window(22, 6, now_hour=23) is True
+    assert _is_night_window(22, 6, now_hour=2) is True
+    assert _is_night_window(22, 6, now_hour=12) is False
+    assert _is_night_window(8, 18, now_hour=9) is True
+    assert _is_night_window(8, 18, now_hour=20) is False
 
 
 async def test_memory_agent_records_partial_handoff_scope(

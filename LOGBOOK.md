@@ -3,6 +3,35 @@
 > 本文档是项目演进的唯一真实编年史。AI在完成任何功能开发、Bug 修复、架构重构并准备提交前，必须在顶部（或追加到历史最新处）记录本轮变更。
 
 
+## [2026-06-22] - ops(offline-review): 打开夜间沉淀总开关
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-enable-offline-review
+- **背景**: 夜间沉淀链路已具备夜间窗口、运行摘要与 readiness 暴露，需要进入实际运行观察阶段。
+- **变更范围**:
+  - `.env` - 开启 `ENABLE_OFFLINE_REVIEW=True`。
+- **验证结果**:
+  - 本次仅变更配置开关，未再次触发完整运行验证。
+- **结论**:
+  - 离线沉淀调度已从默认关闭切换为开启，后续需结合服务重启与 ready 状态观察实际运行摘要。
+
+
+## [2026-06-22] - fix(offline-review): 收口夜间沉淀调度、运行摘要与 readiness 暴露
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-offline-review-night-window-readiness
+- **背景**: 夜间沉淀链路已有离线质检、知识缺口、顾客记忆和编排器骨架，但默认是固定间隔运行，缺少夜间窗口、运行摘要和对外可观测出口，导致“已接上”和“是否真正夜间执行”难以区分。
+- **变更范围**:
+  - `app/config.py` - 新增 `OFFLINE_REVIEW_NIGHT_START_HOUR` 与 `OFFLINE_REVIEW_NIGHT_END_HOUR`。
+  - `app/service/offline/scheduler.py` - 增加夜间窗口判断、最近一轮运行摘要与总处理量统计。
+  - `app/service/offline/agent_qa_review.py`、`app/service/offline/agent_knowledge_gap.py`、`app/service/offline/agent_memory.py` - 补充各自最近一轮结果缓存，供调度摘要读取。
+  - `app/readiness.py`、`app/main.py` - 将离线沉淀运行状态暴露到 `/ready` 的 `features` 中。
+  - `tests/test_main_runtime.py`、`tests/service/test_offline_review.py` - 补充运行状态与夜间窗口测试。
+- **验证结果**:
+  - `python -m pytest tests/test_main_runtime.py tests/service/test_offline_review.py -q --tb=short --no-cov` 通过。
+  - `python -m compileall app\config.py app\main.py app\readiness.py app\service\offline\scheduler.py app\service\offline\agent_qa_review.py app\service\offline\agent_knowledge_gap.py app\service\offline\agent_memory.py tests\test_main_runtime.py tests\service\test_offline_review.py` 通过。
+- **结论**:
+  - 夜间沉淀从“有离线骨架”推进到“带夜间窗口、带运行摘要、可在 ready 面判断是否实际运行”的状态，仍保留默认关闭，适合后续灰度开启。
+
+
 ## [2026-06-21] - fix(admin): 修复后台静态入口 dist 路径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260621-admin-dist-path-after-api-move

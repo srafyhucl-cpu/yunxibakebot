@@ -374,9 +374,17 @@ async def health() -> dict[str, str]:
 async def ready() -> dict:
     checks = build_readiness_checks()
     is_ready = all(checks.values())
+    offline_review_scheduler = getattr(app.state, "offline_review_scheduler", None)
+    offline_review_summary = (
+        offline_review_scheduler.get_last_summary()
+        if offline_review_scheduler is not None
+        else None
+    )
     return {
         "status": "ready" if is_ready else "degraded",
         "version": APP_VERSION,
         "checks": checks,
-        "features": build_runtime_feature_flags(),
+        "features": build_runtime_feature_flags(
+            bool(offline_review_summary and offline_review_summary.ran)
+        ),
     }

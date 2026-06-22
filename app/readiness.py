@@ -163,11 +163,14 @@ def _admin_frontend_observability_summary_built(assets_dir: Path) -> bool:
     return False
 
 
-def build_runtime_feature_flags() -> dict[str, bool]:
+def build_runtime_feature_flags(
+    offline_review_running: bool = False,
+) -> dict[str, bool]:
     return {
         "reply_guard": settings.ENABLE_REPLY_GUARD,
         "customer_memory": settings.ENABLE_CUSTOMER_MEMORY,
         "offline_review": settings.ENABLE_OFFLINE_REVIEW,
+        "offline_review_running": offline_review_running,
         "hybrid_retrieval": settings.ENABLE_HYBRID_RETRIEVAL,
         "youzan_mock_mode": settings.YOUZAN_MOCK_MODE,
     }

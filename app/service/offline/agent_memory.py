@@ -72,6 +72,7 @@ class MemoryAgent:
         self._profile_repo = profile_repo
         self._max_sessions = max_sessions
         self._reviewer_model = reviewer_model or settings.MIMO_CHAT_MODEL
+        self.last_run_result: list[CustomerProfile] = []
 
     async def run(self) -> list[CustomerProfile]:
         """Run one memory consolidation pass."""
@@ -87,6 +88,7 @@ class MemoryAgent:
                 profiles.append(await self._save_profile(session, parsed, scope))
             except Exception as exc:
                 logger.error("离线记忆固化失败 session=%s err=%s", session.id, exc)
+        self.last_run_result = profiles
         return profiles
 
     async def _extract_memory(

@@ -50,6 +50,7 @@ class QaReviewAgent:
         self._review_repo = review_repo
         self._max_sessions = max_sessions
         self._reviewer_model = reviewer_model or settings.MIMO_CHAT_MODEL
+        self.last_run_result: list[ConversationReview] = []
 
     async def run(self) -> list[ConversationReview]:
         """执行一轮会话质检，单会话失败不影响后续会话。"""
@@ -73,6 +74,7 @@ class QaReviewAgent:
                 )
             except Exception as exc:
                 logger.error("离线会话质检失败 session=%s err=%s", session.id, exc)
+        self.last_run_result = reviews
         return reviews
 
     async def _review_messages(self, messages: list[Message]) -> ParsedQaReview:

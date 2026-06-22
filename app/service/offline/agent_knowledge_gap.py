@@ -47,6 +47,7 @@ class KnowledgeGapAgent:
         self._gap_repo = gap_repo
         self._max_reviews = max_reviews
         self._reviewer_model = reviewer_model or settings.MIMO_CHAT_MODEL
+        self.last_run_result: list[KnowledgeGap] = []
 
     async def run(self, reviews: list[ConversationReview]) -> list[KnowledgeGap]:
         """从低分质检结果中挖掘知识缺口，单条失败不影响后续。"""
@@ -77,6 +78,7 @@ class KnowledgeGapAgent:
                 logger.error(
                     "离线知识缺口挖掘失败 session=%s err=%s", review.session_id, exc
                 )
+        self.last_run_result = gaps
         return gaps
 
     async def _extract_gap(

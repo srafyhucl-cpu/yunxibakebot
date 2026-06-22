@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     ENABLE_CUSTOMER_MEMORY: bool = False
     ENABLE_REPLY_GUARD: bool = False
     ENABLE_OFFLINE_REVIEW: bool = False
+    OFFLINE_REVIEW_NIGHT_START_HOUR: int = 22
+    OFFLINE_REVIEW_NIGHT_END_HOUR: int = 6
     OFFLINE_REVIEW_INTERVAL_HOURS: float = 6.0
     OFFLINE_REVIEW_MAX_SESSIONS: int = 200
 
