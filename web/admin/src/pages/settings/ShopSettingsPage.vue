@@ -12,7 +12,15 @@ const settings = ref<ShopOperationsSettings>(shopSettingsService.defaults);
 const businessHoursError = ref("");
 const businessHoursPattern = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/;
 
-const paymentModeLabel = computed(() => (settings.value.paymentMode === "store_confirm" ? "门店确认" : "待接入"));
+const paymentModeLabel = computed(() => {
+  if (settings.value.paymentMode === "mock") {
+    return "模拟支付";
+  }
+  if (settings.value.paymentMode === "wechat") {
+    return "微信支付";
+  }
+  return "门店确认";
+});
 
 function parseBusinessHourMinutes(value: string): [number, number] | null {
   const match = value.trim().match(businessHoursPattern);
@@ -206,7 +214,9 @@ onMounted(() => {
           />
         </el-form-item>
         <el-form-item label="支付模式">
-          <el-tag :type="paymentModeLabel === '门店确认' ? 'warning' : 'info'">{{ paymentModeLabel }}</el-tag>
+          <el-tag :type="paymentModeLabel === '微信支付' ? 'success' : paymentModeLabel === '模拟支付' ? 'warning' : 'info'">
+            {{ paymentModeLabel }}
+          </el-tag>
         </el-form-item>
       </el-form>
     </el-card>

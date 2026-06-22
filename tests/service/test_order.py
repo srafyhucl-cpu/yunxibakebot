@@ -302,6 +302,39 @@ async def test_prepare_payment_returns_wechat_shape_when_configured(
     assert params["paySign"] == "signed-pay-params"
 
 
+async def test_prepare_payment_returns_mock_when_integration_is_not_ready(
+    service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """微信支付配置不完整时应明确回退 mock。"""
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_ENABLED", True)
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_MINIAPP_APP_ID", "wx-app-id")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_MCH_ID", "mch-id")
+    monkeypatch.setattr(wechat_pay.settings, "WECHAT_PAY_NOTIFY_URL", "")
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "p_payment_prepare_not_ready",
+                    "title": "微信支付未就绪蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="mock-fallback-user",
+    )
+
+    session = await service.prepare_payment(
+        created["orderId"], user_id="mock-fallback-user"
+    )
+
+    assert session["mode"] == "mock"
+    assert session["paymentMethod"] == "mock"
+    assert session["paymentParams"]["action"] == "mock-pay"
+
+
 async def test_wechat_prepay_requires_bound_openid(
     service: OrderApplicationService,
     monkeypatch: pytest.MonkeyPatch,

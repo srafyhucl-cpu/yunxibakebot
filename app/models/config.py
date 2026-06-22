@@ -19,7 +19,7 @@ DEFAULT_SHOP_OPERATIONS = {
     "pickupAddress": "门店自提，具体地址请联系客服确认",
     "deliveryNotice": "门店配送需提前预约，配送范围和费用以客服确认为准",
     "pickupNotice": "蛋糕建议提前 24 小时预订，到店自提前请确认取货时间",
-    "paymentMode": "store_confirm",
+    "paymentMode": "mock",
     "privacyPolicyTitle": "隐私政策",
     "privacyPolicyContent": "我们仅在下单、配送、客服和售后所必需的范围内收集联系人、手机号、地址、订单备注等信息，并用于完成蛋糕预订、履约通知和售后服务。未经用户授权，不会将个人信息用于无关用途。",
     "userAgreementTitle": "用户协议",

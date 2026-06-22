@@ -6,7 +6,7 @@ from app.models.config import DEFAULT_SHOP_OPERATIONS, SHOP_OPERATIONS_KEY
 from app.repository.config_repo import ConfigRepo
 from app.service.business_hours import parse_business_hours
 
-DEFAULT_PAYMENT_MODE = "store_confirm"
+DEFAULT_PAYMENT_MODE = "mock"
 
 
 class ShopOperationsService:

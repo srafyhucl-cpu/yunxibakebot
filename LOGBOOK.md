@@ -7003,3 +7003,24 @@ ______________________________________________________________________
   - `rg -n "下一步建议|后续建议|进入下一步 schema 或脚本设计" docs/architecture` 仅剩历史意图表述或已改名段落，不再影响当前闭环口径。
 - **结论**:
   - 客户迁移相关文档现在统一以当前闭环描述，不再给人“还有一层未来步骤没做完”的感觉。
+## [2026-06-22] - feat: 收紧支付默认模式与回归测试
+- **操作人**: AI (Codex)
+- **trace_id**: 20260622-payment-flow-regression
+- **背景**: 支付链路已具备 `mock` 兜底与真实微信支付骨架，但公开店铺默认值仍是 `store_confirm`，容易把新环境误导为门店确认；需要把默认支付模式、后台展示和支付回归测试统一收紧。
+- **变更范围**:
+  - `app/models/config.py` - 将公开店铺默认 `paymentMode` 调整为 `mock`。
+  - `app/service/shop_operations.py` - 店铺运营配置默认支付模式同步调整为 `mock`。
+  - `web/admin/src/services/shopSettings.ts` - 后台店铺配置默认值改为 `mock`。
+  - `web/admin/src/pages/settings/ShopSettingsPage.vue` - 支付模式标签改为区分 `mock / wechat / store_confirm`。
+  - `tests/api/test_shop_operations_api.py` - 回归测试改为校验默认 `mock`、可保存 `wechat`。
+  - `tests/service/test_order.py` - 补 `prepare-payment` 的 `mock` 回退测试。
+  - `LOGBOOK.md` - 记录本轮支付默认模式收紧与回归测试。
+  - `项目进度与配置清单.md` - 记录支付默认模式收紧与回归测试补强。
+- **验证结果**:
+  - Bot `python -m pytest -o addopts= tests/api/test_shop_operations_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py tests/service/test_order.py -q --tb=short --no-cov` 通过，`38 passed`。
+  - MiniApp `npm run typecheck` 通过。
+  - MiniApp `npm run check:miniapp` 通过，11 pages / 11 routes。
+  - MiniApp `npm run release:readiness` 通过，报告 `reports/release-readiness/readiness-20260622-102107.json`，`24/24` checks passed。
+- **结论**:
+  - 公开支付模式默认值已收紧为 `mock`，`wechat` 仍保留为真实支付联调路径；回归测试已补齐并通过。
+

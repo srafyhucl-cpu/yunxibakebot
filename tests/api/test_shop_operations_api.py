@@ -47,6 +47,7 @@ async def test_admin_shop_operations_update_visible_to_miniapp(app: FastAPI) -> 
         initial = await client.get("/api/v1/miniapp/shop-settings")
         assert initial.status_code == 200
         assert initial.json()["data"]["shopName"] == "芸熙烘焙"
+        assert initial.json()["data"]["paymentMode"] == "mock"
 
         payload = {
             "shopName": "芸熙烘焙测试店",
@@ -56,7 +57,7 @@ async def test_admin_shop_operations_update_visible_to_miniapp(app: FastAPI) -> 
             "pickupAddress": "测试门店自提点",
             "deliveryNotice": "测试配送说明",
             "pickupNotice": "测试自提说明",
-            "paymentMode": "store_confirm",
+            "paymentMode": "wechat",
             "privacyPolicyTitle": "测试隐私政策",
             "privacyPolicyContent": "测试隐私政策内容",
             "userAgreementTitle": "测试用户协议",
@@ -74,6 +75,7 @@ async def test_admin_shop_operations_update_visible_to_miniapp(app: FastAPI) -> 
         assert saved.json()["data"]["customerWechat"] == "yx-test-wechat"
         assert saved.json()["data"]["privacyPolicyTitle"] == "测试隐私政策"
         assert saved.json()["data"]["afterSalesPolicyContent"] == "测试售后说明内容"
+        assert saved.json()["data"]["paymentMode"] == "wechat"
 
         miniapp = await client.get("/api/v1/miniapp/shop-settings")
         assert miniapp.status_code == 200
@@ -82,6 +84,7 @@ async def test_admin_shop_operations_update_visible_to_miniapp(app: FastAPI) -> 
         assert miniapp.json()["data"]["pickupNotice"] == "测试自提说明"
         assert miniapp.json()["data"]["userAgreementTitle"] == "测试用户协议"
         assert miniapp.json()["data"]["privacyPolicyContent"] == "测试隐私政策内容"
+        assert miniapp.json()["data"]["paymentMode"] == "wechat"
 
 
 @pytest.mark.asyncio
@@ -97,7 +100,7 @@ async def test_admin_shop_operations_requires_token(app: FastAPI) -> None:
 
         miniapp_response = await client.get("/api/v1/miniapp/shop-settings")
         assert miniapp_response.status_code == 200
-        assert miniapp_response.json()["data"]["paymentMode"] == "store_confirm"
+        assert miniapp_response.json()["data"]["paymentMode"] == "mock"
         assert miniapp_response.json()["data"]["privacyPolicyTitle"] == "隐私政策"
         assert miniapp_response.json()["data"]["userAgreementTitle"] == "用户协议"
         assert miniapp_response.json()["data"]["afterSalesPolicyTitle"] == "售后说明"
@@ -124,7 +127,7 @@ async def test_admin_shop_operations_rejects_invalid_business_hours(
                 "pickupAddress": "测试门店自提点",
                 "deliveryNotice": "测试配送说明",
                 "pickupNotice": "测试自提说明",
-                "paymentMode": "store_confirm",
+                "paymentMode": "wechat",
                 "privacyPolicyTitle": "测试隐私政策",
                 "privacyPolicyContent": "测试隐私政策内容",
                 "userAgreementTitle": "测试用户协议",
@@ -160,7 +163,7 @@ async def test_admin_shop_operations_keeps_existing_values_when_fields_empty(
                 "pickupAddress": "测试门店自提点",
                 "deliveryNotice": "测试配送说明",
                 "pickupNotice": "测试自提说明",
-                "paymentMode": "store_confirm",
+                "paymentMode": "wechat",
                 "privacyPolicyTitle": "测试隐私政策",
                 "privacyPolicyContent": "测试隐私政策内容",
                 "userAgreementTitle": "测试用户协议",
@@ -195,6 +198,6 @@ async def test_admin_shop_operations_keeps_existing_values_when_fields_empty(
     data = response.json()["data"]
     assert data["shopName"] == "芸熙烘焙测试店"
     assert data["businessHours"] == "10:00-19:30"
-    assert data["paymentMode"] == "store_confirm"
+    assert data["paymentMode"] == "wechat"
     assert data["privacyPolicyTitle"] == "测试隐私政策"
     assert data["userAgreementContent"] == "测试用户协议内容"
