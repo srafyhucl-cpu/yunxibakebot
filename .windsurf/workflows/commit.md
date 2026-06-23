@@ -89,6 +89,8 @@ curl http://127.0.0.1:7001/health
 > 凡暂存区含 `.py / .html / .css / .js` 文件，以下两份文档必须同时在暂存区，否则 commit 被拦截。  
 > 纯配置/格式修正时可用 `SKIP_LOGBOOK_CHECK=1 git commit ...` 临时跳过。
 
+> 如果本轮是“现有代码已经变了，但文档还没同步”的场景，先跑 `/sync-docs`，再继续 `/commit`。
+
 #### 4.1 LOGBOOK.md（开发日志）
 
 在 `LOGBOOK.md` **顶部**（第一个分隔线后）追加本轮变更记录：
