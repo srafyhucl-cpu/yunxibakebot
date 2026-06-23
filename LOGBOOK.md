@@ -1,15 +1,71 @@
 ﻿
-## [2026-06-23] - docs(workflow): 新增代码驱动的项目文档同步流程
+
+## [2026-06-23] - ci(load-test): 将并发压测纳入按需触发 CI
 - **操作人**: AI (Codex)
-- **trace_id**: 20260623-sync-docs-workflow
-- **背景**: 代码和项目状态页、架构文档、README 之间出现过多次不同步，需要补一个专门的工作流，把“从现有代码反推项目文档”变成固定动作，而不是靠提交收口时临时记忆。
+- **trace_id**: 20260623-load-test-ci-workflow
+- **背景**: 百路并发压测此前已有 `scripts/test_concurrent_100.py` 基准脚本，但仍停留在手动运行状态，性能回归没有 CI 留痕入口。本轮将压测纳入独立 GitHub Actions workflow，避免拖慢常规 PR，同时让发布前或专项排查能按需触发并归档证据。
 - **变更范围**:
-  - `.windsurf/workflows/sync-docs.md` - 新增代码驱动的项目文档同步工作流。
-  - `.windsurf/workflows/commit.md` - 增加文档不同步时先走 `/sync-docs` 的触发提示。
+  - `.github/workflows/load-test.yml` - 新增按需触发的并发压测 workflow，支持配置 A/C 两阶段并发路数和沉降等待时间，上传 `reports/load-test/` 证据。
+  - `scripts/test_concurrent_100.py` - 增加 CLI 参数化入口，并在有赞 Mock 模式下跳过真实 token/API 发现，适配 CI fixture。
+  - `scripts/prepare_load_test_fixture.py` - 新增 CI 压测最小数据准备脚本，初始化数据库并写入测试订单与在售商品。
+  - `项目进度与配置清单.md` - 将“百路并发压测未纳入 CI”从待做收口为已解决。
 - **验证结果**:
-  - 待执行：确认工作流文件存在、commit 收口提示已写入。
+  - `python -m compileall scripts\test_concurrent_100.py scripts\prepare_load_test_fixture.py` 通过。
+  - `python scripts\test_concurrent_100.py --help` 通过。
+  - `python scripts\prepare_load_test_fixture.py --help` 通过。
+  - `python scripts\prepare_load_test_fixture.py --db-path data\load-test-fixture-check.db --orders 2 --products 2` 通过，临时 DB 产物已按明确路径清理。
+  - `python -m ruff check scripts\test_concurrent_100.py scripts\prepare_load_test_fixture.py` 通过。
+  - `Select-String -Path .github\workflows\load-test.yml -Pattern "workflow_dispatch|phase_a_count|upload-artifact|test_concurrent_100.py"` 通过。
 - **结论**:
-  - 项目现在有了独立的文档同步流程，后续代码变更时可以先反推文档，再进入提交收口。
+  - 并发压测已具备 CI 入口和证据归档路径；默认不进入常规 PR 流水线，需通过 `workflow_dispatch` 按需触发。完整 50+50 百路压测仍依赖仓库配置 `MIMO_API_KEY` secret。
+
+## [2026-06-23] - feat(wecom-1on1): 完成 1 对 1 AI 自动回复生产验收与留痕
+- **操作人**: AI (Codex)
+- **trace_id**: 20260623-wecom-1on1-production-acceptance
+- **背景**: 1 对 1 AI 自动回复此前已具备代码链路，但项目状态仍停留在“待推进”。本轮需要基于真实生产对话和服务日志确认链路是否已跑通，并把可审计证据补齐，决定能否从“待推进”收口为“已完成”。
+- **变更范围**:
+  - `LOGBOOK.md` - 追加生产验收结果。
+  - `docs/harness-engineering/core/evidence-index.md` - 新增 1 对 1 生产验收证据索引。
+  - `项目进度与配置清单.md` - 将 1 对 1 AI 自动回复从“待推进”收口为“已完成”。
+- **验证结果**:
+  - 远端生产机 `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse --short HEAD && systemctl is-active yunxibakebot"` 返回 `10377b82` / `active`。
+  - 远端生产机日志出现真实对话链路：收到客服文本消息、会话切换为智能助手、客服文本消息已发送。
+  - 生产侧确认本轮 1 对 1 测试消息已进入自动回复链路并完成发送，满足业务验收的最小闭环。
+- **结论**:
+  - 1 对 1 AI 自动回复已具备真实生产验收证据，可将项目状态中的“1 对 1 AI 自动回复”从“待推进”收口为“已完成”。
+
+## [2026-06-23] - feat(wecom): 完成企微回调生产联调与留痕
+- **操作人**: AI (Codex)
+- **trace_id**: 20260623-wecom-callback-production-joint-test
+- **背景**: 企微回调入口代码、回调配置脚本和 readiness / smoke 门禁已具备，但此前缺少一次真实生产域名上的 GET 验签和 POST 解密联调留痕，需要补齐生产验证证据，判断该待办能否从“联调中”收口为“已完成”。
+- **变更范围**:
+  - `app/api/integrations/wecom.py`、`app/service/wecom/crypto.py` - 回调验签、解密和分流入口。
+  - `scripts/setup_wecom.sh` - 生产侧回调配置与 Nginx / 证书 / 回调 URL 步骤说明。
+  - `scripts/preflight_production.py`、`scripts/smoke_test.py`、`app/readiness.py` - 生产通道配置门禁，纳入 `WECOM_TOKEN` 与 `WECOM_ENCODING_AES_KEY`。
+  - `项目进度与配置清单.md` - 企微回调配置状态将依据本次生产联调结果更新。
+- **验证结果**:
+  - 远端生产机 `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse --short HEAD && systemctl is-active yunxibakebot"` 返回 `10377b82` / `active`。
+  - 远端生产机 `.env` 已存在 `WECOM_CORP_ID`、`WECOM_AGENT_ID`、`WECOM_SECRET`、`WECOM_TOKEN`、`WECOM_ENCODING_AES_KEY`、`WECOM_KF_ID`、`WECOM_STAFF_ID`、`WECOM_KF_SERVICER_USERID`。
+  - `ssh root@47.94.102.250 "curl -s -o /dev/null -w '%{http_code} %{url_effective}
+' https://yunxifood.cn/health"` 返回 `200`。
+  - 使用生产 `.env` 中的 `WECOM_TOKEN` / `WECOM_ENCODING_AES_KEY` / `WECOM_CORP_ID`，对 `https://yunxifood.cn/api/v1/wecom/callback` 执行真实 GET/POST 联调：GET 返回 `callback-ok-20260623`，POST 返回 200 空串。
+- **结论**:
+  - 企微回调入口已完成生产联调闭环，可将项目状态中的“企微回调配置”从联调中收口为已完成；剩余风险主要是后续生产侧配置漂移或回调后台再次变更，需要靠既有 readiness / smoke 门禁继续兜住。
+
+## [2026-06-23] - docs(workflow): 将文档同步流程迁到 Codex 侧入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260623-sync-docs-codex-entry
+- **背景**: 之前把“代码驱动的项目文档同步”放在 `.windsurf` 下，和当前 Codex 开发方式不匹配，且容易形成两套并行入口，需要迁到更贴合当前工作方式的位置。
+- **变更范围**:
+  - `docs/AGENTS/sync-docs.md` - 新增 Codex 侧的项目文档同步工作流。
+  - `docs/AGENTS/quick-reference.md`、`docs/AGENTS/commit-workflow.md` - 接入新的文档同步入口。
+  - `.windsurf/workflows/commit.md` - 保留触发提示但改指向 Codex 侧入口。
+  - `.windsurf/workflows/sync-docs.md` - 已删除旧的 Windsurf 版本。
+- **验证结果**:
+  - `Test-Path` 通过，确认新入口文件存在。
+  - `rg -n "sync-docs|现有代码已经变了，但文档还没同步|代码驱动的项目文档同步工作流"` 通过，确认新入口和触发提示已落地。
+- **结论**:
+  - 文档同步流程现在收敛到 Codex 侧入口，不再依赖 `.windsurf` 里的同名工作流。
 
 
 ## [2026-06-22] - feat(customer-groups): 收口客户群运营一期业务改动

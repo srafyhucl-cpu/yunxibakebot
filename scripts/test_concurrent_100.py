@@ -11,6 +11,7 @@
   3. youzan_products 表中需至少有一条在售商品
 """
 
+import argparse
 import asyncio
 import json
 import os
@@ -74,9 +75,11 @@ def _info(msg: str) -> None:
 
 # ── 数据结构 ───────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class WorkerResult:
     """单路并发 Worker 的执行结果。"""
+
     phase: str
     worker_id: int
     buyer_id: str
@@ -87,6 +90,7 @@ class WorkerResult:
 
 
 # ── 百分位计算 ─────────────────────────────────────────────────────────────────
+
 
 def _percentile(values: list[float], p: int) -> float:
     """计算百分位数（线性插值下界）。"""
@@ -99,8 +103,11 @@ def _percentile(values: list[float], p: int) -> float:
 
 # ── Setup 辅助 ─────────────────────────────────────────────────────────────────
 
+
 async def _get_youzan_token() -> str:
     """调用有赞 OAuth 接口获取 access_token。"""
+    if settings.YOUZAN_MOCK_MODE:
+        return "mock_access_token_123456"
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             YOUZAN_AUTH_URL,
@@ -151,6 +158,8 @@ async def _load_order_nos_from_db(db_path: str) -> list[str]:
 
 async def _fetch_order_nos_from_youzan(token: str, db_path: str) -> list[str]:
     """优先调有赞 API，若 IP 白名单受限则降级读本地 DB。"""
+    if settings.YOUZAN_MOCK_MODE:
+        return await _load_order_nos_from_db(db_path)
     order_nos = await _fetch_order_nos_from_api(token)
     if order_nos:
         return order_nos
@@ -186,7 +195,9 @@ async def _reset_all_timestamps(db_path: str, item_ids: list[int]) -> None:
         await db.commit()
 
 
-def _build_b_rail_webhook(buyer_id: str, msg_id: str, content: str) -> tuple[bytes, str]:
+def _build_b_rail_webhook(
+    buyer_id: str, msg_id: str, content: str
+) -> tuple[bytes, str]:
     """构造有赞 B 轨买家消息 Webhook body + MD5 签名（不含 type 字段以正确进入 B 轨）。"""
     payload = {
         "id": msg_id,
@@ -206,13 +217,16 @@ def _build_b_rail_webhook(buyer_id: str, msg_id: str, content: str) -> tuple[byt
 
 # ── Workers ────────────────────────────────────────────────────────────────────
 
+
 async def _post_webhook(raw_body: bytes, signature: str) -> tuple[bool, float, str]:
     """发送 Webhook POST，返回 (http_ok, 耗时毫秒, error_msg)。"""
     t0 = time.monotonic()
     error = ""
     http_ok = False
     try:
-        async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT_S, trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=WEBHOOK_TIMEOUT_S, trust_env=False
+        ) as client:
             resp = await client.post(
                 f"{BASE_URL}{WEBHOOK_PATH}",
                 content=raw_body,
@@ -237,10 +251,17 @@ async def phase_a_worker(worker_id: int, order_no: str) -> WorkerResult:
     raw_body, signature = _build_b_rail_webhook(buyer_id, msg_id, content)
     http_ok, http_ms, error = await _post_webhook(raw_body, signature)
     status = "200" if http_ok else "ERR"
-    print(f"  [{_ts()}] A#{worker_id:<3}  order={order_no[:18]:<18}  {status:<4}  {http_ms:.0f}ms  {error}")
+    print(
+        f"  [{_ts()}] A#{worker_id:<3}  order={order_no[:18]:<18}  {status:<4}  {http_ms:.0f}ms  {error}"
+    )
     return WorkerResult(
-        phase="A", worker_id=worker_id, buyer_id=buyer_id,
-        ref_id=order_no, http_ok=http_ok, http_ms=http_ms, error=error,
+        phase="A",
+        worker_id=worker_id,
+        buyer_id=buyer_id,
+        ref_id=order_no,
+        http_ok=http_ok,
+        http_ms=http_ms,
+        error=error,
     )
 
 
@@ -254,14 +275,22 @@ async def phase_c_worker(worker_id: int, item_id: int) -> WorkerResult:
     raw_body, signature = _build_b_rail_webhook(buyer_id, msg_id, content)
     http_ok, http_ms, error = await _post_webhook(raw_body, signature)
     status = "200" if http_ok else "ERR"
-    print(f"  [{_ts()}] C#{worker_id:<3}  item={str(item_id):<13}  {status:<4}  {http_ms:.0f}ms  {error}")
+    print(
+        f"  [{_ts()}] C#{worker_id:<3}  item={str(item_id):<13}  {status:<4}  {http_ms:.0f}ms  {error}"
+    )
     return WorkerResult(
-        phase="C", worker_id=worker_id, buyer_id=buyer_id,
-        ref_id=str(item_id), http_ok=http_ok, http_ms=http_ms, error=error,
+        phase="C",
+        worker_id=worker_id,
+        buyer_id=buyer_id,
+        ref_id=str(item_id),
+        http_ok=http_ok,
+        http_ms=http_ms,
+        error=error,
     )
 
 
 # ── 汇总报告 ───────────────────────────────────────────────────────────────────
+
 
 def _print_summary(results: list[WorkerResult]) -> None:
     """打印分阶段 P50/P95/P99 汇总表。"""
@@ -286,6 +315,7 @@ def _print_summary(results: list[WorkerResult]) -> None:
 
 # ── 收尾断言 ───────────────────────────────────────────────────────────────────
 
+
 async def _post_run_assertions(
     db_path: str, results: list[WorkerResult], unique_item_ids: list[int]
 ) -> bool:
@@ -304,9 +334,15 @@ async def _post_run_assertions(
     rate = ok_count / total if total else 0.0
     threshold_200 = 0.95
     if rate >= threshold_200:
-        _ok(f"Webhook 200 成功率 {ok_count}/{total} = {rate:.1%}", f"阈值 ≥ {threshold_200:.0%}")
+        _ok(
+            f"Webhook 200 成功率 {ok_count}/{total} = {rate:.1%}",
+            f"阈值 ≥ {threshold_200:.0%}",
+        )
     else:
-        _fail(f"Webhook 200 成功率 {ok_count}/{total} = {rate:.1%}", f"阈值 ≥ {threshold_200:.0%}")
+        _fail(
+            f"Webhook 200 成功率 {ok_count}/{total} = {rate:.1%}",
+            f"阈值 ≥ {threshold_200:.0%}",
+        )
         all_passed = False
 
     # ── 2. 全局 P95 < 40000ms（单 Uvicorn worker 下 20 并发 DB 队列实测基准）
@@ -382,12 +418,50 @@ async def _post_run_assertions(
 
 # ── 主流程 ─────────────────────────────────────────────────────────────────────
 
-async def run_concurrent_test() -> bool:
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="运行有赞 Webhook 并发压测")
+    parser.add_argument(
+        "--phase-a-count",
+        type=int,
+        default=WORKER_COUNT_A,
+        help="订单查询聊天并发路数，默认沿用脚本内置值。",
+    )
+    parser.add_argument(
+        "--phase-c-count",
+        type=int,
+        default=WORKER_COUNT_C,
+        help="商品实时刷新聊天并发路数，默认沿用脚本内置值。",
+    )
+    parser.add_argument(
+        "--post-run-wait-seconds",
+        type=int,
+        default=POST_RUN_WAIT_S,
+        help="发射完成后等待 DB/LLM 沉降的秒数。",
+    )
+    return parser.parse_args()
+
+
+async def run_concurrent_test(
+    phase_a_count: int = WORKER_COUNT_A,
+    phase_c_count: int = WORKER_COUNT_C,
+    post_run_wait_seconds: int = POST_RUN_WAIT_S,
+) -> bool:
     global _TEST_START
+    global WORKER_COUNT_A
+    global WORKER_COUNT_C
+    global POST_RUN_WAIT_S
     _TEST_START = time.monotonic()
+    WORKER_COUNT_A = phase_a_count
+    WORKER_COUNT_C = phase_c_count
+    POST_RUN_WAIT_S = post_run_wait_seconds
 
     print("\n" + "=" * 66)
-    print("  百路并发压测  Phase A×50 + Phase C×50 = 100 路")
+    print(
+        "  并发压测  "
+        f"Phase A×{WORKER_COUNT_A} + Phase C×{WORKER_COUNT_C} "
+        f"= {WORKER_COUNT_A + WORKER_COUNT_C} 路"
+    )
     print("  Phase A：订单查询聊天 → LLM get_order_info → 有赞 API")
     print("  Phase C：商品咨询聊天 → LLM get_product_info → 有赞 API → 三路回写")
     print("  并发策略：0~3s 随机抖动，模拟真实散点进入")
@@ -410,9 +484,13 @@ async def run_concurrent_test() -> bool:
         _fail("有赞 API 和本地 DB 均无可用订单号，中止测试")
         return False
     source = "有赞 API" if len(order_nos) > 1 else "本地 DB（API 受限降级）"
-    _info(f"来源：{source}，获取 {len(order_nos)} 条，{'足量' if len(order_nos) >= WORKER_COUNT_A else f'不足 {WORKER_COUNT_A} 条，取模循环补齐'}")
+    _info(
+        f"来源：{source}，获取 {len(order_nos)} 条，{'足量' if len(order_nos) >= WORKER_COUNT_A else f'不足 {WORKER_COUNT_A} 条，取模循环补齐'}"
+    )
     if len(order_nos) < WORKER_COUNT_A:
-        _info(f"⚠ 取模复用：{WORKER_COUNT_A} 路 Phase A 将共享 {len(order_nos)} 个订单号")
+        _info(
+            f"⚠ 取模复用：{WORKER_COUNT_A} 路 Phase A 将共享 {len(order_nos)} 个订单号"
+        )
         _info("  （同订单不同 buyer_id，各自创建独立 session，并发写入依然有效）")
     order_nos_50 = [order_nos[i % len(order_nos)] for i in range(WORKER_COUNT_A)]
 
@@ -425,10 +503,14 @@ async def run_concurrent_test() -> bool:
     item_ids_50 = [item_ids[i % len(item_ids)] for i in range(WORKER_COUNT_C)]
     unique_item_ids = list(set(item_ids_50))
     await _reset_all_timestamps(db_path, unique_item_ids)
-    _info(f"在售商品 {len(item_ids)} 条，分配给 {WORKER_COUNT_C} 路，已重置 {len(unique_item_ids)} 个商品时间戳")
+    _info(
+        f"在售商品 {len(item_ids)} 条，分配给 {WORKER_COUNT_C} 路，已重置 {len(unique_item_ids)} 个商品时间戳"
+    )
 
     # 并发发射
-    _step(f"发射 {WORKER_COUNT_A + WORKER_COUNT_C} 路并发（0~{JITTER_MAX_S:.0f}s 随机抖动）")
+    _step(
+        f"发射 {WORKER_COUNT_A + WORKER_COUNT_C} 路并发（0~{JITTER_MAX_S:.0f}s 随机抖动）"
+    )
     print(f"  {'时刻':<14} {'阶段#ID':<9} {'参考值':<22} {'状态':<5} {'耗时'}")
     print(f"  {'-' * 62}")
 
@@ -448,7 +530,14 @@ async def run_concurrent_test() -> bool:
 
 
 if __name__ == "__main__":
-    result = asyncio.run(run_concurrent_test())
+    args = _parse_args()
+    result = asyncio.run(
+        run_concurrent_test(
+            phase_a_count=args.phase_a_count,
+            phase_c_count=args.phase_c_count,
+            post_run_wait_seconds=args.post_run_wait_seconds,
+        )
+    )
     elapsed = time.monotonic() - _TEST_START
     verdict = "✅ 百路并发压测通过" if result else "❌ 百路并发压测失败"
     print(f"\n{verdict}  总耗时 {elapsed:.1f}s\n")

@@ -1,4 +1,47 @@
-﻿# Evidence Index
+﻿
+
+## E-20260623-003：并发压测按需 CI 编排
+
+- trace_id: 20260623-load-test-ci-workflow
+- generated_at: 2026-06-23
+- evidence_type: ci/load-test-workflow
+- file: `D:\Project\YunxiBakeBot\.github\workflows\load-test.yml`; `D:\Project\YunxiBakeBot\scripts\test_concurrent_100.py`; `D:\Project\YunxiBakeBot\scripts\prepare_load_test_fixture.py`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m compileall scripts\test_concurrent_100.py scripts\prepare_load_test_fixture.py`; `python scripts\test_concurrent_100.py --help`; `python scripts\prepare_load_test_fixture.py --help`; `python scripts\prepare_load_test_fixture.py --db-path data\load-test-fixture-check.db --orders 2 --products 2`; `python -m ruff check scripts\test_concurrent_100.py scripts\prepare_load_test_fixture.py`; `Select-String -Path .github\workflows\load-test.yml -Pattern "workflow_dispatch|phase_a_count|upload-artifact|test_concurrent_100.py"`
+- result: pass
+- related_logbook: 2026-06-23 - ci(load-test): 将并发压测纳入按需触发 CI
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记 workflow、脚本路径和本地静态验证命令；GitHub Actions 运行产物由 `load-test-evidence` artifact 保存 14 天
+- summary: 新增独立 `Load Test` workflow，通过 `workflow_dispatch` 按需触发并发压测，准备隔离测试库、启动 FastAPI、运行 `scripts/test_concurrent_100.py` 并上传 `reports/load-test/`。压测脚本已支持并发路数和沉降等待时间参数化，有赞 Mock 模式下可复用 CI fixture；完整 LLM 对话循环仍要求仓库配置 `MIMO_API_KEY` secret。
+
+## E-20260623-002：1 对 1 AI 自动回复生产验收
+
+- trace_id: 20260623-wecom-1on1-production-acceptance
+- generated_at: 2026-06-23
+- evidence_type: production/1on1-acceptance
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\app\api\integrations\wecom.py`; `D:\Project\YunxiBakeBot\app\service\wecom\message_queue.py`; `D:\Project\YunxiBakeBot\app\models\session.py`
+- command: `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse --short HEAD && systemctl is-active yunxibakebot"`; `ssh root@47.94.102.250 "journalctl -u yunxibakebot -n 200 --no-pager | grep -E 'wecom_1on1|企微|智能助手|已接入智能助手|handle_message|callback'"`; `ssh root@47.94.102.250 "journalctl -u yunxibakebot --since '2026-06-23 09:52:30' --until '2026-06-23 09:54:30' --no-pager | grep -F 'wmLgrYDAAArcuj-n_J5QqH2CThPYismA'"`; `ssh root@47.94.102.250 "journalctl -u yunxibakebot --since '2026-06-23 09:52:30' --until '2026-06-23 09:54:30' --no-pager | grep -E 'wecom_1on1|send_text|send_news|handle_message|智能助手|已接入智能助手|回复失败'"`
+- result: pass
+- related_logbook: 2026-06-23 - feat(wecom-1on1): 完成 1 对 1 AI 自动回复生产验收与留痕
+- related_adr: none
+- contains_sensitive_data: yes
+- retention_note: 仅保留生产验收命令、结论和本地文件路径；测试用户 ID 与消息内容不进入索引正文
+- summary: 生产机当前版本活跃，服务在线；真实 1 对 1 对话已触发自动回复链路，日志显示会话切换为智能助手并成功发送客服文本消息，满足 1 对 1 AI 自动回复的生产验收最小闭环。
+
+## E-20260623-001：企微回调生产联调验证
+
+- trace_id: 20260623-wecom-callback-production-joint-test
+- generated_at: 2026-06-23
+- evidence_type: production/callback-joint-test
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBotpppi\integrations\wecom.py`; `D:\Project\YunxiBakeBotpp\service\wecom\crypto.py`; `D:\Project\YunxiBakeBot\scripts\setup_wecom.sh`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\smoke_test.py`; `D:\Project\YunxiBakeBotppeadiness.py`
+- command: `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse --short HEAD && systemctl is-active yunxibakebot"`; `ssh root@47.94.102.250 "cd /opt/yunxibakebot && grep -n '^WECOM_' .env | sed 's/=.*$/=<redacted>/'"`; `ssh root@47.94.102.250 "curl -s -o /dev/null -w '%{http_code} %{url_effective}\n' https://yunxifood.cn/health"`; `ssh root@47.94.102.250 "cd /opt/yunxibakebot && python3 -"`
+- result: pass
+- related_logbook: 2026-06-23 - feat(wecom): 完成企微回调生产联调与留痕
+- related_adr: none
+- contains_sensitive_data: yes
+- retention_note: 仅保留联调命令、结果与文件路径；回调 token、AES key、corp id 等敏感值不写入索引正文
+- summary: 生产机当前版本活跃、服务在线，`.env` 已具备企微回调必需配置；使用生产配置对 `https://yunxifood.cn/api/v1/wecom/callback` 进行真实 GET 验签和 POST 解密联调，GET 返回明文回显，POST 返回 200 空响应，说明企微回调生产联调已闭环。
+# Evidence Index
 
 本文件是 Harness 证据包索引。它不保存敏感报告内容，只记录证据文件的位置、用途、生成命令和验证结论，方便上线前后审计、复盘和交接。
 
