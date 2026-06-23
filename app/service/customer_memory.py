@@ -1,6 +1,6 @@
 """热路径顾客记忆只读加载。"""
 
-from typing import Any
+from typing import Any, Protocol
 
 from app.config import settings
 from app.logger import setup_logger
@@ -9,8 +9,12 @@ from app.models.customer_profile import CustomerProfile
 logger = setup_logger()
 
 
+class CustomerProfileRepo(Protocol):
+    async def get(self, channel: str, user_id: str) -> CustomerProfile | None: ...
+
+
 async def load_customer_profile(
-    customer_profile_repo: Any,
+    customer_profile_repo: CustomerProfileRepo | None,
     channel: str,
     user_id: str,
 ) -> CustomerProfile | None:

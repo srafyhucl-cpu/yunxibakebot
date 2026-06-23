@@ -68,8 +68,25 @@ class CustomerImportService(CustomerImportSupportMixin):
     """客户主档试导入编排服务。"""
 
     @staticmethod
-    def _build_import_result(**kwargs) -> CustomerImportResult:
-        return CustomerImportResult(**kwargs)
+    def _build_import_result(
+        *,
+        source_record_id: str,
+        customer_id: str,
+        identity_link_id: str | None,
+        snapshot_id: str,
+        merge_review_id: str | None,
+        resolved_bucket: str,
+        action: str,
+    ) -> CustomerImportResult:
+        return CustomerImportResult(
+            source_record_id=source_record_id,
+            customer_id=customer_id,
+            identity_link_id=identity_link_id,
+            snapshot_id=snapshot_id,
+            merge_review_id=merge_review_id,
+            resolved_bucket=resolved_bucket,
+            action=action,
+        )
 
     def __init__(
         self,
@@ -95,7 +112,10 @@ class CustomerImportService(CustomerImportSupportMixin):
             )
         )
         if existing_snapshot is not None:
-            return await self._build_existing_snapshot_result(existing_snapshot)
+            result: CustomerImportResult = await self._build_existing_snapshot_result(
+                existing_snapshot
+            )
+            return result
         if payload.proposed_bucket == "pending_review":
             return await self._import_pending_review(payload)
         if payload.proposed_bucket == "new_master":
@@ -151,20 +171,20 @@ class CustomerImportService(CustomerImportSupportMixin):
             payload,
             customer_id=customer.id,
             identity_link_id=(
-                source_identity_result["id"]
+                source_identity_result.id
                 if source_identity_result is not None
-                else (identity["id"] if identity else None)
+                else (identity.id if identity else None)
             ),
         )
         return self._build_import_result(
             source_record_id=payload.source_record_id,
             customer_id=customer.id,
             identity_link_id=(
-                source_identity_result["id"]
+                source_identity_result.id
                 if source_identity_result is not None
-                else (identity["id"] if identity else None)
+                else (identity.id if identity else None)
             ),
-            snapshot_id=snapshot["id"],
+            snapshot_id=snapshot.id,
             merge_review_id=None,
             resolved_bucket="auto_merge",
             action=action,
@@ -203,20 +223,20 @@ class CustomerImportService(CustomerImportSupportMixin):
             payload,
             customer_id=customer.id,
             identity_link_id=(
-                source_identity_result["id"]
+                source_identity_result.id
                 if source_identity_result is not None
-                else (identity["id"] if identity else None)
+                else (identity.id if identity else None)
             ),
         )
         return self._build_import_result(
             source_record_id=payload.source_record_id,
             customer_id=customer.id,
             identity_link_id=(
-                source_identity_result["id"]
+                source_identity_result.id
                 if source_identity_result is not None
-                else (identity["id"] if identity else None)
+                else (identity.id if identity else None)
             ),
-            snapshot_id=snapshot["id"],
+            snapshot_id=snapshot.id,
             merge_review_id=None,
             resolved_bucket="new_master",
             action=action,
@@ -255,26 +275,26 @@ class CustomerImportService(CustomerImportSupportMixin):
             payload,
             customer_id=customer.id,
             identity_link_id=(
-                source_identity_result["id"]
+                source_identity_result.id
                 if source_identity_result is not None
-                else (identity["id"] if identity else None)
+                else (identity.id if identity else None)
             ),
         )
         review = await self._ensure_pending_review(
             customer_id=customer.id,
-            primary_identity_link_id=identity["id"] if identity else None,
-            snapshot_id=snapshot["id"],
+            primary_identity_link_id=identity.id if identity else None,
+            snapshot_id=snapshot.id,
             payload=payload,
         )
         return self._build_import_result(
             source_record_id=payload.source_record_id,
             customer_id=customer.id,
             identity_link_id=(
-                source_identity_result["id"]
+                source_identity_result.id
                 if source_identity_result is not None
-                else (identity["id"] if identity else None)
+                else (identity.id if identity else None)
             ),
-            snapshot_id=snapshot["id"],
+            snapshot_id=snapshot.id,
             merge_review_id=review.id,
             resolved_bucket="pending_review",
             action=action,

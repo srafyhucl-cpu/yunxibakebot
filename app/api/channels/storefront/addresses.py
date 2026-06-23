@@ -4,12 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.constants.storefront import STOREFRONT_DEMO_USER_ID
+from app.api.channels.storefront._user import require_storefront_user_id
 from app.service.customer import CustomerAddressService
-
-
-def _storefront_user_id(value: str | None) -> str:
-    return (value or STOREFRONT_DEMO_USER_ID).strip() or STOREFRONT_DEMO_USER_ID
 
 
 def create_storefront_addresses_router(service: CustomerAddressService) -> APIRouter:
@@ -23,7 +19,7 @@ def create_storefront_addresses_router(service: CustomerAddressService) -> APIRo
         return {
             "code": 0,
             "data": await service.list_addresses(
-                _storefront_user_id(x_miniapp_user_id)
+                require_storefront_user_id(x_miniapp_user_id)
             ),
         }
 
@@ -34,7 +30,7 @@ def create_storefront_addresses_router(service: CustomerAddressService) -> APIRo
     ) -> dict[str, Any]:
         try:
             item = await service.save_address(
-                payload, _storefront_user_id(x_miniapp_user_id)
+                payload, require_storefront_user_id(x_miniapp_user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -47,7 +43,7 @@ def create_storefront_addresses_router(service: CustomerAddressService) -> APIRo
     ) -> dict[str, Any]:
         try:
             item = await service.set_default(
-                address_id, _storefront_user_id(x_miniapp_user_id)
+                address_id, require_storefront_user_id(x_miniapp_user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -60,7 +56,7 @@ def create_storefront_addresses_router(service: CustomerAddressService) -> APIRo
     ) -> dict[str, Any]:
         try:
             items = await service.delete_address(
-                address_id, _storefront_user_id(x_miniapp_user_id)
+                address_id, require_storefront_user_id(x_miniapp_user_id)
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

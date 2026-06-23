@@ -4,23 +4,48 @@ from __future__ import annotations
 
 import hashlib
 import json
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Any
 
+from app.repository.customer_master_repo import CustomerMasterRepo
 from app.models.customer_master import (
     CustomerIdentityConfidence,
+    CustomerIdentityLink,
     CustomerIdentityLinkCreate,
     CustomerIdentityType,
     CustomerIdentityVerificationStatus,
     CustomerMasterCreate,
+    CustomerMergeReview,
     CustomerMergeReviewCreate,
     CustomerMergeReviewType,
+    CustomerSourceSnapshot,
     CustomerSourceSnapshotCreate,
     CustomerSourceSystem,
 )
 from app.utils import now_str
 
+if TYPE_CHECKING:
+    from app.service.customer.importer import CustomerImportResult
+
 
 class CustomerImportSupportMixin:
     """客户试导入共享辅助逻辑。"""
+
+    _customer_master_repo: CustomerMasterRepo
+    _customer_master_service: Any
+
+    @abstractmethod
+    def _build_import_result(
+        self,
+        *,
+        source_record_id: str,
+        customer_id: str,
+        identity_link_id: str | None,
+        snapshot_id: str,
+        merge_review_id: str | None,
+        resolved_bucket: str,
+        action: str,
+    ) -> CustomerImportResult: ...
 
     async def _ensure_pending_review(
         self,
@@ -29,7 +54,7 @@ class CustomerImportSupportMixin:
         primary_identity_link_id: str | None,
         snapshot_id: str,
         payload,
-    ):
+    ) -> CustomerMergeReview:
         existing_review = (
             await self._customer_master_repo.get_latest_merge_review_for_customer(
                 source_customer_id=customer_id
@@ -77,7 +102,7 @@ class CustomerImportSupportMixin:
         customer_id: str,
         payload,
         link_status: str,
-    ) -> dict | None:
+    ) -> CustomerIdentityLink | None:
         if not payload.primary_phone:
             return None
         existing = await self._customer_master_repo.get_identity_by_normalized_value(
@@ -86,7 +111,7 @@ class CustomerImportSupportMixin:
             payload.primary_phone,
         )
         if existing is not None:
-            return self._customer_master_service._serialize_identity(existing)
+            return existing
         created = await self._customer_master_repo.create_identity_link(
             CustomerIdentityLinkCreate(
                 customer_id=customer_id,
@@ -104,7 +129,7 @@ class CustomerImportSupportMixin:
                 last_seen_at=payload.last_seen_at,
             )
         )
-        return self._customer_master_service._serialize_identity(created)
+        return created
 
     async def _ensure_source_identity(
         self,
@@ -112,10 +137,10 @@ class CustomerImportSupportMixin:
         customer_id: str,
         payload,
         link_status: str,
-    ) -> dict:
+    ) -> CustomerIdentityLink:
         existing = await self._get_source_identity(payload)
         if existing is not None:
-            return self._customer_master_service._serialize_identity(existing)
+            return existing
         created = await self._customer_master_repo.create_identity_link(
             CustomerIdentityLinkCreate(
                 customer_id=customer_id,
@@ -133,9 +158,9 @@ class CustomerImportSupportMixin:
                 last_seen_at=payload.last_seen_at,
             )
         )
-        return self._customer_master_service._serialize_identity(created)
+        return created
 
-    async def _get_source_identity(self, payload):
+    async def _get_source_identity(self, payload) -> CustomerIdentityLink | None:
         return await self._customer_master_repo.get_identity_by_value(
             payload.tenant_id,
             CustomerIdentityType.YOUZAN_CUSTOMER.value,
@@ -148,7 +173,7 @@ class CustomerImportSupportMixin:
         *,
         customer_id: str | None,
         identity_link_id: str | None,
-    ) -> dict:
+    ) -> CustomerSourceSnapshot:
         snapshot_payload = payload.snapshot_payload or {}
         normalized_payload = payload.normalized_payload or {}
         snapshot = await self._customer_master_repo.create_source_snapshot(
@@ -166,7 +191,7 @@ class CustomerImportSupportMixin:
                 captured_at=now_str(),
             )
         )
-        return self._serialize_snapshot(snapshot)
+        return snapshot
 
     def _build_master_create(self, payload) -> CustomerMasterCreate:
         return CustomerMasterCreate(
@@ -227,7 +252,9 @@ class CustomerImportSupportMixin:
             "createdAt": snapshot.created_at,
         }
 
-    async def _build_existing_snapshot_result(self, snapshot):
+    async def _build_existing_snapshot_result(
+        self, snapshot: CustomerSourceSnapshot
+    ) -> Any:
         normalized_payload = json.loads(snapshot.normalized_json or "{}")
         resolved_bucket = str(normalized_payload.get("proposed_bucket", "new_master"))
         merge_review_id = None

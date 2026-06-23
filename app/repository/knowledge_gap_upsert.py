@@ -2,8 +2,7 @@
 
 import json
 
-import aiosqlite
-
+from app.repository.base import DatabaseHandle
 from app.models.knowledge_gap import (
     KnowledgeGap,
     KnowledgeGapCreate,
@@ -13,7 +12,7 @@ from app.utils import now_str
 
 
 async def upsert_open_gap(
-    db: aiosqlite.Connection,
+    db: DatabaseHandle,
     gap: KnowledgeGapCreate,
 ) -> KnowledgeGap:
     """按归一化问题合并 open 缺口，避免同一会话重复计数。"""
@@ -33,8 +32,8 @@ async def upsert_open_gap(
 
 
 async def _update_gap(
-    db: aiosqlite.Connection,
-    row: aiosqlite.Row,
+    db: DatabaseHandle,
+    row: dict[str, object],
     gap: KnowledgeGapCreate,
     new_session_ids: set[str],
     now: str,
@@ -43,15 +42,21 @@ async def _update_gap(
         _load_session_ids(row["related_sessions_json"]) | new_session_ids
     )
     related_sessions_json = json.dumps(session_ids, ensure_ascii=False)
-    frequency = max(int(row["frequency"]), len(session_ids), gap.frequency)
+    frequency = max(_as_int(row["frequency"]), len(session_ids), gap.frequency)
     await db.execute(
         "UPDATE knowledge_gaps SET frequency = ?, proposed_answer = ?, "
         "related_sessions_json = ?, updated_at = ? WHERE id = ?",
-        (frequency, gap.proposed_answer, related_sessions_json, now, int(row["id"])),
+        (
+            frequency,
+            gap.proposed_answer,
+            related_sessions_json,
+            now,
+            _as_int(row["id"]),
+        ),
     )
     await db.commit()
     return KnowledgeGap(
-        id=int(row["id"]),
+        id=_as_int(row["id"]),
         question_norm=str(row["question_norm"]),
         frequency=frequency,
         status=str(row["status"]),
@@ -63,7 +68,7 @@ async def _update_gap(
 
 
 async def _insert_gap(
-    db: aiosqlite.Connection,
+    db: DatabaseHandle,
     gap: KnowledgeGapCreate,
     frequency: int,
     now: str,
@@ -84,7 +89,7 @@ async def _insert_gap(
     await db.commit()
     rows = await db.execute_fetchall("SELECT last_insert_rowid() AS id")
     return KnowledgeGap(
-        id=int(rows[0]["id"]),
+        id=_as_int(rows[0]["id"]),
         question_norm=gap.question_norm,
         frequency=frequency,
         status=KnowledgeGapStatus.OPEN.value,
@@ -104,3 +109,7 @@ def _load_session_ids(raw_json: object) -> set[str]:
     if not isinstance(payload, list):
         return set()
     return {str(item) for item in payload if str(item).strip()}
+
+
+def _as_int(value: object) -> int:
+    return int(str(value))

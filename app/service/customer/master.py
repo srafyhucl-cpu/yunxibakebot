@@ -1,5 +1,7 @@
 """客户主档领域服务。"""
 
+from typing import Any
+
 from app.models.customer_master import (
     CustomerIdentityLinkCreate,
     CustomerIdentityType,
@@ -17,12 +19,12 @@ class CustomerMasterService:
     async def create_customer(
         self,
         payload: CustomerMasterCreate,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """创建客户主档并返回序列化结果。"""
         customer = await self._customer_master_repo.create_master(payload)
         return self._serialize_customer(customer)
 
-    async def get_customer(self, customer_id: str) -> dict:
+    async def get_customer(self, customer_id: str) -> dict[str, Any]:
         """读取客户主档。"""
         customer = await self._customer_master_repo.get_master(customer_id)
         if customer is None:
@@ -32,7 +34,7 @@ class CustomerMasterService:
     async def attach_identity(
         self,
         payload: CustomerIdentityLinkCreate,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """给客户主档挂一条身份链接。"""
         customer = await self._customer_master_repo.get_master(payload.customer_id)
         if customer is None:
@@ -40,7 +42,7 @@ class CustomerMasterService:
         identity = await self._customer_master_repo.create_identity_link(payload)
         return self._serialize_identity(identity)
 
-    async def list_customer_identities(self, customer_id: str) -> list[dict]:
+    async def list_customer_identities(self, customer_id: str) -> list[dict[str, Any]]:
         """列出某客户的身份链接。"""
         customer = await self._customer_master_repo.get_master(customer_id)
         if customer is None:
@@ -48,7 +50,7 @@ class CustomerMasterService:
         items = await self._customer_master_repo.list_identity_links(customer_id)
         return [self._serialize_identity(item) for item in items]
 
-    async def list_customer_snapshots(self, customer_id: str) -> list[dict]:
+    async def list_customer_snapshots(self, customer_id: str) -> list[dict[str, Any]]:
         """列出某客户的来源快照。"""
         customer = await self._customer_master_repo.get_master(customer_id)
         if customer is None:
@@ -58,7 +60,7 @@ class CustomerMasterService:
         )
         return [self._serialize_snapshot(item) for item in items]
 
-    async def list_batch_snapshots(self, source_batch_id: str) -> list[dict]:
+    async def list_batch_snapshots(self, source_batch_id: str) -> list[dict[str, Any]]:
         """按批次列出来源快照。"""
         items = await self._customer_master_repo.list_source_snapshots(
             source_batch_id=source_batch_id
@@ -70,7 +72,7 @@ class CustomerMasterService:
         *,
         tenant_id: str = "",
         review_status: str = "",
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """列出客户合并复核队列。"""
         items = await self._customer_master_repo.list_merge_reviews(
             tenant_id=tenant_id,
@@ -82,7 +84,7 @@ class CustomerMasterService:
         self,
         tenant_id: str,
         phone: str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """按手机号查客户主档。"""
         if not phone.strip():
             return []
@@ -112,7 +114,7 @@ class CustomerMasterService:
         )
 
     @staticmethod
-    def _serialize_customer(customer) -> dict:
+    def _serialize_customer(customer) -> dict[str, Any]:
         return {
             "id": customer.id,
             "tenantId": customer.tenant_id,
@@ -136,7 +138,7 @@ class CustomerMasterService:
         }
 
     @staticmethod
-    def _serialize_identity(identity) -> dict:
+    def _serialize_identity(identity) -> dict[str, Any]:
         return {
             "id": identity.id,
             "tenantId": identity.tenant_id,
@@ -157,7 +159,7 @@ class CustomerMasterService:
         }
 
     @staticmethod
-    def _serialize_snapshot(snapshot) -> dict:
+    def _serialize_snapshot(snapshot) -> dict[str, Any]:
         return {
             "id": snapshot.id,
             "tenantId": snapshot.tenant_id,
@@ -175,7 +177,7 @@ class CustomerMasterService:
         }
 
     @staticmethod
-    def _serialize_merge_review(review) -> dict:
+    def _serialize_merge_review(review) -> dict[str, Any]:
         return {
             "id": review.id,
             "tenantId": review.tenant_id,

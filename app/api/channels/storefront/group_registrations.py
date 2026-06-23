@@ -4,12 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.constants.storefront import STOREFRONT_DEMO_USER_ID
+from app.api.channels.storefront._user import require_storefront_user_id
 from app.service.customer import CustomerGroupOperationsService
-
-
-def _storefront_user_id(value: str | None) -> str:
-    return (value or STOREFRONT_DEMO_USER_ID).strip() or STOREFRONT_DEMO_USER_ID
 
 
 def create_storefront_group_registrations_router(
@@ -29,7 +25,7 @@ def create_storefront_group_registrations_router(
         try:
             item = await service.submit_registration(
                 payload,
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -42,7 +38,7 @@ def create_storefront_group_registrations_router(
         return {
             "code": 0,
             "data": await service.list_my_registrations(
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             ),
         }
 

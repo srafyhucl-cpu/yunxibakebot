@@ -4,12 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.constants.storefront import STOREFRONT_DEMO_USER_ID
+from app.api.channels.storefront._user import require_storefront_user_id
 from app.service.order import OrderApplicationService
-
-
-def _storefront_user_id(value: str | None) -> str:
-    return (value or STOREFRONT_DEMO_USER_ID).strip() or STOREFRONT_DEMO_USER_ID
 
 
 def create_storefront_orders_router(service: OrderApplicationService) -> APIRouter:
@@ -24,7 +20,7 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
         try:
             order = await service.create_order(
                 payload,
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -35,7 +31,7 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
         x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
     ) -> dict[str, Any]:
         orders = await service.list_user_orders(
-            user_id=_storefront_user_id(x_miniapp_user_id),
+            user_id=require_storefront_user_id(x_miniapp_user_id),
         )
         return {"code": 0, "data": orders}
 
@@ -47,7 +43,7 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
         try:
             order = await service.get_user_order(
                 order_id,
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -61,7 +57,7 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
         try:
             order = await service.cancel_user_order(
                 order_id,
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             message = str(exc)
@@ -77,7 +73,7 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
         try:
             order = await service.confirm_mock_payment(
                 order_id,
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             message = str(exc)
@@ -93,7 +89,7 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
         try:
             payment = await service.prepare_payment(
                 order_id,
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             message = str(exc)

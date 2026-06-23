@@ -4,12 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.constants.storefront import STOREFRONT_DEMO_USER_ID
+from app.api.channels.storefront._user import require_storefront_user_id
 from app.service.conversation import StorefrontConversationService
-
-
-def _storefront_user_id(value: str | None) -> str:
-    return (value or STOREFRONT_DEMO_USER_ID).strip() or STOREFRONT_DEMO_USER_ID
 
 
 def create_storefront_chat_router(service: StorefrontConversationService) -> APIRouter:
@@ -24,7 +20,7 @@ def create_storefront_chat_router(service: StorefrontConversationService) -> API
         try:
             result = await service.send_message(
                 str(payload.get("content", "")),
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -35,7 +31,7 @@ def create_storefront_chat_router(service: StorefrontConversationService) -> API
         x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
     ) -> dict[str, Any]:
         payload = await service.get_chat_payload(
-            user_id=_storefront_user_id(x_miniapp_user_id),
+            user_id=require_storefront_user_id(x_miniapp_user_id),
         )
         return {"code": 0, "data": payload}
 
@@ -47,7 +43,7 @@ def create_storefront_chat_router(service: StorefrontConversationService) -> API
         try:
             result = await service.request_human_transfer(
                 str((payload or {}).get("reason", "")),
-                user_id=_storefront_user_id(x_miniapp_user_id),
+                user_id=require_storefront_user_id(x_miniapp_user_id),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

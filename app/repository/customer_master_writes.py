@@ -1,7 +1,9 @@
 """客户主档域写入能力。"""
 
+from abc import abstractmethod
 from uuid import uuid4
 
+from app.repository.base import DatabaseHandle
 from app.models.customer_master import (
     CustomerIdentityLink,
     CustomerIdentityLinkCreate,
@@ -17,6 +19,22 @@ from app.utils import now_str
 
 class CustomerMasterWriteMixin:
     """客户主档域写入集合。"""
+
+    _db: DatabaseHandle
+
+    @abstractmethod
+    async def get_master(self, customer_id: str) -> CustomerMaster | None: ...
+
+    @abstractmethod
+    async def get_identity_link(self, link_id: str) -> CustomerIdentityLink | None: ...
+
+    @abstractmethod
+    async def get_source_snapshot(
+        self, snapshot_id: str
+    ) -> CustomerSourceSnapshot | None: ...
+
+    @abstractmethod
+    async def get_merge_review(self, review_id: str) -> CustomerMergeReview | None: ...
 
     async def create_master(self, payload: CustomerMasterCreate) -> CustomerMaster:
         """创建客户主档并返回最新结果。"""

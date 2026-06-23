@@ -111,7 +111,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 - 客户群内实时 AI @ 回复
 - 原生群接龙抓取
-- `opengid_to_chatid` 自动转换
+- 客户群增强待办：登记链接/二维码生成、真机群内打开验收、`opengid_to_chatid` 自动转换
 
 ---
 

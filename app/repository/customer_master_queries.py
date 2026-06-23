@@ -1,5 +1,6 @@
 """客户主档域查询能力。"""
 
+from app.repository.base import DatabaseHandle
 from app.models.customer_master import (
     CustomerIdentityLink,
     CustomerMaster,
@@ -10,6 +11,8 @@ from app.models.customer_master import (
 
 class CustomerMasterQueryMixin:
     """客户主档域只读查询集合。"""
+
+    _db: DatabaseHandle
 
     async def get_master(self, customer_id: str) -> CustomerMaster | None:
         """按主档 ID 读取客户主档。"""

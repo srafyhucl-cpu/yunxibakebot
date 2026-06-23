@@ -5,7 +5,9 @@ from typing import Any
 import httpx
 import pytest
 from fastapi import FastAPI
+from fastapi import HTTPException
 
+from app.api.channels.storefront._user import require_storefront_user_id
 from app.api.miniapp_chat import create_miniapp_chat_router
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
 from app.constants.storefront import DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON
@@ -126,23 +128,27 @@ async def test_miniapp_chat_post_uses_user_header(
     assert service.sent == [{"content": "我想订蛋糕", "user_id": "wx_user_001"}]
 
 
-async def test_miniapp_chat_get_falls_back_to_demo_user(
+async def test_miniapp_chat_get_requires_user_header(
     app: FastAPI,
     service: FakeStorefrontConversationService,
 ) -> None:
-    """未带用户头时应回退 demo 用户，便于开发者工具演示。"""
+    """未带用户头时应返回未登录错误。"""
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
     ) as client:
         response = await client.get("/api/v1/miniapp/chat/messages")
 
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["messages"][0]["content"] == f"history:{MINIAPP_DEMO_USER_ID}"
-    assert data["status"]["status"] == "transfer_pending"
-    assert data["status"]["isHumanHandoff"] is True
-    assert service.listed == [MINIAPP_DEMO_USER_ID]
+    assert response.status_code == 401
+    assert response.json()["detail"] == "未登录或会话未就绪，请先重新登录"
+
+
+def test_require_storefront_user_id_rejects_blank_value() -> None:
+    """空用户头应直接拒绝。"""
+    with pytest.raises(HTTPException) as exc_info:
+        require_storefront_user_id("   ")
+
+    assert exc_info.value.status_code == 401
 
 
 async def test_miniapp_chat_rejects_blank_message(app: FastAPI) -> None:
@@ -152,7 +158,9 @@ async def test_miniapp_chat_rejects_blank_message(app: FastAPI) -> None:
         transport=transport, base_url="http://testserver"
     ) as client:
         response = await client.post(
-            "/api/v1/miniapp/chat/messages", json={"content": "   "}
+            "/api/v1/miniapp/chat/messages",
+            json={"content": "   "},
+            headers={"x-miniapp-user-id": "wx_user_001"},
         )
 
     assert response.status_code == 400
@@ -192,12 +200,16 @@ async def test_miniapp_chat_transfer_uses_default_reason(
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
     ) as client:
-        response = await client.post("/api/v1/miniapp/chat/transfer", json={})
+        response = await client.post(
+            "/api/v1/miniapp/chat/transfer",
+            json={},
+            headers={"x-miniapp-user-id": "wx_user_transfer"},
+        )
 
     assert response.status_code == 200
     assert service.transfer_requests == [
         {
             "reason": DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON,
-            "user_id": MINIAPP_DEMO_USER_ID,
+            "user_id": "wx_user_transfer",
         }
     ]

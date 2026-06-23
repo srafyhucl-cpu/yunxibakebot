@@ -1,4 +1,17 @@
 ﻿
+## [2026-06-23] - docs(customer-groups): 合并客户群增强待办口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260623-customer-group-enhancement-todo-merge
+- **背景**: 客户群运营一期的后续项已不需要分散成三条待办，需要把“登记链接/二维码生成、真机群内打开验收、`opengid_to_chatid` 自动转换”合并为单一后续项，避免状态页、专题页和 README 口径散开。
+- **变更范围**:
+  - `README.md` - 将客户群一期不阻塞项收敛为单一客户群增强待办。
+  - `docs/architecture/customer-group-operations-phase1.md` - 将“不阻塞一期的能力”改为“后续待办”，并合并为一条。
+  - `项目进度与配置清单.md` - 将客户群团购登记与汇总的后续项收口为单一待办。
+- **验证结果**:
+  - `rg -n "登记链接|二维码|真机群内打开验收|opengid_to_chatid|客户群团购登记与汇总" D:\\Project\\YunxiBakeBot -g '!**/node_modules/**'` 通过，确认当前口径只保留一条合并后的待办描述。
+- **结论**:
+  - 客户群一期的已完成项保持不变，后续只保留一条增强待办，后面若要继续增加能力，再从这一条继续展开。
+
 
 ## [2026-06-23] - ci(load-test): 将并发压测纳入按需触发 CI
 - **操作人**: AI (Codex)

@@ -18,6 +18,7 @@ import aiosqlite
 
 from app.config import settings
 from app.logger import setup_logger
+from app.repository.base import DatabaseHandle
 from app.migrations.schema import SCHEMA_STATEMENTS, PRAGMA_STATEMENTS
 
 logger = setup_logger()
@@ -58,22 +59,22 @@ async def close_db(conn: aiosqlite.Connection) -> None:
 
 
 @asynccontextmanager
-async def get_connection(db_path: str) -> AsyncGenerator[aiosqlite.Connection, None]:
+async def get_connection(db_path: str) -> AsyncGenerator[DatabaseHandle, None]:
     conn = await init_db(db_path)
     try:
-        yield conn
+        yield DatabaseHandle(conn)
     finally:
         await close_db(conn)
 
 
 # Context-Local 数据库连接上下文变量
-db_conn_var: ContextVar[aiosqlite.Connection] = ContextVar("db_connection")
+db_conn_var: ContextVar[DatabaseHandle] = ContextVar("db_connection")
 
 
 @asynccontextmanager
 async def db_session_scope(
-    db_path: str = None,
-) -> AsyncGenerator[aiosqlite.Connection, None]:
+    db_path: str | None = None,
+) -> AsyncGenerator[DatabaseHandle, None]:
     """
     异步上下文管理器：生命周期内绑定一个独立的 aiosqlite.Connection 并绑定到 ContextVar 中。
     自动处理事务提交与回滚。
@@ -84,9 +85,10 @@ async def db_session_scope(
     for pragma in PRAGMA_STATEMENTS:
         await conn.execute(pragma)
 
-    token = db_conn_var.set(conn)
+    handle = DatabaseHandle(conn)
+    token = db_conn_var.set(handle)
     try:
-        yield conn
+        yield handle
         await conn.commit()
     except Exception as exc:
         await conn.rollback()
@@ -97,7 +99,7 @@ async def db_session_scope(
         await conn.close()
 
 
-async def get_db_session() -> AsyncGenerator[aiosqlite.Connection, None]:
+async def get_db_session() -> AsyncGenerator[DatabaseHandle, None]:
     """FastAPI 依赖注入项，为单个 HTTP 请求获取并隔离数据库连接。"""
     async with db_session_scope() as conn:
         yield conn
