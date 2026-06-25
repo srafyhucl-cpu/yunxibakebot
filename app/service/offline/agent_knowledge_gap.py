@@ -3,7 +3,6 @@
 import json
 from dataclasses import dataclass
 
-from app.config import settings
 from app.exceptions import LLMError
 from app.logger import setup_logger
 from app.models.conversation_review import ConversationReview
@@ -12,6 +11,8 @@ from app.repository.knowledge_gap_repo import KnowledgeGapRepo
 from app.repository.message_repo import MessageRepo
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.offline.agent_shared import format_dialog
+from app.service.offline.json_utils import parse_json_object
+from app.service.offline.model_selection import select_offline_gap_model
 
 logger = setup_logger()
 
@@ -46,7 +47,7 @@ class KnowledgeGapAgent:
         self._message_repo = message_repo
         self._gap_repo = gap_repo
         self._max_reviews = max_reviews
-        self._reviewer_model = reviewer_model or settings.MIMO_CHAT_MODEL
+        self._reviewer_model = select_offline_gap_model(reviewer_model)
         self.last_run_result: list[KnowledgeGap] = []
 
     async def run(self, reviews: list[ConversationReview]) -> list[KnowledgeGap]:
@@ -115,8 +116,8 @@ def _build_gap_input(review: ConversationReview, messages: list) -> str:
 def _parse_gap_json(content: str) -> ParsedKnowledgeGap:
     """解析知识缺口 JSON，格式不合规则按单条失败处理。"""
     try:
-        payload = json.loads(content)
-    except json.JSONDecodeError as exc:
+        payload = parse_json_object(content, "知识缺口结果不是有效 JSON")
+    except LLMError as exc:
         raise LLMError("知识缺口结果不是有效 JSON") from exc
     question_norm = str(payload.get("question_norm", "")).strip()
     proposed_answer = str(payload.get("proposed_answer", "")).strip()

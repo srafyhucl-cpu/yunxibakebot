@@ -5,7 +5,7 @@
 """
 
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.models.session import Session, SessionCreate, SessionStatus
 from app.repository.base import BaseRepository
@@ -151,9 +151,38 @@ class SessionRepo(BaseRepository):
             "s.extra_info, s.created_at, s.updated_at "
             "FROM sessions AS s "
             "LEFT JOIN conversation_reviews AS cr ON cr.session_id = s.id "
+            "AND NOT (cr.quality_score <= 0 AND cr.issues_json = '[]') "
             "WHERE s.status IN ('closed', 'transfer_pending', 'human_service') "
             "AND cr.id IS NULL "
             "ORDER BY s.updated_at DESC LIMIT ?",
             (limit,),
         )
         return [Session(**dict(r)) for r in rows]
+
+    async def close_idle_active_sessions(
+        self,
+        idle_minutes: int,
+        *,
+        now: datetime | None = None,
+    ) -> int:
+        """关闭超过空闲阈值且已有消息的活跃会话。"""
+        current_time = now or datetime.now()
+        cutoff = (current_time - timedelta(minutes=idle_minutes)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        updated_at = current_time.strftime("%Y-%m-%d %H:%M:%S")
+        cursor = await self._db.execute(
+            "UPDATE sessions SET status = ?, updated_at = ? "
+            "WHERE status = ? AND updated_at <= ? "
+            "AND EXISTS ("
+            "SELECT 1 FROM messages WHERE messages.session_id = sessions.id"
+            ")",
+            (
+                SessionStatus.CLOSED.value,
+                updated_at,
+                SessionStatus.ACTIVE.value,
+                cutoff,
+            ),
+        )
+        await self._db.commit()
+        return int(cursor.rowcount or 0)

@@ -18,6 +18,8 @@ from app.repository.message_repo import MessageRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.offline.agent_shared import format_dialog
+from app.service.offline.json_utils import parse_json_object
+from app.service.offline.model_selection import select_offline_memory_model
 
 logger = setup_logger()
 
@@ -35,6 +37,21 @@ MEMORY_SYSTEM_PROMPT = (
     "如果 session_scope 是 bot_then_handoff_partial，说明转人工后的人工对话不完整可见；"
     "此时不能把机器人阶段的意向写成最终确认事实。"
     "如果 human_messages_available 为 true，可将带有 [人工客服] 标记的消息视为人工阶段可见材料。"
+)
+MEMORY_REPAIR_PROMPT = (
+    "上一次顾客画像输出不是合法 JSON。请重新检查对话，只输出 JSON："
+    '{"display_name": "", "preferences": {}, "order_summary": {}, '
+    '"special_dates": [], "allergens": [], "consent_status": "unknown"}。'
+)
+MEMORY_SIGNAL_KEYWORDS = (
+    "我叫",
+    "喜欢",
+    "少糖",
+    "过敏",
+    "生日",
+    "纪念日",
+    "忌口",
+    "不要",
 )
 
 ALLOWED_CONSENT_STATUS = {
@@ -55,6 +72,16 @@ class ParsedCustomerMemory:
     allergens_json: str
     consent_status: str
 
+    def has_useful_fact(self) -> bool:
+        """是否抽取到对后续服务有帮助的事实。"""
+        return bool(
+            self.display_name
+            or self.preferences_json != "{}"
+            or self.order_summary_json != "{}"
+            or self.special_dates_json != "[]"
+            or self.allergens_json != "[]"
+        )
+
 
 class MemoryAgent:
     """Consolidate recent finished sessions into long-term customer memory."""
@@ -71,7 +98,7 @@ class MemoryAgent:
         self._message_repo = message_repo
         self._profile_repo = profile_repo
         self._max_sessions = max_sessions
-        self._reviewer_model = reviewer_model or settings.MIMO_CHAT_MODEL
+        self._reviewer_model = select_offline_memory_model(reviewer_model)
         self.last_run_result: list[CustomerProfile] = []
 
     async def run(self) -> list[CustomerProfile]:
@@ -85,6 +112,9 @@ class MemoryAgent:
                     continue
                 scope = snapshot_session_scope(session.extra_info)
                 parsed = await self._extract_memory(messages, scope)
+                if not parsed.has_useful_fact():
+                    logger.info("离线记忆固化跳过空画像 session=%s", session.id)
+                    continue
                 profiles.append(await self._save_profile(session, parsed, scope))
             except Exception as exc:
                 logger.error("离线记忆固化失败 session=%s err=%s", session.id, exc)
@@ -96,18 +126,28 @@ class MemoryAgent:
         messages: list,
         scope: SessionScopeSnapshot,
     ) -> ParsedCustomerMemory:
-        response = await llm_chat(
-            [
-                {"role": "system", "content": MEMORY_SYSTEM_PROMPT},
-                {"role": "user", "content": _build_memory_input(messages, scope)},
-            ],
-            tools=None,
-            temperature=0,
-            max_tokens=768,
-            model=self._reviewer_model,
-        )
-        content = response.choices[0].message.content or "{}"
-        return _parse_memory_json(content)
+        memory_input = _build_memory_input(messages, scope)
+        last_content = ""
+        max_attempts = settings.OFFLINE_LLM_REPAIR_RETRIES + 1
+        for attempt in range(max_attempts):
+            response = await llm_chat(
+                _build_memory_messages(memory_input, last_content, attempt),
+                tools=None,
+                temperature=0,
+                max_tokens=768,
+                model=self._reviewer_model,
+            )
+            last_content = response.choices[0].message.content or "{}"
+            try:
+                parsed = _parse_memory_json(last_content)
+            except LLMError:
+                if attempt >= max_attempts - 1:
+                    raise
+                continue
+            if parsed.has_useful_fact() or not _has_memory_signal(memory_input):
+                return parsed
+            last_content = "模型返回空画像，但对话里疑似包含顾客事实。"
+        return parsed
 
     async def _save_profile(
         self,
@@ -198,11 +238,34 @@ def _build_memory_input(messages: list, scope: SessionScopeSnapshot) -> str:
     )
 
 
+def _build_memory_messages(
+    memory_input: str,
+    last_content: str,
+    attempt: int,
+) -> list[dict[str, str]]:
+    if attempt == 0:
+        return [
+            {"role": "system", "content": MEMORY_SYSTEM_PROMPT},
+            {"role": "user", "content": memory_input},
+        ]
+    return [
+        {"role": "system", "content": MEMORY_REPAIR_PROMPT},
+        {
+            "role": "user",
+            "content": f"上一次输出：{last_content}\n\n{memory_input}",
+        },
+    ]
+
+
+def _has_memory_signal(memory_input: str) -> bool:
+    return any(keyword in memory_input for keyword in MEMORY_SIGNAL_KEYWORDS)
+
+
 def _parse_memory_json(content: str) -> ParsedCustomerMemory:
     """Parse memory JSON from the LLM response."""
     try:
-        payload = json.loads(content)
-    except json.JSONDecodeError as exc:
+        payload = parse_json_object(content, "记忆固化结果不是有效 JSON")
+    except LLMError as exc:
         raise LLMError("记忆固化结果不是有效 JSON") from exc
     consent_status = str(payload.get("consent_status", "unknown")).strip()
     if consent_status not in ALLOWED_CONSENT_STATUS:

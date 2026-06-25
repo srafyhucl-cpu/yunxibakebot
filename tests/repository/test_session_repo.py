@@ -7,6 +7,7 @@ update_status 状态流转、get_all_active 活跃会话查询。
 
 import aiosqlite
 import pytest
+from datetime import datetime
 
 from app.models.session import Channel, SessionCreate, SessionStatus
 from app.repository.session_repo import SessionRepo
@@ -95,3 +96,96 @@ async def test_get_returns_none_for_nonexistent(repo: SessionRepo) -> None:
     """查询不存在的会话 ID 应返回 None。"""
     result = await repo.get("nonexistent-id")
     assert result is None
+
+
+async def test_close_idle_active_sessions_only_closes_old_sessions_with_messages(
+    repo: SessionRepo,
+    db: aiosqlite.Connection,
+) -> None:
+    """空闲收口只关闭有消息且超过阈值的 active 会话。"""
+    old_with_message = await repo.get_or_create(
+        SessionCreate(id="idle-old", channel=Channel.YOUZAN, user_id="buyer-old")
+    )
+    old_without_message = await repo.get_or_create(
+        SessionCreate(id="idle-empty", channel=Channel.YOUZAN, user_id="buyer-empty")
+    )
+    fresh_with_message = await repo.get_or_create(
+        SessionCreate(id="idle-fresh", channel=Channel.YOUZAN, user_id="buyer-fresh")
+    )
+    transfer_session = await repo.get_or_create(
+        SessionCreate(
+            id="idle-transfer",
+            channel=Channel.YOUZAN,
+            user_id="buyer-transfer",
+        )
+    )
+    await repo.update_status(transfer_session.id, SessionStatus.TRANSFER_PENDING)
+    await db.executemany(
+        "INSERT INTO messages (id, session_id, role, content, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [
+            ("msg-old", old_with_message.id, "user", "旧消息", "2026-06-24 10:00:00"),
+            (
+                "msg-fresh",
+                fresh_with_message.id,
+                "user",
+                "新消息",
+                "2026-06-24 10:20:00",
+            ),
+            (
+                "msg-transfer",
+                transfer_session.id,
+                "user",
+                "转人工消息",
+                "2026-06-24 10:00:00",
+            ),
+        ],
+    )
+    await db.execute(
+        "UPDATE sessions SET updated_at = ? WHERE id IN (?, ?, ?)",
+        (
+            "2026-06-24 10:00:00",
+            old_with_message.id,
+            old_without_message.id,
+            transfer_session.id,
+        ),
+    )
+    await db.execute(
+        "UPDATE sessions SET updated_at = ? WHERE id = ?",
+        ("2026-06-24 10:20:00", fresh_with_message.id),
+    )
+    await db.commit()
+
+    closed_count = await repo.close_idle_active_sessions(
+        30,
+        now=datetime(2026, 6, 24, 10, 31, 0),
+    )
+
+    sessions = {
+        str(row["id"]): str(row["status"])
+        for row in await _fetch_session_statuses(
+            db,
+            [
+                old_with_message.id,
+                old_without_message.id,
+                fresh_with_message.id,
+                transfer_session.id,
+            ],
+        )
+    }
+    assert closed_count == 1
+    assert sessions[old_with_message.id] == SessionStatus.CLOSED.value
+    assert sessions[old_without_message.id] == SessionStatus.ACTIVE.value
+    assert sessions[fresh_with_message.id] == SessionStatus.ACTIVE.value
+    assert sessions[transfer_session.id] == SessionStatus.TRANSFER_PENDING.value
+
+
+async def _fetch_session_statuses(
+    db: aiosqlite.Connection,
+    session_ids: list[str],
+) -> list[aiosqlite.Row]:
+    placeholders = ", ".join("?" for _ in session_ids)
+    return await db.execute_fetchall(
+        "SELECT id, status FROM sessions WHERE id IN (" + placeholders + ")",
+        tuple(session_ids),
+    )

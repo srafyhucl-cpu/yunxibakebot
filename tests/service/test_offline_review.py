@@ -24,6 +24,7 @@ from app.service.offline import scheduler as scheduler_module
 from app.service.offline.agent_knowledge_gap import KnowledgeGapAgent
 from app.service.offline.agent_memory import MemoryAgent
 from app.service.offline.agent_qa_review import QaReviewAgent
+from app.service.offline.model_selection import select_offline_review_model
 from app.service.offline.orchestrator import OfflineReviewOrchestrator
 from app.service.offline.scheduler import OfflineReviewScheduler, _is_night_window
 
@@ -47,6 +48,28 @@ async def test_session_repo_lists_unreviewed_closed_and_transfer_sessions(
     sessions = await SessionRepo(db).list_review_candidates()
 
     assert {session.id for session in sessions} == {"closed-1", "transfer-1"}
+
+
+async def test_session_repo_retries_invalid_empty_review(
+    db: aiosqlite.Connection,
+) -> None:
+    """0 分且无问题说明的空质检不应阻止会话重新进入候选。"""
+    await _insert_session(db, "invalid-review-1", "closed")
+    await _insert_session(db, "valid-review-1", "closed")
+    await db.executemany(
+        "INSERT INTO conversation_reviews "
+        "(session_id, quality_score, issues_json, reviewer_model, reviewed_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [
+            ("invalid-review-1", 0, "[]", "mimo", "2026-06-09 10:00:00"),
+            ("valid-review-1", 100, "[]", "mimo", "2026-06-09 10:00:00"),
+        ],
+    )
+    await db.commit()
+
+    sessions = await SessionRepo(db).list_review_candidates()
+
+    assert {session.id for session in sessions} == {"invalid-review-1"}
 
 
 async def test_qa_review_agent_writes_conversation_review(
@@ -78,6 +101,40 @@ async def test_qa_review_agent_writes_conversation_review(
 
     assert [review.quality_score for review in reviews] == [82]
     assert stored[0].issues_json == '["价格回答需核对"]'
+
+
+async def test_qa_review_agent_repairs_empty_low_score(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """低分但无问题说明时应重试并只写入修复后的质检。"""
+    await _insert_session(db, "session-repair", "closed")
+    await MessageRepo(db).save(
+        Message(
+            id="msg-repair",
+            session_id="session-repair",
+            role=MessageRole.USER,
+            content="客服没有回答生日蜡烛收费规则",
+        )
+    )
+    responses = [
+        '{"quality_score": 0, "issues": []}',
+        '{"quality_score": 35, "issues": ["未回答生日蜡烛收费规则"]}',
+    ]
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(content=responses.pop(0))
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    agent = _build_agent(db)
+
+    reviews = await agent.run()
+    stored = await ConversationReviewRepo(db).list_by_session("session-repair")
+
+    assert [review.quality_score for review in reviews] == [35]
+    assert stored[0].issues_json == '["未回答生日蜡烛收费规则"]'
+    assert responses == []
 
 
 async def test_qa_review_agent_isolates_single_session_llm_error(
@@ -208,6 +265,43 @@ async def test_memory_agent_upserts_profile_and_skips_current_profile(
     assert profile.allergens_json == '["坚果"]'
 
 
+async def test_memory_agent_skips_empty_profile_without_useful_facts(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """没有抽取到可服务事实时，不写空画像冒充沉淀成果。"""
+    await _insert_session(db, "memory-empty-1", "closed")
+    await MessageRepo(db).save(
+        Message(
+            id="memory-empty-msg-1",
+            session_id="memory-empty-1",
+            role=MessageRole.USER,
+            content="你好，在吗？",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(
+            content=(
+                '{"display_name":"","preferences":{},'
+                '"order_summary":{},"special_dates":[],'
+                '"allergens":[],"consent_status":"unknown"}'
+            )
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    agent = MemoryAgent(
+        OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
+    )
+
+    profiles = await agent.run()
+    profile = await CustomerProfileRepo(db).get("youzan", "user-memory-empty-1")
+
+    assert profiles == []
+    assert profile is None
+
+
 async def test_orchestrator_runs_p3_agents_after_qa() -> None:
     """编排器应在质检后串联知识缺口与记忆固化 Agent。"""
 
@@ -276,12 +370,55 @@ async def test_scheduler_runs_and_stops(
     assert orchestrator.calls >= 1
 
 
+async def test_scheduler_closes_idle_sessions_before_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """离线沉淀每轮执行前应先收口空闲 active 会话。"""
+    events: list[str] = []
+
+    class FakeIdleCloser:
+        async def close_once(self) -> int:
+            events.append("close-idle")
+            return 1
+
+    class FakeOrchestrator:
+        async def run_once(self) -> list:
+            events.append("review")
+            return []
+
+    scheduler = OfflineReviewScheduler(
+        FakeOrchestrator(),  # type: ignore[arg-type]
+        interval_hours=0.01,
+        idle_closer=FakeIdleCloser(),
+    )
+    monkeypatch.setattr(
+        scheduler_module, "_is_night_window", lambda *_args, **_kwargs: True
+    )
+
+    summary = await scheduler._run_once()  # noqa: SLF001
+
+    assert summary.ran is True
+    assert events == ["close-idle", "review"]
+
+
 def test_night_window_wraps_across_midnight() -> None:
     assert _is_night_window(22, 6, now_hour=23) is True
     assert _is_night_window(22, 6, now_hour=2) is True
     assert _is_night_window(22, 6, now_hour=12) is False
     assert _is_night_window(8, 18, now_hour=9) is True
     assert _is_night_window(8, 18, now_hour=20) is False
+
+
+def test_offline_model_prefers_thinking_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """离线模型默认优先使用思考模型，显式模型仍可覆盖。"""
+    monkeypatch.setattr(qa_review_module.settings, "OFFLINE_REVIEW_MODEL", "")
+    monkeypatch.setattr(qa_review_module.settings, "MIMO_THINKING_MODEL", "mimo-think")
+    monkeypatch.setattr(qa_review_module.settings, "MIMO_CHAT_MODEL", "mimo-fast")
+
+    assert select_offline_review_model() == "mimo-think"
+    assert select_offline_review_model("explicit-model") == "explicit-model"
 
 
 async def test_memory_agent_records_partial_handoff_scope(
@@ -314,7 +451,7 @@ async def test_memory_agent_records_partial_handoff_scope(
         captured["messages"] = args[0]
         message = SimpleNamespace(
             content=(
-                '{"display_name":"","preferences":{},'
+                '{"display_name":"","preferences":{"interest":"草莓蛋糕"},'
                 '"order_summary":{},"allergens":[],"consent_status":"unknown"}'
             )
         )

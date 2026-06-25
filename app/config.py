@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     OFFLINE_REVIEW_NIGHT_END_HOUR: int = 6
     OFFLINE_REVIEW_INTERVAL_HOURS: float = 6.0
     OFFLINE_REVIEW_MAX_SESSIONS: int = 200
+    SESSION_IDLE_CLOSE_MINUTES: int = 30
+    SESSION_IDLE_CLOSE_SCAN_INTERVAL_SECONDS: int = 300
 
     # ── DeepSeek 大模型（已废弃，保留字段兼容） ──
     DEEPSEEK_API_KEY: str = ""
@@ -62,6 +64,12 @@ class Settings(BaseSettings):
     MIMO_BASE_URL: str = "https://api.xiaomimimo.com/v1"
     # 文本对话模型
     MIMO_CHAT_MODEL: str = "mimo-v2.5"
+    # 夜间沉淀可单独指定思考模型；未配置时回退到 MIMO_CHAT_MODEL
+    MIMO_THINKING_MODEL: str = ""
+    OFFLINE_REVIEW_MODEL: str = ""
+    OFFLINE_MEMORY_MODEL: str = ""
+    OFFLINE_KNOWLEDGE_GAP_MODEL: str = ""
+    OFFLINE_LLM_REPAIR_RETRIES: int = 1
     # 视觉/多模态模型（支持图片输入）
     MIMO_VISION_MODEL: str = "mimo-v2.5"
     # 语音转文字模型（ASR）
