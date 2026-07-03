@@ -55,6 +55,8 @@ async def test_main_json_output_can_be_written_to_file(
                 missing_logistics=False,
                 needs_refund=False,
                 fulfillment_risk=False,
+                delivery_time_start="",
+                delivery_time_end="",
             )
         ]
 

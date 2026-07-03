@@ -17,6 +17,7 @@ ORDER_SELECT_FIELDS = (
 )
 ORDER_TIME_EXPR = "substr(COALESCE(NULLIF(pay_time, ''), created_at), 1, 10)"
 ORDER_DATE_EXPR = "COALESCE(NULLIF(pay_time, ''), created_at, updated_at)"
+DELIVERY_CLOCK_EXPR = "substr(delivery_time, 12, 5)"
 ORDER_SORT_SQL = {
     "latest": ORDER_DATE_EXPR + " DESC, order_no DESC",
     "amount": "amount_fen DESC, " + ORDER_DATE_EXPR + " DESC",
@@ -228,4 +229,12 @@ def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
         clauses.append("refund_state != 0")
     if plan.needs_fulfillment_risk:
         clauses.append("delivery_time IS NOT NULL AND delivery_time != ''")
+    if plan.delivery_time_start or plan.delivery_time_end:
+        clauses.append("delivery_time IS NOT NULL AND delivery_time != ''")
+    if plan.delivery_time_start:
+        clauses.append(DELIVERY_CLOCK_EXPR + " >= ?")
+        params.append(plan.delivery_time_start)
+    if plan.delivery_time_end:
+        clauses.append(DELIVERY_CLOCK_EXPR + " <= ?")
+        params.append(plan.delivery_time_end)
     return "WHERE " + " AND ".join(clauses), params

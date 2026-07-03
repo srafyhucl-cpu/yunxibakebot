@@ -10,6 +10,10 @@ from app.service.wecom.employee_agent_order_date import (
     remove_order_time_expressions,
     resolve_order_date_range,
 )
+from app.service.wecom.employee_agent_order_delivery_time import (
+    remove_delivery_time_expressions,
+    resolve_delivery_time_window,
+)
 from app.service.wecom.employee_agent_order_constants import (
     DEFAULT_RESULT_LIMIT,
     MAX_RESULT_LIMIT,
@@ -44,6 +48,7 @@ def build_order_query_plan(
     kind: OrderQueryKind,
 ) -> OrderQueryPlan:
     date_from, date_to = resolve_order_date_range(query, today)
+    delivery_time_window = resolve_delivery_time_window(query)
     return OrderQueryPlan(
         kind=kind,
         date_from=date_from,
@@ -55,6 +60,8 @@ def build_order_query_plan(
         needs_missing_logistics=needs_missing_logistics(query),
         needs_refund=needs_refund(query),
         needs_fulfillment_risk=needs_fulfillment_risk(query),
+        delivery_time_start=delivery_time_window.start if delivery_time_window else "",
+        delivery_time_end=delivery_time_window.end if delivery_time_window else "",
         aggregate_by="product" if kind == OrderQueryKind.TOP_PRODUCTS else "",
         sort_by=resolve_sort_by(query),
         limit=_extract_limit(query),
@@ -110,10 +117,6 @@ def looks_like_order_knowledge_query(query: str) -> bool:
     return looks_like_knowledge_followup_query(query)
 
 
-def looks_like_ops_query(capability_names: set[str]) -> bool:
-    return bool(capability_names & {"ops_summary", "handoff_pending"})
-
-
 def _resolve_order_statuses(query: str) -> tuple[str, ...]:
     if needs_fulfillment_risk(query):
         return ORDER_PENDING_STATUSES
@@ -129,6 +132,7 @@ def _resolve_order_statuses(query: str) -> tuple[str, ...]:
 
 def _extract_order_keyword(query: str) -> str:
     keyword = remove_order_time_expressions(query.strip())
+    keyword = remove_delivery_time_expressions(keyword)
     for stop_word in sorted(ORDER_QUERY_STOP_WORDS, key=len, reverse=True):
         keyword = keyword.replace(stop_word, " ")
     keyword = re.sub(r"E\d{12,}", " ", keyword, flags=re.IGNORECASE)

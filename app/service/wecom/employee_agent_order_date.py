@@ -23,7 +23,10 @@ def resolve_order_date_range(query: str, today: date) -> tuple[str, str]:
     if "昨天" in query:
         target_day = today - timedelta(days=1)
         return target_day.isoformat(), target_day.isoformat()
-    if any(word in query for word in ("今天", "今日", "晚上")):
+    if any(
+        word in query
+        for word in ("今天", "今日", "上午", "中午", "下午", "傍晚", "晚上", "夜里")
+    ):
         return today.isoformat(), today.isoformat()
     return "", ""
 

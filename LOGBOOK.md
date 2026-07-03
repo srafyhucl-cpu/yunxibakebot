@@ -1,4 +1,34 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手配送时间段订单查询
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-delivery-window
+- **背景**: 员工助手已具备订单统计、待处理、履约风险、商品库存和知识库混合能力，但“晚上还有哪些待处理订单”这类口语化时间段查询仍未进入结构化计划。该缺口会让员工继续被迫使用规范化筛选条件，不符合“私人豆包式”随口问的目标。
+- **决策**:
+  - 不让模型生成 SQL；继续采用 `OrderQueryPlan` 结构化字段 + repository 白名单参数化 SQL。
+  - 配送时间段只支持后端固定白名单：凌晨、早上、上午、中午、下午、傍晚、晚上、夜里。
+  - “晚上/下午/上午”等相对时段默认按今天过滤，避免查询跨天噪声。
+  - 探针来源继续复用 `scripts/wecom_employee_agent_probe_cases.py`，让规划验收和企微加密回调验收同步扩展。
+- **改动**:
+  - `app/models/employee_agent.py` - `OrderQueryPlan` 增加 `delivery_time_start/end`。
+  - `app/service/wecom/employee_agent_order_delivery_time.py` - 新增配送时段白名单解析与关键词清理。
+  - `app/service/wecom/employee_agent_order_date.py`、`employee_agent_order_query.py`、`employee_agent_order_keywords.py`、`employee_agent_llm_plan.py` - 接入时间段计划解析、关键词清理和 LLM 计划字段。
+  - `app/repository/youzan_order_repo.py` - 使用 `substr(delivery_time, 12, 5)` 和参数绑定执行配送时间窗过滤。
+  - `scripts/wecom_employee_agent_probe_cases.py`、`scripts/check_wecom_employee_agent_plans.py` - 探针扩展到 35 项，并校验配送时间窗字段。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/repository/test_youzan_repo.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` 等 - 补规划、仓储、回调和文件体量回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，79 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，35/35。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python -m ruff check ...` 通过。
+  - `python -m ruff format --check ...` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+- **后续**:
+  - 待同步生产后复跑 `/health`、`/ready` 和 35/35 企微员工助手加密回调探针。
+  - 下一步可继续补“明天/指定日期/多个时间段”这类自然语言时间计划，但仍应走结构化计划字段，不开放模型 SQL。
+
 ## [2026-07-04] - fix(wecom): 员工助手润色回复保留商品库存数值
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-reply-fact-guard

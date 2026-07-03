@@ -82,6 +82,8 @@ def _parse_order_plan(raw_plan: Any) -> OrderQueryPlan | None:
         needs_missing_logistics=bool(raw_plan.get("needsMissingLogistics")),
         needs_refund=bool(raw_plan.get("needsRefund")),
         needs_fulfillment_risk=bool(raw_plan.get("needsFulfillmentRisk")),
+        delivery_time_start=str(raw_plan.get("deliveryTimeStart") or ""),
+        delivery_time_end=str(raw_plan.get("deliveryTimeEnd") or ""),
         aggregate_by=str(raw_plan.get("aggregateBy") or ""),
         sort_by=str(raw_plan.get("sortBy") or "latest"),
         limit=extract_limit_from_value(raw_plan.get("limit")),

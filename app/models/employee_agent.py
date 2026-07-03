@@ -43,6 +43,8 @@ class OrderQueryPlan:
     needs_missing_logistics: bool = False
     needs_refund: bool = False
     needs_fulfillment_risk: bool = False
+    delivery_time_start: str = ""
+    delivery_time_end: str = ""
     aggregate_by: str = ""
     sort_by: str = "latest"
     limit: int = 5

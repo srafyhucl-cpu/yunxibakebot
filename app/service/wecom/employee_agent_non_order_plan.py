@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.models.employee_agent import AgentIntent, AgentPlan, AnswerStyle
-from app.service.wecom.employee_agent_order_query import looks_like_ops_query
 from app.service.wecom.employee_agent_product_query import (
     looks_like_product_knowledge_query,
 )
@@ -45,7 +44,7 @@ def build_non_order_agent_plan(
             tools=("product_lookup",),
             answer_style=AnswerStyle.SUMMARY,
         )
-    if looks_like_ops_query(capability_names):
+    if capability_names & {"ops_summary", "handoff_pending"}:
         return AgentPlan(
             intent=AgentIntent.OPS_QUERY,
             tools=tuple(sorted(capability_names)) or ("ops_summary",),

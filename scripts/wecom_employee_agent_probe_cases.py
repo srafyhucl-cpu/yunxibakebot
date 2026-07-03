@@ -20,6 +20,8 @@ class EmployeeAgentProbeCase:
     expected_missing_logistics: bool | None = None
     expected_needs_refund: bool | None = None
     expected_fulfillment_risk: bool | None = None
+    expected_delivery_time_start: str = ""
+    expected_delivery_time_end: str = ""
     required_any_terms: tuple[str, ...] = ()
     required_all_terms: tuple[str, ...] = ()
     forbidden_terms: tuple[str, ...] = ()
@@ -31,7 +33,7 @@ def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     week_start_text = date.fromordinal(today.toordinal() - today.weekday()).isoformat()
     return (
         *_order_summary_probe_cases(today_text),
-        *_order_list_probe_cases(),
+        *_order_list_probe_cases(today_text),
         *_order_product_probe_cases(
             today_text,
             recent_three_days_text,
@@ -99,7 +101,7 @@ def _order_summary_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
     )
 
 
-def _order_list_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
+def _order_list_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
             "pending-shipment-customer-reply",
@@ -154,6 +156,21 @@ def _order_list_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             expected_keyword="",
             expected_fulfillment_risk=True,
             required_any_terms=("超时", "约送", "待发货", "待收货", "发货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
+            "evening-pending-orders",
+            "晚上还有哪些待处理订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            today_text,
+            today_text,
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            expected_delivery_time_start="18:00",
+            expected_delivery_time_end="23:59",
+            required_any_terms=("待处理", "约送", "晚上", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
         ),
     )

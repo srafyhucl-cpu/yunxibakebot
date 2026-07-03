@@ -41,6 +41,8 @@ class AgentPlanCheck:
     missing_logistics: bool
     needs_refund: bool
     fulfillment_risk: bool
+    delivery_time_start: str
+    delivery_time_end: str
     detail: str = ""
 
     def to_dict(self) -> dict[str, object]:
@@ -58,6 +60,8 @@ class AgentPlanCheck:
             "missing_logistics": self.missing_logistics,
             "needs_refund": self.needs_refund,
             "fulfillment_risk": self.fulfillment_risk,
+            "delivery_time_start": self.delivery_time_start,
+            "delivery_time_end": self.delivery_time_end,
             "detail": self.detail,
         }
 
@@ -85,6 +89,8 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
     missing_logistics = query_plan.needs_missing_logistics if query_plan else False
     needs_refund = query_plan.needs_refund if query_plan else False
     fulfillment_risk = query_plan.needs_fulfillment_risk if query_plan else False
+    delivery_time_start = query_plan.delivery_time_start if query_plan else ""
+    delivery_time_end = query_plan.delivery_time_end if query_plan else ""
     mismatches = _collect_mismatches(
         probe,
         plan.intent.value,
@@ -97,6 +103,8 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         missing_logistics,
         needs_refund,
         fulfillment_risk,
+        delivery_time_start,
+        delivery_time_end,
     )
     return AgentPlanCheck(
         name=probe.name,
@@ -112,6 +120,8 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         missing_logistics=missing_logistics,
         needs_refund=needs_refund,
         fulfillment_risk=fulfillment_risk,
+        delivery_time_start=delivery_time_start,
+        delivery_time_end=delivery_time_end,
         detail="; ".join(mismatches),
     )
 
@@ -128,6 +138,8 @@ def _collect_mismatches(
     missing_logistics: bool,
     needs_refund: bool,
     fulfillment_risk: bool,
+    delivery_time_start: str,
+    delivery_time_end: str,
 ) -> list[str]:
     mismatches: list[str] = []
     _append_mismatch(mismatches, "intent", probe.expected_intent, intent)
@@ -162,6 +174,20 @@ def _collect_mismatches(
             "fulfillment_risk",
             probe.expected_fulfillment_risk,
             fulfillment_risk,
+        )
+    if probe.expected_delivery_time_start:
+        _append_mismatch(
+            mismatches,
+            "delivery_time_start",
+            probe.expected_delivery_time_start,
+            delivery_time_start,
+        )
+    if probe.expected_delivery_time_end:
+        _append_mismatch(
+            mismatches,
+            "delivery_time_end",
+            probe.expected_delivery_time_end,
+            delivery_time_end,
         )
     return mismatches
 
