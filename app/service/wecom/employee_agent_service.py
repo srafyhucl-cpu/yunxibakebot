@@ -9,6 +9,7 @@ from app.models.employee_agent import AgentIntent, AgentPlan, ToolResult
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.wecom.employee_agent_ops_plan import extract_campaign_id
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
+from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 
 logger = setup_logger()
 
@@ -159,7 +160,7 @@ class EmployeeAgentService:
             logger.warning("企微员工助手回复润色失败，返回确定性结果: %s", exc)
             return deterministic_reply
         content = response.choices[0].message.content or ""
-        return content.strip() or deterministic_reply
+        return preserve_tool_facts(content.strip(), deterministic_reply)
 
 
 def _query_payload(query: str) -> dict[str, Any]:

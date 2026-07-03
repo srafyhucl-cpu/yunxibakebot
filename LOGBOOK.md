@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-04] - fix(wecom): 员工助手润色回复保留商品库存数值
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-reply-fact-guard
+- **背景**: 生产复跑 34 项员工助手回调探针时，“今天营业额多少”已通过，但“伯牙绝弦库存不够怎么推荐替代”偶发被 LLM 润色成仅有替代话术、缺少商品工具返回的库存数字，导致语义验收失败。说明多工具数据+知识回复需要事实保真兜底，不能完全依赖 LLM 润色。
+- **决策**:
+  - 不放宽 smoke；商品库存类回答必须保留工具返回的库存数字。
+  - 新增独立回复守卫模块，避免 `employee_agent_service.py` 继续膨胀。
+  - 当确定性工具结果含 `库存 N` 而 LLM 润色结果缺少对应数字时，回退确定性工具结果。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增库存数值保真守卫。
+  - `app/service/wecom/employee_agent_service.py` - LLM 润色后通过守卫校验，不合格则回退确定性结果。
+  - `tests/service/test_wecom_employee_agent.py` - 增加 LLM 丢库存数字时回退确定性回复的回归测试。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py -q --no-cov` 通过，44 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，34/34。
+  - `python scripts/check_file_sizes.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 补丁同步生产后重新跑 34 项线上回调探针，确认商品+话术和经营汇总均通过。
+
 ## [2026-07-04] - fix(wecom): 收紧员工助手经营汇总下一步提示
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-revenue-summary-hint

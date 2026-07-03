@@ -441,3 +441,32 @@ async def test_employee_agent_ops_reply_skips_llm_polish(monkeypatch) -> None:
     reply = await service.answer("查一下张三地址线索")
 
     assert "地址/客户线索" in reply
+
+
+async def test_employee_agent_polish_keeps_product_stock_number(monkeypatch) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="建议回复客户：这款库存紧张，可以推荐替代款。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
+
+    assert "库存 6" in reply
+    assert "知识库回复" in reply

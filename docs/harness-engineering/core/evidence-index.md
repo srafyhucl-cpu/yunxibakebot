@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-015：企微员工助手润色回复库存数值保真
+
+- trace_id: 20260704-wecom-employee-agent-reply-fact-guard
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-reply-fact-guard
+- file: `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_reply_guard.py`; `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_service.py`; `D:/Project/YunxiBakeBot/tests/service/test_wecom_employee_agent.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`; `D:/Project/YunxiBakeBot/项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_text_encoding.py`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 员工助手润色回复保留商品库存数值
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令和探针名称；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 生产复跑 34 项员工助手回调探针时，商品+知识替代推荐回复偶发丢失库存数字，说明 LLM 润色需要事实保真兜底。补丁新增回复守卫：确定性工具结果含库存数值而润色结果缺失时，回退确定性回复。
+
 ## E-20260704-014：企微员工助手经营汇总下一步提示收紧
 
 - trace_id: 20260704-wecom-employee-agent-revenue-summary-hint
