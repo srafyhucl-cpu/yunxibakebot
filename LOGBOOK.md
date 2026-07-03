@@ -22,8 +22,11 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
+  - 已同步生产 `0.74.5 / a4558172`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`product-stock-recommend-replacement` 和 `product-stock-customer-reply` 均返回基于库存的员工建议，未裸露“未找到匹配知识”。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 提交后同步生产并用 43 项企微员工助手端到端回调探针复验商品+话术样本。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - fix(wecom): 增强员工助手配送知识兜底
 - **操作人**: AI (Codex)
