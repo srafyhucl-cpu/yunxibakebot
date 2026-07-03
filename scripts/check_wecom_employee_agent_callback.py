@@ -53,6 +53,10 @@ SENSITIVE_MARKERS = (
 PRIVACY_PATTERNS = (
     re.compile(r"1[3-9]\d{9}"),
     re.compile(r"\b[A-Z]?\d{14,}\b"),
+    re.compile(
+        r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"(buyer|mobile|phone|address|receiver|tid|oid)", re.IGNORECASE),
     re.compile(r"\bID\s*:", re.IGNORECASE),
     re.compile(r"(手机号|电话|完整订单号|收货地址|买家ID|买家 id)", re.IGNORECASE),

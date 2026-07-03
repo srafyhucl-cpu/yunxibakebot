@@ -8,6 +8,7 @@ from app.service.wecom.intelligent_bot_tool_format import mask_phone, snippet
 ADDRESS_PREVIEW_LENGTH = 4
 IDENTIFIER_PREFIX_LENGTH = 4
 IDENTIFIER_SUFFIX_LENGTH = 4
+TRANSFER_ID_SUFFIX_LENGTH = 5
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 ADDRESS_PATTERN = re.compile(r"[\u4e00-\u9fa5A-Za-z0-9]{1,16}[路街道巷弄]\s*\d+\s*号?")
 
@@ -80,7 +81,7 @@ def group_summary_line(summary: dict[str, Any]) -> str:
 
 
 def transfer_line(item: dict[str, Any]) -> str:
-    return f"{item['id']}｜{item['reason'] or '未填写原因'}"
+    return f"工单尾号 {short_identifier(item['id'])}｜{item['reason'] or '未填写原因'}"
 
 
 def ops_summary_line(summary: dict[str, Any]) -> str:
@@ -133,6 +134,13 @@ def mask_identifier(value: str) -> str:
         + "..."
         + compact_value[-IDENTIFIER_SUFFIX_LENGTH:]
     )
+
+
+def short_identifier(value: str) -> str:
+    compact_value = value.strip()
+    if not compact_value:
+        return "***"
+    return compact_value[-TRANSFER_ID_SUFFIX_LENGTH:]
 
 
 def redact_sensitive_text(content: str) -> str:

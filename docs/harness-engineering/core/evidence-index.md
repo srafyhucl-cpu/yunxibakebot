@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-003：企微员工助手待人工工单尾号展示收口
+
+- trace_id: 20260704-wecom-employee-agent-handoff-privacy
+- generated_at: 2026-07-04
+- evidence_type: local+production-precheck/wecom-employee-agent-handoff-privacy
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_ops_format.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_privacy_format.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/yunxibakebot`
+- command: pre-production `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`; `python -m pytest tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py -q --no-cov`; `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py scripts/check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py scripts/check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_text_encoding.py`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 待人工列表隐藏完整工单 UUID
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏后的命令、失败项名称和展示规则；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 同步前生产 `0.69.0` 的 13 项回调验收按预期失败 1/13，失败项 `handoff-pending` 暴露完整内部 UUID；本地已改为待人工列表只展示 `工单尾号 <后5位>`，并把完整 UUID 加入回调探针隐私泄漏规则，防止内部工单标识继续进入企微群聊回复。
+
 ## E-20260704-002：企微员工助手 13 项回调生产语义验收
 
 - trace_id: 20260704-wecom-employee-agent-ops-expansion

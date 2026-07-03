@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-04] - fix(wecom): 待人工列表隐藏完整工单 UUID
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-handoff-privacy
+- **背景**: 员工助手 13 项生产回调探针发现 `handoff-pending` 虽然语义正确，但回复直接展示完整转人工工单 UUID，例如 `da8f723e-d755-4868-8c48-bf9813a77f40｜转人工`。这不是客户手机号或地址，但对员工群聊不可读，也会泄露内部标识，违背“员工可读、少暴露内部 ID”的 Agent 回复原则。
+- **决策**:
+  - 待人工列表不再展示完整工单 ID，改为 `工单尾号 <后5位>｜原因`。
+  - 回调验收脚本新增 UUID 隐私泄漏模式，后续生产探针会阻断完整 UUID 回流到企微回复。
+  - 本轮只收紧展示层与验收规则，不改转人工数据模型、工单查询服务或 Agent 编排链路。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 新增 `short_identifier()`，`transfer_line()` 仅展示工单尾号。
+  - `scripts/check_wecom_employee_agent_callback.py` - `PRIVACY_PATTERNS` 增加 UUID 正则。
+  - `tests/service/test_wecom_employee_privacy_format.py` - 覆盖完整 UUID 不出现在待人工回复中。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖回调探针拒绝完整 UUID。
+  - `VERSION` - 升级到 `0.69.1`，用于区分生产待人工展示修复版本。
+- **验证结果**:
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在同步前生产 `0.69.0` 上按预期失败 1/13，失败项为 `handoff-pending`，证明新探针能抓到旧生产完整 UUID。
+  - `python -m pytest tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，24 条。
+  - `python -m pytest tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过，11 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py scripts/check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py scripts/check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+- **待生产验证**:
+  - 同步生产后复跑 `/health`、`/ready` 和 13 项回调验收，目标为 13/13 通过，且 `handoff-pending` 回复只出现工单尾号。
+
 ## [2026-07-04] - test(wecom): 对齐员工助手 13 项回调语义规则
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-ops-expansion

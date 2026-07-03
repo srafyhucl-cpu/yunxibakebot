@@ -164,6 +164,25 @@ def test_evaluate_reply_rejects_buyer_id_hint() -> None:
     assert result.privacy_safe is False
 
 
+def test_evaluate_reply_rejects_full_uuid() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe("privacy", "现在有哪些待人工"),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "da8f723e-d755-4868-8c48-bf9813a77f40｜转人工",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.privacy_safe is False
+
+
 def test_evaluate_reply_rejects_delivery_order_tail_detour() -> None:
     result = callback_check.evaluate_reply(
         callback_check.CallbackProbe(
