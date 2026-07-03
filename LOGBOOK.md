@@ -12,7 +12,7 @@
   - `scripts/check_wecom_employee_agent_callback.py` - `PRIVACY_PATTERNS` 增加 UUID 正则。
   - `tests/service/test_wecom_employee_privacy_format.py` - 覆盖完整 UUID 不出现在待人工回复中。
   - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖回调探针拒绝完整 UUID。
-  - `VERSION` - 升级到 `0.69.1`，用于区分生产待人工展示修复版本。
+  - `VERSION` - 升级到 `0.69.3`，用于区分生产待人工展示修复版本。
 - **验证结果**:
   - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在同步前生产 `0.69.0` 上按预期失败 1/13，失败项为 `handoff-pending`，证明新探针能抓到旧生产完整 UUID。
   - `python -m pytest tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，24 条。
