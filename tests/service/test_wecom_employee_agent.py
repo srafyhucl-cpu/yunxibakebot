@@ -4,7 +4,12 @@ from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
-from app.models.employee_agent import AgentIntent, OrderQueryKind, ToolResult
+from app.models.employee_agent import (
+    AgentIntent,
+    AnswerStyle,
+    OrderQueryKind,
+    ToolResult,
+)
 from app.service.wecom import employee_agent_planner
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 from app.service.wecom.employee_agent_service import EmployeeAgentService
@@ -126,6 +131,18 @@ async def test_planner_builds_fulfillment_risk_list_plan() -> None:
     )
     assert plan.query_plan.needs_fulfillment_risk is True
     assert plan.query_plan.sort_by == "delivery_time"
+    assert plan.query_plan.keyword == ""
+
+
+async def test_planner_builds_order_action_items_plan() -> None:
+    plan = await _planner().plan("今天有什么要盯的")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.ACTION_ITEMS
+    assert plan.answer_style == AnswerStyle.ACTION_ITEMS
+    assert plan.query_plan.date_from == "2026-07-03"
+    assert plan.query_plan.date_to == "2026-07-03"
     assert plan.query_plan.keyword == ""
 
 

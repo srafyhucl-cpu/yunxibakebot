@@ -9,6 +9,9 @@ from typing import Any
 from app.logger import setup_logger
 from app.models.employee_agent import OrderQueryKind, OrderQueryPlan, ToolResult
 from app.service.llm.function_tool_order import get_logistics_info, get_order_info
+from app.service.wecom.intelligent_bot_order_action_items import (
+    answer_order_action_items,
+)
 from app.service.wecom.intelligent_bot_order_format import (
     build_order_list_tool_result,
     build_order_summary_tool_result,
@@ -78,6 +81,12 @@ class WeComOrderLookupService:
         if plan.kind == OrderQueryKind.TOP_PRODUCTS:
             top_products = await self._youzan_order_repo.list_top_products(plan)
             return build_top_products_tool_result(query, top_products)
+        if plan.kind == OrderQueryKind.ACTION_ITEMS:
+            return await answer_order_action_items(
+                self._youzan_order_repo,
+                query,
+                plan,
+            )
         summary = await self._youzan_order_repo.summarize_orders(plan)
         orders = await self._youzan_order_repo.query_orders(plan)
         if plan.kind == OrderQueryKind.SUMMARY:

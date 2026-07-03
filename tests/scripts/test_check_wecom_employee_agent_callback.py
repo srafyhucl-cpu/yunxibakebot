@@ -303,6 +303,8 @@ async def test_main_json_output_can_be_written_to_file(monkeypatch, tmp_path) ->
 
 
 def _fake_reply_text(content: str) -> str:
+    if "要盯" in content or "需要注意" in content or "待办" in content:
+        return "今日订单待处理、履约风险、退款和无物流事项已汇总。"
     if "快超时" in content or "发货压力" in content or "履约压力" in content:
         return "待发货履约风险已汇总，含约送时间和订单尾号。"
     if "没发货" in content or "没处理" in content:

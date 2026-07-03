@@ -28,6 +28,19 @@ ORDER_FULFILLMENT_RISK_KEYWORDS = (
     "履约压力",
     "优先处理",
 )
+ORDER_ACTION_ITEMS_KEYWORDS = (
+    "要盯",
+    "盯一下",
+    "要处理",
+    "需要处理",
+    "需要注意",
+    "注意的",
+    "有啥事",
+    "有什么事",
+    "有什么要",
+    "待办",
+    "处理一下",
+)
 ORDER_POLICY_KEYWORDS = ("规则", "怎么说", "话术", "政策", "说明")
 ORDER_QUERY_KEYWORDS = (
     "订单",
@@ -44,6 +57,7 @@ ORDER_QUERY_KEYWORDS = (
     "销量",
     *ORDER_REFUND_KEYWORDS,
     *ORDER_FULFILLMENT_RISK_KEYWORDS,
+    *ORDER_ACTION_ITEMS_KEYWORDS,
     *ORDER_REVENUE_KEYWORDS,
 )
 ORDER_QUERY_STOP_WORDS = (
@@ -75,6 +89,7 @@ ORDER_QUERY_STOP_WORDS = (
     *ORDER_REVENUE_KEYWORDS,
     *ORDER_REFUND_KEYWORDS,
     *ORDER_FULFILLMENT_RISK_KEYWORDS,
+    *ORDER_ACTION_ITEMS_KEYWORDS,
     "卖得最多",
     "卖得多",
     "卖爆",

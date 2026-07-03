@@ -1,5 +1,6 @@
 from app.service.wecom.intelligent_bot_ops_format import short_identifier, transfer_line
 from app.service.wecom.intelligent_bot_order_format import (
+    build_order_action_items_tool_result,
     build_order_list_tool_result,
     build_order_summary_tool_result,
     employee_order_line,
@@ -84,3 +85,30 @@ def test_employee_order_line_shows_delivery_time_without_private_fields() -> Non
     assert "约送 2026-07-03 18:00" in line
     assert "E202607031234567891" not in line
     assert "567891" in line
+
+
+def test_order_action_items_does_not_expose_private_fields() -> None:
+    result = build_order_action_items_tool_result(
+        "今天有什么要盯的",
+        {"total_count": 1, "total_amount_fen": 16800},
+        {"total_count": 1},
+        [
+            {
+                "order_no": "E202607031234567892",
+                "status": "WAIT_SELLER_SEND_GOODS",
+                "product_titles": "快超时蛋糕 x1",
+                "amount_fen": 16800,
+                "delivery_time": "2026-07-03 18:00",
+                "buyer_id": "buyer_13812345678",
+                "delivery_district": "朝阳区",
+            }
+        ],
+        [],
+        {"total_count": 0},
+        [],
+    )
+
+    assert "E202607031234567892" not in result.summary
+    assert "567892" in result.summary
+    assert "13812345678" not in result.summary
+    assert "朝阳区" not in result.summary

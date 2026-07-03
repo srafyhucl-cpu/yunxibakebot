@@ -26,6 +26,7 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
         description="查询有赞订单、今日订单、最近订单、待发货、待收货、未发货、物流缺失、退款订单、履约风险、商品销量、营业额和订单统计。",
         examples=(
             "今天一共多少订单",
+            "今天有什么要盯的",
             "还有哪些没发货",
             "椰椰凤梨今天卖了几单",
             "今天单量咋样",
@@ -60,6 +61,10 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
             "快超时",
             "发货压力",
             "履约压力",
+            "要盯",
+            "要处理",
+            "需要注意",
+            "待办",
         ),
     ),
     AgentCapabilityCard(

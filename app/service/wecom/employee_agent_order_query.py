@@ -24,6 +24,7 @@ from app.service.wecom.employee_agent_order_keywords import (
     ORDER_REVENUE_KEYWORDS,
 )
 from app.service.wecom.employee_agent_order_predicates import (
+    needs_action_items,
     looks_like_order_policy_query,
     needs_fulfillment_risk,
     needs_missing_logistics,
@@ -47,7 +48,9 @@ def build_order_query_plan(
         date_from=date_from,
         date_to=date_to,
         statuses=_resolve_order_statuses(query),
-        keyword=_extract_order_keyword(query),
+        keyword=""
+        if kind == OrderQueryKind.ACTION_ITEMS
+        else _extract_order_keyword(query),
         needs_missing_logistics=needs_missing_logistics(query),
         needs_refund=needs_refund(query),
         needs_fulfillment_risk=needs_fulfillment_risk(query),
@@ -58,6 +61,8 @@ def build_order_query_plan(
 
 
 def resolve_order_kind(query: str) -> OrderQueryKind:
+    if needs_action_items(query):
+        return OrderQueryKind.ACTION_ITEMS
     if any(word in query for word in ("卖得最多", "卖最多", "销量", "卖得多", "卖爆")):
         return OrderQueryKind.TOP_PRODUCTS
     if any(word in query for word in ORDER_REVENUE_KEYWORDS):
@@ -74,6 +79,8 @@ def resolve_order_kind(query: str) -> OrderQueryKind:
 
 
 def answer_style_for_order_kind(kind: OrderQueryKind) -> AnswerStyle:
+    if kind == OrderQueryKind.ACTION_ITEMS:
+        return AnswerStyle.ACTION_ITEMS
     if kind == OrderQueryKind.LIST:
         return AnswerStyle.LIST
     if kind == OrderQueryKind.DETAIL:

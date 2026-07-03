@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手今日经营待办概览
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-action-items
+- **背景**: 员工希望像问私人助手一样直接问“今天有什么要盯的”“今天订单有没有需要注意的”。这类问题不是单一订单列表，也不应该让模型自由写 SQL；它需要把今日订单、待履约、履约风险、退款/售后和无物流几个既有安全查询组合成一条员工可执行的待办概览。
+- **决策**:
+  - 不新增数据库入口，不让 LLM 生成 SQL；继续复用 `OrderQueryPlan` 和 `YouzanOrderRepo` 白名单参数化查询。
+  - 新增 `OrderQueryKind.ACTION_ITEMS`，规划层把“要盯/要处理/需要注意/待办”等自由问法转成 `answer_style=action_items`。
+  - `WeComOrderLookupService` 在 service 层编排多次已有订单查询计划：今日总览、待处理、履约风险、退款/售后和无物流；repository 层不新增动态 SQL 形态。
+  - 回复面向员工展示数量、优先处理项和订单尾号，不暴露完整订单号、手机号、买家 ID 或完整地址。
+  - 共享探针从 28 项扩到 30 项，新增 `today-action-items` 与 `casual-order-attention`。
+- **改动**:
+  - `app/models/employee_agent.py` - `OrderQueryKind` 新增 `ACTION_ITEMS`。
+  - `app/service/wecom/employee_agent_capabilities.py`、`employee_agent_order_keywords.py`、`employee_agent_order_predicates.py`、`employee_agent_order_query.py` - 新增今日经营待办能力召回、谓词和规划。
+  - `app/service/wecom/intelligent_bot_order_action_items.py`、`app/service/wecom/intelligent_bot_order_lookup.py` - 组合执行既有订单查询计划。
+  - `app/service/wecom/intelligent_bot_order_format.py` - 新增员工可读的待办概览格式。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 共享探针扩展到 30 个自由问法。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/service/test_wecom_intelligent_bot_order_lookup.py`、`tests/service/test_wecom_employee_privacy_format.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补规划、组合查询、隐私和回调语义回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，69 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，30/30。
+  - `python -m ruff check ...` 与 `python -m ruff format --check ...` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 52 个函数长度 WARN；架构边界扫描零输出。
+  - `python scripts/check_mistake_ledger.py` 与 `python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 本轮尚未同步生产；生产仍是上一轮 `0.69.12` 与 28 项线上回调探针通过。同步生产后需要用 30 项回调探针复验。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手履约风险问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-fulfillment-risk

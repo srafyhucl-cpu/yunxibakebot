@@ -365,6 +365,30 @@ def _ops_business_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
 def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
+            "today-action-items",
+            "今天有什么要盯的",
+            "order_query",
+            ("order_dynamic_query",),
+            "action_items",
+            today_text,
+            today_text,
+            expected_keyword="",
+            required_any_terms=("待处理", "履约", "退款", "物流", "单"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
+            "casual-order-attention",
+            "今天订单有没有需要注意的",
+            "order_query",
+            ("order_dynamic_query",),
+            "action_items",
+            today_text,
+            today_text,
+            expected_keyword="",
+            required_any_terms=("待处理", "履约", "退款", "物流", "单"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
             "casual-today-orders",
             "今天单量咋样",
             "order_query",

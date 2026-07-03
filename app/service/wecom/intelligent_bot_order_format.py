@@ -89,6 +89,51 @@ def build_top_products_tool_result(
     return ToolResult(ok=True, summary="\n".join(lines), items=rows)
 
 
+def build_order_action_items_tool_result(
+    query: str,
+    today_summary: dict[str, Any],
+    pending_summary: dict[str, Any],
+    pending_orders: list[dict[str, Any]],
+    risk_orders: list[dict[str, Any]],
+    refund_summary: dict[str, Any],
+    missing_logistics_orders: list[dict[str, Any]],
+) -> ToolResult:
+    """构造今日订单经营待办结果。"""
+    total_count = int(today_summary.get("total_count", 0) or 0)
+    total_amount_yuan = int(today_summary.get("total_amount_fen", 0) or 0) / 100
+    pending_count = int(pending_summary.get("total_count", 0) or 0)
+    refund_count = int(refund_summary.get("total_count", 0) or 0)
+    lines = [
+        f"{query}：今天 {total_count} 单，合计 {total_amount_yuan:.2f} 元。",
+        f"待处理 {pending_count} 单，履约风险 {len(risk_orders)} 单，"
+        f"退款/售后 {refund_count} 单，无物流 {len(missing_logistics_orders)} 单。",
+    ]
+    if risk_orders:
+        lines.append("优先看履约风险：")
+        lines.extend(_limited_order_lines(risk_orders))
+    elif pending_orders:
+        lines.append("优先看待处理：")
+        lines.extend(_limited_order_lines(pending_orders))
+    if missing_logistics_orders:
+        lines.append("无物流需核对：")
+        lines.extend(_limited_order_lines(missing_logistics_orders))
+    next_action = "先处理有约送时间的待履约订单，再核对无物流和退款/售后。"
+    return ToolResult(
+        ok=True,
+        summary="\n".join(lines),
+        items=[compact_employee_order(order) for order in pending_orders],
+        metrics={
+            "total_count": total_count,
+            "total_amount_fen": int(today_summary.get("total_amount_fen", 0) or 0),
+            "pending_count": pending_count,
+            "fulfillment_risk_count": len(risk_orders),
+            "refund_count": refund_count,
+            "missing_logistics_count": len(missing_logistics_orders),
+        },
+        next_action=next_action,
+    )
+
+
 def status_counts_text(status_counts: Any) -> str:
     """格式化订单状态分布。"""
     if not isinstance(status_counts, dict) or not status_counts:
@@ -98,6 +143,10 @@ def status_counts_text(status_counts: Any) -> str:
         for status, count in status_counts.items()
     ]
     return "状态分布：" + "，".join(parts) + "。"
+
+
+def _limited_order_lines(orders: list[dict[str, Any]]) -> list[str]:
+    return [employee_order_line(index, order) for index, order in enumerate(orders, 1)]
 
 
 def employee_order_line(index: int, order: dict[str, Any]) -> str:

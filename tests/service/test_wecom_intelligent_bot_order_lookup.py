@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from app.models.employee_agent import OrderQueryKind, OrderQueryPlan
 from app.service.wecom import intelligent_bot_order_lookup as order_lookup_module
 from app.service.wecom.intelligent_bot_order_lookup import WeComOrderLookupService
 
@@ -13,6 +14,8 @@ class _FakeYouzanOrderRepo:
     def __init__(self) -> None:
         self.searches: list[tuple[str, int]] = []
         self.recent_limits: list[int] = []
+        self.summarized_plans: list[OrderQueryPlan] = []
+        self.queried_plans: list[OrderQueryPlan] = []
 
     async def get_by_order_no(self, order_no: str) -> dict[str, Any] | None:
         if order_no == "E202600000000":
@@ -28,6 +31,26 @@ class _FakeYouzanOrderRepo:
     async def list_recent_orders(self, limit: int = 5) -> list[dict[str, Any]]:
         self.recent_limits.append(limit)
         return [_youzan_order("E202600000002")]
+
+    async def summarize_orders(self, plan: OrderQueryPlan) -> dict[str, Any]:
+        self.summarized_plans.append(plan)
+        if plan.needs_refund:
+            return {"total_count": 1, "total_amount_fen": 8800, "status_counts": {}}
+        if plan.statuses:
+            return {"total_count": 2, "total_amount_fen": 43600, "status_counts": {}}
+        return {
+            "total_count": 4,
+            "total_amount_fen": 78800,
+            "status_counts": {"WAIT_SELLER_SEND_GOODS": 2},
+        }
+
+    async def query_orders(self, plan: OrderQueryPlan) -> list[dict[str, Any]]:
+        self.queried_plans.append(plan)
+        if plan.needs_fulfillment_risk:
+            return [_youzan_order("E202600000011")]
+        if plan.needs_missing_logistics:
+            return [_youzan_order("E202600000012")]
+        return [_youzan_order("E202600000013"), _youzan_order("E202600000014")]
 
 
 class _FakePlatformOrderService:
@@ -137,6 +160,31 @@ async def test_lookup_orders_calls_live_order_tool(
     }
     assert payload["orders"][0]["orderNo"] == "E202600000003"
     assert "草莓蛋糕" in payload["ordersText"]
+
+
+async def test_answer_agent_query_builds_order_action_items() -> None:
+    repo = _FakeYouzanOrderRepo()
+    service = WeComOrderLookupService(youzan_order_repo=repo)
+
+    result = await service.answer_agent_query(
+        "今天有什么要盯的",
+        OrderQueryPlan(
+            kind=OrderQueryKind.ACTION_ITEMS,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+        ),
+    )
+
+    assert result.ok is True
+    assert "今天 4 单" in result.summary
+    assert "待处理 2 单" in result.summary
+    assert "履约风险 1 单" in result.summary
+    assert "无物流 1 单" in result.summary
+    assert "E202600000011" not in result.summary
+    assert "000011" in result.summary
+    assert any(plan.needs_refund for plan in repo.summarized_plans)
+    assert any(plan.needs_fulfillment_risk for plan in repo.queried_plans)
+    assert any(plan.needs_missing_logistics for plan in repo.queried_plans)
 
 
 async def test_lookup_orders_calls_live_logistics_tool(

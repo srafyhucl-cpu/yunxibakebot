@@ -28,6 +28,7 @@ class OrderQueryKind(str, Enum):
     LIST = "list"
     DETAIL = "detail"
     TOP_PRODUCTS = "top_products"
+    ACTION_ITEMS = "action_items"
 
 
 @dataclass(frozen=True)

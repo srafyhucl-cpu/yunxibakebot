@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.service.wecom.employee_agent_order_keywords import (
+    ORDER_ACTION_ITEMS_KEYWORDS,
     ORDER_FULFILLMENT_RISK_KEYWORDS,
     ORDER_POLICY_KEYWORDS,
     ORDER_REFUND_KEYWORDS,
@@ -27,6 +28,11 @@ def needs_refund(query: str) -> bool:
 def needs_fulfillment_risk(query: str) -> bool:
     """判断是否查询履约风险订单。"""
     return any(word in query for word in ORDER_FULFILLMENT_RISK_KEYWORDS)
+
+
+def needs_action_items(query: str) -> bool:
+    """判断是否查询今日经营待办概览。"""
+    return any(word in query for word in ORDER_ACTION_ITEMS_KEYWORDS)
 
 
 def looks_like_order_policy_query(query: str) -> bool:
