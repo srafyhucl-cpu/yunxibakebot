@@ -21,9 +21,10 @@
   - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，28/28。
   - `python -m ruff check ...` 与 `python -m ruff format --check ...` 通过。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 52 个函数长度 WARN；架构边界扫描零输出。
-  - 本地服务 `/health` 通过；`/ready` 因本地 `handoff_staff_userid_ready=false` 降级；本地 28 项回调探针中新增履约风险 2 项通过，7 个旧商品/生产数据依赖样本因本地库无生产数据失败，需以生产同步后回调探针作为端到端证据。
+  - 本地服务 `/health` 通过；`/ready` 因本地 `handoff_staff_userid_ready=false` 降级；本地 28 项回调探针中新增履约风险 2 项通过，7 个旧商品/生产数据依赖样本因本地库无生产数据失败。
+  - 已同步生产 `0.69.12 / 5d3a376`，`/health`、`/ready` 与 28/28 回调探针通过；生产“哪些单快超时了”返回待履约订单尾号、状态、约送时间和物流提示。
 - **后续**:
-  - 提交并同步生产后复验 `/health`、`/ready` 与 28/28 回调探针；剩余为真实企微群内员工自由问法人工验收。
+  - 剩余为真实企微群内员工自由问法人工验收。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手退款订单数据问法
 - **操作人**: AI (Codex)
