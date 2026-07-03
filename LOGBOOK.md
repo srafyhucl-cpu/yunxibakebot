@@ -21,8 +21,11 @@
   - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py scripts/check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
-- **待生产验证**:
-  - 同步生产后复跑 `/health`、`/ready` 和 13 项回调验收，目标为 13/13 通过，且 `handoff-pending` 回复只出现工单尾号。
+  - 生产已同步到 `0.69.3 / c833fb172`，`systemctl is-active yunxibakebot` 为 active，生产 tracked dirty 为 `0`。
+  - `Invoke-RestMethod https://yunxifood.cn/health` 返回 `status=ok, version=0.69.3`。
+  - `Invoke-RestMethod https://yunxifood.cn/ready` 返回 `status=ready, version=0.69.3`。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，13/13；`handoff-pending` 回复为 `工单尾号 77f40｜转人工` 等尾号格式，未再暴露完整 UUID。
+  - 本地 `reports\wecom-employee-agent-handoff-c833fb1.bundle` 与生产 `/opt/yunxibakebot/wecom-employee-agent-handoff-c833fb1.bundle` 均已按明确路径清理。
 
 ## [2026-07-04] - test(wecom): 对齐员工助手 13 项回调语义规则
 - **操作人**: AI (Codex)
