@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-04] - fix(wecom): 优化员工助手商品话术无命中兜底
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-product-knowledge-miss
+- **背景**: 企微员工助手 43 问端到端探针已通过，但商品实时数据 + 知识库话术组合问法在知识库无命中时，可能把“未找到匹配知识。”直接拼进回复。员工看到了库存数据，却没有拿到可执行话术，不符合“私人豆包式员工 Agent”的目标。
+- **决策**:
+  - 不改变企微 API 回调入口，不新增 SQL，不让模型直接生成 SQL。
+  - 纯知识库问法继续保留“未找到匹配知识。”，避免掩盖知识库缺口。
+  - 仅在 `product_lookup + knowledge_answer` 组合工具场景中，如果商品数据有效但知识库无命中，基于实时库存生成确定性员工建议。
+  - 收紧商品+话术回调探针，禁止 `product-stock-recommend-replacement` 和 `product-stock-customer-reply` 出现“未找到匹配知识”。
+- **改动**:
+  - `app/service/wecom/employee_agent_mixed_reply.py` - 新增多工具回复整理，按库存充足、低库存、无库存生成员工可执行建议。
+  - `app/service/wecom/employee_agent_service.py` - 通用确定性回复前先尝试多工具场景专用回复。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 商品+话术探针加入“未找到匹配知识”禁用词。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补知识库无命中混合回复和语义拦截回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，60 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/employee_agent_mixed_reply.py app/service/wecom/employee_agent_service.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_mixed_reply.py app/service/wecom/employee_agent_service.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+- **后续**:
+  - 提交后同步生产并用 43 项企微员工助手端到端回调探针复验商品+话术样本。
+
 ## [2026-07-04] - fix(wecom): 增强员工助手配送知识兜底
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-delivery-knowledge

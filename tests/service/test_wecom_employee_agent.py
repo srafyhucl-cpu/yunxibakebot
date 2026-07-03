@@ -72,6 +72,31 @@ class _FakeBusinessToolService:
         return {"ok": True, "result": f"知识库回复：{payload.get('question')}。"}
 
 
+class _FakeBusinessToolServiceWithKnowledgeMiss(_FakeBusinessToolService):
+    async def lookup_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.product_payloads.append(payload)
+        return {
+            "ok": True,
+            "result": "伯牙绝弦｜258.00元｜库存 72｜生日蛋糕",
+            "products": [
+                {
+                    "title": "伯牙绝弦",
+                    "priceFen": 25800,
+                    "stock": 72,
+                    "categoryName": "生日蛋糕",
+                }
+            ],
+            "nextAction": "库存和价格以小程序商品数据为准，低库存商品建议尽快确认。",
+        }
+
+    async def answer_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "result": "未找到匹配知识。",
+            "nextAction": "员工可复制建议回复；如知识缺失，请到后台知识库补充。",
+        }
+
+
 class _FakeOpsToolService:
     async def lookup_customer(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "result": "找到 1 条地址/客户线索。"}
@@ -539,6 +564,26 @@ async def test_employee_agent_multi_tool_combines_product_and_knowledge() -> Non
     assert business_tool_service.product_payloads[0]["query"] == (
         "伯牙绝弦库存不够怎么推荐替代"
     )
+
+
+async def test_employee_agent_product_knowledge_miss_uses_staff_reply() -> None:
+    business_tool_service = _FakeBusinessToolServiceWithKnowledgeMiss()
+    service = EmployeeAgentService(
+        business_tool_service=business_tool_service,
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
+
+    assert "库存 72" in reply
+    assert "未找到匹配知识" not in reply
+    assert "不要直接说没货" in reply
+    assert "推荐" in reply
+    assert "替代款" in reply
+    assert "客户" in reply
 
 
 async def test_employee_agent_routes_existing_ops_tools() -> None:

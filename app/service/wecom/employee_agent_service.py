@@ -8,6 +8,7 @@ from app.logger import setup_logger
 from app.models.employee_agent import AgentIntent, AgentPlan, ToolResult
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.wecom.employee_agent_ops_plan import extract_campaign_id
+from app.service.wecom.employee_agent_mixed_reply import build_mixed_tool_reply
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 
@@ -44,7 +45,7 @@ class EmployeeAgentService:
         """回答员工自然语言问题。"""
         plan = await self._planner.plan(query)
         tool_results = await self._execute_plan(query, plan)
-        deterministic_reply = _deterministic_reply(tool_results)
+        deterministic_reply = _deterministic_reply(query, plan, tool_results)
         if not self._enable_llm_reply or plan.intent in (
             AgentIntent.KNOWLEDGE_ANSWER,
             AgentIntent.OPS_QUERY,
@@ -195,7 +196,14 @@ def _extract_metrics(payload: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _deterministic_reply(tool_results: list[ToolResult]) -> str:
+def _deterministic_reply(
+    query: str,
+    plan: AgentPlan,
+    tool_results: list[ToolResult],
+) -> str:
+    mixed_reply = build_mixed_tool_reply(query, plan, tool_results)
+    if mixed_reply is not None:
+        return mixed_reply
     lines = [result.summary for result in tool_results if result.summary.strip()]
     if not lines:
         return UNSUPPORTED_REPLY

@@ -287,6 +287,33 @@ def test_evaluate_reply_rejects_wrong_fulfillment_pressure() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_product_knowledge_miss() -> None:
+    probe = callback_check.CallbackProbe(
+        "product-stock-recommend-replacement",
+        "伯牙绝弦库存不够怎么推荐替代",
+        required_all_terms=("库存", "72"),
+        required_any_terms=("推荐", "替代", "客户", "回复"),
+        forbidden_terms=("未找到匹配知识",),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "伯牙绝弦｜258.00元｜库存 72｜生日蛋糕\n未找到匹配知识。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 
