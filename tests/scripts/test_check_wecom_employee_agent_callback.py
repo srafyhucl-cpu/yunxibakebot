@@ -196,6 +196,44 @@ def test_evaluate_reply_rejects_delivery_order_tail_detour() -> None:
     assert "semantic" in result.detail
 
 
+def test_evaluate_reply_requires_all_semantic_terms() -> None:
+    probe = callback_check.CallbackProbe(
+        "stock",
+        "帮我看看伯牙绝弦库存",
+        required_all_terms=("库存", "72"),
+    )
+
+    missing_number = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "伯牙绝弦库存请以小程序为准。",
+            },
+        },
+        5,
+    )
+    matched = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "伯牙绝弦库存显示72份。",
+            },
+        },
+        5,
+    )
+
+    assert missing_number.passed is False
+    assert matched.passed is True
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 

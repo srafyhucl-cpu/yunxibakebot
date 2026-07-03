@@ -19,6 +19,7 @@ class EmployeeAgentProbeCase:
     expected_keyword: str | None = None
     expected_missing_logistics: bool | None = None
     required_any_terms: tuple[str, ...] = ()
+    required_all_terms: tuple[str, ...] = ()
     forbidden_terms: tuple[str, ...] = ()
 
 
@@ -130,7 +131,7 @@ def _order_product_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
             today_text,
             today_text,
             expected_keyword="伯牙绝弦",
-            required_any_terms=("库存72",),
+            required_all_terms=("库存", "72"),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",
@@ -149,7 +150,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "伯牙绝弦还有吗",
             "product_query",
             ("product_lookup",),
-            required_any_terms=("库存72",),
+            required_all_terms=("库存", "72"),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",
@@ -297,7 +298,7 @@ def _casual_support_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "帮我看看伯牙绝弦库存",
             "product_query",
             ("product_lookup",),
-            required_any_terms=("库存72",),
+            required_all_terms=("库存", "72"),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",

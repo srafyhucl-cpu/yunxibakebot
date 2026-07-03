@@ -16,14 +16,14 @@
   - `tests/service/test_wecom_employee_agent.py` - 新增多工具商品查询使用计划 keyword 的断言。
   - `tests/scripts/test_check_wecom_employee_agent_callback.py` - fake 回调回复对齐真实库存验收要求。
 - **验证结果**:
-  - `python -m pytest tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，27 条。
-  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在当前生产 `0.69.5` 上按预期失败 2/20：`order-product-inventory` 和 `casual-product-stock`，证明新探针能抓到库存未匹配兜底问题。
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，28 条。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在当前生产 `0.69.5` 上按预期失败 2/20：`order-product-inventory` 和 `casual-product-stock`，证明新探针能抓到库存未匹配兜底问题；同步业务修复到生产 `0.69.6` 后，增强语义脚本复验 20/20 通过。
   - `python -m ruff check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_product_filter.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
   - `python -m ruff format --check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_product_filter.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
 - **后续**:
-  - 提交并同步生产后复跑 `/health`、`/ready` 和 20/20 回调探针，确认两个商品库存问法从失败恢复为通过。
+  - 本轮脚本增强提交并同步生产后，再做最终 `/health`、`/ready`、20/20 回调探针和临时 bundle 清理复核。
 
 ## [2026-07-04] - test(wecom): 扩展员工助手口语自由问法验收
 - **操作人**: AI (Codex)

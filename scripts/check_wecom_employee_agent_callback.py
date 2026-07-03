@@ -78,6 +78,7 @@ class CallbackProbe:
     name: str
     query: str
     required_any_terms: tuple[str, ...] = ()
+    required_all_terms: tuple[str, ...] = ()
     forbidden_terms: tuple[str, ...] = ()
 
 
@@ -115,6 +116,7 @@ def default_probes() -> tuple[CallbackProbe, ...]:
             case.name,
             case.query,
             case.required_any_terms,
+            case.required_all_terms,
             case.forbidden_terms,
         )
         for case in default_probe_cases(date.today())
@@ -280,7 +282,11 @@ def evaluate_reply(
 
 
 def semantic_rule(probe: CallbackProbe) -> CallbackSemanticRule:
-    return CallbackSemanticRule(probe.required_any_terms, probe.forbidden_terms)
+    return CallbackSemanticRule(
+        probe.required_any_terms,
+        probe.required_all_terms,
+        probe.forbidden_terms,
+    )
 
 
 def extract_stream_content(reply_payload: dict[str, object]) -> str:
