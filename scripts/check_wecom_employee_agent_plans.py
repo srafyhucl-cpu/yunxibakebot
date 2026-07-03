@@ -36,6 +36,7 @@ class AgentPlanCheck:
     kind: str
     date_from: str
     date_to: str
+    date_field: str
     statuses: tuple[str, ...]
     keyword: str
     missing_logistics: bool
@@ -55,6 +56,7 @@ class AgentPlanCheck:
             "kind": self.kind,
             "date_from": self.date_from,
             "date_to": self.date_to,
+            "date_field": self.date_field,
             "statuses": list(self.statuses),
             "keyword": self.keyword,
             "missing_logistics": self.missing_logistics,
@@ -84,6 +86,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
     kind = query_plan.kind.value if query_plan else ""
     date_from = query_plan.date_from if query_plan else ""
     date_to = query_plan.date_to if query_plan else ""
+    date_field = query_plan.date_field if query_plan else ""
     statuses = query_plan.statuses if query_plan else ()
     keyword = query_plan.keyword if query_plan else ""
     missing_logistics = query_plan.needs_missing_logistics if query_plan else False
@@ -98,6 +101,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         kind,
         date_from,
         date_to,
+        date_field,
         statuses,
         keyword,
         missing_logistics,
@@ -115,6 +119,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         kind=kind,
         date_from=date_from,
         date_to=date_to,
+        date_field=date_field,
         statuses=statuses,
         keyword=keyword,
         missing_logistics=missing_logistics,
@@ -133,6 +138,7 @@ def _collect_mismatches(
     kind: str,
     date_from: str,
     date_to: str,
+    date_field: str,
     statuses: tuple[str, ...],
     keyword: str,
     missing_logistics: bool,
@@ -150,6 +156,13 @@ def _collect_mismatches(
         _append_mismatch(mismatches, "date_from", probe.expected_date_from, date_from)
     if probe.expected_date_to:
         _append_mismatch(mismatches, "date_to", probe.expected_date_to, date_to)
+    if probe.expected_date_field:
+        _append_mismatch(
+            mismatches,
+            "date_field",
+            probe.expected_date_field,
+            date_field,
+        )
     if probe.expected_statuses:
         _append_mismatch(mismatches, "statuses", probe.expected_statuses, statuses)
     if probe.expected_keyword is not None:

@@ -77,6 +77,7 @@ def _parse_order_plan(raw_plan: Any) -> OrderQueryPlan | None:
         kind=kind,
         date_from=str(raw_plan.get("dateFrom") or ""),
         date_to=str(raw_plan.get("dateTo") or ""),
+        date_field=_safe_date_field(raw_plan.get("dateField")),
         statuses=safe_statuses,
         keyword=str(raw_plan.get("keyword") or ""),
         needs_missing_logistics=bool(raw_plan.get("needsMissingLogistics")),
@@ -95,6 +96,11 @@ def _safe_enum(enum_type: Any, value: Any, fallback: Any) -> Any:
         return enum_type(str(value))
     except ValueError:
         return fallback
+
+
+def _safe_date_field(value: Any) -> str:
+    raw_value = str(value or "order_time")
+    return raw_value if raw_value in {"order_time", "delivery_time"} else "order_time"
 
 
 def _strip_json_markdown(content: str) -> str:

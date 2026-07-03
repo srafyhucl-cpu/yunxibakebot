@@ -72,6 +72,7 @@ ORDER_QUERY_KEYWORDS = (
 ORDER_QUERY_STOP_WORDS = (
     "今天",
     "今日",
+    "明天",
     "昨天",
     "最近",
     "本周",

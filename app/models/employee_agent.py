@@ -38,6 +38,7 @@ class OrderQueryPlan:
     kind: OrderQueryKind = OrderQueryKind.LIST
     date_from: str = ""
     date_to: str = ""
+    date_field: str = "order_time"
     statuses: tuple[str, ...] = ()
     keyword: str = ""
     needs_missing_logistics: bool = False

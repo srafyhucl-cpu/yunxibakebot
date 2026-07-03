@@ -650,6 +650,52 @@ async def test_order_dynamic_query_filters_delivery_time_window(
     assert [row["order_no"] for row in rows] == ["E202607030051"]
 
 
+async def test_order_dynamic_query_filters_delivery_date_field(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """配送日期口径应按约送日期过滤，而不是下单日期。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030061",
+            buyer_id="buyer_delivery_001",
+            status="WAIT_SELLER_SEND_GOODS",
+            amount_fen=16800,
+            product_titles="明日约送蛋糕 x 1",
+            total_quantity=1,
+            delivery_time="2026-07-04 10:30",
+            pay_time="2026-07-03 10:00:00",
+            created_at="2026-07-03 10:00:00",
+            updated_at="2026-07-03 10:00:00",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607040061",
+            buyer_id="buyer_delivery_002",
+            status="WAIT_SELLER_SEND_GOODS",
+            amount_fen=9900,
+            product_titles="今日约送蛋糕 x 1",
+            total_quantity=1,
+            delivery_time="2026-07-03 18:30",
+            pay_time="2026-07-04 11:00:00",
+            created_at="2026-07-04 11:00:00",
+            updated_at="2026-07-04 11:00:00",
+        )
+    )
+
+    rows = await order_repo.query_orders(
+        OrderQueryPlan(
+            kind=OrderQueryKind.LIST,
+            date_from="2026-07-04",
+            date_to="2026-07-04",
+            date_field="delivery_time",
+            statuses=("WAIT_SELLER_SEND_GOODS",),
+        )
+    )
+
+    assert [row["order_no"] for row in rows] == ["E202607030061"]
+
+
 async def test_order_dynamic_top_products(order_repo: YouzanOrderRepo) -> None:
     """动态商品聚合应按销量返回排行。"""
     await order_repo.upsert_order(

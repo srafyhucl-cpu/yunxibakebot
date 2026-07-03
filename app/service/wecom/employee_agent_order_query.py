@@ -8,6 +8,7 @@ from datetime import date
 from app.models.employee_agent import AnswerStyle, OrderQueryKind, OrderQueryPlan
 from app.service.wecom.employee_agent_order_date import (
     remove_order_time_expressions,
+    resolve_order_date_field,
     resolve_order_date_range,
 )
 from app.service.wecom.employee_agent_order_delivery_time import (
@@ -53,6 +54,7 @@ def build_order_query_plan(
         kind=kind,
         date_from=date_from,
         date_to=date_to,
+        date_field=resolve_order_date_field(query),
         statuses=_resolve_order_statuses(query),
         keyword=""
         if kind == OrderQueryKind.ACTION_ITEMS

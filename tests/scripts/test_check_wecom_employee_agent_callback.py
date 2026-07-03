@@ -315,6 +315,8 @@ def _fake_reply_text(content: str) -> str:
         return "待发货履约风险已汇总，含约送时间和订单尾号。"
     if "晚上" in content and "待处理" in content:
         return "晚上待处理订单已汇总，包含约送时间和待发货状态。"
+    if "明天" in content and "待处理" in content:
+        return "明天待处理订单已汇总，包含约送时间和待发货状态。"
     if "没发货" in content or "没处理" in content:
         return "当前待发货订单已汇总。"
     if "物流" in content:

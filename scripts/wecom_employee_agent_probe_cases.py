@@ -15,6 +15,7 @@ class EmployeeAgentProbeCase:
     expected_kind: str = ""
     expected_date_from: str = ""
     expected_date_to: str = ""
+    expected_date_field: str = ""
     expected_statuses: tuple[str, ...] = ()
     expected_keyword: str | None = None
     expected_missing_logistics: bool | None = None
@@ -29,11 +30,12 @@ class EmployeeAgentProbeCase:
 
 def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     today_text = today.isoformat()
+    tomorrow_text = date.fromordinal(today.toordinal() + 1).isoformat()
     recent_three_days_text = date.fromordinal(today.toordinal() - 2).isoformat()
     week_start_text = date.fromordinal(today.toordinal() - today.weekday()).isoformat()
     return (
         *_order_summary_probe_cases(today_text),
-        *_order_list_probe_cases(today_text),
+        *_order_list_probe_cases(today_text, tomorrow_text),
         *_order_product_probe_cases(
             today_text,
             recent_three_days_text,
@@ -101,7 +103,10 @@ def _order_summary_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
     )
 
 
-def _order_list_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, ...]:
+def _order_list_probe_cases(
+    today_text: str,
+    tomorrow_text: str,
+) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
             "pending-shipment-customer-reply",
@@ -166,11 +171,26 @@ def _order_list_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, ..
             "list",
             today_text,
             today_text,
+            "delivery_time",
             expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
             expected_keyword="",
             expected_delivery_time_start="18:00",
             expected_delivery_time_end="23:59",
             required_any_terms=("待处理", "约送", "晚上", "待发货", "待收货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
+            "tomorrow-pending-orders",
+            "明天有哪些待处理订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            tomorrow_text,
+            tomorrow_text,
+            "delivery_time",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            required_any_terms=("待处理", "约送", "明天", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
         ),
     )

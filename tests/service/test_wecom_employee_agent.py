@@ -180,12 +180,29 @@ async def test_planner_builds_evening_pending_order_window_plan() -> None:
     assert plan.query_plan.kind == OrderQueryKind.LIST
     assert plan.query_plan.date_from == "2026-07-03"
     assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.date_field == "delivery_time"
     assert plan.query_plan.statuses == (
         "WAIT_SELLER_SEND_GOODS",
         "WAIT_BUYER_CONFIRM_GOODS",
     )
     assert plan.query_plan.delivery_time_start == "18:00"
     assert plan.query_plan.delivery_time_end == "23:59"
+    assert plan.query_plan.keyword == ""
+
+
+async def test_planner_builds_tomorrow_pending_delivery_date_plan() -> None:
+    plan = await _planner().plan("明天有哪些待处理订单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.LIST
+    assert plan.query_plan.date_from == "2026-07-04"
+    assert plan.query_plan.date_to == "2026-07-04"
+    assert plan.query_plan.date_field == "delivery_time"
+    assert plan.query_plan.statuses == (
+        "WAIT_SELLER_SEND_GOODS",
+        "WAIT_BUYER_CONFIRM_GOODS",
+    )
     assert plan.query_plan.keyword == ""
 
 

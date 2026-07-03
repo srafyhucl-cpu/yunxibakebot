@@ -10,6 +10,9 @@ from app.service.wecom.employee_agent_order_constants import (
     MAX_RESULT_LIMIT,
 )
 
+ORDER_DATE_FIELD = "order_time"
+DELIVERY_DATE_FIELD = "delivery_time"
+
 
 def resolve_order_date_range(query: str, today: date) -> tuple[str, str]:
     """把员工口语时间范围转成订单查询日期边界。"""
@@ -20,6 +23,9 @@ def resolve_order_date_range(query: str, today: date) -> tuple[str, str]:
     if any(word in query for word in ("本周", "这周", "本星期", "这个星期")):
         week_start = today - timedelta(days=today.weekday())
         return week_start.isoformat(), today.isoformat()
+    if "明天" in query:
+        target_day = today + timedelta(days=1)
+        return target_day.isoformat(), target_day.isoformat()
     if "昨天" in query:
         target_day = today - timedelta(days=1)
         return target_day.isoformat(), target_day.isoformat()
@@ -48,3 +54,30 @@ def extract_recent_days(query: str) -> int | None:
     if any(word in query for word in ("近一周", "最近一周", "最近7天", "近7天")):
         return 7
     return None
+
+
+def resolve_order_date_field(query: str) -> str:
+    """解析订单日期过滤口径。"""
+    if any(
+        word in query
+        for word in (
+            "约送",
+            "配送",
+            "送达",
+            "送到",
+            "履约",
+            "发货压力",
+            "快超时",
+            "要超时",
+            "来不及",
+            "待处理",
+            "上午",
+            "中午",
+            "下午",
+            "傍晚",
+            "晚上",
+            "夜里",
+        )
+    ):
+        return DELIVERY_DATE_FIELD
+    return ORDER_DATE_FIELD

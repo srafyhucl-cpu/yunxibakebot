@@ -16,8 +16,13 @@ ORDER_SELECT_FIELDS = (
     "created_at, updated_at"
 )
 ORDER_TIME_EXPR = "substr(COALESCE(NULLIF(pay_time, ''), created_at), 1, 10)"
+DELIVERY_TIME_EXPR = "substr(delivery_time, 1, 10)"
 ORDER_DATE_EXPR = "COALESCE(NULLIF(pay_time, ''), created_at, updated_at)"
 DELIVERY_CLOCK_EXPR = "substr(delivery_time, 12, 5)"
+ORDER_DATE_FILTER_SQL = {
+    "order_time": ORDER_TIME_EXPR,
+    "delivery_time": DELIVERY_TIME_EXPR,
+}
 ORDER_SORT_SQL = {
     "latest": ORDER_DATE_EXPR + " DESC, order_no DESC",
     "amount": "amount_fen DESC, " + ORDER_DATE_EXPR + " DESC",
@@ -204,11 +209,12 @@ class YouzanOrderRepo(BaseRepository):
 def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
     clauses = ["1 = 1"]
     params: list[object] = []
+    date_expr = ORDER_DATE_FILTER_SQL.get(plan.date_field, ORDER_TIME_EXPR)
     if plan.date_from:
-        clauses.append(ORDER_TIME_EXPR + " >= ?")
+        clauses.append(date_expr + " >= ?")
         params.append(plan.date_from)
     if plan.date_to:
-        clauses.append(ORDER_TIME_EXPR + " <= ?")
+        clauses.append(date_expr + " <= ?")
         params.append(plan.date_to)
     effective_statuses = plan.statuses
     if plan.needs_fulfillment_risk and not effective_statuses:

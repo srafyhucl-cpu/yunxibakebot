@@ -50,6 +50,7 @@ async def test_main_json_output_can_be_written_to_file(
                 kind="summary",
                 date_from="2026-07-03",
                 date_to="2026-07-03",
+                date_field="order_time",
                 statuses=(),
                 keyword="",
                 missing_logistics=False,
