@@ -23,7 +23,7 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
 - **后续**:
-  - 提交前继续执行 Ruff、项目红线、编码检查和企微 callback 生产验收；同步生产后复验 `/health`、`/ready` 与 22/22 回调探针。
+  - 已同步生产 `0.69.9 / 4bf0659`，`/health`、`/ready` 和 22/22 回调探针通过；剩余为真实企微群内员工自由问法人工验收。
 
 ## [2026-07-04] - fix(wecom): 收紧员工助手商品库存问法匹配
 - **操作人**: AI (Codex)
