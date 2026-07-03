@@ -26,7 +26,7 @@
   - `python -m ruff format --check ...` 通过。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
 - **后续**:
-  - 待同步生产后复跑 `/health`、`/ready` 和 35/35 企微员工助手加密回调探针。
+  - 已同步生产 `0.70.4 / 18b6aacfd`，`/health`、`/ready` 与 35/35 企微员工助手加密回调探针通过；本轮同步 bundle 已按明确单文件路径清理。
   - 下一步可继续补“明天/指定日期/多个时间段”这类自然语言时间计划，但仍应走结构化计划字段，不开放模型 SQL。
 
 ## [2026-07-04] - fix(wecom): 员工助手润色回复保留商品库存数值
