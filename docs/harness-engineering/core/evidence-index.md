@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-014：企微员工助手经营汇总下一步提示收紧
+
+- trace_id: 20260704-wecom-employee-agent-revenue-summary-hint
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-revenue-summary-hint
+- file: `D:/Project/YunxiBakeBot/app/service/wecom/intelligent_bot_order_format.py`; `D:/Project/YunxiBakeBot/tests/service/test_wecom_employee_privacy_format.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`; `D:/Project/YunxiBakeBot/项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python scripts/check_project.py --skip-tests`; `python scripts/check_file_sizes.py`; `python scripts/check_text_encoding.py`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 收紧员工助手经营汇总下一步提示
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令和探针名称；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 生产 34 项员工助手回调探针中，商品+知识混合新增样本已通过；旧经营汇总样本“今天营业额多少”因订单统计 `next_action` 带后台核对兜底，被 LLM 润色为绕路提示。补丁收紧成功统计结果的下一步提示，只保留尾号追问详情，避免经营汇总类回答退回后台核对。
+
 ## E-20260704-013：企微员工助手商品数据加话术混合问法
 
 - trace_id: 20260704-wecom-employee-agent-product-knowledge

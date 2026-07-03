@@ -41,7 +41,7 @@ def build_order_summary_tool_result(
         summary="\n".join(line for line in lines if line),
         items=[compact_employee_order(order) for order in orders],
         metrics=summary,
-        next_action="如需看某一单详情，请带订单尾号追问，或进入后台订单页核对。",
+        next_action="如需看某一单详情，可带订单尾号继续追问。",
     )
 
 

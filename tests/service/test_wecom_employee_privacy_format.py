@@ -31,6 +31,18 @@ def test_order_agent_next_action_only_mentions_tail_or_backend() -> None:
     assert "订单尾号" in combined_text or "尾号" in combined_text
 
 
+def test_order_summary_next_action_does_not_detour_to_backend() -> None:
+    result = build_order_summary_tool_result(
+        "今天营业额多少",
+        {"total_count": 1, "total_amount_fen": 20650},
+        [],
+    )
+
+    assert "后台订单页" not in result.next_action
+    assert "后台订单页核对" not in result.next_action
+    assert "尾号" in result.next_action
+
+
 def test_transfer_line_does_not_expose_user_identifier() -> None:
     line = transfer_line(
         {

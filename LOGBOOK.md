@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-04] - fix(wecom): 收紧员工助手经营汇总下一步提示
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-revenue-summary-hint
+- **背景**: 商品+知识混合能力同步生产后，34 项线上回调探针中新增商品问法均通过，但旧探针“今天营业额多少”被 LLM 润色时把订单统计结果的 `next_action` 改写成“提供订单尾号/进入后台核对”的绕路提示，触发经营汇总语义规则。该问题不是新增路由错误，而是订单统计类成功结果的下一步提示过于兜底。
+- **决策**:
+  - 不放宽 smoke 语义规则；经营汇总已经有确定性数据时，不应该要求员工去后台核对日期范围。
+  - 仅收紧 `build_order_summary_tool_result` 的 `next_action`，保留“尾号追问详情”能力，但移除“进入后台订单页核对”。
+  - 补单元测试，防止经营汇总下一步提示再次退回后台兜底话术。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_order_format.py` - 订单统计成功结果的下一步提示改为“可带订单尾号继续追问”。
+  - `tests/service/test_wecom_employee_privacy_format.py` - 增加经营汇总不绕路到后台订单页的回归测试。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过，43 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，34/34。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_file_sizes.py`、`python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 补丁同步生产后重新跑 `/health`、`/ready` 和 34 项线上回调探针。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手商品数据加话术混合问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-product-knowledge
