@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 from app.models.employee_agent import AgentIntent, OrderQueryKind, ToolResult
+from app.service.wecom import employee_agent_planner
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 from app.service.wecom.employee_agent_service import EmployeeAgentService
 
@@ -90,10 +92,54 @@ async def test_planner_builds_top_products_plan() -> None:
 
 async def test_planner_routes_knowledge_and_ops() -> None:
     knowledge_plan = await _planner().plan("配送范围怎么说")
+    casual_delivery_plan = await _planner().plan("明天能配送吗")
     ops_plan = await _planner().plan("系统今天有没有异常")
 
     assert knowledge_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
+    assert casual_delivery_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
     assert ops_plan.intent == AgentIntent.OPS_QUERY
+
+
+async def test_planner_routes_casual_inventory_question_to_product() -> None:
+    plan = await _planner().plan("伯牙绝弦还有吗")
+
+    assert plan.intent == AgentIntent.PRODUCT_QUERY
+    assert plan.tools == ("product_lookup",)
+
+
+async def test_planner_gives_llm_all_capabilities_when_search_is_empty(
+    monkeypatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    async def fake_llm_chat(
+        messages: list[dict[str, str]],
+        **kwargs: Any,
+    ) -> SimpleNamespace:
+        captured["prompt"] = messages[0]["content"]
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            '{"intent":"product_query","tools":["product_lookup"],'
+                            '"queryPlan":null,"answerStyle":"summary"}'
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(employee_agent_planner, "llm_chat", fake_llm_chat)
+
+    plan = await EmployeeAgentPlanner(
+        today_provider=lambda: date(2026, 7, 3),
+        enable_llm=True,
+    ).plan("伯牙绝弦")
+
+    assert plan.intent == AgentIntent.PRODUCT_QUERY
+    assert "product_lookup" in captured["prompt"]
+    assert "order_dynamic_query" in captured["prompt"]
 
 
 async def test_employee_agent_uses_order_lookup_service() -> None:

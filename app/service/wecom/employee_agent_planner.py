@@ -47,7 +47,8 @@ class EmployeeAgentPlanner:
             return rule_plan
         if not self._enable_llm:
             return rule_plan
-        llm_plan = await self._plan_with_llm(query, capabilities)
+        planning_capabilities = capabilities or self._capability_registry.all_cards()
+        llm_plan = await self._plan_with_llm(query, planning_capabilities)
         return llm_plan or rule_plan
 
     async def _plan_with_llm(

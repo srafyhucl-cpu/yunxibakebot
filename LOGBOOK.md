@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-03] - feat(wecom): 补强员工助手弱关键词规划和回调验收
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-foundation
+- **背景**: 员工助手目标是“私人豆包式”自由问答，不能只依赖固定关键词；同时需要确认企微 API 模式 URL 回调入口在注入 Agent 后确实走员工 Agent 编排，而不是回落旧关键词 dispatcher。
+- **决策**:
+  - 能力检索命中时仍按相关 capability card 规划；关键词没命中时，LLM 规划器接收全量能力卡做兜底规划，避免弱关键词问法被提前判为无工具可用。
+  - 商品能力补充“还有吗 / 还够 / 够吗 / 上架”等口语库存问法；知识能力补充“配送”泛化问法。
+  - 仅让 LLM 输出 `AgentPlan`，不输出 SQL；订单查询仍由仓库层白名单参数化执行。
+- **改动**:
+  - `EmployeeAgentCapabilityRegistry` 新增 `all_cards()`，供规划器在轻量检索无命中时兜底。
+  - `EmployeeAgentPlanner` 在规则不支持且启用 LLM 时，使用命中能力或全量能力卡构造规划提示。
+  - 补充员工自由问法测试：`伯牙绝弦还有吗` 走商品，`明天能配送吗` 走知识库，弱关键词 `伯牙绝弦` 会让 LLM 看到订单和商品等全量能力。
+  - 补充企微 URL 回调测试，验证注入 `agent_service` 后回调回复来自员工 Agent。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/api/test_wecom_intelligent_bot_callback_api.py -q --no-cov` 通过，13 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/repository/test_youzan_repo.py tests/api/test_wecom_intelligent_bot_callback_api.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/test_lifespan_routes_services.py tests/scripts/test_wecom_intelligent_bot_smoke.py -q --no-cov` 通过，56 条。
+  - `python -m ruff check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_planner.py tests/service/test_wecom_employee_agent.py tests/api/test_wecom_intelligent_bot_callback_api.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_planner.py tests/service/test_wecom_employee_agent.py tests/api/test_wecom_intelligent_bot_callback_api.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过；仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+- **剩余事项**:
+  - 仍需在生产环境同步后执行生产 `/health`、`/ready`、企微 smoke 和群内 10 个自由问法验收。
+
 ## [2026-07-03] - fix(wecom): 保持知识库工具冒烟响应速度
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-smoke

@@ -37,14 +37,26 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
         intent="product_query",
         description="查询商品价格、库存、分类、上架状态和商品推荐。",
         examples=("草莓蛋糕还有库存吗", "伯牙绝弦多少钱", "今天还有什么蛋糕"),
-        keywords=("商品", "库存", "价格", "蛋糕", "面包", "甜品", "多少钱"),
+        keywords=(
+            "商品",
+            "库存",
+            "价格",
+            "蛋糕",
+            "面包",
+            "甜品",
+            "多少钱",
+            "还有吗",
+            "还够",
+            "够吗",
+            "上架",
+        ),
     ),
     AgentCapabilityCard(
         name="knowledge_answer",
         intent="knowledge_answer",
         description="查询门店规则、配送范围、售后话术、常见问题和员工可复制回复。",
         examples=("配送范围怎么说", "退款规则是什么", "自提怎么回复客户"),
-        keywords=("规则", "怎么说", "话术", "配送范围", "退款", "自提", "售后"),
+        keywords=("规则", "怎么说", "话术", "配送范围", "配送", "退款", "自提", "售后"),
     ),
     AgentCapabilityCard(
         name="ops_summary",
@@ -65,6 +77,10 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
 
 class EmployeeAgentCapabilityRegistry:
     """基于能力卡的轻量 RAG 检索。"""
+
+    def all_cards(self) -> list[AgentCapabilityCard]:
+        """返回全量能力卡，供 LLM 在弱关键词问法下兜底规划。"""
+        return list(CAPABILITY_CARDS)
 
     def search(
         self, query: str, limit: int = CAPABILITY_MATCH_LIMIT

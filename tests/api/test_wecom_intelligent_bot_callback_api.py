@@ -38,7 +38,12 @@ class _FakeCatalogService:
         ]
 
 
-def _client(monkeypatch) -> TestClient:
+class _FakeEmployeeAgentService:
+    async def answer(self, query: str) -> str:
+        return f"agent:{query}"
+
+
+def _client(monkeypatch, *, agent_service=None) -> TestClient:
     monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_TOKEN", TOKEN)
     monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY", AES_KEY)
     app = FastAPI()
@@ -47,6 +52,7 @@ def _client(monkeypatch) -> TestClient:
             tool_service=WeComBotBusinessToolService(
                 catalog_service=_FakeCatalogService(),
             ),
+            agent_service=agent_service,
         )
     )
     return TestClient(app)
@@ -109,6 +115,32 @@ def test_callback_post_returns_encrypted_product_reply(monkeypatch) -> None:
     assert reply["stream"]["finish"] is True
     assert "草莓蛋糕" in reply["stream"]["content"]
     assert "库存 6" in reply["stream"]["content"]
+
+
+def test_callback_post_uses_employee_agent_when_injected(monkeypatch) -> None:
+    client = _client(monkeypatch, agent_service=_FakeEmployeeAgentService())
+    plaintext = json.dumps(
+        {
+            "msgid": "msg-agent-001",
+            "aibotid": "bot-001",
+            "chattype": "group",
+            "msgtype": "text",
+            "text": {"content": "今天一共多少订单"},
+        },
+        ensure_ascii=False,
+    )
+    msg_encrypt = encrypt(AES_KEY, plaintext, "")
+
+    response = client.post(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params=_signed_query(msg_encrypt),
+        json={"encrypt": msg_encrypt},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    reply = json.loads(decrypt(AES_KEY, payload["encrypt"]))
+    assert reply["stream"]["content"] == "agent:今天一共多少订单"
 
 
 def test_callback_post_rejects_invalid_signature(monkeypatch) -> None:
