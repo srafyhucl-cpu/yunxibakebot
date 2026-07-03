@@ -1,4 +1,31 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手自然日期订单问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-natural-dates
+- **背景**: 员工助手已经能把“明天有哪些待处理订单”按约送日期查询，但 LOGBOOK 留下“后天/周末/具体日期”仍未覆盖。员工真实使用时不会总按固定日期范围表达，需要继续扩大随口问法覆盖面。
+- **决策**:
+  - 继续复用 `OrderQueryPlan` 的 `date_from/date_to/date_field`，不新增并行时间系统。
+  - `后天` 解析为当前日期 +2 天；`周末/本周末/这个周末` 解析为本周六到周日，如果当前日期已晚于本周日，则解析为下个周末。
+  - 具体日期第一阶段支持 `7月5日`、`7月5号`、`7/5`、`7-5`，默认使用当前年；非法日期不生成范围。
+  - 所有日期值仍只进入结构化计划，repository 继续走白名单表达式与参数化 SQL。
+- **改动**:
+  - `app/service/wecom/employee_agent_order_date.py` - 增加自然日期解析、周末范围解析和具体月日解析。
+  - `app/service/wecom/employee_agent_order_keywords.py` - 补充后天、周末等 stop words，避免污染商品关键词。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 共享探针从 36 项扩展到 39 项，覆盖后天、周末和具体月日商品销量问法。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补规划和回调脚本回归。
+- **验证结果**:
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，39/39。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，84 条。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - 触达 Python 文件 `ruff check` 与 `ruff format --check` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+- **后续**:
+  - 同步生产后复跑 `/health`、`/ready` 和 39/39 企微员工助手加密回调探针。
+  - 后续再补“下周一/周五/本月/上周”等更宽时间表达，仍保持结构化计划和白名单查询。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手按约送日期查询订单
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-date-field

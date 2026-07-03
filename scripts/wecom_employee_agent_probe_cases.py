@@ -31,15 +31,25 @@ class EmployeeAgentProbeCase:
 def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     today_text = today.isoformat()
     tomorrow_text = date.fromordinal(today.toordinal() + 1).isoformat()
+    after_tomorrow_text = date.fromordinal(today.toordinal() + 2).isoformat()
+    weekend_start_text, weekend_end_text = _weekend_text_range(today)
     recent_three_days_text = date.fromordinal(today.toordinal() - 2).isoformat()
     week_start_text = date.fromordinal(today.toordinal() - today.weekday()).isoformat()
+    month_day_text = date(today.year, 7, 5).isoformat()
     return (
         *_order_summary_probe_cases(today_text),
-        *_order_list_probe_cases(today_text, tomorrow_text),
+        *_order_list_probe_cases(
+            today_text,
+            tomorrow_text,
+            after_tomorrow_text,
+            weekend_start_text,
+            weekend_end_text,
+        ),
         *_order_product_probe_cases(
             today_text,
             recent_three_days_text,
             week_start_text,
+            month_day_text,
         ),
         *_channel_tool_probe_cases(),
         *_ops_status_probe_cases(),
@@ -106,6 +116,9 @@ def _order_summary_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
 def _order_list_probe_cases(
     today_text: str,
     tomorrow_text: str,
+    after_tomorrow_text: str,
+    weekend_start_text: str,
+    weekend_end_text: str,
 ) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
@@ -193,6 +206,34 @@ def _order_list_probe_cases(
             required_any_terms=("待处理", "约送", "明天", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
         ),
+        EmployeeAgentProbeCase(
+            "after-tomorrow-pending-orders",
+            "后天有哪些待处理订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            after_tomorrow_text,
+            after_tomorrow_text,
+            "delivery_time",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            required_any_terms=("待处理", "约送", "后天", "待发货", "待收货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
+            "weekend-pending-orders",
+            "周末有哪些待处理订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            weekend_start_text,
+            weekend_end_text,
+            "delivery_time",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            required_any_terms=("待处理", "约送", "周末", "待发货", "待收货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
     )
 
 
@@ -200,6 +241,7 @@ def _order_product_probe_cases(
     today_text: str,
     recent_three_days_text: str,
     week_start_text: str,
+    month_day_text: str,
 ) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
@@ -227,6 +269,18 @@ def _order_product_probe_cases(
             "summary",
             recent_three_days_text,
             today_text,
+            expected_keyword="椰椰凤梨",
+            required_any_terms=("单",),
+            forbidden_terms=("完整订单号", "手机号"),
+        ),
+        EmployeeAgentProbeCase(
+            "month-day-product-order-summary",
+            "7月5日椰椰凤梨卖了几单",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            month_day_text,
+            month_day_text,
             expected_keyword="椰椰凤梨",
             required_any_terms=("单",),
             forbidden_terms=("完整订单号", "手机号"),
@@ -577,3 +631,13 @@ def _casual_support_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             forbidden_terms=("买家", "ID:", "user"),
         ),
     )
+
+
+def _weekend_text_range(today: date) -> tuple[str, str]:
+    week_start = date.fromordinal(today.toordinal() - today.weekday())
+    weekend_start = date.fromordinal(week_start.toordinal() + 5)
+    weekend_end = date.fromordinal(week_start.toordinal() + 6)
+    if today > weekend_end:
+        weekend_start = date.fromordinal(weekend_start.toordinal() + 7)
+        weekend_end = date.fromordinal(weekend_end.toordinal() + 7)
+    return weekend_start.isoformat(), weekend_end.isoformat()

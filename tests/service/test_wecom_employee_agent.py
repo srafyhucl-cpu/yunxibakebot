@@ -206,6 +206,38 @@ async def test_planner_builds_tomorrow_pending_delivery_date_plan() -> None:
     assert plan.query_plan.keyword == ""
 
 
+async def test_planner_builds_after_tomorrow_pending_delivery_date_plan() -> None:
+    plan = await _planner().plan("后天有哪些待处理订单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.LIST
+    assert plan.query_plan.date_from == "2026-07-05"
+    assert plan.query_plan.date_to == "2026-07-05"
+    assert plan.query_plan.date_field == "delivery_time"
+    assert plan.query_plan.statuses == (
+        "WAIT_SELLER_SEND_GOODS",
+        "WAIT_BUYER_CONFIRM_GOODS",
+    )
+    assert plan.query_plan.keyword == ""
+
+
+async def test_planner_builds_weekend_pending_delivery_date_plan() -> None:
+    plan = await _planner().plan("周末有哪些待处理订单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.LIST
+    assert plan.query_plan.date_from == "2026-07-04"
+    assert plan.query_plan.date_to == "2026-07-05"
+    assert plan.query_plan.date_field == "delivery_time"
+    assert plan.query_plan.statuses == (
+        "WAIT_SELLER_SEND_GOODS",
+        "WAIT_BUYER_CONFIRM_GOODS",
+    )
+    assert plan.query_plan.keyword == ""
+
+
 async def test_planner_builds_product_order_multi_tool_plan() -> None:
     plan = await _planner().plan("椰椰凤梨今天卖了几单，库存还够吗")
 
@@ -232,6 +264,17 @@ async def test_planner_builds_recent_days_order_range_plan() -> None:
     assert plan.query_plan.kind == OrderQueryKind.SUMMARY
     assert plan.query_plan.date_from == "2026-07-01"
     assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.keyword == "椰椰凤梨"
+
+
+async def test_planner_builds_month_day_order_range_plan() -> None:
+    plan = await _planner().plan("7月5日椰椰凤梨卖了几单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-07-05"
+    assert plan.query_plan.date_to == "2026-07-05"
     assert plan.query_plan.keyword == "椰椰凤梨"
 
 
