@@ -124,3 +124,47 @@ def test_order_action_items_does_not_expose_private_fields() -> None:
     assert "567892" in result.summary
     assert "13812345678" not in result.summary
     assert "朝阳区" not in result.summary
+    assert "发货压力：低" in result.summary
+    assert "优先级 1：先处理待发货/待收货订单" in result.summary
+
+
+def test_order_action_items_prioritizes_risk_orders() -> None:
+    result = build_order_action_items_tool_result(
+        "今天订单有没有需要注意的",
+        {"total_count": 6, "total_amount_fen": 99800},
+        {"total_count": 6},
+        [],
+        [
+            {
+                "order_no": "E202607031234567893",
+                "status": "WAIT_SELLER_SEND_GOODS",
+                "product_titles": "临近约送蛋糕 x1",
+                "amount_fen": 26800,
+                "delivery_time": "2026-07-03 16:00",
+            }
+        ],
+        {"total_count": 1},
+        [],
+    )
+
+    assert "今天 6 单" in result.summary
+    assert "发货压力：偏高" in result.summary
+    assert "优先级 1：先处理快到约送时间的履约风险单" in result.summary
+    assert "567893" in result.summary
+    assert result.next_action == "先处理履约风险单，再按无物流、退款/售后顺序核对。"
+
+
+def test_order_action_items_marks_low_pressure_when_clear() -> None:
+    result = build_order_action_items_tool_result(
+        "今天有什么要盯的",
+        {"total_count": 1, "total_amount_fen": 20650},
+        {"total_count": 0},
+        [],
+        [],
+        {"total_count": 0},
+        [],
+    )
+
+    assert "发货压力：低" in result.summary
+    assert "目前没有必须马上处理的订单事项" in result.summary
+    assert result.next_action == "暂无紧急订单动作，保持观察即可。"

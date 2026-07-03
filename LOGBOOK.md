@@ -1,4 +1,31 @@
 ﻿
+## [2026-07-04] - feat(wecom): 增强员工助手今日经营待办洞察
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-action-insights
+- **背景**: 员工助手已能回答“今天有什么要盯的 / 今天订单有没有需要注意的”，但旧回复更像字段汇总，员工需要的是可执行的经营判断：今天压力大不大、先看哪类单、下一步做什么。
+- **决策**:
+  - 不新增 SQL、不改企微回调入口、不改变 Agent 计划层。
+  - 复用既有 `action_items` 订单工具结果，在确定性格式化层补充发货压力、优先级标题和下一步动作。
+  - 新增小型 service helper，避免继续膨胀订单格式化文件；隐私规则继续只展示订单尾号，不暴露手机号、完整地址、完整订单号或买家 ID。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_order_insights.py` - 新增订单待办洞察文案 helper。
+  - `app/service/wecom/intelligent_bot_order_format.py` - 今日待办结果增加压力、优先级和下一步动作。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 强化“今天有什么要盯的 / 今天订单有没有需要注意的”回调语义要求，必须包含“优先级”和“压力”。
+  - `tests/service/test_wecom_employee_privacy_format.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补隐私格式和回调脚本回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，92 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python -m ruff check app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/intelligent_bot_order_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/intelligent_bot_order_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+  - `git diff --check` 通过。
+- **后续**:
+  - 待同步生产并复跑 `/health`、`/ready`、43/43 企微员工助手回调探针，重点确认 LLM 润色不会删掉“优先级 / 压力”经营判断。
+
 ## [2026-07-04] - fix(wecom): 员工助手润色回复隐私回退
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-privacy-polish-guard

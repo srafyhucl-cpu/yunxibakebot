@@ -310,7 +310,9 @@ def _fake_reply_text(content: str) -> str:
     if "怎么回复客户" in content and ("退款" in content or "售后" in content):
         return "退款订单已汇总，并给出售后回复客户的话术。"
     if "要盯" in content or "需要注意" in content or "待办" in content:
-        return "今日订单待处理、履约风险、退款和无物流事项已汇总。"
+        return (
+            "今日订单优先级和发货压力已汇总，包含待处理、履约风险、退款和无物流事项。"
+        )
     if "快超时" in content or "发货压力" in content or "履约压力" in content:
         return "待发货履约风险已汇总，含约送时间和订单尾号。"
     if "晚上" in content and "待处理" in content:

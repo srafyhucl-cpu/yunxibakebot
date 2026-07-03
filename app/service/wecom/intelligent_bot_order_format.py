@@ -6,6 +6,11 @@ import re
 from typing import Any
 
 from app.models.employee_agent import ToolResult
+from app.service.wecom.intelligent_bot_order_insights import (
+    order_action_next_step,
+    order_action_overview,
+    order_priority_heading,
+)
 
 ORDER_STATUS_LABELS = {
     "WAIT_BUYER_PAY": "待付款",
@@ -103,21 +108,40 @@ def build_order_action_items_tool_result(
     total_amount_yuan = int(today_summary.get("total_amount_fen", 0) or 0) / 100
     pending_count = int(pending_summary.get("total_count", 0) or 0)
     refund_count = int(refund_summary.get("total_count", 0) or 0)
-    lines = [
-        f"{query}：今天 {total_count} 单，合计 {total_amount_yuan:.2f} 元。",
-        f"待处理 {pending_count} 单，履约风险 {len(risk_orders)} 单，"
-        f"退款/售后 {refund_count} 单，无物流 {len(missing_logistics_orders)} 单。",
-    ]
+    risk_count = len(risk_orders)
+    missing_logistics_count = len(missing_logistics_orders)
+    lines = [f"{query}："]
+    lines.extend(
+        order_action_overview(
+            total_count=total_count,
+            total_amount_yuan=total_amount_yuan,
+            pending_count=pending_count,
+            risk_count=risk_count,
+            refund_count=refund_count,
+            missing_logistics_count=missing_logistics_count,
+        )
+    )
+    lines.append(
+        order_priority_heading(
+            risk_count=risk_count,
+            pending_count=pending_count,
+            missing_logistics_count=missing_logistics_count,
+            refund_count=refund_count,
+        )
+    )
     if risk_orders:
-        lines.append("优先看履约风险：")
         lines.extend(_limited_order_lines(risk_orders))
     elif pending_orders:
-        lines.append("优先看待处理：")
         lines.extend(_limited_order_lines(pending_orders))
     if missing_logistics_orders:
-        lines.append("无物流需核对：")
+        lines.append("优先级 2：核对无物流订单")
         lines.extend(_limited_order_lines(missing_logistics_orders))
-    next_action = "先处理有约送时间的待履约订单，再核对无物流和退款/售后。"
+    next_action = order_action_next_step(
+        risk_count=risk_count,
+        pending_count=pending_count,
+        missing_logistics_count=missing_logistics_count,
+        refund_count=refund_count,
+    )
     return ToolResult(
         ok=True,
         summary="\n".join(lines),
@@ -126,9 +150,9 @@ def build_order_action_items_tool_result(
             "total_count": total_count,
             "total_amount_fen": int(today_summary.get("total_amount_fen", 0) or 0),
             "pending_count": pending_count,
-            "fulfillment_risk_count": len(risk_orders),
+            "fulfillment_risk_count": risk_count,
             "refund_count": refund_count,
-            "missing_logistics_count": len(missing_logistics_orders),
+            "missing_logistics_count": missing_logistics_count,
         },
         next_action=next_action,
     )
