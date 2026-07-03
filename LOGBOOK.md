@@ -1,4 +1,27 @@
 ﻿
+## [2026-07-03] - fix(wecom): 收紧员工助手知识问法语义验收
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-semantic-acceptance
+- **背景**: 生产端到端回调验收 10/10 通过后，复核回复预览发现“明天能配送吗”虽然非空且不泄露隐私，但被 LLM 润色成订单尾号排查话术，语义不符合知识/规则问法。
+- **决策**:
+  - 端到端回调脚本从“非空 + 隐私”升级为“非空 + 隐私 + 按问法语义规则”，防止语义跑偏仍被判绿。
+  - 知识类员工回复直接返回知识工具确定性结果，不再走通用 LLM 润色，避免被订单排查提示污染。
+  - 配送类知识无命中时给配送规则兜底文案，提示员工查后台知识库或店铺配送配置，不要求订单尾号。
+  - 将回调语义规则和知识回复格式拆到独立模块，避免 `check_wecom_employee_agent_callback.py` 和 `intelligent_bot_tools.py` 继续堆职责。
+- **改动**:
+  - 新增 `scripts/wecom_employee_agent_callback_semantics.py`，集中管理 10 个自由问法的必需/禁止语义词。
+  - 新增 `app/service/wecom/intelligent_bot_knowledge_format.py`，集中管理知识库回复文本与配送兜底。
+  - `scripts/check_wecom_employee_agent_callback.py` 增加 `semantic_safe` 字段和语义规则检查。
+  - `EmployeeAgentService` 对 `knowledge_answer` 意图跳过 LLM 润色。
+  - 补充知识回复、员工 Agent 和回调语义测试。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_knowledge_reply.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，26 条。
+  - `python -m ruff check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_tools.py app/service/wecom/intelligent_bot_knowledge_format.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_knowledge_reply.py` 通过。
+  - `python -m ruff format --check ...` 通过。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在未同步生产前正确失败 1/10，仅 `delivery-knowledge` 语义不通过，证明新验收能抓住本轮目标问题。
+- **待生产验证**:
+  - 同步生产后复跑 `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`，目标为 10/10 通过且 `delivery-knowledge` 不再出现订单尾号排查话术。
+
 ## [2026-07-03] - fix(wecom): 补齐员工助手回调验收与隐私文案
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-callback-acceptance

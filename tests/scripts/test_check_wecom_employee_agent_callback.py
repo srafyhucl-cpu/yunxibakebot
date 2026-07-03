@@ -41,7 +41,7 @@ class _FakeAsyncClient:
         plaintext = decrypt(callback_check.TEST_AES_KEY, msg_encrypt)
         message = __import__("json").loads(plaintext)
         content = message["text"]["content"]
-        reply_text = f"员工回复：{content[:8]}，结果已汇总。"
+        reply_text = _fake_reply_text(content)
         reply_encrypt = encrypt(
             callback_check.TEST_AES_KEY,
             __import__("json").dumps(
@@ -161,6 +161,31 @@ def test_evaluate_reply_rejects_buyer_id_hint() -> None:
     assert result.privacy_safe is False
 
 
+def test_evaluate_reply_rejects_delivery_order_tail_detour() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe(
+            "delivery-knowledge",
+            "明天能配送吗",
+            required_any_terms=("配送",),
+            forbidden_terms=("订单尾号", "订单状态"),
+        ),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "请提供订单尾号，我帮您查一下配送安排。如需确认，也可登录后台查看订单状态。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 
@@ -180,6 +205,7 @@ async def test_main_json_output_can_be_written_to_file(monkeypatch, tmp_path) ->
                 passed=True,
                 reply_valid=True,
                 privacy_safe=True,
+                semantic_safe=True,
                 elapsed_ms=1,
                 content_preview="员工回复",
             )
@@ -200,3 +226,21 @@ async def test_main_json_output_can_be_written_to_file(monkeypatch, tmp_path) ->
     payload = json.loads(report_path.read_text(encoding="utf-8-sig"))
     assert payload["status"] == "passed"
     assert payload["results"][0]["content_preview"] == "员工回复"
+
+
+def _fake_reply_text(content: str) -> str:
+    if "没发货" in content:
+        return "当前待发货订单已汇总。"
+    if "物流" in content:
+        return "当前暂无物流订单已汇总。"
+    if "哪个商品" in content:
+        return "今日销量排行已汇总。"
+    if "库存" in content or "还有吗" in content:
+        return "库存已汇总。"
+    if "配送" in content:
+        return "配送规则请按后台知识库确认。"
+    if "异常" in content:
+        return "系统状态已汇总。"
+    if "待人工" in content:
+        return "当前待人工事项已汇总。"
+    return "今日订单共1单。"

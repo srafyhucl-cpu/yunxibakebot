@@ -43,7 +43,7 @@ class EmployeeAgentService:
         plan = await self._planner.plan(query)
         tool_results = await self._execute_plan(query, plan)
         deterministic_reply = _deterministic_reply(tool_results)
-        if not self._enable_llm_reply:
+        if not self._enable_llm_reply or plan.intent == AgentIntent.KNOWLEDGE_ANSWER:
             return deterministic_reply
         return await self._polish_reply(query, plan, deterministic_reply)
 

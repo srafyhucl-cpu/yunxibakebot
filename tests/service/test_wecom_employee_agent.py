@@ -190,3 +190,23 @@ async def test_employee_agent_routes_product_and_knowledge() -> None:
 
     assert "库存 6" in product_reply
     assert "配送范围" in knowledge_reply
+
+
+async def test_employee_agent_knowledge_reply_skips_llm_polish(monkeypatch) -> None:
+    async def fail_llm_chat(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("knowledge reply should not call LLM polish")
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fail_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("明天能配送吗")
+
+    assert "配送范围" in reply

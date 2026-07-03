@@ -1,4 +1,18 @@
 ﻿
+## E-20260703-007：企微员工助手知识问法语义验收
+
+- trace_id: 20260703-wecom-employee-agent-semantic-acceptance
+- generated_at: 2026-07-03
+- evidence_type: local/wecom-employee-agent-semantic-acceptance
+- file: `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_callback_semantics.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_knowledge_format.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_tools.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_service.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_intelligent_bot_knowledge_reply.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_knowledge_reply.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov`; `python -m ruff check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_tools.py app/service/wecom/intelligent_bot_knowledge_format.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_knowledge_reply.py`; `python -m ruff format --check ...`; pre-production `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`
+- result: pass
+- related_logbook: 2026-07-03 - fix(wecom): 收紧员工助手知识问法语义验收
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录语义验收规则、命令和脱敏结论；端到端报告不记录企微 Token、EncodingAESKey、密文、签名或客户隐私字段。
+- summary: 端到端回调脚本新增 `semantic_safe`，把 10 个自由问法从“非空即可”升级为按问法检查必需/禁止语义词。未同步生产前脚本正确抓到 `delivery-knowledge` 被订单尾号话术污染；本地代码已改为知识类跳过 LLM 润色，并为配送类知识无命中提供规则类兜底。
+
 ## E-20260703-006：企微员工助手回调验收与隐私文案收紧
 
 - trace_id: 20260703-wecom-employee-agent-callback-acceptance

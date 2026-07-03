@@ -26,6 +26,11 @@ from app.service.wecom.crypto import (  # noqa: E402
     generate_signature,
     verify_signature,
 )
+from scripts.wecom_employee_agent_callback_semantics import (  # noqa: E402
+    CallbackSemanticRule,
+    is_semantic_safe,
+    semantic_rule_for,
+)
 
 HTTP_OK = 200
 REQUEST_TIMEOUT_SECONDS = 20
@@ -68,6 +73,8 @@ class CallbackCredentials:
 class CallbackProbe:
     name: str
     query: str
+    required_any_terms: tuple[str, ...] = ()
+    forbidden_terms: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -78,6 +85,7 @@ class CallbackProbeResult:
     passed: bool
     reply_valid: bool
     privacy_safe: bool
+    semantic_safe: bool
     elapsed_ms: int
     content_preview: str = ""
     detail: str = ""
@@ -90,6 +98,7 @@ class CallbackProbeResult:
             "passed": self.passed,
             "reply_valid": self.reply_valid,
             "privacy_safe": self.privacy_safe,
+            "semantic_safe": self.semantic_safe,
             "elapsed_ms": self.elapsed_ms,
             "content_preview": self.content_preview,
             "detail": self.detail,
@@ -192,6 +201,7 @@ async def request_callback_probe(
             False,
             False,
             False,
+            False,
             elapsed_ms,
             detail=str(exc) or exc.__class__.__name__,
         )
@@ -241,6 +251,7 @@ def evaluate_reply(
     content = extract_stream_content(reply_payload)
     reply_valid = is_valid_stream_reply(reply_payload, content)
     privacy_safe = is_privacy_safe(content)
+    semantic_safe = is_semantic_safe(content, semantic_rule(probe))
     detail_parts = []
     if status_code != HTTP_OK:
         detail_parts.append(f"status={status_code}")
@@ -248,17 +259,29 @@ def evaluate_reply(
         detail_parts.append("invalid stream reply")
     if not privacy_safe:
         detail_parts.append("privacy leak pattern matched")
+    if not semantic_safe:
+        detail_parts.append("semantic rule mismatch")
     return CallbackProbeResult(
         name=probe.name,
         query=probe.query,
         status_code=status_code,
-        passed=status_code == HTTP_OK and reply_valid and privacy_safe,
+        passed=status_code == HTTP_OK
+        and reply_valid
+        and privacy_safe
+        and semantic_safe,
         reply_valid=reply_valid,
         privacy_safe=privacy_safe,
+        semantic_safe=semantic_safe,
         elapsed_ms=elapsed_ms,
         content_preview=content[:REPLY_PREVIEW_LIMIT],
         detail="; ".join(detail_parts),
     )
+
+
+def semantic_rule(probe: CallbackProbe) -> CallbackSemanticRule:
+    if probe.required_any_terms or probe.forbidden_terms:
+        return CallbackSemanticRule(probe.required_any_terms, probe.forbidden_terms)
+    return semantic_rule_for(probe.name)
 
 
 def extract_stream_content(reply_payload: dict[str, object]) -> str:

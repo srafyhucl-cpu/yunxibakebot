@@ -3,13 +3,13 @@
 from typing import Any
 
 from app.logger import setup_logger
+from app.service.wecom.intelligent_bot_knowledge_format import knowledge_answer_text
 from app.service.wecom.intelligent_bot_plugin import extract_text
 from app.service.wecom.intelligent_bot_tool_format import (
     compact_knowledge_entry,
     compact_order,
     filter_products,
     is_featured_query,
-    knowledge_line,
     order_line,
     product_line,
 )
@@ -123,9 +123,7 @@ class WeComBotBusinessToolService:
                 "knowledge_answer", "知识库查询失败，请稍后重试或到后台查看。"
             )
         sources = [compact_knowledge_entry(entry) for entry in entries[:limit]]
-        answer = (
-            "\n".join(knowledge_line(item) for item in sources) or "未找到匹配知识。"
-        )
+        answer = knowledge_answer_text(question, sources)
         return ok_response(
             "knowledge_answer",
             question,
