@@ -23,7 +23,9 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 52 个函数长度 WARN；架构边界扫描零输出。
   - `python scripts/check_mistake_ledger.py` 与 `python scripts/check_text_encoding.py` 通过。
 - **后续**:
-  - 本轮尚未同步生产；生产仍是上一轮 `0.69.12` 与 28 项线上回调探针通过。同步生产后需要用 30 项回调探针复验。
+  - 已同步生产 `0.69.14 / f4fdad4`，`/health`、`/ready` 与 30/30 企微员工助手回调探针通过；生产“今天有什么要盯的”“今天订单有没有需要注意的”均返回今日订单待办、履约风险、退款/售后和无物流提醒。
+  - 本轮同步 bundle 已按明确单文件路径清理；生产仍保留历史未跟踪备份和旧 bundle，未在本轮清理。
+  - 剩余为真实企微群内员工自由问法人工验收，并继续补商品、知识库、运营和混合场景的 Agent 化深水区。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手履约风险问法
 - **操作人**: AI (Codex)
