@@ -17,6 +17,7 @@ from app.service.wecom.employee_agent_order_query import (
     has_exact_order_no,
     looks_like_inventory_query,
     looks_like_ops_query,
+    looks_like_order_knowledge_query,
     looks_like_order_query,
     looks_like_order_policy_query,
     resolve_order_kind,
@@ -48,6 +49,18 @@ def build_rule_plan(
             today,
             intent=AgentIntent.MULTI_TOOL,
             tools=("order_dynamic_query", "product_lookup"),
+            answer_style=AnswerStyle.SUMMARY,
+        )
+    if (
+        has_order
+        and "knowledge_answer" in capability_names
+        and looks_like_order_knowledge_query(query)
+    ):
+        return _build_order_agent_plan(
+            query,
+            today,
+            intent=AgentIntent.MULTI_TOOL,
+            tools=("order_dynamic_query", "knowledge_answer"),
             answer_style=AnswerStyle.SUMMARY,
         )
     if has_order:

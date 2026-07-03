@@ -21,7 +21,7 @@ def needs_missing_logistics(query: str) -> bool:
 def needs_refund(query: str) -> bool:
     """判断是否查询退款/售后订单数据。"""
     return any(word in query for word in ORDER_REFUND_KEYWORDS) and not (
-        looks_like_order_policy_query(query)
+        _looks_like_pure_policy_query(query)
     )
 
 
@@ -37,7 +37,35 @@ def needs_action_items(query: str) -> bool:
 
 def looks_like_order_policy_query(query: str) -> bool:
     """判断是否退款规则、话术或政策类知识问法。"""
+    return any(word in query for word in ORDER_POLICY_KEYWORDS) and (
+        _looks_like_pure_policy_query(query)
+    )
+
+
+def looks_like_knowledge_followup_query(query: str) -> bool:
+    """判断是否需要在数据结果后补充规则或话术。"""
     return any(word in query for word in ORDER_POLICY_KEYWORDS)
+
+
+def _looks_like_pure_policy_query(query: str) -> bool:
+    data_words = (
+        "订单",
+        "单子",
+        "哪些",
+        "今天",
+        "本周",
+        "这周",
+        "最近",
+        "多少",
+        "几单",
+        "待发货",
+        "没发货",
+        "未发货",
+        "退款订单",
+        "退款单",
+        "退单",
+    )
+    return not any(word in query for word in data_words)
 
 
 def resolve_sort_by(query: str) -> str:

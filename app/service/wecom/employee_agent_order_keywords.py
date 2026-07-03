@@ -41,7 +41,16 @@ ORDER_ACTION_ITEMS_KEYWORDS = (
     "待办",
     "处理一下",
 )
-ORDER_POLICY_KEYWORDS = ("规则", "怎么说", "话术", "政策", "说明")
+ORDER_POLICY_KEYWORDS = (
+    "规则",
+    "怎么说",
+    "怎么跟客户说",
+    "怎么回复客户",
+    "回复客户",
+    "话术",
+    "政策",
+    "说明",
+)
 ORDER_QUERY_KEYWORDS = (
     "订单",
     "单子",
@@ -114,6 +123,7 @@ ORDER_QUERY_STOP_WORDS = (
     "出",
     "咋样",
     "怎么样",
+    *ORDER_POLICY_KEYWORDS,
     "大不大",
     "不大",
     "大",

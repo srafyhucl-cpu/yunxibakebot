@@ -1,4 +1,27 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手订单数据加话术混合问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-order-knowledge
+- **背景**: 员工会把经营数据和对客话术放在同一句里问，例如“还有哪些没发货，怎么跟客户说”“今天有退款订单，怎么回复客户”。原多工具能力只覆盖订单+商品库存，遇到订单+知识库时会只返回数据，无法把现有 RAG/知识库回复工作流接到员工 Agent 里。
+- **决策**:
+  - 不新增工具、不新增 SQL、不复制客服 RAG 代码；继续复用 `order_dynamic_query` 和既有 `knowledge_answer`。
+  - 将“纯规则问法”和“数据后补话术”拆开：`退款规则是什么` 仍走知识库，`今天有退款订单，怎么回复客户` 同时走订单数据和知识库。
+  - `MULTI_TOOL` 执行层追加支持 `knowledge_answer`，按订单结果 + 知识库结果组合成确定性回复，后续仍可由轻量 LLM 润色。
+  - 共享探针从 30 项扩到 32 项，新增 `pending-shipment-customer-reply` 与 `refund-order-customer-reply`。
+- **改动**:
+  - `app/service/wecom/employee_agent_capabilities.py` - 补“怎么跟客户说/怎么回复客户/回复客户”知识能力召回词。
+  - `app/service/wecom/employee_agent_order_keywords.py`、`employee_agent_order_predicates.py`、`employee_agent_order_query.py`、`employee_agent_order_plan.py` - 增加订单+知识库混合问法规划，并清理话术短语避免残留为订单 keyword。
+  - `app/service/wecom/employee_agent_service.py` - `MULTI_TOOL` 支持执行 `knowledge_answer`。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 共享探针扩展到 32 个自由问法。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补混合规划、组合执行和回调语义回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，71 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，32/32。
+  - `python scripts/check_file_sizes.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 52 个函数长度 WARN。
+- **后续**:
+  - 本轮尚未同步生产；生产当前仍为 `0.69.14 / 91ba93f` 与 30/30 线上回调探针通过。同步后需要用 32 项回调探针复验。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手今日经营待办概览
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-action-items

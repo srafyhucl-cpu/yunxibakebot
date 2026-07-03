@@ -128,6 +128,8 @@ class EmployeeAgentService:
             results.append(await self._run_order_tool(query, plan))
         if "product_lookup" in plan.tools:
             results.append(await self._run_product_tool(query, plan))
+        if "knowledge_answer" in plan.tools:
+            results.append(await self._run_knowledge_tool(query))
         if not results:
             results.append(ToolResult(ok=False, summary=UNSUPPORTED_REPLY))
         return results

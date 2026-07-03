@@ -40,7 +40,7 @@ class _FakeBusinessToolService:
         return {"ok": True, "result": "草莓蛋糕｜库存 6"}
 
     async def answer_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return {"ok": True, "result": "配送范围以后台配置为准。"}
+        return {"ok": True, "result": f"知识库回复：{payload.get('question')}。"}
 
 
 class _FakeOpsToolService:
@@ -152,6 +152,16 @@ async def test_planner_keeps_refund_policy_as_knowledge() -> None:
     assert plan.intent == AgentIntent.KNOWLEDGE_ANSWER
     assert plan.tools == ("knowledge_answer",)
     assert plan.query_plan is None
+
+
+async def test_planner_builds_order_knowledge_multi_tool_plan() -> None:
+    plan = await _planner().plan("还有哪些没发货，怎么跟客户说")
+
+    assert plan.intent == AgentIntent.MULTI_TOOL
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.LIST
+    assert plan.query_plan.statuses == ("WAIT_SELLER_SEND_GOODS",)
+    assert plan.tools == ("order_dynamic_query", "knowledge_answer")
 
 
 async def test_planner_builds_pending_order_list_plan() -> None:
@@ -328,6 +338,22 @@ async def test_employee_agent_multi_tool_uses_order_keyword_for_product() -> Non
     assert business_tool_service.product_payloads[0]["query"] == "伯牙绝弦"
 
 
+async def test_employee_agent_multi_tool_combines_order_and_knowledge() -> None:
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    reply = await service.answer("还有哪些没发货，怎么跟客户说")
+
+    assert "今天共 2 单" in reply
+    assert "知识库回复：还有哪些没发货，怎么跟客户说。" in reply
+
+
 async def test_employee_agent_routes_existing_ops_tools() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolService(),
@@ -363,7 +389,7 @@ async def test_employee_agent_knowledge_reply_skips_llm_polish(monkeypatch) -> N
 
     reply = await service.answer("明天能配送吗")
 
-    assert "配送范围" in reply
+    assert "知识库回复：明天能配送吗。" in reply
 
 
 async def test_employee_agent_ops_reply_skips_llm_polish(monkeypatch) -> None:

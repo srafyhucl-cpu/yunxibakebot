@@ -24,8 +24,9 @@ from app.service.wecom.employee_agent_order_keywords import (
     ORDER_REVENUE_KEYWORDS,
 )
 from app.service.wecom.employee_agent_order_predicates import (
-    needs_action_items,
     looks_like_order_policy_query,
+    looks_like_knowledge_followup_query,
+    needs_action_items,
     needs_fulfillment_risk,
     needs_missing_logistics,
     needs_refund,
@@ -103,6 +104,10 @@ def looks_like_order_query(query: str) -> bool:
 
 def looks_like_inventory_query(query: str) -> bool:
     return any(word in query for word in ("库存", "还够", "够吗", "还有吗"))
+
+
+def looks_like_order_knowledge_query(query: str) -> bool:
+    return looks_like_knowledge_followup_query(query)
 
 
 def looks_like_ops_query(capability_names: set[str]) -> bool:
