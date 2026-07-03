@@ -1,0 +1,346 @@
+"""企微员工助手自由问法规划验收。"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import sys
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
+from app.config import APP_VERSION  # noqa: E402
+from app.models.employee_agent import AgentPlan  # noqa: E402
+from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner  # noqa: E402
+
+UTF8_BOM = b"\xef\xbb\xbf"
+OUTPUT_TIMESTAMP_PLACEHOLDER = "{timestamp}"
+OUTPUT_TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S"
+
+
+@dataclass(frozen=True)
+class AgentPlanProbe:
+    name: str
+    query: str
+    expected_intent: str
+    expected_tools: tuple[str, ...] = ()
+    expected_kind: str = ""
+    expected_date_from: str = ""
+    expected_date_to: str = ""
+    expected_statuses: tuple[str, ...] = ()
+    expected_keyword: str | None = None
+    expected_missing_logistics: bool | None = None
+
+
+@dataclass(frozen=True)
+class AgentPlanCheck:
+    name: str
+    query: str
+    passed: bool
+    intent: str
+    tools: tuple[str, ...]
+    kind: str
+    date_from: str
+    date_to: str
+    statuses: tuple[str, ...]
+    keyword: str
+    missing_logistics: bool
+    detail: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "query": self.query,
+            "passed": self.passed,
+            "intent": self.intent,
+            "tools": list(self.tools),
+            "kind": self.kind,
+            "date_from": self.date_from,
+            "date_to": self.date_to,
+            "statuses": list(self.statuses),
+            "keyword": self.keyword,
+            "missing_logistics": self.missing_logistics,
+            "detail": self.detail,
+        }
+
+
+def default_probes(today: date) -> tuple[AgentPlanProbe, ...]:
+    today_text = today.isoformat()
+    return (
+        AgentPlanProbe(
+            "today-order-summary",
+            "今天一共多少订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            today_text,
+            today_text,
+            expected_keyword="",
+        ),
+        AgentPlanProbe(
+            "pending-shipment-list",
+            "还有哪些没发货",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS",),
+            expected_keyword="",
+        ),
+        AgentPlanProbe(
+            "missing-logistics-list",
+            "还没物流的订单有哪些",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            expected_missing_logistics=True,
+            expected_keyword="",
+        ),
+        AgentPlanProbe(
+            "product-order-summary",
+            "椰椰凤梨今天卖了几单",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            today_text,
+            today_text,
+            expected_keyword="椰椰凤梨",
+        ),
+        AgentPlanProbe(
+            "top-products",
+            "今天哪个商品卖得多",
+            "order_query",
+            ("order_dynamic_query",),
+            "top_products",
+            today_text,
+            today_text,
+            expected_keyword="",
+        ),
+        AgentPlanProbe(
+            "order-product-inventory",
+            "今天订单里有伯牙绝弦吗，库存还够吗",
+            "multi_tool",
+            ("order_dynamic_query", "product_lookup"),
+            "list",
+            today_text,
+            today_text,
+            expected_keyword="伯牙绝弦",
+        ),
+        AgentPlanProbe(
+            "casual-inventory",
+            "伯牙绝弦还有吗",
+            "product_query",
+            ("product_lookup",),
+        ),
+        AgentPlanProbe(
+            "delivery-knowledge",
+            "明天能配送吗",
+            "knowledge_answer",
+            ("knowledge_answer",),
+        ),
+        AgentPlanProbe(
+            "ops-status",
+            "系统今天有没有异常",
+            "ops_query",
+            ("ops_summary",),
+        ),
+        AgentPlanProbe(
+            "handoff-pending",
+            "现在有哪些待人工",
+            "ops_query",
+            ("handoff_pending",),
+        ),
+    )
+
+
+async def run_plan_checks(today: date | None = None) -> list[AgentPlanCheck]:
+    check_date = today or date.today()
+    planner = EmployeeAgentPlanner(
+        today_provider=lambda: check_date,
+        enable_llm=False,
+    )
+    checks: list[AgentPlanCheck] = []
+    for probe in default_probes(check_date):
+        plan = await planner.plan(probe.query)
+        checks.append(evaluate_probe(probe, plan))
+    return checks
+
+
+def evaluate_probe(probe: AgentPlanProbe, plan: AgentPlan) -> AgentPlanCheck:
+    query_plan = plan.query_plan
+    kind = query_plan.kind.value if query_plan else ""
+    date_from = query_plan.date_from if query_plan else ""
+    date_to = query_plan.date_to if query_plan else ""
+    statuses = query_plan.statuses if query_plan else ()
+    keyword = query_plan.keyword if query_plan else ""
+    missing_logistics = query_plan.needs_missing_logistics if query_plan else False
+    mismatches = _collect_mismatches(
+        probe,
+        plan.intent.value,
+        plan.tools,
+        kind,
+        date_from,
+        date_to,
+        statuses,
+        keyword,
+        missing_logistics,
+    )
+    return AgentPlanCheck(
+        name=probe.name,
+        query=probe.query,
+        passed=not mismatches,
+        intent=plan.intent.value,
+        tools=plan.tools,
+        kind=kind,
+        date_from=date_from,
+        date_to=date_to,
+        statuses=statuses,
+        keyword=keyword,
+        missing_logistics=missing_logistics,
+        detail="; ".join(mismatches),
+    )
+
+
+def _collect_mismatches(
+    probe: AgentPlanProbe,
+    intent: str,
+    tools: tuple[str, ...],
+    kind: str,
+    date_from: str,
+    date_to: str,
+    statuses: tuple[str, ...],
+    keyword: str,
+    missing_logistics: bool,
+) -> list[str]:
+    mismatches: list[str] = []
+    _append_mismatch(mismatches, "intent", probe.expected_intent, intent)
+    _append_mismatch(mismatches, "tools", probe.expected_tools, tools)
+    if probe.expected_kind:
+        _append_mismatch(mismatches, "kind", probe.expected_kind, kind)
+    if probe.expected_date_from:
+        _append_mismatch(mismatches, "date_from", probe.expected_date_from, date_from)
+    if probe.expected_date_to:
+        _append_mismatch(mismatches, "date_to", probe.expected_date_to, date_to)
+    if probe.expected_statuses:
+        _append_mismatch(mismatches, "statuses", probe.expected_statuses, statuses)
+    if probe.expected_keyword is not None:
+        _append_mismatch(mismatches, "keyword", probe.expected_keyword, keyword)
+    if probe.expected_missing_logistics is not None:
+        _append_mismatch(
+            mismatches,
+            "missing_logistics",
+            probe.expected_missing_logistics,
+            missing_logistics,
+        )
+    return mismatches
+
+
+def _append_mismatch(
+    mismatches: list[str],
+    field_name: str,
+    expected_value: object,
+    actual_value: object,
+) -> None:
+    if actual_value != expected_value:
+        mismatches.append(
+            f"{field_name}: expected={expected_value!r} actual={actual_value!r}"
+        )
+
+
+def build_report_metadata() -> dict[str, str]:
+    generated_at = (
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
+    return {
+        "generated_at": generated_at,
+        "project_root": str(ROOT_DIR),
+        "app_version": APP_VERSION,
+        "llm": "disabled",
+    }
+
+
+def build_json_report(checks: list[AgentPlanCheck]) -> dict[str, object]:
+    failed_checks = [check for check in checks if not check.passed]
+    return {
+        "status": "passed" if not failed_checks else "failed",
+        "metadata": build_report_metadata(),
+        "total": len(checks),
+        "failed": len(failed_checks),
+        "checks": [check.to_dict() for check in checks],
+        "failed_names": [check.name for check in failed_checks],
+    }
+
+
+def print_report(checks: list[AgentPlanCheck]) -> None:
+    payload = build_json_report(checks)
+    print("WeCom employee agent plan checks")
+    print(f"generated_at={payload['metadata']['generated_at']}")
+    print(f"app_version={APP_VERSION}")
+    print(f"total={payload['total']} failed={payload['failed']}")
+    for check in checks:
+        status = "PASS" if check.passed else "FAIL"
+        detail = "" if check.passed else " " + check.detail
+        print(f"{status} {check.name}: {check.intent} {list(check.tools)}{detail}")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Check WeCom employee agent free-form planning"
+    )
+    parser.add_argument("--json", action="store_true", help="输出机器可读 JSON。")
+    parser.add_argument(
+        "--output",
+        default=None,
+        help=(
+            "配合 --json 使用，将报告写入指定文件；目标文件已存在时拒绝覆盖；"
+            "支持 {timestamp} 自动展开为 YYYYMMDD-HHMMSS。"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def expand_output_path(output_path_value: str) -> Path:
+    timestamp = datetime.now().strftime(OUTPUT_TIMESTAMP_FORMAT)
+    expanded_value = output_path_value.replace(OUTPUT_TIMESTAMP_PLACEHOLDER, timestamp)
+    return Path(expanded_value)
+
+
+def write_json_report(output_path: Path, json_bytes: bytes) -> None:
+    if output_path.exists():
+        raise FileExistsError(f"报告文件已存在，拒绝覆盖: {output_path}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(UTF8_BOM + json_bytes)
+
+
+async def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.output and not args.json:
+        print("--output 必须配合 --json 使用。", file=sys.stderr)
+        return 2
+    output_path = expand_output_path(args.output) if args.output else None
+    if output_path is not None and output_path.exists():
+        print(f"报告文件已存在，拒绝覆盖: {output_path}", file=sys.stderr)
+        return 2
+    checks = await run_plan_checks()
+    if args.json:
+        json_bytes = (
+            json.dumps(build_json_report(checks), ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
+        if output_path is not None:
+            try:
+                write_json_report(output_path, json_bytes)
+            except FileExistsError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+        else:
+            sys.stdout.buffer.write(json_bytes)
+    else:
+        print_report(checks)
+    return 1 if any(not check.passed for check in checks) else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))

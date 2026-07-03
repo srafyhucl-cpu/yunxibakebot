@@ -116,11 +116,12 @@
 
 ```powershell
 python scripts/check_wecom_intelligent_bot_contract.py --json --output reports/wecom-intelligent-bot-contract-{timestamp}.json
+python scripts/check_wecom_employee_agent_plans.py --json --output reports/wecom-employee-agent-plans-{timestamp}.json
 python scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn --output reports/wecom-intelligent-bot-smoke-{timestamp}.json
-python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py -q --no-cov
+python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov
 ```
 
-报告不记录 `X-Yunxi-Bot-Key`、`Authorization` 或 `WECOM_BOT_PLUGIN_API_KEY` 的真实值。
+报告不记录 `X-Yunxi-Bot-Key`、`Authorization` 或 `WECOM_BOT_PLUGIN_API_KEY` 的真实值。`check_wecom_employee_agent_plans.py` 不访问生产服务和数据库，只检查 10 个员工自由问法是否能生成预期 `AgentPlan`，并确认订单查询计划不会带上“多少 / 还有 / 哪个商品”等无意义关键词。
 
 ## 员工验收样例
 

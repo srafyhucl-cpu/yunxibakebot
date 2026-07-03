@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-03] - feat(wecom): 固化员工助手自由问法规划验收
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-production-gate
+- **背景**: 员工助手下一步需要做生产化验收，原来只有工具接口 smoke，缺少“员工随便问时是否能规划到正确能力和查询计划”的自动防线；人工群内 10 个问法也需要变成可重复执行的本地/生产前探针。
+- **决策**:
+  - 新增只读规划验收脚本，不访问数据库、不需要密钥、不调用 LLM，专门验证确定性规划层。
+  - 验收覆盖订单统计、待发货、缺物流、商品销量、销量排行、订单+库存混合、商品库存、配送知识、系统状态和待人工 10 个自由问法。
+  - 将订单 `keyword` 作为验收项，避免“今天一共多少订单”被转成 `LIKE '%一共%'`，或“今天哪个商品卖得多”被转成错误商品关键词。
+- **改动**:
+  - 新增 `scripts/check_wecom_employee_agent_plans.py`，支持文本/JSON 输出、`--output` 留档、UTF-8 BOM、拒绝覆盖已有报告。
+  - 新增 `tests/scripts/test_check_wecom_employee_agent_plans.py`，覆盖 10 个自由问法、字段差异报告、JSON 留档和参数校验。
+  - 扩充订单计划停用词，清理 `一共`、`总共`、`还没`、`还`、`哪个`、`商品`、`里有` 等噪声关键词。
+  - 更新企微智能机器人说明和项目进度清单，加入自由问法规划验收命令。
+- **验证结果**:
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，10/10，且统计/待发货/缺物流/销量排行类订单 keyword 为空，商品订单和混合问法保留真实商品词。
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，13 条。
+  - `python -m ruff check app/service/wecom/employee_agent_order_plan.py scripts/check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_order_plan.py scripts/check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py` 通过。
+- **剩余事项**:
+  - `app/service/wecom/employee_agent_order_plan.py` 已达 249 行，后续订单规划继续扩展必须拆分，不得继续在该文件堆新职责。
+  - 生产同步后仍需执行生产 `/health`、`/ready`、企微 smoke、自由问法规划探针和群内真实问法验收。
+
 ## [2026-07-03] - feat(wecom): 补强员工助手弱关键词规划和回调验收
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-foundation
