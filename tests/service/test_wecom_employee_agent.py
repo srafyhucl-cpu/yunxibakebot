@@ -106,6 +106,28 @@ async def test_planner_builds_top_products_plan() -> None:
     assert plan.query_plan.date_from == "2026-07-03"
 
 
+async def test_planner_builds_recent_days_order_range_plan() -> None:
+    plan = await _planner().plan("最近3天椰椰凤梨卖了几单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-07-01"
+    assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.keyword == "椰椰凤梨"
+
+
+async def test_planner_builds_this_week_order_range_plan() -> None:
+    plan = await _planner().plan("本周哪个商品卖得多")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.TOP_PRODUCTS
+    assert plan.query_plan.date_from == "2026-06-29"
+    assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.keyword == ""
+
+
 async def test_planner_routes_knowledge_and_ops() -> None:
     knowledge_plan = await _planner().plan("配送范围怎么说")
     casual_delivery_plan = await _planner().plan("明天能配送吗")

@@ -25,10 +25,16 @@ class EmployeeAgentProbeCase:
 
 def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     today_text = today.isoformat()
+    recent_three_days_text = date.fromordinal(today.toordinal() - 2).isoformat()
+    week_start_text = date.fromordinal(today.toordinal() - today.weekday()).isoformat()
     return (
         *_order_summary_probe_cases(today_text),
         *_order_list_probe_cases(),
-        *_order_product_probe_cases(today_text),
+        *_order_product_probe_cases(
+            today_text,
+            recent_three_days_text,
+            week_start_text,
+        ),
         *_channel_tool_probe_cases(),
         *_ops_status_probe_cases(),
         *_ops_business_probe_cases(),
@@ -91,7 +97,11 @@ def _order_list_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
     )
 
 
-def _order_product_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, ...]:
+def _order_product_probe_cases(
+    today_text: str,
+    recent_three_days_text: str,
+    week_start_text: str,
+) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
             "product-order-summary",
@@ -111,12 +121,36 @@ def _order_product_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
             ),
         ),
         EmployeeAgentProbeCase(
+            "recent-days-product-order-summary",
+            "最近3天椰椰凤梨卖了几单",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            recent_three_days_text,
+            today_text,
+            expected_keyword="椰椰凤梨",
+            required_any_terms=("单",),
+            forbidden_terms=("完整订单号", "手机号"),
+        ),
+        EmployeeAgentProbeCase(
             "top-products",
             "今天哪个商品卖得多",
             "order_query",
             ("order_dynamic_query",),
             "top_products",
             today_text,
+            today_text,
+            expected_keyword="",
+            required_any_terms=("销量",),
+            forbidden_terms=("完整订单号", "手机号"),
+        ),
+        EmployeeAgentProbeCase(
+            "this-week-top-products",
+            "本周哪个商品卖得多",
+            "order_query",
+            ("order_dynamic_query",),
+            "top_products",
+            week_start_text,
             today_text,
             expected_keyword="",
             required_any_terms=("销量",),

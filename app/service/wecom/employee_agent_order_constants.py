@@ -6,6 +6,18 @@ import re
 
 DEFAULT_RESULT_LIMIT = 5
 MAX_RESULT_LIMIT = 10
+CHINESE_DAY_NUMBERS = {
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+}
 ORDER_NO_PATTERN = re.compile(r"\bE\d{12,}\b", re.IGNORECASE)
 ORDER_PENDING_STATUSES = ("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS")
 ORDER_STATUS_KEYWORDS = {
@@ -27,6 +39,12 @@ ORDER_QUERY_STOP_WORDS = (
     "今日",
     "昨天",
     "最近",
+    "本周",
+    "这周",
+    "本星期",
+    "这个星期",
+    "近一周",
+    "最近一周",
     "订单",
     "单子",
     "单量",

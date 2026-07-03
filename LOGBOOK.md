@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-04] - feat(wecom): 扩展员工助手订单相对时间范围
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-relative-date
+- **背景**: 员工在企微里不会只问“今天/昨天”，还会自然问“最近3天椰椰凤梨卖了几单”“本周哪个商品卖得多”。原订单计划只识别今天、昨天和晚上，容易把“3天”残留进商品关键词，导致动态查询计划偏离真实问题。
+- **决策**:
+  - 不新增 SQL 路径，不让 LLM 生成原生 SQL，继续复用 `OrderQueryPlan` 与 repository 白名单参数化执行。
+  - 在订单查询计划解析层补相对时间范围：最近/近 N 天、近一周/最近一周、本周/这周/本星期。
+  - 时间表达只影响 `date_from/date_to`，不进入商品关键词，避免把“3天”误当商品名。
+  - 共享探针从 20 项扩到 22 项，让规划脚本和回调脚本统一覆盖新增问法。
+- **改动**:
+  - `app/service/wecom/employee_agent_order_date.py` - 增加最近 N 天、本周时间范围解析和时间表达关键词清理。
+  - `app/service/wecom/employee_agent_order_query.py` - 复用订单时间解析结果生成查询计划并保持商品关键词纯净。
+  - `app/service/wecom/employee_agent_order_constants.py` - 增加中文天数映射与相对时间停用词。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 新增 `recent-days-product-order-summary` 与 `this-week-top-products` 两个自由问法探针。
+  - `tests/service/test_wecom_employee_agent.py` - 补相对时间范围规划回归测试。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，30 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，22/22。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 使用新 22 项探针打旧生产 `0.69.8` 时按预期失败 1/22：`this-week-top-products`，证明旧生产尚未支持本周时间范围。
+  - `python -m ruff check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_date.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_date.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 提交前继续执行 Ruff、项目红线、编码检查和企微 callback 生产验收；同步生产后复验 `/health`、`/ready` 与 22/22 回调探针。
+
 ## [2026-07-04] - fix(wecom): 收紧员工助手商品库存问法匹配
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-product-keyword

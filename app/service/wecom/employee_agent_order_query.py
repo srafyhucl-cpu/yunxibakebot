@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import date
 
 from app.models.employee_agent import AnswerStyle, OrderQueryKind, OrderQueryPlan
+from app.service.wecom.employee_agent_order_date import (
+    remove_order_time_expressions,
+    resolve_order_date_range,
+)
 from app.service.wecom.employee_agent_order_constants import (
     DEFAULT_RESULT_LIMIT,
     MAX_RESULT_LIMIT,
@@ -26,7 +30,7 @@ def build_order_query_plan(
     today: date,
     kind: OrderQueryKind,
 ) -> OrderQueryPlan:
-    date_from, date_to = _resolve_date_range(query, today)
+    date_from, date_to = resolve_order_date_range(query, today)
     return OrderQueryPlan(
         kind=kind,
         date_from=date_from,
@@ -92,15 +96,6 @@ def looks_like_ops_query(capability_names: set[str]) -> bool:
     return bool(capability_names & {"ops_summary", "handoff_pending"})
 
 
-def _resolve_date_range(query: str, today: date) -> tuple[str, str]:
-    if "昨天" in query:
-        target_day = today - timedelta(days=1)
-        return target_day.isoformat(), target_day.isoformat()
-    if any(word in query for word in ("今天", "今日", "晚上")):
-        return today.isoformat(), today.isoformat()
-    return "", ""
-
-
 def _resolve_order_statuses(query: str) -> tuple[str, ...]:
     if "待处理" in query:
         return ORDER_PENDING_STATUSES
@@ -113,7 +108,7 @@ def _resolve_order_statuses(query: str) -> tuple[str, ...]:
 
 
 def _extract_order_keyword(query: str) -> str:
-    keyword = query.strip()
+    keyword = remove_order_time_expressions(query.strip())
     for stop_word in sorted(ORDER_QUERY_STOP_WORDS, key=len, reverse=True):
         keyword = keyword.replace(stop_word, " ")
     keyword = re.sub(r"E\d{12,}", " ", keyword, flags=re.IGNORECASE)
