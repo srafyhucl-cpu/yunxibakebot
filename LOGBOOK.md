@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-04] - fix(wecom): 员工助手润色回复隐私回退
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-privacy-polish-guard
+- **背景**: 员工助手更宽自然时间问法同步生产后，43 项回调探针中新增时间问法均通过，但旧混合问法“还有哪些没发货，怎么跟客户说”线上偶发被 LLM 润色成要求员工提供“完整订单号”，触发隐私与语义探针失败。确定性工具结果本身安全，问题发生在最后润色层。
+- **决策**:
+  - 不调整查询计划、工具执行或 repository SQL。
+  - 在既有 `preserve_tool_facts` 回复守卫中补隐私标记回退：如果润色结果引入确定性结果里不存在的手机号、完整订单号、完整地址、买家 ID 或英文私有字段名，则回退确定性工具回复。
+  - 保留库存数值保真逻辑，避免商品工具结果被润色丢数字。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 增加隐私标记检测和回退。
+  - `tests/service/test_wecom_employee_agent.py` - 补直接守卫测试和 Agent 润色路径回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，90 条。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+- **后续**:
+  - 同步生产后重新跑 `/health`、`/ready` 和 43/43 企微端到端加密回调探针，确认旧混合问法不再被 LLM 润色引入隐私禁词。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手更宽自然时间问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-wider-date-phrases

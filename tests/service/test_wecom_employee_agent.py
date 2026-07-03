@@ -12,6 +12,7 @@ from app.models.employee_agent import (
 )
 from app.service.wecom import employee_agent_planner
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
+from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 from app.service.wecom.employee_agent_service import EmployeeAgentService
 
 
@@ -597,3 +598,42 @@ async def test_employee_agent_polish_keeps_product_stock_number(monkeypatch) -> 
 
     assert "库存 6" in reply
     assert "知识库回复" in reply
+
+
+async def test_employee_agent_polish_drops_private_marker(monkeypatch) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="有 2 单未发货，请让员工提供完整订单号再回复客户。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("还有哪些没发货，怎么跟客户说")
+
+    assert "完整订单号" not in reply
+    assert "今天共 2 单" in reply
+
+
+def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
+    deterministic_reply = "当前有 2 单未发货，均只展示尾号。"
+    polished_reply = "当前有 2 单未发货，请提供完整订单号排查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
