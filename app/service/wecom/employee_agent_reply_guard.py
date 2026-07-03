@@ -22,6 +22,7 @@ PRIVATE_REPLY_TERMS = (
 )
 ACTION_INSIGHT_REQUIRED_TERMS = ("优先级", "压力")
 ACTION_INSIGHT_SOURCE_MARKERS = ("发货压力", "优先级")
+PRESSURE_LABEL_PATTERN = re.compile(r"发货压力[:：]\s*(偏高|中等|低)")
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
@@ -29,6 +30,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if not polished_reply.strip():
         return deterministic_reply
     if _misses_stock_values(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _misses_pressure_label(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_action_insight_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -56,6 +59,14 @@ def _introduces_private_markers(
         if pattern.search(polished_reply) and not pattern.search(deterministic_reply):
             return True
     return False
+
+
+def _misses_pressure_label(polished_reply: str, deterministic_reply: str) -> bool:
+    match = PRESSURE_LABEL_PATTERN.search(deterministic_reply)
+    if not match:
+        return False
+    expected_label = match.group(1)
+    return "压力" not in polished_reply or expected_label not in polished_reply
 
 
 def _misses_action_insight_markers(

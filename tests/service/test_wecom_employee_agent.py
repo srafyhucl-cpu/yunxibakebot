@@ -699,3 +699,15 @@ def test_preserve_tool_facts_rejects_missing_action_insight_marker() -> None:
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 
     assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_missing_pressure_label() -> None:
+    deterministic_reply = (
+        "今天发货压力大不大：找到 5 单，按最新订单展示：\n"
+        "发货压力：偏高。待处理 5 单，履约风险 5 单。"
+    )
+    polished_reply = "今天发货压力不大，目前仅5单待处理。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply

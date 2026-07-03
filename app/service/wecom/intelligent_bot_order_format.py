@@ -10,6 +10,7 @@ from app.service.wecom.intelligent_bot_order_insights import (
     order_action_next_step,
     order_action_overview,
     order_priority_heading,
+    order_pressure_label,
 )
 
 ORDER_STATUS_LABELS = {
@@ -64,6 +65,8 @@ def build_order_list_tool_result(
             next_action="可以换商品名、状态或时间范围再问。",
         )
     lines = [f"{query}：找到 {len(orders)} 单，按最新订单展示："]
+    if _looks_like_fulfillment_pressure_query(query):
+        lines.append(_fulfillment_pressure_line(summary, orders))
     lines.extend(
         employee_order_line(index, order) for index, order in enumerate(orders, 1)
     )
@@ -171,6 +174,23 @@ def status_counts_text(status_counts: Any) -> str:
 
 def _limited_order_lines(orders: list[dict[str, Any]]) -> list[str]:
     return [employee_order_line(index, order) for index, order in enumerate(orders, 1)]
+
+
+def _looks_like_fulfillment_pressure_query(query: str) -> bool:
+    return "发货压力" in query or "履约压力" in query
+
+
+def _fulfillment_pressure_line(
+    summary: dict[str, Any],
+    orders: list[dict[str, Any]],
+) -> str:
+    pending_count = int(summary.get("total_count", len(orders)) or 0)
+    risk_count = len(orders)
+    pressure_label = order_pressure_label(pending_count, risk_count)
+    return (
+        f"发货压力：{pressure_label}。"
+        f"待处理 {pending_count} 单，履约风险 {risk_count} 单。"
+    )
 
 
 def employee_order_line(index: int, order: dict[str, Any]) -> str:

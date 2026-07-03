@@ -187,6 +187,26 @@ async def test_answer_agent_query_builds_order_action_items() -> None:
     assert any(plan.needs_missing_logistics for plan in repo.queried_plans)
 
 
+async def test_answer_agent_query_adds_fulfillment_pressure_label() -> None:
+    repo = _FakeYouzanOrderRepo()
+    service = WeComOrderLookupService(youzan_order_repo=repo)
+
+    result = await service.answer_agent_query(
+        "今天发货压力大不大",
+        OrderQueryPlan(
+            kind=OrderQueryKind.LIST,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+            statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            needs_fulfillment_risk=True,
+        ),
+    )
+
+    assert "发货压力：偏高" in result.summary
+    assert "待处理 2 单" in result.summary
+    assert "履约风险 1 单" in result.summary
+
+
 async def test_lookup_orders_calls_live_logistics_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,4 +1,33 @@
 ﻿
+## [2026-07-04] - fix(wecom): 统一员工助手发货压力口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-fulfillment-pressure
+- **背景**: 今日经营待办已按统一阈值输出发货压力，但生产回调样本显示“今天发货压力大不大”这类履约风险列表问法仍可能被 LLM 润色成“压力不大，目前仅5单待处理”，和 5 单偏高阈值冲突。该问题不会被旧探针拦截，因为旧规则只要求含“压力”。
+- **决策**:
+  - 不新增 SQL、不改查询计划、不改变企微回调入口。
+  - 普通履约风险列表复用 `order_pressure_label`，在确定性工具结果中加入“发货压力：偏高/中等/低”。
+  - 回复守卫增加压力等级保真：确定性结果含“发货压力：X”时，润色结果必须同时保留“压力”和对应等级，否则回退确定性结果。
+  - 强化回调探针，禁止“压力不大”这类反向判断逃过验收。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_order_format.py` - 发货压力问法的订单列表结果补压力等级和待处理/履约风险计数。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 增加压力等级保真守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 强化 `casual-fulfillment-pressure` 语义规则。
+  - `tests/service/test_wecom_intelligent_bot_order_lookup.py`、`tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补格式化、守卫和探针回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过，60 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，97 条。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python -m ruff check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+  - `git diff --check` 通过。
+- **后续**:
+  - 待提交并同步生产，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针，重点确认“今天发货压力大不大”不再说反。
+
 ## [2026-07-04] - fix(wecom): 保留员工助手待办洞察标记
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-action-insights
