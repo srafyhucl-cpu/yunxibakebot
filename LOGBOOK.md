@@ -25,8 +25,11 @@
   - `python -m ruff format --check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.1 / 686aa43c1`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`casual-fulfillment-pressure` 回复为“发货压力偏高”，未再出现“压力不大”反向判断。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 待提交并同步生产，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针，重点确认“今天发货压力大不大”不再说反。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - fix(wecom): 保留员工助手待办洞察标记
 - **操作人**: AI (Codex)
