@@ -19,8 +19,13 @@
   - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，10/10。
   - `python scripts/check_project.py --skip-tests` 通过；仅保留既有函数长度 WARN。
   - `python scripts/check_mistake_ledger.py` 通过。
-- **待生产验证**:
-  - 同步生产后运行 `python3 scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`，目标为 10/10 通过。
+- **生产同步与验证**:
+  - 生产已同步到 `0.67.1 / 0fe9fda`，备份目录 `/opt/yunxibakebot/backups/wecom-employee-agent-privacy-20260703-2336`。
+  - 生产 `/health` 返回 `status=ok`，版本 `0.67.1`。
+  - 生产 `/ready` 返回 `status=ready`，企微智能机器人 token/AES key/plugin key、人工接手人和后台 dist 检查均为 true。
+  - 生产 `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，10/10；回复签名、`stream` 内容和隐私泄漏检查均通过。
+  - 生产 `git diff --name-only | wc -l` 为 `0`；临时上传的 bundle 已按明确单文件路径删除，未跟踪历史备份继续保留。
+- **剩余事项**:
   - 仍需真实企微客户端群内验收，确认客户端展示与脚本探针一致。
 
 ## [2026-07-03] - docs(wecom): 记录员工助手生产工作区清理证据
