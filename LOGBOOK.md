@@ -21,8 +21,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
   - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
+  - 已同步生产 `0.74.0 / 0d9e9b47e`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`today-action-items` 和 `casual-order-attention` 均保留“优先级 / 压力”经营洞察标记。
+  - 本轮两个同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 待提交并重新同步生产，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针；通过后把 E-20260704-021 从 local 更新为 local-and-production。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - feat(wecom): 增强员工助手今日经营待办洞察
 - **操作人**: AI (Codex)
@@ -48,8 +51,9 @@
   - `python -m ruff format --check app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/intelligent_bot_order_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
   - `git diff --check` 通过。
+  - 首次同步生产 `0.72.1 / e46a84aab` 时 `/health` 和 `/ready` 通过，但 43 项回调探针中 `today-action-items` 因 LLM 润色删掉“压力”失败；后续 `fix(wecom): preserve employee action insight markers` 已补守卫并在 `0.74.0 / 0d9e9b47e` 复验 43/43 通过。
 - **后续**:
-  - 待同步生产并复跑 `/health`、`/ready`、43/43 企微员工助手回调探针，重点确认 LLM 润色不会删掉“优先级 / 压力”经营判断。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - fix(wecom): 员工助手润色回复隐私回退
 - **操作人**: AI (Codex)
