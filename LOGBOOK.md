@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-03] - fix(wecom): 补齐员工助手回调验收与隐私文案
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-callback-acceptance
+- **背景**: 员工助手已具备规划验收，但仍缺少贴近真实企微 API 模式入口的端到端回调验收；首次用生产 URL 回调探针跑 10 个自由问法时，发现 9/10 通过，失败项为回复中出现“完整订单号”提示；待人工回复还会展示买家 ID 的掩码，员工入口不应鼓励或暴露这些字段。
+- **决策**:
+  - 新增端到端回调验收脚本，直接构造企微加密 POST，校验回复签名、解密 `stream` 内容，并检查非空、员工可读和隐私泄漏模式。
+  - 不放宽验收脚本，改为收紧订单和待人工回复格式：订单只提示尾号/后台核对，待人工列表不展示用户标识。
+  - LLM 润色提示补充禁止要求完整订单号，订单排查只使用尾号或后台核对。
+- **改动**:
+  - 新增 `scripts/check_wecom_employee_agent_callback.py`，覆盖 10 个员工自由问法的 URL 回调端到端验收，报告不记录 Token、AESKey、密文或签名。
+  - 新增 `tests/scripts/test_check_wecom_employee_agent_callback.py`，覆盖加密回调、报告脱敏、隐私泄漏拦截和 JSON 留档。
+  - 新增 `tests/service/test_wecom_employee_privacy_format.py`，锁定订单 next action 和待人工列表不暴露完整订单号或用户标识。
+  - 调整 `intelligent_bot_order_format.py`、`intelligent_bot_ops_format.py` 和 `employee_agent_service.py` 的员工回复隐私文案。
+  - 更新企微智能机器人接入说明、项目进度清单和证据索引。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_privacy_format.py -q --no-cov` 通过，18 条。
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_privacy_format.py tests/repository/test_youzan_repo.py -q --no-cov` 通过，48 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，10/10。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+- **待生产验证**:
+  - 同步生产后运行 `python3 scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`，目标为 10/10 通过。
+  - 仍需真实企微客户端群内验收，确认客户端展示与脚本探针一致。
+
 ## [2026-07-03] - docs(wecom): 记录员工助手生产工作区清理证据
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-production-gate

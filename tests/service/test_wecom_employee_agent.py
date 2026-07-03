@@ -160,6 +160,22 @@ async def test_employee_agent_uses_order_lookup_service() -> None:
     assert order_lookup_service.calls[0][1].kind == OrderQueryKind.SUMMARY
 
 
+async def test_employee_agent_order_reply_does_not_ask_for_full_order_no() -> None:
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    reply = await service.answer("今天一共多少订单")
+
+    assert "完整订单号" not in reply
+    assert "订单尾号" not in reply or "完整" not in reply
+
+
 async def test_employee_agent_routes_product_and_knowledge() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolService(),

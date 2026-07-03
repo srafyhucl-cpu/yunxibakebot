@@ -80,7 +80,7 @@ def group_summary_line(summary: dict[str, Any]) -> str:
 
 
 def transfer_line(item: dict[str, Any]) -> str:
-    return f"{item['id']}｜{item['userRef']}｜{item['reason'] or '未填写原因'}"
+    return f"{item['id']}｜{item['reason'] or '未填写原因'}"
 
 
 def ops_summary_line(summary: dict[str, Any]) -> str:
