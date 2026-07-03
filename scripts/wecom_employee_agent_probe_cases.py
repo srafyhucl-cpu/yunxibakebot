@@ -18,6 +18,7 @@ class EmployeeAgentProbeCase:
     expected_statuses: tuple[str, ...] = ()
     expected_keyword: str | None = None
     expected_missing_logistics: bool | None = None
+    expected_needs_refund: bool | None = None
     required_any_terms: tuple[str, ...] = ()
     required_all_terms: tuple[str, ...] = ()
     forbidden_terms: tuple[str, ...] = ()
@@ -80,6 +81,19 @@ def _order_summary_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
                 "后台订单页核对",
                 "请确认查询条件",
             ),
+        ),
+        EmployeeAgentProbeCase(
+            "today-refund-summary",
+            "今天有退款订单吗",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            today_text,
+            today_text,
+            expected_keyword="",
+            expected_needs_refund=True,
+            required_any_terms=("退款", "售后", "退单", "单"),
+            forbidden_terms=("退款规则", "话术", "完整订单号", "手机号"),
         ),
     )
 
@@ -203,6 +217,19 @@ def _order_product_probe_cases(
                 "后台订单页核对",
                 "请确认查询条件",
             ),
+        ),
+        EmployeeAgentProbeCase(
+            "this-week-refund-summary",
+            "本周退款多少",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            week_start_text,
+            today_text,
+            expected_keyword="",
+            expected_needs_refund=True,
+            required_any_terms=("退款", "售后", "退单", "元", "单"),
+            forbidden_terms=("退款规则", "话术", "完整订单号", "手机号"),
         ),
         EmployeeAgentProbeCase(
             "order-product-inventory",

@@ -53,6 +53,7 @@ async def test_main_json_output_can_be_written_to_file(
                 statuses=(),
                 keyword="",
                 missing_logistics=False,
+                needs_refund=False,
             )
         ]
 

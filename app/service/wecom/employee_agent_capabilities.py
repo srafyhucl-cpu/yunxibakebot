@@ -23,7 +23,7 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
     AgentCapabilityCard(
         name="order_dynamic_query",
         intent="order_query",
-        description="查询有赞订单、今日订单、最近订单、待发货、待收货、未发货、物流缺失、商品销量、营业额和订单统计。",
+        description="查询有赞订单、今日订单、最近订单、待发货、待收货、未发货、物流缺失、退款订单、商品销量、营业额和订单统计。",
         examples=(
             "今天一共多少订单",
             "还有哪些没发货",
@@ -31,6 +31,7 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
             "今天单量咋样",
             "今天营业额多少",
             "本周销售额怎么样",
+            "今天有退款订单吗",
             "最近订单",
         ),
         keywords=(
@@ -50,6 +51,10 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
             "收入",
             "流水",
             "成交额",
+            "退款订单",
+            "退款单",
+            "退单",
+            "售后订单",
         ),
     ),
     AgentCapabilityCard(
@@ -74,7 +79,7 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
     AgentCapabilityCard(
         name="knowledge_answer",
         intent="knowledge_answer",
-        description="查询门店规则、配送范围、售后话术、常见问题和员工可复制回复。",
+        description="查询门店规则、配送范围、售后话术、退款规则、常见问题和员工可复制回复。",
         examples=("配送范围怎么说", "退款规则是什么", "自提怎么回复客户"),
         keywords=("规则", "怎么说", "话术", "配送范围", "配送", "退款", "自提", "售后"),
     ),

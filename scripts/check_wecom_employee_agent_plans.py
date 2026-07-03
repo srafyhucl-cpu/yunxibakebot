@@ -39,6 +39,7 @@ class AgentPlanCheck:
     statuses: tuple[str, ...]
     keyword: str
     missing_logistics: bool
+    needs_refund: bool
     detail: str = ""
 
     def to_dict(self) -> dict[str, object]:
@@ -54,6 +55,7 @@ class AgentPlanCheck:
             "statuses": list(self.statuses),
             "keyword": self.keyword,
             "missing_logistics": self.missing_logistics,
+            "needs_refund": self.needs_refund,
             "detail": self.detail,
         }
 
@@ -79,6 +81,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
     statuses = query_plan.statuses if query_plan else ()
     keyword = query_plan.keyword if query_plan else ""
     missing_logistics = query_plan.needs_missing_logistics if query_plan else False
+    needs_refund = query_plan.needs_refund if query_plan else False
     mismatches = _collect_mismatches(
         probe,
         plan.intent.value,
@@ -89,6 +92,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         statuses,
         keyword,
         missing_logistics,
+        needs_refund,
     )
     return AgentPlanCheck(
         name=probe.name,
@@ -102,6 +106,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         statuses=statuses,
         keyword=keyword,
         missing_logistics=missing_logistics,
+        needs_refund=needs_refund,
         detail="; ".join(mismatches),
     )
 
@@ -116,6 +121,7 @@ def _collect_mismatches(
     statuses: tuple[str, ...],
     keyword: str,
     missing_logistics: bool,
+    needs_refund: bool,
 ) -> list[str]:
     mismatches: list[str] = []
     _append_mismatch(mismatches, "intent", probe.expected_intent, intent)
@@ -136,6 +142,13 @@ def _collect_mismatches(
             "missing_logistics",
             probe.expected_missing_logistics,
             missing_logistics,
+        )
+    if probe.expected_needs_refund is not None:
+        _append_mismatch(
+            mismatches,
+            "needs_refund",
+            probe.expected_needs_refund,
+            needs_refund,
         )
     return mismatches
 

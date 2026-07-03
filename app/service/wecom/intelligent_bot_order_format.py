@@ -109,10 +109,11 @@ def employee_order_line(index: int, order: dict[str, Any]) -> str:
     )
     pay_time = str(order.get("pay_time") or order.get("created_at") or "未记录时间")
     logistics_text = employee_logistics_text(order)
+    refund_text = employee_refund_text(order)
     product_titles = str(order.get("product_titles") or "未记录商品")
     return (
         f"{index}. 尾号 {order_tail}｜{status_label}｜{product_titles}｜"
-        f"{amount_yuan:.2f} 元｜{pay_time}｜{logistics_text}"
+        f"{amount_yuan:.2f} 元｜{pay_time}｜{logistics_text}{refund_text}"
     )
 
 
@@ -127,6 +128,7 @@ def compact_employee_order(order: dict[str, Any]) -> dict[str, Any]:
         "amountFen": int(order.get("amount_fen", 0) or 0),
         "payTime": str(order.get("pay_time") or order.get("created_at") or ""),
         "logisticsStatus": employee_logistics_text(order),
+        "refundStatus": employee_refund_text(order).lstrip("｜"),
     }
 
 
@@ -144,6 +146,15 @@ def employee_logistics_text(order: dict[str, Any]) -> str:
     if logistics_no:
         return "有物流单号"
     return "暂无物流"
+
+
+def employee_refund_text(order: dict[str, Any]) -> str:
+    """格式化员工可读退款标记。"""
+    try:
+        refund_state = int(order.get("refund_state", 0) or 0)
+    except (TypeError, ValueError):
+        refund_state = 0
+    return "｜有退款/售后" if refund_state else ""
 
 
 def youzan_order_line(order: dict[str, Any]) -> str:

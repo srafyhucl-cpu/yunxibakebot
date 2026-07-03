@@ -311,6 +311,8 @@ def _fake_reply_text(content: str) -> str:
         return "今日销量排行已汇总。"
     if "营业额" in content or "销售额" in content:
         return "销售额已汇总，共206.50元。"
+    if "退款" in content or "退单" in content or "售后订单" in content:
+        return "退款订单已汇总，共1单，合计88.00元。"
     if "伯牙绝弦" in content and ("库存" in content or "还有吗" in content):
         return "伯牙绝弦当前库存72，售价258元。"
     if "库存" in content or "还有吗" in content:

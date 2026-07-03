@@ -26,6 +26,30 @@ ORDER_REVENUE_KEYWORDS = (
     "成交额",
     "卖了多少钱",
 )
+ORDER_REFUND_KEYWORDS = (
+    "退款订单",
+    "退款单",
+    "退单",
+    "退款",
+    "售后订单",
+    "售后单",
+)
+ORDER_POLICY_KEYWORDS = ("规则", "怎么说", "话术", "政策", "说明")
+ORDER_QUERY_KEYWORDS = (
+    "订单",
+    "单子",
+    "单量",
+    "下单",
+    "发货",
+    "物流",
+    "几单",
+    "待处理",
+    "卖得多",
+    "卖爆",
+    "销量",
+    *ORDER_REFUND_KEYWORDS,
+    *ORDER_REVENUE_KEYWORDS,
+)
 ORDER_NO_PATTERN = re.compile(r"\bE\d{12,}\b", re.IGNORECASE)
 ORDER_PENDING_STATUSES = ("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS")
 ORDER_STATUS_KEYWORDS = {
@@ -73,6 +97,12 @@ ORDER_QUERY_STOP_WORDS = (
     "流水",
     "成交额",
     "卖了多少钱",
+    "退款订单",
+    "退款单",
+    "退单",
+    "退款",
+    "售后订单",
+    "售后单",
     "卖得最多",
     "卖得多",
     "卖爆",

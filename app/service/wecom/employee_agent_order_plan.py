@@ -18,6 +18,7 @@ from app.service.wecom.employee_agent_order_query import (
     looks_like_inventory_query,
     looks_like_ops_query,
     looks_like_order_query,
+    looks_like_order_policy_query,
     resolve_order_kind,
 )
 from app.service.wecom.employee_agent_ops_plan import build_ops_rule_plan
@@ -33,7 +34,7 @@ def build_rule_plan(
         return AgentPlan(intent=AgentIntent.UNSUPPORTED)
     if has_exact_order_no(query):
         return _build_exact_order_plan(query, today)
-    capability_names = {card.name for card in capabilities}
+    capability_names = _capability_names_for_rule_plan(query, capabilities)
     has_order = "order_dynamic_query" in capability_names or looks_like_order_query(
         query
     )
@@ -60,6 +61,16 @@ def build_rule_plan(
     if ops_plan is not None:
         return ops_plan
     return _build_non_order_agent_plan(query, capability_names, has_order)
+
+
+def _capability_names_for_rule_plan(
+    query: str,
+    capabilities: list[AgentCapabilityCard],
+) -> set[str]:
+    capability_names = {card.name for card in capabilities}
+    if looks_like_order_policy_query(query):
+        capability_names.discard("order_dynamic_query")
+    return capability_names
 
 
 def _build_exact_order_plan(query: str, today: date) -> AgentPlan:

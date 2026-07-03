@@ -251,6 +251,7 @@ def _compact_youzan_order(order: dict[str, Any]) -> dict[str, Any]:
         "deliveryTime": str(order.get("delivery_time", "")),
         "logisticsNo": str(order.get("logistics_no", "")),
         "logisticsStatus": str(order.get("logistics_status", "")),
+        "refundState": int(order.get("refund_state", 0) or 0),
     }
 
 

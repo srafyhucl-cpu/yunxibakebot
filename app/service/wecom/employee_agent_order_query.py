@@ -15,8 +15,11 @@ from app.service.wecom.employee_agent_order_constants import (
     MAX_RESULT_LIMIT,
     ORDER_NO_PATTERN,
     ORDER_PENDING_STATUSES,
+    ORDER_POLICY_KEYWORDS,
+    ORDER_QUERY_KEYWORDS,
     ORDER_QUERY_PUNCTUATION_PATTERN,
     ORDER_QUERY_STOP_WORDS,
+    ORDER_REFUND_KEYWORDS,
     ORDER_REVENUE_KEYWORDS,
     ORDER_STATUS_KEYWORDS,
 )
@@ -39,6 +42,7 @@ def build_order_query_plan(
         statuses=_resolve_order_statuses(query),
         keyword=_extract_order_keyword(query),
         needs_missing_logistics=_needs_missing_logistics(query),
+        needs_refund=_needs_refund(query),
         aggregate_by="product" if kind == OrderQueryKind.TOP_PRODUCTS else "",
         sort_by="amount" if "金额" in query else "latest",
         limit=_extract_limit(query),
@@ -49,6 +53,8 @@ def resolve_order_kind(query: str) -> OrderQueryKind:
     if any(word in query for word in ("卖得最多", "卖最多", "销量", "卖得多", "卖爆")):
         return OrderQueryKind.TOP_PRODUCTS
     if any(word in query for word in ORDER_REVENUE_KEYWORDS):
+        return OrderQueryKind.SUMMARY
+    if _needs_refund(query):
         return OrderQueryKind.SUMMARY
     if any(word in query for word in ("多少", "几单", "一共", "统计", "总共", "单量")):
         return OrderQueryKind.SUMMARY
@@ -73,23 +79,9 @@ def extract_limit_from_value(value: object) -> int:
 
 
 def looks_like_order_query(query: str) -> bool:
-    return any(
-        word in query
-        for word in (
-            "订单",
-            "单子",
-            "单量",
-            "下单",
-            "发货",
-            "物流",
-            "几单",
-            "待处理",
-            "卖得多",
-            "卖爆",
-            "销量",
-            *ORDER_REVENUE_KEYWORDS,
-        )
-    )
+    if looks_like_order_policy_query(query):
+        return False
+    return any(word in query for word in ORDER_QUERY_KEYWORDS)
 
 
 def looks_like_inventory_query(query: str) -> bool:
@@ -98,6 +90,10 @@ def looks_like_inventory_query(query: str) -> bool:
 
 def looks_like_ops_query(capability_names: set[str]) -> bool:
     return bool(capability_names & {"ops_summary", "handoff_pending"})
+
+
+def looks_like_order_policy_query(query: str) -> bool:
+    return any(word in query for word in ORDER_POLICY_KEYWORDS)
 
 
 def _resolve_order_statuses(query: str) -> tuple[str, ...]:
@@ -124,6 +120,12 @@ def _needs_missing_logistics(query: str) -> bool:
     return any(
         word in query
         for word in ("没物流", "无物流", "暂无物流", "还没物流", "没出物流")
+    )
+
+
+def _needs_refund(query: str) -> bool:
+    return any(word in query for word in ORDER_REFUND_KEYWORDS) and not (
+        looks_like_order_policy_query(query)
     )
 
 

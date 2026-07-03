@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手退款订单数据问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-refund-query
+- **背景**: 员工在群里会继续问“今天有退款订单吗”“本周退款多少”这类经营异常数据，不应被当成“退款规则/售后话术”走知识库，也不能让模型生成 SQL。原 Agent 已有订单动态查询和有赞订单 `refund_state` 字段，但查询计划没有显式退款过滤。
+- **决策**:
+  - 不新增 SQL 入口，不新增工具，继续复用 `OrderQueryPlan` 和 `YouzanOrderRepo` 白名单参数化执行。
+  - 给订单查询计划新增 `needs_refund` 布尔字段，仓库层仅生成固定条件 `refund_state != 0`。
+  - “退款规则/退款话术/售后政策”等规则问法继续走知识库；“退款订单/本周退款多少/退单”这类数据问法走订单动态查询。
+  - 共享探针从 24 项扩到 26 项，新增 `today-refund-summary` 与 `this-week-refund-summary`。
+- **改动**:
+  - `app/models/employee_agent.py` - `OrderQueryPlan` 新增 `needs_refund`。
+  - `app/repository/youzan_order_repo.py` - 订单动态查询白名单 where 支持 `refund_state != 0`。
+  - `app/service/wecom/employee_agent_order_*.py` - 退款数据问法与退款规则问法分流，保持文件体量门禁。
+  - `app/service/wecom/intelligent_bot_order_format.py` - 员工订单行增加“有退款/售后”标记，只展示订单尾号。
+  - `scripts/wecom_employee_agent_probe_cases.py` 与 `scripts/check_wecom_employee_agent_plans.py` - 共享探针与计划 JSON 增加 `needs_refund` 验收字段。
+  - `tests/repository/test_youzan_repo.py`、`tests/service/test_wecom_employee_agent.py`、`tests/service/test_wecom_employee_privacy_format.py` - 补退款过滤、规则分流和隐私展示回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，57 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，26/26。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 使用新 26 项探针打旧生产 `0.69.10` 时按预期失败 1/26：`this-week-refund-summary` 被旧生产误路由到知识库。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN；`python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 提交后同步生产，复验 `/health`、`/ready` 与 26/26 回调探针；剩余为真实企微群内员工自由问法人工验收。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手订单经营金额问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-revenue-summary

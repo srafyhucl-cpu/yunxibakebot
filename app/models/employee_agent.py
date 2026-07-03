@@ -40,6 +40,7 @@ class OrderQueryPlan:
     statuses: tuple[str, ...] = ()
     keyword: str = ""
     needs_missing_logistics: bool = False
+    needs_refund: bool = False
     aggregate_by: str = ""
     sort_by: str = "latest"
     limit: int = 5

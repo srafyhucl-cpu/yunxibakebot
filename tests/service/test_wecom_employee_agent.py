@@ -102,6 +102,26 @@ async def test_planner_builds_this_week_revenue_summary_plan() -> None:
     assert plan.query_plan.keyword == ""
 
 
+async def test_planner_builds_refund_order_summary_plan() -> None:
+    plan = await _planner().plan("今天有退款订单吗")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-07-03"
+    assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.needs_refund is True
+    assert plan.query_plan.keyword == ""
+
+
+async def test_planner_keeps_refund_policy_as_knowledge() -> None:
+    plan = await _planner().plan("退款规则是什么")
+
+    assert plan.intent == AgentIntent.KNOWLEDGE_ANSWER
+    assert plan.tools == ("knowledge_answer",)
+    assert plan.query_plan is None
+
+
 async def test_planner_builds_pending_order_list_plan() -> None:
     plan = await _planner().plan("还有哪些没发货")
 

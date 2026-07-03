@@ -80,6 +80,7 @@ def _parse_order_plan(raw_plan: Any) -> OrderQueryPlan | None:
         statuses=safe_statuses,
         keyword=str(raw_plan.get("keyword") or ""),
         needs_missing_logistics=bool(raw_plan.get("needsMissingLogistics")),
+        needs_refund=bool(raw_plan.get("needsRefund")),
         aggregate_by=str(raw_plan.get("aggregateBy") or ""),
         sort_by=str(raw_plan.get("sortBy") or "latest"),
         limit=extract_limit_from_value(raw_plan.get("limit")),

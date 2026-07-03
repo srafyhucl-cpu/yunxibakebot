@@ -477,6 +477,62 @@ async def test_order_dynamic_summary_counts_statuses(
     }
 
 
+async def test_order_dynamic_query_filters_refund_state(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """退款查询计划应只返回 refund_state 非零订单。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030031",
+            buyer_id="buyer_refund_001",
+            status="TRADE_CLOSED",
+            amount_fen=8800,
+            product_titles="售后退款蛋糕 x 1",
+            total_quantity=1,
+            refund_state=1,
+            pay_time="2026-07-03 12:00:00",
+            created_at="2026-07-03 12:00:00",
+            updated_at="2026-07-03 12:00:00",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030032",
+            buyer_id="buyer_refund_002",
+            status="TRADE_SUCCESS",
+            amount_fen=9900,
+            product_titles="正常订单蛋糕 x 1",
+            total_quantity=1,
+            refund_state=0,
+            pay_time="2026-07-03 13:00:00",
+            created_at="2026-07-03 13:00:00",
+            updated_at="2026-07-03 13:00:00",
+        )
+    )
+
+    rows = await order_repo.query_orders(
+        OrderQueryPlan(
+            kind=OrderQueryKind.LIST,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+            needs_refund=True,
+        )
+    )
+    summary = await order_repo.summarize_orders(
+        OrderQueryPlan(
+            kind=OrderQueryKind.SUMMARY,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+            needs_refund=True,
+        )
+    )
+
+    assert [row["order_no"] for row in rows] == ["E202607030031"]
+    assert summary["total_count"] == 1
+    assert summary["total_amount_fen"] == 8800
+    assert summary["status_counts"] == {"TRADE_CLOSED": 1}
+
+
 async def test_order_dynamic_top_products(order_repo: YouzanOrderRepo) -> None:
     """动态商品聚合应按销量返回排行。"""
     await order_repo.upsert_order(

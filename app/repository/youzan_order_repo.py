@@ -216,4 +216,6 @@ def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
         params.extend([like_keyword, like_keyword, like_keyword])
     if plan.needs_missing_logistics:
         clauses.append("(logistics_no = '' OR logistics_no IS NULL)")
+    if plan.needs_refund:
+        clauses.append("refund_state != 0")
     return "WHERE " + " AND ".join(clauses), params

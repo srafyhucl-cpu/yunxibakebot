@@ -2,6 +2,7 @@ from app.service.wecom.intelligent_bot_ops_format import short_identifier, trans
 from app.service.wecom.intelligent_bot_order_format import (
     build_order_list_tool_result,
     build_order_summary_tool_result,
+    employee_order_line,
 )
 
 
@@ -47,3 +48,21 @@ def test_transfer_line_does_not_expose_user_identifier() -> None:
 def test_short_identifier_keeps_only_suffix() -> None:
     assert short_identifier("da8f723e-d755-4868-8c48-bf9813a77f40") == "77f40"
     assert short_identifier("") == "***"
+
+
+def test_employee_order_line_marks_refund_without_full_order_no() -> None:
+    line = employee_order_line(
+        1,
+        {
+            "order_no": "E202607031234567890",
+            "status": "TRADE_CLOSED",
+            "product_titles": "售后退款蛋糕 x1",
+            "amount_fen": 8800,
+            "refund_state": 1,
+            "pay_time": "2026-07-03 12:00:00",
+        },
+    )
+
+    assert "有退款/售后" in line
+    assert "E202607031234567890" not in line
+    assert "567890" in line
