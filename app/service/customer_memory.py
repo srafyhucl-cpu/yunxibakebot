@@ -1,6 +1,6 @@
 """热路径顾客记忆只读加载。"""
 
-from typing import Any, Protocol
+from typing import Protocol
 
 from app.config import settings
 from app.logger import setup_logger

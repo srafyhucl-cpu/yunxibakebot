@@ -1,11 +1,26 @@
 """有赞订单交易数据访问层。"""
 
-import aiosqlite
+from typing import Any
 
+from app.models.employee_agent import OrderQueryPlan
 from app.models.order import YouzanOrderData
-
-
 from app.repository.base import BaseRepository
+
+
+ORDER_SELECT_FIELDS = (
+    "order_no, buyer_id, status, amount_fen, logistics_no, "
+    "logistics_status, product_titles, total_quantity, "
+    "pay_time, consign_time, pay_type_str, express_type, refund_state, "
+    "post_fee_fen, discount_fen, delivery_province, delivery_city, "
+    "delivery_district, delivery_time, outer_user_id, order_items_json, "
+    "created_at, updated_at"
+)
+ORDER_TIME_EXPR = "substr(COALESCE(NULLIF(pay_time, ''), created_at), 1, 10)"
+ORDER_DATE_EXPR = "COALESCE(NULLIF(pay_time, ''), created_at, updated_at)"
+ORDER_SORT_SQL = {
+    "latest": ORDER_DATE_EXPR + " DESC, order_no DESC",
+    "amount": "amount_fen DESC, " + ORDER_DATE_EXPR + " DESC",
+}
 
 
 class YouzanOrderRepo(BaseRepository):
@@ -14,16 +29,109 @@ class YouzanOrderRepo(BaseRepository):
     async def get_by_order_no(self, order_no: str) -> dict | None:
         """根据订单号获取订单宽表数据。"""
         rows = await self._db.execute_fetchall(
-            "SELECT order_no, buyer_id, status, amount_fen, logistics_no, "
-            "logistics_status, product_titles, total_quantity, "
-            "pay_time, consign_time, pay_type_str, express_type, refund_state, "
-            "post_fee_fen, discount_fen, delivery_province, delivery_city, "
-            "delivery_district, delivery_time, outer_user_id, order_items_json, "
-            "created_at, updated_at "
-            "FROM youzan_orders WHERE order_no = ?",
+            "SELECT " + ORDER_SELECT_FIELDS + " FROM youzan_orders WHERE order_no = ?",
             (order_no,),
         )
         return dict(rows[0]) if rows else None
+
+    async def search_orders(self, keyword: str, limit: int = 5) -> list[dict]:
+        """按订单号、买家标识、商品和配送字段搜索有赞订单。"""
+        normalized_keyword = keyword.strip()
+        if not normalized_keyword:
+            return []
+        like_keyword = f"%{normalized_keyword}%"
+        rows = await self._db.execute_fetchall(
+            "SELECT " + ORDER_SELECT_FIELDS + " "
+            "FROM youzan_orders "
+            "WHERE order_no LIKE ? "
+            "OR buyer_id LIKE ? "
+            "OR outer_user_id LIKE ? "
+            "OR product_titles LIKE ? "
+            "OR delivery_province LIKE ? "
+            "OR delivery_city LIKE ? "
+            "OR delivery_district LIKE ? "
+            "OR delivery_time LIKE ? "
+            "OR order_items_json LIKE ? "
+            "ORDER BY COALESCE(pay_time, created_at, updated_at) DESC, order_no DESC "
+            "LIMIT ?",
+            (
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                limit,
+            ),
+        )
+        return [dict(row) for row in rows]
+
+    async def list_recent_orders(self, limit: int = 5) -> list[dict]:
+        """返回最近有赞订单，用于员工询问“最近订单”时兜底。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT " + ORDER_SELECT_FIELDS + " "
+            "FROM youzan_orders "
+            "ORDER BY COALESCE(pay_time, created_at, updated_at) DESC, order_no DESC "
+            "LIMIT ?",
+            (limit,),
+        )
+        return [dict(row) for row in rows]
+
+    async def query_orders(self, plan: OrderQueryPlan) -> list[dict]:
+        """按白名单订单查询计划返回订单明细。"""
+        where_sql, params = _build_order_where(plan)
+        order_sql = ORDER_SORT_SQL.get(plan.sort_by, ORDER_SORT_SQL["latest"])
+        rows = await self._db.execute_fetchall(
+            "SELECT "
+            + ORDER_SELECT_FIELDS
+            + " FROM youzan_orders "
+            + where_sql
+            + " ORDER BY "
+            + order_sql
+            + " LIMIT ?",
+            (*params, plan.limit),
+        )
+        return [dict(row) for row in rows]
+
+    async def summarize_orders(self, plan: OrderQueryPlan) -> dict[str, Any]:
+        """按白名单订单查询计划返回统计摘要。"""
+        where_sql, params = _build_order_where(plan)
+        rows = await self._db.execute_fetchall(
+            "SELECT COUNT(*) AS total_count, "
+            "COALESCE(SUM(amount_fen), 0) AS total_amount_fen "
+            "FROM youzan_orders " + where_sql,
+            tuple(params),
+        )
+        status_rows = await self._db.execute_fetchall(
+            "SELECT status, COUNT(*) AS count "
+            "FROM youzan_orders "
+            + where_sql
+            + " GROUP BY status ORDER BY count DESC, status ASC",
+            tuple(params),
+        )
+        summary = dict(rows[0]) if rows else {"total_count": 0, "total_amount_fen": 0}
+        summary["status_counts"] = {
+            str(row["status"]): int(row["count"] or 0) for row in status_rows
+        }
+        return summary
+
+    async def list_top_products(self, plan: OrderQueryPlan) -> list[dict]:
+        """按订单商品标题聚合，返回员工粗略销量排行。"""
+        where_sql, params = _build_order_where(plan)
+        rows = await self._db.execute_fetchall(
+            "SELECT product_titles, "
+            "COUNT(*) AS order_count, "
+            "COALESCE(SUM(total_quantity), 0) AS total_quantity, "
+            "COALESCE(SUM(amount_fen), 0) AS total_amount_fen "
+            "FROM youzan_orders " + where_sql + " GROUP BY product_titles "
+            "ORDER BY total_quantity DESC, order_count DESC, product_titles ASC "
+            "LIMIT ?",
+            (*params, plan.limit),
+        )
+        return [dict(row) for row in rows]
 
     async def upsert_order(self, data: YouzanOrderData) -> None:
         """原子化 upsert 订单交易数据。"""
@@ -85,3 +193,27 @@ class YouzanOrderRepo(BaseRepository):
             ),
         )
         await self._db.commit()
+
+
+def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
+    clauses = ["1 = 1"]
+    params: list[object] = []
+    if plan.date_from:
+        clauses.append(ORDER_TIME_EXPR + " >= ?")
+        params.append(plan.date_from)
+    if plan.date_to:
+        clauses.append(ORDER_TIME_EXPR + " <= ?")
+        params.append(plan.date_to)
+    if plan.statuses:
+        placeholders = ",".join("?" for _ in plan.statuses)
+        clauses.append("status IN (" + placeholders + ")")
+        params.extend(plan.statuses)
+    if plan.keyword:
+        like_keyword = f"%{plan.keyword}%"
+        clauses.append(
+            "(product_titles LIKE ? OR order_items_json LIKE ? OR order_no LIKE ?)"
+        )
+        params.extend([like_keyword, like_keyword, like_keyword])
+    if plan.needs_missing_logistics:
+        clauses.append("(logistics_no = '' OR logistics_no IS NULL)")
+    return "WHERE " + " AND ".join(clauses), params

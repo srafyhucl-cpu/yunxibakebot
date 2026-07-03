@@ -169,13 +169,38 @@ x-rontgen: traceId=<链路追踪ID>;...
 
 ---
 
-## 五、企微回调（预留）
+## 五、企微集成
 
 ### 5.1 企微消息回调
 
-**端点**: `GET/POST /api/v1/webhook/wecom`（待全面接入）
+**端点**: `GET/POST /api/v1/webhook/wecom`
 
-当前状态：`wecom/` 模块框架已就位（`client.py` + `crypto.py`），需要完成企微官方注册审核后方可启用。
+当前状态：生产已接入微信客服回调、验签解密、消息队列、AI 回复和人工接手同步。
+
+### 5.2 企微智能机器人插件
+
+**基础端点**: `/api/v1/wecom/intelligent-bot`
+
+鉴权：
+
+- Header：`X-Yunxi-Bot-Key`
+- 值：生产环境 `WECOM_BOT_PLUGIN_API_KEY`
+- 不支持 URL query 参数传密钥，避免密钥进入访问日志。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET/POST | `/plugins/ping` | 连通性验证 |
+| POST | `/tools/order-lookup` | 查订单摘要 |
+| POST | `/tools/product-lookup` | 查商品价格、库存、分类 |
+| POST | `/tools/knowledge-answer` | 查知识库答案 |
+| POST | `/tools/customer-lookup` | 查客户地址簿线索，返回脱敏结果 |
+| POST | `/tools/group-campaign-summary` | 查客户群批次汇总 |
+| POST | `/tools/handoff-pending` | 查待人工列表 |
+| POST | `/tools/ops-summary` | 查观察台值守摘要 |
+| POST | `/tools/integration-status` | 查同步排障摘要 |
+| POST | `/tools/offline-review-summary` | 查离线复盘摘要 |
+
+所有工具均为只读；订单、客户地址、客户群待跟进、转人工摘要和 webhook 错误细节只返回脱敏或白名单字段。
 
 ---
 

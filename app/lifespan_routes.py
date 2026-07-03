@@ -34,6 +34,9 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.channels.storefront.orders import create_storefront_orders_router
     from app.api.channels.storefront.payments import create_storefront_payments_router
     from app.api.integrations.wecom import router as wecom_router
+    from app.api.integrations.wecom_intelligent_bot import (
+        create_wecom_intelligent_bot_router,
+    )
     from app.api.integrations.youzan_webhook import create_webhook_router
     from app.service.wecom.kf_message_queue import kf_queue
     from app.service.wecom.message_queue import wecom_queue
@@ -87,4 +90,30 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
             services["knowledge_sync_service"],
         )
     )
+    app.include_router(
+        create_wecom_intelligent_bot_router(
+            tool_service=services["wecom_bot_business_tool_service"],
+            ops_tool_service=services["wecom_bot_ops_tool_service"],
+            status_tool_service=_with_offline_summary_provider(app, services),
+            agent_service=services.get("employee_agent_service"),
+        )
+    )
     app.include_router(wecom_router)
+
+
+def _get_offline_review_summary(app: FastAPI) -> object | None:
+    scheduler = getattr(app.state, "offline_review_scheduler", None)
+    if scheduler is None:
+        return None
+    return scheduler.get_last_summary()
+
+
+def _with_offline_summary_provider(
+    app: FastAPI,
+    services: dict[str, Any],
+) -> Any:
+    status_service = services["wecom_bot_status_tool_service"]
+    status_service.set_offline_summary_provider(
+        lambda: _get_offline_review_summary(app)
+    )
+    return status_service

@@ -7,7 +7,7 @@ import asyncio
 import json
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -161,7 +161,7 @@ def print_report(report: MigrationReport) -> None:
 
 def build_json_report(report: MigrationReport) -> dict[str, object]:
     generated_at = (
-        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
     return {
         "status": "ready" if report.schema_ready else "failed",

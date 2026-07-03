@@ -11,15 +11,22 @@ from app.models.customer_profile import (
     CustomerProfileUpsert,
     MemoryConsentStatus,
 )
+from app.models.message import Message
 from app.models.session import Session
 from app.models.session_scope import SessionScopeSnapshot, snapshot_session_scope
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
 from app.service.llm.client import chat_completion as llm_chat
-from app.service.offline.agent_shared import format_dialog
+from app.service.offline.agent_shared import format_dialog, role_text
 from app.service.offline.json_utils import parse_json_object
+from app.service.offline.memory_merge import (
+    merge_json_lists,
+    merge_json_objects,
+    merge_memory_signal,
+)
 from app.service.offline.model_selection import select_offline_memory_model
+from app.service.offline.quality_signals import MemorySignal, extract_memory_signal
 
 logger = setup_logger()
 
@@ -112,6 +119,7 @@ class MemoryAgent:
                     continue
                 scope = snapshot_session_scope(session.extra_info)
                 parsed = await self._extract_memory(messages, scope)
+                parsed = _merge_memory_signal(parsed, extract_memory_signal(messages))
                 if not parsed.has_useful_fact():
                     logger.info("离线记忆固化跳过空画像 session=%s", session.id)
                     continue
@@ -123,7 +131,7 @@ class MemoryAgent:
 
     async def _extract_memory(
         self,
-        messages: list,
+        messages: list[Message],
         scope: SessionScopeSnapshot,
     ) -> ParsedCustomerMemory:
         memory_input = _build_memory_input(messages, scope)
@@ -144,7 +152,7 @@ class MemoryAgent:
                 if attempt >= max_attempts - 1:
                     raise
                 continue
-            if parsed.has_useful_fact() or not _has_memory_signal(memory_input):
+            if parsed.has_useful_fact() or not _has_memory_signal(messages):
                 return parsed
             last_content = "模型返回空画像，但对话里疑似包含顾客事实。"
         return parsed
@@ -162,24 +170,21 @@ class MemoryAgent:
                 user_id=session.user_id,
                 display_name=memory.display_name
                 or _existing_value(existing, "display_name"),
-                preferences_json=_memory_value(
+                preferences_json=merge_json_objects(
                     memory.preferences_json,
                     _existing_value(existing, "preferences_json"),
-                    "{}",
                 ),
-                order_summary_json=_memory_value(
+                order_summary_json=merge_json_objects(
                     memory.order_summary_json,
                     _existing_value(existing, "order_summary_json"),
-                    "{}",
                 ),
-                special_dates_json=_merge_json_lists(
+                special_dates_json=merge_json_lists(
                     memory.special_dates_json,
                     _existing_value(existing, "special_dates_json"),
                 ),
-                allergens_json=_memory_value(
+                allergens_json=merge_json_lists(
                     memory.allergens_json,
                     _existing_value(existing, "allergens_json"),
-                    "[]",
                 ),
                 consent_status=memory.consent_status,
                 source_evidence_json=json.dumps(
@@ -201,26 +206,19 @@ def _existing_value(profile: CustomerProfile | None, field_name: str) -> str:
     return str(getattr(profile, field_name, "")) if profile is not None else ""
 
 
-def _memory_value(new_value: str, existing_value: str, empty_value: str) -> str:
-    """Keep existing memory when the current extraction is empty."""
-    return existing_value if new_value == empty_value and existing_value else new_value
-
-
-def _merge_json_lists(new_value: str, existing_value: str) -> str:
-    """Merge list-shaped memory fields without dropping older facts."""
-    existing_items = _loads_list(existing_value)
-    new_items = _loads_list(new_value)
-    if not new_items:
-        return existing_value or "[]"
-    merged: list[object] = []
-    seen: set[str] = set()
-    for item in [*existing_items, *new_items]:
-        key = json.dumps(item, ensure_ascii=False, sort_keys=True)
-        if key in seen:
-            continue
-        merged.append(item)
-        seen.add(key)
-    return json.dumps(merged, ensure_ascii=False)
+def _merge_memory_signal(
+    parsed: ParsedCustomerMemory,
+    signal: MemorySignal,
+) -> ParsedCustomerMemory:
+    payload = merge_memory_signal(parsed, signal)
+    return ParsedCustomerMemory(
+        display_name=payload["display_name"],
+        preferences_json=payload["preferences_json"],
+        order_summary_json=payload["order_summary_json"],
+        special_dates_json=payload["special_dates_json"],
+        allergens_json=payload["allergens_json"],
+        consent_status=payload["consent_status"],
+    )
 
 
 def _build_memory_input(messages: list, scope: SessionScopeSnapshot) -> str:
@@ -257,8 +255,15 @@ def _build_memory_messages(
     ]
 
 
-def _has_memory_signal(memory_input: str) -> bool:
-    return any(keyword in memory_input for keyword in MEMORY_SIGNAL_KEYWORDS)
+def _has_memory_signal(messages: list[Message]) -> bool:
+    user_text = _joined_user_text(messages)
+    return any(keyword in user_text for keyword in MEMORY_SIGNAL_KEYWORDS)
+
+
+def _joined_user_text(messages: list[Message]) -> str:
+    return "\n".join(
+        message.content for message in messages if role_text(message.role) == "user"
+    )
 
 
 def _parse_memory_json(content: str) -> ParsedCustomerMemory:
@@ -290,11 +295,3 @@ def _dump_json_list(value: object) -> str:
     """Keep only JSON list shaped values."""
     payload = value if isinstance(value, list) else []
     return json.dumps(payload, ensure_ascii=False)
-
-
-def _loads_list(raw_json: str) -> list[object]:
-    try:
-        parsed = json.loads(raw_json or "[]")
-    except json.JSONDecodeError:
-        return []
-    return parsed if isinstance(parsed, list) else []

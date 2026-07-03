@@ -180,6 +180,12 @@ async def test_shutdown_lifespan_services_stops_runtime_components(
     async def fake_stop_offline_review_scheduler(app) -> None:
         events.append("offline-stop")
 
+    async def fake_stop_session_idle_closer(app) -> None:
+        events.append("idle-close-stop")
+
+    async def fake_stop_order_timeout_scheduler(app) -> None:
+        events.append("order-timeout-stop")
+
     async def fake_close_wecom_client() -> None:
         events.append("wecom-close")
 
@@ -200,6 +206,12 @@ async def test_shutdown_lifespan_services_stops_runtime_components(
     )
     _install_runtime_module(
         monkeypatch,
+        "app.service.ops",
+        stop_session_idle_closer=fake_stop_session_idle_closer,
+        stop_order_timeout_scheduler=fake_stop_order_timeout_scheduler,
+    )
+    _install_runtime_module(
+        monkeypatch,
         "app.service.wecom.client",
         close_wecom_client=fake_close_wecom_client,
     )
@@ -209,7 +221,14 @@ async def test_shutdown_lifespan_services_stops_runtime_components(
 
     await main._shutdown_lifespan_services(app, set())  # noqa: SLF001
 
-    assert events == ["queue-stop", "queue-stop", "offline-stop", "wecom-close"]
+    assert events == [
+        "queue-stop",
+        "queue-stop",
+        "idle-close-stop",
+        "offline-stop",
+        "order-timeout-stop",
+        "wecom-close",
+    ]
     assert fake_alert_service.alerts
 
 

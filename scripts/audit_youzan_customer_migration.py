@@ -8,7 +8,7 @@ import json
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -996,7 +996,7 @@ def build_json_report(
     orders_csv_path: Path,
 ) -> dict[str, object]:
     generated_at = (
-        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
     return {
         "status": "ready",
@@ -1019,7 +1019,7 @@ def build_import_json_report(
     db_path_value: str,
 ) -> dict[str, object]:
     generated_at = (
-        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
     return {
         "status": "ready",

@@ -10,6 +10,7 @@ from app.service import chat_ai_loop as chat_ai_loop_module
 from app.service import chat_llm as chat_llm_module
 from app.service import chat_llm_request as chat_llm_request_module
 from app.models.message import Message, MessageRole
+from app.models.customer_profile import CustomerProfile
 from app.models.session import Session, SessionStatus
 from app.models.session_scope import SessionScope
 from app.service.chat import TRANSFER_REPLY
@@ -25,6 +26,7 @@ from app.service.chat_message_flow import (
     ChatMessageFlowDependencies,
     complete_ai_reply,
     handle_transfer_intent,
+    run_ai_reply_loop,
 )
 from app.service.chat_llm import (
     LlmChoiceResult,
@@ -457,6 +459,81 @@ async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
     assert llm_context.has_image is True
     assert llm_context.tool_context.history_text == "prepared history"
     assert llm_context.tool_context.session is session
+
+
+@pytest.mark.asyncio
+async def test_run_ai_reply_loop_passes_customer_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    profile = CustomerProfile(id="p-1", channel="youzan", user_id="buyer-1")
+    dependencies = ChatMessageFlowDependencies(
+        session_mgr=object(),
+        session_repo=object(),
+        message_repo=object(),
+        transfer_mgr=object(),
+        analytics_repo=object(),
+        fallback_reply="fallback",
+        transfer_reply="transfer",
+        auto_transfer_reply="auto transfer",
+        ai_loop_dependencies=AiConversationLoopDependencies(
+            session_mgr=object(),
+            knowledge=object(),
+            transfer_mgr=object(),
+            session_repo=object(),
+            youzan_client=object(),
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=_fake_alerter,
+        ),
+        customer_profile_repo=object(),
+    )
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+
+    async def fake_load_customer_profile(
+        customer_profile_repo: object,
+        channel: str,
+        user_id: str,
+    ) -> CustomerProfile | None:
+        captured["load_args"] = (channel, user_id, customer_profile_repo)
+        return profile
+
+    async def fake_run_ai_conversation_loop(
+        dependencies: object,
+        request: AiConversationLoopRequest,
+    ) -> str:
+        captured["request_profile"] = request.customer_profile
+        return "reply"
+
+    monkeypatch.setattr(
+        chat_message_flow_module,
+        "load_customer_profile",
+        fake_load_customer_profile,
+    )
+    monkeypatch.setattr(
+        chat_message_flow_module,
+        "run_ai_conversation_loop",
+        fake_run_ai_conversation_loop,
+    )
+
+    reply = await run_ai_reply_loop(
+        dependencies,
+        ChatMessageRequest(channel="youzan", user_id="buyer-1", content="hello"),
+        session,
+        IntentDetectionResult(
+            intent=IntentType.PRODUCT_CONSULTATION,
+            history=[],
+            history_text="history",
+            started_at=0.0,
+            finished_at=0.0,
+            intent_ms=0,
+        ),
+        {},
+    )
+
+    assert reply == "reply"
+    assert captured["load_args"][:2] == ("youzan", "buyer-1")
+    assert captured["request_profile"] is profile
 
 
 @pytest.mark.asyncio

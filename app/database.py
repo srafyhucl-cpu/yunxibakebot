@@ -23,6 +23,8 @@ from app.migrations.schema import SCHEMA_STATEMENTS, PRAGMA_STATEMENTS
 
 logger = setup_logger()
 ROOT_DIR = Path(__file__).resolve().parent.parent
+MISSING_COLUMN_ERROR = "no such column"
+CREATE_INDEX_PREFIX = "CREATE INDEX"
 
 
 def resolve_database_path(db_path: str | Path | None = None) -> str:
@@ -40,8 +42,7 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
     conn.row_factory = aiosqlite.Row
     for pragma in PRAGMA_STATEMENTS:
         await conn.execute(pragma)
-    for stmt in SCHEMA_STATEMENTS:
-        await conn.execute(stmt)
+    await _execute_schema_statements(conn)
     await conn.commit()
 
     # 执行版本化增量迁移（含动态迁移逻辑）
@@ -51,6 +52,27 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
 
     logger.info("Database initialized at %s", resolved_db_path)
     return conn
+
+
+async def _execute_schema_statements(conn: aiosqlite.Connection) -> None:
+    """执行全量 schema，并允许旧库先跳过缺列索引。"""
+    for stmt in SCHEMA_STATEMENTS:
+        try:
+            await conn.execute(stmt)
+        except aiosqlite.OperationalError as exc:
+            if _is_missing_column_index_statement(stmt, exc):
+                logger.debug("跳过待迁移字段索引，稍后由版本化迁移补齐: %s", exc)
+                continue
+            raise
+
+
+def _is_missing_column_index_statement(
+    stmt: str,
+    exc: aiosqlite.OperationalError,
+) -> bool:
+    return stmt.lstrip().upper().startswith(CREATE_INDEX_PREFIX) and (
+        MISSING_COLUMN_ERROR in str(exc).lower()
+    )
 
 
 async def close_db(conn: aiosqlite.Connection) -> None:

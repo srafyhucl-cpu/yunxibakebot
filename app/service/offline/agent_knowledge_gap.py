@@ -13,6 +13,7 @@ from app.service.llm.client import chat_completion as llm_chat
 from app.service.offline.agent_shared import format_dialog
 from app.service.offline.json_utils import parse_json_object
 from app.service.offline.model_selection import select_offline_gap_model
+from app.service.offline.quality_signals import GapSignal, extract_gap_signals
 
 logger = setup_logger()
 
@@ -61,20 +62,20 @@ class KnowledgeGapAgent:
                 if not messages:
                     continue
                 parsed = await self._extract_gap(review, messages)
-                if not parsed.question_norm:
-                    continue
-                gaps.append(
-                    await self._gap_repo.upsert_open(
-                        KnowledgeGapCreate(
-                            question_norm=parsed.question_norm,
-                            proposed_answer=parsed.proposed_answer,
-                            related_sessions_json=json.dumps(
-                                [review.session_id],
-                                ensure_ascii=False,
-                            ),
+                gap_signals = _merge_gap_signals(parsed, extract_gap_signals(messages))
+                for gap_signal in gap_signals:
+                    gaps.append(
+                        await self._gap_repo.upsert_open(
+                            KnowledgeGapCreate(
+                                question_norm=gap_signal.question_norm,
+                                proposed_answer=gap_signal.proposed_answer,
+                                related_sessions_json=json.dumps(
+                                    [review.session_id],
+                                    ensure_ascii=False,
+                                ),
+                            )
                         )
                     )
-                )
             except Exception as exc:
                 logger.error(
                     "离线知识缺口挖掘失败 session=%s err=%s", review.session_id, exc
@@ -111,6 +112,33 @@ def _build_gap_input(review: ConversationReview, messages: list) -> str:
         f"质检问题：{review.issues_json}\n"
         f"会话内容：\n{format_dialog(messages)}"
     )
+
+
+def _merge_gap_signals(
+    parsed: ParsedKnowledgeGap,
+    signal_gaps: list[GapSignal],
+) -> list[GapSignal]:
+    gaps = list(signal_gaps)
+    if parsed.question_norm:
+        gaps.insert(
+            0,
+            GapSignal(
+                question_norm=parsed.question_norm,
+                proposed_answer=parsed.proposed_answer,
+            ),
+        )
+    return _unique_gap_signals(gaps)
+
+
+def _unique_gap_signals(gaps: list[GapSignal]) -> list[GapSignal]:
+    seen: set[str] = set()
+    values: list[GapSignal] = []
+    for gap in gaps:
+        if gap.question_norm in seen:
+            continue
+        values.append(gap)
+        seen.add(gap.question_norm)
+    return values
 
 
 def _parse_gap_json(content: str) -> ParsedKnowledgeGap:

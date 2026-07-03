@@ -83,6 +83,42 @@ async def test_run_migration_apply_creates_required_tables(tmp_path: Path) -> No
     assert report.missing_after == []
 
 
+async def test_init_db_applies_late_product_category_columns_to_old_database(
+    tmp_path: Path,
+) -> None:
+    from app.database import close_db, init_db
+
+    db_path = tmp_path / "bot.db"
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute(
+            "CREATE TABLE youzan_products ("
+            "item_id INTEGER PRIMARY KEY, "
+            "title TEXT NOT NULL, "
+            "alias TEXT NOT NULL UNIQUE, "
+            "price_fen INTEGER NOT NULL, "
+            "stock INTEGER NOT NULL, "
+            "updated_at TEXT NOT NULL"
+            ")"
+        )
+        conn.execute("CREATE TABLE _schema_version (version INTEGER PRIMARY KEY)")
+        for version in range(1, 7):
+            conn.execute("INSERT INTO _schema_version (version) VALUES (?)", (version,))
+
+    db = await init_db(str(db_path))
+    await close_db(db)
+
+    with closing(sqlite3.connect(db_path)) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(youzan_products)")}
+        versions = {
+            row[0] for row in conn.execute("SELECT version FROM _schema_version")
+        }
+
+    assert "tag_ids_json" in columns
+    assert "classification_ids_json" in columns
+    assert 11 in versions
+    assert 13 in versions
+
+
 async def test_async_main_returns_failure_for_dry_run_missing_tables(
     tmp_path: Path,
     capsys,

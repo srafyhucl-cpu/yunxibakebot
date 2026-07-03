@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     EMBEDDING_INDEX_DIR: str = "data/embeddings"
     ENABLE_HYBRID_RETRIEVAL: bool = False
     RRF_K: int = 60
-    ENABLE_CUSTOMER_MEMORY: bool = False
+    ENABLE_CUSTOMER_MEMORY: bool = True
     ENABLE_REPLY_GUARD: bool = False
     ENABLE_OFFLINE_REVIEW: bool = False
     OFFLINE_REVIEW_NIGHT_START_HOUR: int = 22
@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     WECOM_ENCODING_AES_KEY: str = ""
     WECOM_STAFF_ID: str = ""  # 客服小李的企微 USER_ID
     WECOM_ROBOT_WEBHOOK: str = ""  # 企微值班群机器人 WEBHOOK 地址 (选填，支持群机器人)
+    WECOM_BOT_PLUGIN_API_KEY: str = ""  # 企微智能机器人普通模式工具访问密钥
+    WECOM_INTELLIGENT_BOT_TOKEN: str = ""  # 企微智能机器人 API URL 回调 Token
+    WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY: str = (
+        ""  # 企微智能机器人 API URL 回调 AESKey
+    )
     WECOM_API_BASE: str = "https://qyapi.weixin.qq.com/cgi-bin"
     WECOM_HTTP_TIMEOUT_SECONDS: float = 10.0
     # ── 企业微信（微信客服） ──

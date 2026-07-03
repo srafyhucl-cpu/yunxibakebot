@@ -350,6 +350,7 @@ def test_check_channel_readiness_passes_when_channels_are_configured(
     monkeypatch.setattr(smoke_test.settings, "WECOM_TOKEN", "wecom-token")
     monkeypatch.setattr(smoke_test.settings, "WECOM_ENCODING_AES_KEY", "wecom-aes-key")
     monkeypatch.setattr(smoke_test.settings, "WECOM_KF_ID", "wk_test")
+    monkeypatch.setattr(smoke_test.settings, "WECOM_BOT_PLUGIN_API_KEY", "plugin-key")
     monkeypatch.setattr(smoke_test.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(smoke_test.settings, "WECOM_KF_SERVICER_USERID", "servicer")
 
@@ -372,6 +373,7 @@ def test_check_channel_readiness_reports_missing_channel_settings(
     monkeypatch.setattr(smoke_test.settings, "WECOM_TOKEN", "")
     monkeypatch.setattr(smoke_test.settings, "WECOM_ENCODING_AES_KEY", "")
     monkeypatch.setattr(smoke_test.settings, "WECOM_KF_ID", "")
+    monkeypatch.setattr(smoke_test.settings, "WECOM_BOT_PLUGIN_API_KEY", "")
     monkeypatch.setattr(smoke_test.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(smoke_test.settings, "WECOM_KF_SERVICER_USERID", "")
 
@@ -385,6 +387,7 @@ def test_check_channel_readiness_reports_missing_channel_settings(
     assert "WECOM_TOKEN" in result.detail
     assert "WECOM_ENCODING_AES_KEY" in result.detail
     assert "WECOM_KF_ID" in result.detail
+    assert "WECOM_BOT_PLUGIN_API_KEY" in result.detail
     assert "WECOM_STAFF_ID_OR_WECOM_KF_SERVICER_USERID" in result.detail
 
 

@@ -20,3 +20,9 @@ def test_settings_default_env_file_does_not_follow_current_directory(
     loaded_settings = Settings()
 
     assert loaded_settings.ADMIN_API_TOKEN != "TOKEN_FROM_WRONG_WORKDIR"
+
+
+def test_settings_defaults_enable_customer_memory_without_env() -> None:
+    loaded_settings = Settings(_env_file=None)
+
+    assert loaded_settings.ENABLE_CUSTOMER_MEMORY is True

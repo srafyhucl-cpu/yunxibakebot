@@ -4,13 +4,20 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from collections.abc import Callable
-from typing import AsyncContextManager
+from typing import AsyncContextManager, Protocol
 
 from app.config import settings
 from app.logger import setup_logger
 from app.service.offline.orchestrator import OfflineReviewOrchestrator
 
 logger = setup_logger()
+
+
+class SupportsIdleSessionClose(Protocol):
+    """定义离线沉淀前置会话收口能力。"""
+
+    async def close_once(self) -> int:
+        """执行一次空闲会话收口。"""
 
 
 @dataclass
@@ -35,10 +42,12 @@ class OfflineReviewScheduler:
         orchestrator: OfflineReviewOrchestrator,
         interval_hours: float,
         scope_factory: Callable[[], AsyncContextManager[object]] | None = None,
+        idle_closer: SupportsIdleSessionClose | None = None,
     ) -> None:
         self._orchestrator = orchestrator
         self._interval_seconds = max(interval_hours, 0.01) * 3600
         self._scope_factory = scope_factory
+        self._idle_closer = idle_closer
         self._task: asyncio.Task[None] | None = None
         self._last_summary = OfflineReviewRunSummary()
 
@@ -92,8 +101,10 @@ class OfflineReviewScheduler:
 
         if self._scope_factory is not None:
             async with self._scope_factory():
+                await self._close_idle_sessions()
                 reviews, gaps, profiles = await self._run_orchestrator()
         else:
+            await self._close_idle_sessions()
             reviews, gaps, profiles = await self._run_orchestrator()
 
         summary = OfflineReviewRunSummary(
@@ -121,6 +132,11 @@ class OfflineReviewScheduler:
         gaps = getattr(gap_agent, "last_run_result", []) if gap_agent else []
         profiles = getattr(memory_agent, "last_run_result", []) if memory_agent else []
         return reviews, gaps, profiles
+
+    async def _close_idle_sessions(self) -> None:
+        if self._idle_closer is None:
+            return
+        await self._idle_closer.close_once()
 
 
 def _now_str() -> str:

@@ -1,4 +1,416 @@
 ﻿
+## [2026-07-03] - feat(wecom): 搭建员工助手全业务 Agent 底座
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-foundation
+- **背景**: 企微 API 模式已具备 URL 回调和订单查询能力，但现有分发仍偏关键词路由，员工自由问法会显得“不智能”；需要升级为先理解问题、再选择订单/商品/知识库/运营工具的员工 Agent 底座。
+- **决策**:
+  - 外部企微入口保持 `POST /api/v1/wecom/intelligent-bot/callback` 不变，内部由 `EmployeeAgentService` 接管编排。
+  - 不让模型直接输出或执行 SQL；LLM/规则只生成 `AgentPlan` / `OrderQueryPlan`，仓库层按白名单字段和参数化 SQL 执行。
+  - 能力检索先用轻量 capability card 实现，覆盖订单、商品、知识库、系统状态和待人工；后续可替换为真正向量检索，不影响调用接口。
+  - 员工回复以工具结构化结果为准，LLM 只做轻量润色；润色失败时返回确定性文本。
+- **改动**:
+  - 新增 `app/models/employee_agent.py`，定义 `AgentPlan`、`OrderQueryPlan`、`ToolResult` 等统一接口。
+  - 新增 `employee_agent_capabilities.py`、`employee_agent_planner.py`、`employee_agent_service.py`，完成能力召回、计划生成和多工具编排。
+  - `WeComBotMessageDispatcher` 支持注入员工 Agent，保留原关键词路由作为未注入时兜底。
+  - `YouzanOrderRepo` 新增动态订单查询、订单统计和商品销量排行，均使用字段白名单和参数化 SQL。
+  - `WeComOrderLookupService` 新增面向员工的订单计划执行结果，默认展示中文状态、汇总、序号和订单尾号，避免刷完整订单号和隐私字段。
+  - lifespan 装配新增 `employee_agent_service` 并传入企微智能机器人路由。
+  - 补充 planner、Agent 编排、dispatcher、repository 和 lifespan 装配测试。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/repository/test_youzan_repo.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，29 条。
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_callback_api.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py -q --no-cov` 通过，30 条。
+  - `python -m ruff check app/models/employee_agent.py app/repository/youzan_order_repo.py app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_planner.py app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_order_lookup.py app/service/wecom/intelligent_bot_dispatcher.py app/api/integrations/wecom_intelligent_bot.py app/lifespan_services.py app/lifespan_routes.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/test_lifespan_routes_services.py` 通过。
+  - `python -m ruff format --check app/models/employee_agent.py app/repository/youzan_order_repo.py app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_planner.py app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_order_lookup.py app/service/wecom/intelligent_bot_dispatcher.py app/api/integrations/wecom_intelligent_bot.py app/lifespan_services.py app/lifespan_routes.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/test_lifespan_routes_services.py` 通过。
+  - 架构红线扫描无输出：`api` 未直接导入 repository，`service` 未直连数据库，`models` 未引用上层模块。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+- **剩余事项**:
+  - 本轮尚未同步生产；生产同步前需做生产 `/health`、`/ready`、企微 smoke 和群内自由问法验收。
+  - 第一阶段 capability card 仍是轻量文本检索，后续可接入真正向量化能力 RAG 和更多业务工具。
+
+## [2026-07-03] - feat(wecom): 优先用有赞订单增强智能机器人订单查询
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-aibot-youzan-order-lookup
+- **背景**: 企微 API 模式已能回调回复，但员工订单查询仍只查自建小程序 `orders` 表；生产数据中主要订单在 `youzan_orders`，需要先把订单类查询做好。
+- **决策**:
+  - 企微订单查询采用确定性混合流程：明确有赞交易号优先调用既有客服订单/物流工具；否则先查 `youzan_orders`；最后才回退小程序订单服务。
+  - `草莓蛋糕订单` 等同时包含商品词和订单词的问题，优先走订单查询，避免被商品查询抢路由。
+  - 对企微返回做隐私收敛，只展示订单号、状态、商品、金额、付款时间、配送区域和物流摘要，不返回买家标识或完整隐私字段。
+- **改动**:
+  - `YouzanOrderRepo` 新增 `search_orders()` 和 `list_recent_orders()`，字段显式列出并使用参数化查询。
+  - 新增 `WeComOrderLookupService`，编排有赞订单号、物流意图、有赞宽表搜索和小程序订单兜底。
+  - `WeComBotBusinessToolService.lookup_orders()` 优先委托新订单编排服务，并保留原 `order_service` 兜底。
+  - lifespan 装配新增 `youzan_order_repo` 和 `wecom_order_lookup_service`。
+  - 二次生产探针发现 `椰椰凤梨订单` 会把“订单”作为商品关键词一并搜索，已新增订单查询词归一化，去除“帮我/查一下/订单/下单”等通用词。
+  - 生产关键词探针命中后发现商品标题已带数量时会重复展示 `x 1`，已收紧有赞订单行格式化。
+  - 补充 repository、企微订单编排、dispatcher 路由优先级和 lifespan 装配测试。
+- **验证结果**:
+  - `python -m pytest tests/repository/test_youzan_repo.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/api/test_wecom_intelligent_bot_callback_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过。
+  - 二次修复后追加 `python -m pytest tests/service/test_wecom_intelligent_bot_order_lookup.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/api/test_wecom_intelligent_bot_callback_api.py -q --no-cov` 通过。
+  - `python -m ruff check app\repository\youzan_order_repo.py app\service\wecom\intelligent_bot_order_lookup.py app\service\wecom\intelligent_bot_tools.py app\service\wecom\intelligent_bot_dispatcher.py app\lifespan_services.py app\main.py tests\repository\test_youzan_repo.py tests\service\test_wecom_intelligent_bot_order_lookup.py tests\service\test_wecom_intelligent_bot_dispatcher.py tests\test_lifespan_routes_services.py` 通过。
+  - 架构红线扫描无输出：`api` 未直接导入 repository，`service` 未直连数据库，`models` 未引用上层模块。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+- **生产同步**:
+  - 文件级同步，不运行批量部署脚本，不执行递归删除。
+  - 生产备份目录：
+    - `/opt/yunxibakebot/backups/wecom-aibot-youzan-order-lookup-20260703-180240`
+    - `/opt/yunxibakebot/backups/wecom-aibot-youzan-order-normalize-20260703-180859`
+    - `/opt/yunxibakebot/backups/wecom-aibot-youzan-order-format-20260703-210717`
+  - 同步文件：`LOGBOOK.md`、`app/main.py`、`app/lifespan_services.py`、`app/repository/youzan_order_repo.py`、`app/service/wecom/intelligent_bot_dispatcher.py`、`app/service/wecom/intelligent_bot_tools.py`、`app/service/wecom/intelligent_bot_order_lookup.py`。
+  - 生产 `python3 -m compileall -q ...` 通过，`systemctl restart yunxibakebot` 后服务为 `active`。
+  - 生产 `/health` 返回 200，`status=ok`；`/ready` 返回 200，`status=ready`。
+  - 生产 `python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn` 通过，13/13。
+  - 生产真实订单号探针 `E20260518202921086606177` 命中 `local_short_circuit`，返回 `椰椰凤梨 x 1`、`TRADE_SUCCESS`、`322.50元`。
+  - 生产关键词探针 `椰椰凤梨订单` 命中 `youzan_orders`，返回 1 个有赞匹配订单。
+- **剩余事项**:
+  - 生产同步后，在企微群内用真实有赞交易号、商品关键词订单、最近订单和物流问题做冒烟。
+
+## [2026-07-03] - feat(wecom): 切换智能机器人为 API 模式 URL 回调
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-aibot-url-callback
+- **背景**: 普通模式工具配置需要在企微后台手工维护入参/出参，且群内机器人未稳定拿到工具返回值；已决定改用企微智能机器人 API 模式 URL 回调，由本项目后端直接生成员工回复。
+- **决策**:
+  - 主入口改为 `https://yunxifood.cn/api/v1/wecom/intelligent-bot/callback`。
+  - 普通模式 `/plugins/ping` 和 `/tools/*` 保留为调试、冒烟和单项验收入口。
+  - 短连接 URL 回调优先于长连接；长连接草稿文件已移除，避免误接入后台任务。
+- **改动**:
+  - 新增智能机器人 JSON 明文解析、内部 skill 分发和 URL 回调服务。
+  - 回调 `GET` 支持 `echostr` 验签解密；`POST` 支持 `{"encrypt":"..."}` 解密、调用内部只读 skill、返回加密 JSON 回复。
+  - 新增 `WECOM_INTELLIGENT_BOT_TOKEN` / `WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY`，未配置时回退 `WECOM_TOKEN` / `WECOM_ENCODING_AES_KEY`。
+  - 企微 AES 回复改用真实随机数，并补充回复签名生成。
+- **生产同步**:
+  - 文件级同步，不运行批量部署脚本，不执行递归删除。
+  - 生产备份目录：`/opt/yunxibakebot/backups/wecom-aibot-url-callback-20260703-154519`。
+  - 首次重启后出现 502，根因为生产 `app/service/wecom/intelligent_bot_status_tools.py` 未同步，缺少 `set_offline_summary_provider()`；已补同步该明确文件并重启恢复。
+- **验证结果**:
+  - 本地 `python -m pytest tests/api/test_wecom_intelligent_bot_callback_api.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/test_lifespan_routes_services.py tests/test_config.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov` 通过。
+  - 本地 `python -m ruff check ...` 通过。
+  - 本地 `python scripts/check_project.py --skip-tests` 通过。
+  - 本地 `python scripts/check_mistake_ledger.py` 通过。
+  - 生产 `python3 -m compileall -q ...` 通过。
+  - 生产 `/health` 返回 200，`status=ok`。
+  - 生产 `/ready` 返回 200，`status=ready`，且 `wecom_intelligent_bot_callback_token_configured=true`、`wecom_intelligent_bot_encoding_aes_key_configured=true`。
+  - 生产使用真实配置生成加密 GET/POST 探针：`GET /api/v1/wecom/intelligent-bot/callback` 返回 `ok`；`POST /callback` 返回 200，加密回复签名校验通过，回复类型为 `text`。
+  - 生产 `python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn` 通过，13/13。
+- **剩余事项**:
+  - 在企微后台把 API 模式切到“设置接收消息回调地址”，保存 URL 后做群内真实问答验收。
+
+## [2026-07-03] - fix(wecom): 智能机器人消息回调用 stream 被动回复
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-aibot-stream-reply
+- **背景**: 企微真实消息能命中 URL 回调且服务端返回 200，但客户端没有展示机器人回复。
+- **根因**:
+  - 接收消息回调场景应返回智能机器人 `stream` 消息；先前实现返回 `msgtype=text`，服务端探针可解密成功，但企微客户端不展示。
+- **改动**:
+  - 消息回调回复改为 `{"msgtype":"stream","stream":{"id":"<msgid>","finish":true,"content":"..."}}`。
+  - 增加安全观测日志，仅记录 `msgtype/chattype/route/reply_type/reply_chars/has_text`，不记录员工原文、密钥或回复正文。
+  - 同步架构文档中的被动回复格式说明。
+- **生产同步**:
+  - 文件级同步 `app/service/wecom/intelligent_bot_callback.py` 和 `app/service/wecom/intelligent_bot_dispatcher.py`。
+  - 生产备份目录：`/opt/yunxibakebot/backups/wecom-aibot-stream-reply-20260703-160939`。
+- **验证结果**:
+  - 本地 `python -m pytest tests/api/test_wecom_intelligent_bot_callback_api.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py -q --no-cov` 通过。
+  - 本地 `python -m ruff check app/service/wecom/intelligent_bot_callback.py app/service/wecom/intelligent_bot_dispatcher.py tests/api/test_wecom_intelligent_bot_callback_api.py` 通过。
+  - 本地 `python scripts/check_project.py --skip-tests` 通过。
+  - 生产 `python3 -m compileall -q app/service/wecom/intelligent_bot_callback.py app/service/wecom/intelligent_bot_dispatcher.py` 通过。
+  - 生产 `/ready` 返回 200。
+  - 生产加密 POST 探针返回 200，签名校验通过，解密后 `reply_msgtype=stream`、`stream_finish=true`、`stream_id=prod-stream-probe-001`。
+- **剩余事项**:
+  - 等待企微客户端再发真实消息，确认日志出现企微 IP 回调且客户端展示回复。
+
+## [2026-07-03] - fix(wecom): 统一智能机器人工具输出并收紧商品匹配
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-tool-result-not-visible
+- **背景**: 企微智能机器人群内能调用工具，但工具卡片“返回结果”为空；同时 `product-lookup` 对“草莓蛋糕”等具体商品查询会回退展示不相关商品，影响员工判断。
+- **根因判断**:
+  - 生产接口实际返回 JSON，企微调用日志为 200，问题不在连通性。
+  - 官方工具文档要求配置输出参数；企微后台未稳定消费现有分散字段时，需要统一可读输出字段。
+  - 商品查询原逻辑在无匹配时回退返回前 5 个商品，导致具体商品查询出现误导性结果。
+- **改动**:
+  - `ping` 和 9 个业务工具统一返回 `result` / `resultText`，并让 `suggestedReply` 优先使用员工可读明细文本。
+  - 新增 `app/service/wecom/intelligent_bot_product_filter.py`，将商品过滤从展示格式模块拆出，避免文件职责和体量超线。
+  - `product-lookup` 对具体关键词无匹配时返回“未找到匹配商品”，不再回退无关商品；宽泛品类查询仍保留可用结果。
+  - 企微工具契约和文档统一为横杠工具名，输出参数推荐优先配置 `result`。
+- **生产同步**:
+  - 文件级同步，不运行批量部署脚本，不执行递归删除。
+  - 生产备份目录：`/opt/yunxibakebot/backups/wecom-bot-result-adapter-20260703-125246`
+  - `systemctl restart yunxibakebot` 后服务 `active`。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py -q --no-cov` 通过，30 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_plugin.py app/service/wecom/intelligent_bot_tool_response.py app/service/wecom/intelligent_bot_tool_format.py app/service/wecom/intelligent_bot_product_filter.py scripts/check_wecom_intelligent_bot_contract.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_intelligent_bot_contract.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过。
+  - 生产 `python3 scripts/check_wecom_intelligent_bot_contract.py` 通过。
+  - 生产 `python scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn` 第二次复跑通过，13/13；第一次仅 `knowledge-answer` 出现一次 10 秒 ReadTimeout，随后单独 30 秒探针和完整 smoke 均通过。
+  - 生产只读探针确认 `ping`、`product-lookup`、`knowledge-answer` 均返回 `result` / `resultText`；`草莓蛋糕` 当前返回“未找到匹配商品”，不再返回无关商品。
+  - 增强 `scripts/wecom_intelligent_bot_smoke.py`：业务工具缺少 `result` / `resultText` 时 smoke 失败；同步生产后生产机本地复跑通过，10 个业务/连通工具均 `result_present=true`。
+- **剩余事项**:
+  - 企微后台每个工具的输出参数优先配置 `result`，类型 `String`，模型可见。
+  - `order-lookup` 仍是关键词订单查询，不是订单统计工具；“今天多少订单”应后续新增 `order-summary`。
+
+## [2026-07-02] - harden(wecom): 完成企微智能机器人工具生产级验收
+- **操作人**: AI (Codex)
+- **trace_id**: 20260702-wecom-bot-production-hardening
+- **背景**: 用户要求基于生产数据或生产环境做详细测试，补齐测试用例、测试报告、下一步规划，并把企微智能机器人工具推进到生产级可用。
+- **数据策略**:
+  - 未拉取完整生产数据到本地，避免扩大敏感数据面。
+  - 通过 `https://yunxifood.cn` 生产 HTTPS 接口做只读验证。
+- **生产级补强**:
+  - 企微智能机器人鉴权收紧为 Header `X-Yunxi-Bot-Key` 或 Bearer Token，不再接受 URL query `api_key`。
+  - 客户地址、客户群待跟进、转人工摘要和同步排障结果改为脱敏或白名单输出。
+  - `/ready`、`scripts/smoke_test.py`、`scripts/preflight_production.py` 增加 `wecom_bot_plugin_api_key_configured` / `WECOM_BOT_PLUGIN_API_KEY` 检查。
+  - 新增 `scripts/wecom_intelligent_bot_smoke.py`，覆盖 `ping` + 9 个工具、错误 key、缺 key、query key 拒绝，并输出脱敏 JSON。
+  - 新增 `scripts/check_wecom_intelligent_bot_contract.py`，校验文档工具清单与 FastAPI 路由一致。
+  - 生产报告脚本改用 `timezone.utc`，兼容生产 Python 3.10。
+  - 更新 `.env.example`、README、API spec、企微工具配置文档和项目进度清单。
+- **生产同步**:
+  - 明确文件级同步，不运行含批量清理和 `git reset --hard` 的部署脚本。
+  - 生产当前部署文件备份：`/opt/yunxibakebot/backups/wecom-bot-hardening-current-20260703-005650`。
+  - `systemctl restart yunxibakebot` 后服务 `active`。
+- **验收报告**:
+  - `reports/harness/wecom-intelligent-bot-acceptance-20260703-011421.md`
+  - `reports/wecom-intelligent-bot-contract-20260703-011421.json`
+  - `reports/wecom-intelligent-bot-smoke-20260703-011240.json`
+- **验证结果**:
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/test_lifespan_routes_services.py tests/test_health_ready.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py -q --no-cov` 通过，123 条。
+  - `python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov` 通过，29 条。
+  - `python scripts/check_project.py --skip-tests` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python -m ruff check ...` 通过。
+  - `python -m ruff format --check ...` 通过。
+  - `python -m compileall -q ...` 通过。
+  - 生产 `/health` 返回 `status=ok`，`/ready` 返回 `status=ready` 且 `wecom_bot_plugin_api_key_configured=true`。
+  - 生产机执行 `python3 scripts/check_wecom_intelligent_bot_contract.py --json` 返回 `status=passed, failed=0`。
+  - 生产机执行 `python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn` 返回 `status=passed, failed=0`，13 项通过。
+- **风险与后续**:
+  - 首次生产 smoke 曾出现一次 `knowledge-answer` 10 秒读取超时，随后复测和最终 smoke 均通过；后续观察企微真实工具调用是否有冷启动超时。
+  - `group_campaign_summary` 仍需用户提供真实有效 `campaignId` 做正向验收；当前 smoke 覆盖不存在批次的业务未命中路径。
+  - 下一步补员工/角色级授权和工具调用审计。
+
+## [2026-07-02] - feat(wecom): 扩展企微智能机器人员工效率工具
+- **操作人**: AI (Codex)
+- **trace_id**: 20260702-wecom-intelligent-bot-tools
+- **背景**: 用户希望先梳理当前项目能做的员工效率能力，形成优先级清单，再全部做成企微可配置工具；前序 `ping` 插件已在企微试通。
+- **设计结论**:
+  - 企业微信只作为员工入口和工具调用器，不在企微重复维护知识库。
+  - `YunxiBakeBot` / `Bakery Commerce Platform` 继续作为订单、商品、知识、客户、客户群、转人工、观察台与离线复盘的业务真相源。
+  - 本轮所有新增工具均为只读，不修改订单、客户、知识库或群登记状态。
+- **新增工具**:
+  - `POST /api/v1/wecom/intelligent-bot/tools/order-lookup`
+  - `POST /api/v1/wecom/intelligent-bot/tools/product-lookup`
+  - `POST /api/v1/wecom/intelligent-bot/tools/knowledge-answer`
+  - `POST /api/v1/wecom/intelligent-bot/tools/customer-lookup`
+  - `POST /api/v1/wecom/intelligent-bot/tools/group-campaign-summary`
+  - `POST /api/v1/wecom/intelligent-bot/tools/handoff-pending`
+  - `POST /api/v1/wecom/intelligent-bot/tools/ops-summary`
+  - `POST /api/v1/wecom/intelligent-bot/tools/integration-status`
+  - `POST /api/v1/wecom/intelligent-bot/tools/offline-review-summary`
+- **实现**:
+  - `app/service/wecom/intelligent_bot_tools.py` 封装订单、商品、知识库只读工具。
+  - `app/service/wecom/intelligent_bot_ops_tools.py` 封装客户地址线索、客户群批次汇总、待人工列表工具。
+  - `app/service/wecom/intelligent_bot_status_tools.py` 封装观察台、同步排障和离线复盘摘要工具。
+  - `app/service/wecom/intelligent_bot_tool_response.py`、`intelligent_bot_tool_format.py`、`intelligent_bot_ops_format.py` 统一企微工具响应与展示格式。
+  - `app/api/integrations/wecom_intelligent_bot.py` 注册全部工具路径，复用 `X-Yunxi-Bot-Key` 鉴权。
+  - `app/lifespan_services.py` 将 `knowledge_retriever` 暴露给路由装配。
+  - `app/lifespan_routes.py` 注入订单、商品、知识、客户、客户群、转人工、观察台和离线复盘状态依赖。
+  - `docs/architecture/wecom-intelligent-bot-tools.md` 记录企微配置清单。
+- **验证结果**:
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，17 条。
+  - `python -m ruff check ...` 通过。
+  - `python -m ruff format --check ...` 通过。
+  - `python -m compileall -q ...` 通过。
+  - 分层扫描 `api -> service -> repository -> models` 零输出。
+  - `python scripts/check_project.py --skip-tests` 通过。
+  - `python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov` 通过，29 条。
+- **后续**:
+  - 在企业微信后台按 `docs/architecture/wecom-intelligent-bot-tools.md` 逐个配置工具。
+
+## [2026-07-02] - deploy(wecom): 同步企微智能机器人业务工具到生产
+- **操作人**: AI (Codex)
+- **trace_id**: 20260702-wecom-intelligent-bot-tools-production-sync
+- **背景**: 本地已完成企微智能机器人 9 个只读业务工具，需要同步生产后供企业微信后台配置。
+- **生产备份**:
+  - `/opt/yunxibakebot/app/api/integrations/wecom_intelligent_bot.py.bak-wecom-tools-20260702-182252`
+  - `/opt/yunxibakebot/app/service/wecom/intelligent_bot_plugin.py.bak-wecom-tools-20260702-182252`
+  - `/opt/yunxibakebot/app/lifespan_routes.py.bak-wecom-tools-20260702-182252`
+  - `/opt/yunxibakebot/app/lifespan_services.py.bak-wecom-tools-20260702-182252`
+- **同步范围**:
+  - 同步 `app/api/integrations/wecom_intelligent_bot.py`、`app/lifespan_routes.py`、`app/lifespan_services.py`。
+  - 同步 `app/service/wecom/intelligent_bot_plugin.py`。
+  - 新增生产文件 `app/service/wecom/intelligent_bot_tools.py`、`intelligent_bot_tool_format.py`、`intelligent_bot_tool_response.py`、`intelligent_bot_ops_tools.py`、`intelligent_bot_ops_format.py`、`intelligent_bot_status_tools.py`。
+- **验证结果**:
+  - 生产 `python3 -m compileall -q ...` 通过。
+  - `systemctl restart yunxibakebot` 后服务 `active`。
+  - `https://yunxifood.cn/health` 返回 200，版本 `0.64.4`。
+  - `https://yunxifood.cn/ready` 返回 200，状态 `ready`。
+  - 使用正确 `X-Yunxi-Bot-Key` 请求以下工具均返回 200：`order-lookup`、`product-lookup`、`knowledge-answer`、`customer-lookup`、`group-campaign-summary`、`handoff-pending`、`ops-summary`、`integration-status`、`offline-review-summary`。
+  - `group-campaign-summary` 使用不存在的 `campaignId` 返回 200 且 `ok=false`，属于业务未命中。
+  - 使用错误 `X-Yunxi-Bot-Key` 请求 `order-lookup` 返回 401。
+- **临时文件**:
+  - 冒烟过程中创建的 `/tmp/yunxi-health.json`、`/tmp/yunxi-ready.json`、`/tmp/yunxi-tool.json`、`/tmp/yunxi-wrong.json` 已按明确路径清理。
+
+## [2026-07-02] - deploy(wecom): 同步企微智能机器人插件端点到生产
+- **操作人**: AI (Codex)
+- **trace_id**: 20260702-wecom-intelligent-bot-plugin-production-sync
+- **背景**: 企业微信智能机器人 API 插件试运行请求 `https://yunxifood.cn/api/v1/wecom/intelligent-bot/plugins/ping` 返回 404；公网 `/health` 显示生产仍为 `0.64.4`，生产缺少本地新增的插件路由与服务文件。
+- **生产备份**:
+  - `/opt/yunxibakebot/app/config.py.bak-wecom-bot-20260702-145024`
+  - `/opt/yunxibakebot/app/lifespan_routes.py.bak-wecom-bot-20260702-145024`
+  - `/opt/yunxibakebot/.env.bak-wecom-bot-20260702-145024`
+- **同步范围**:
+  - 新增生产文件 `app/api/integrations/wecom_intelligent_bot.py` 与 `app/service/wecom/intelligent_bot_plugin.py`。
+  - 在生产 `app/config.py` 微创加入 `WECOM_BOT_PLUGIN_API_KEY` 配置项。
+  - 在生产 `app/lifespan_routes.py` 注册 `create_wecom_intelligent_bot_router()`。
+  - 生成随机 `WECOM_BOT_PLUGIN_API_KEY`，同步写入本地 `.env` 与生产 `.env`，未在日志中输出密钥值。
+- **验证结果**:
+  - 生产 `python3 -m compileall -q app/api/integrations/wecom_intelligent_bot.py app/service/wecom/intelligent_bot_plugin.py app/config.py app/lifespan_routes.py` 通过。
+  - `systemctl restart yunxibakebot` 后服务 `active`。
+  - `https://yunxifood.cn/health` 返回 200，版本 `0.64.4`。
+  - `https://yunxifood.cn/ready` 返回 200，状态 `ready`。
+  - 使用正确 `X-Yunxi-Bot-Key` 请求 `POST /api/v1/wecom/intelligent-bot/plugins/ping` 返回 200。
+  - 使用错误 `X-Yunxi-Bot-Key` 请求同一路径返回 401。
+
+## [2026-06-30] - feat(wecom): 新增企微智能机器人 API 插件连通性端点
+- **操作人**: AI (Codex)
+- **trace_id**: 20260630-wecom-intelligent-bot-plugin-ping
+- **背景**: 需要先验证企业微信智能机器人“API/MCP 插件”能否调用 `YunxiBakeBot` 后端，再逐步接入查订单、查客户、知识库问答等员工效率 skill。
+- **实现**:
+  - `app/api/integrations/wecom_intelligent_bot.py` 新增 `/api/v1/wecom/intelligent-bot/plugins/ping`，支持 GET/POST，并通过 Header、Bearer 或 Query 校验插件密钥。
+  - `app/service/wecom/intelligent_bot_plugin.py` 新增最小插件响应服务，返回企微工具配置易映射的扁平字段。
+  - `app/config.py` 新增 `WECOM_BOT_PLUGIN_API_KEY`，用于企业微信插件的 `Service token/API key`。
+  - `app/lifespan_routes.py` 注册企微智能机器人插件路由。
+  - `tests/api/test_wecom_intelligent_bot_plugin_api.py` 新增未配置、密钥错误、密钥正确、Bearer Token 四类回归。
+- **验证结果**:
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/test_lifespan_routes_services.py -q --no-cov` 通过，7 条。
+  - `python -m ruff check app/api/integrations/wecom_intelligent_bot.py app/service/wecom/intelligent_bot_plugin.py tests/api/test_wecom_intelligent_bot_plugin_api.py app/config.py app/lifespan_routes.py tests/test_lifespan_routes_services.py` 通过。
+  - `python -m compileall app/api/integrations/wecom_intelligent_bot.py app/service/wecom/intelligent_bot_plugin.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/test_lifespan_routes_services.py` 通过。
+  - 分层扫描 `api -> service -> repository -> models` 零输出。
+  - 本地服务 `POST http://127.0.0.1:7001/api/v1/wecom/intelligent-bot/plugins/ping` 使用 `X-Yunxi-Bot-Key` 返回 200，错误密钥返回 401；`/health` 返回 `{"status":"ok","version":"0.64.9"}`。
+
+## [2026-06-25] - fix(offline): 收紧生日场景画像，避免知识咨询误沉淀
+- **操作人**: AI (Codex)
+- **trace_id**: 20260625-offline-memory-birthday-occasion-tighten
+- **背景**: `quality_signals` 之前只要用户消息包含“生日”就写入 `order_summary.occasion=生日`，会把“生日蜡烛收费吗？”这类知识咨询误沉淀成顾客生日场景画像。
+- **修复**:
+  - `app/service/offline/quality_signals.py` 将生日画像规则收紧为明确生日场景短语，例如“给孩子过生日”“生日蛋糕”“妈妈生日”等。
+  - `tests/service/test_offline_review.py` 新增回归：生日蜡烛收费问题不写画像；明确给孩子过生日仍写入 `occasion=生日`。
+- **验证结果**:
+  - `python -m pytest tests/service/test_offline_review.py -q --no-cov` 通过，25 条。
+  - `python -m pytest tests/repository/test_session_repo.py tests/service/test_session_idle_closer.py tests/service/test_offline_review.py tests/test_main_runtime.py -q --no-cov` 通过，44 条。
+  - `python -m ruff check app/service/offline/quality_signals.py tests/service/test_offline_review.py` 通过。
+  - `python -m compileall app/service/offline/quality_signals.py tests/service/test_offline_review.py` 通过；分层扫描 `api -> service -> repository -> models` 零输出。
+  - 快照验证：`生日蜡烛收费吗？` 不再生成画像；`给孩子过生日，推荐个不要太甜的蛋糕。` 仍生成 `preferences={"audience":"孩子","sweetness":"低甜"}` 和 `order_summary={"usage":"儿童蛋糕","occasion":"生日"}`。
+
+## [2026-06-25] - fix(offline): 收紧顾客记忆重试条件并修正空画像重试缩进
+- **操作人**: AI (Codex)
+- **trace_id**: 20260625-offline-memory-signal-noise-fix
+- **背景**: 离线记忆固化为了避免空画像，原先会依据整段对话的生日/纪念日关键词判断是否重试，容易被助手自己的追问或推荐文案误触发；同时 `_extract_memory()` 中空画像重试分支存在缩进错误，导致空画像会跑满重试次数。
+- **修复**:
+  - `app/service/offline/agent_memory.py` 把记忆信号判断收紧到用户消息，并复用 `agent_shared.role_text()`。
+  - 修正 `_extract_memory()` 的缩进，让空画像只在真实用户信号存在时才进入修复重试。
+  - `tests/service/test_offline_review.py` 新增“仅助手提生日时不应触发记忆重试”的回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_offline_review.py -q --no-cov` 通过，23 条。
+  - `python -m pytest tests/repository/test_session_repo.py tests/service/test_session_idle_closer.py tests/service/test_offline_review.py tests/test_main_runtime.py -q --no-cov` 通过，42 条。
+  - `python -m ruff check app/service/offline/agent_memory.py tests/service/test_offline_review.py` 通过。
+  - `python -m compileall app/service/offline/agent_memory.py` 通过。
+  - 用生产快照里的真实样本验证：`113c...`、`506e...`、`a84d...` 这类只有助手追问“给谁过生日”的会话不再被当作用户画像信号，`special_dates` 仍保持空。
+
+## [2026-06-25] - fix(offline): 补强真实企微泛化质检的具体信号
+- **操作人**: AI (Codex)
+- **trace_id**: 20260625-offline-review-greeting-stall
+- **背景**: 真实 `wecom_1on1/session=3e77de27-3766-487c-a6c0-ce40f199a2f2` 仍容易沉淀成泛化低分人工复核；对话中实际存在多轮寒暄后才进入需求、荔枝口味兴趣等可解释信号。
+- **变更范围**:
+  - `app/service/offline/quality_signals.py` 新增连续寒暄停滞质检问题，并复用 `agent_shared.role_text()` 统一角色判断，兼容仓库返回的字符串角色和内存中的 `MessageRole` 枚举。
+  - `tests/service/test_offline_review.py` 新增连续寒暄质检回归和 `MessageRole` 枚举兼容回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_offline_review.py -q --no-cov` 通过，22 条。
+  - `python -m pytest tests/repository/test_session_repo.py tests/service/test_session_idle_closer.py tests/service/test_offline_review.py tests/test_main_runtime.py -q --no-cov` 通过，41 条。
+  - `python -m ruff check app/service/offline/quality_signals.py tests/service/test_offline_review.py` 通过。
+  - `python -m compileall app/service/offline/quality_signals.py tests/service/test_offline_review.py` 通过；分层扫描 `api -> service -> repository -> models` 零输出。
+  - 用生产快照 `data/prod_snapshot/bot_raw.db` 的真实样本验证：`3e77...` 现在抽取 `用户连续寒暄后才进入需求，需更快识别意图并引导到具体咨询` 和 `product_interests=["荔枝口味"]`；`94d5593f...` 继续抽取转人工 review 与 `临近截单时间的急单等待时间如何答复` gap。
+
+## [2026-06-25] - fix(production): 提升真实企微离线沉淀质量并补跑画像/缺口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260625-production-offline-quality-signals
+- **背景**: 真实企微链路已能进入离线沉淀，但产出质量不达标：思考模型 review 多为泛化 `0 + 人工复核`，画像为空，知识缺口为 0，无法支撑运营复盘。
+- **生产备份**: `/opt/yunxibakebot/backups/20260625-offline-quality-20260625-113348`，包含本轮覆盖前的离线 Agent 文件。
+- **变更范围**:
+  - 新增 `app/service/offline/quality_signals.py`，从真实对话中兜底识别儿童、老人、低甜、木糖醇、4寸、定制、荔枝口味、转人工、人工纠正和卡片异常等高价值信号。
+  - 新增 `app/service/offline/memory_merge.py`，将同一顾客多轮画像按对象/列表合并，避免新会话覆盖旧事实。
+  - 更新 `agent_qa_review.py`、`agent_memory.py`、`agent_knowledge_gap.py`，在 LLM 输出基础上叠加确定性服务信号。
+  - 扩展 `tests/service/test_offline_review.py`，覆盖高分模型被真实转人工信号拉低、空画像兜底沉淀、知识缺口兜底生成、同一顾客画像合并。
+- **验证结果**:
+  - 本地 `python -m pytest tests\repository\test_session_repo.py tests\service\test_session_idle_closer.py tests\service\test_offline_review.py tests\test_main_runtime.py -q --no-cov` 通过，39 条。
+  - 本地 `python -m ruff check ...` 通过；架构扫描 `api -> service -> repository -> models` 零输出；`python scripts\check_mistake_ledger.py` 通过。
+  - 生产 `python3 -m compileall -q /opt/yunxibakebot/app/service/offline` 通过，`systemctl restart yunxibakebot` 后 `/health` 和 `/ready` 返回 200，且 `ready.features.customer_memory=true`。
+  - 生产真实企微补跑后新增思考模型 review：`wecom_kf/session=7a83699a-c302-468b-a2af-2dbd40c1da22`，issues 包含转人工与人工纠正规则；`wecom_kf/session=6d290cd4-a759-4d13-9f0d-5c3c2b17ea4d`，issues 包含转人工与老人推荐不适配；`wecom_1on1/session=3e77de27-3766-487c-a6c0-ce40f199a2f2` 仍需人工复核。
+  - 生产画像已沉淀：`wecom_kf/wmLgrY...` 的 `preferences` 包含 `audience=["老人","孩子"]`、`sweetness=["木糖醇","低甜"]`、`size_interest="4寸"`、`service_interest="定制蛋糕"`；`wecom_1on1/hucloong` 的 `preferences` 包含 `product_interests=["荔枝口味"]`。
+  - 生产知识缺口新增 2 条：`娃娃头水果奶油蛋糕是否支持4寸定制`、`老人木糖醇蛋糕应该如何推荐`。
+- **追加验证**:
+  - 重新补跑 `wecom_1on1/session=3e77de27-3766-487c-a6c0-ce40f199a2f2` 后新增 review `id=37`，当前仍以低分人工复核为主，没有额外可解释问题信号，说明该会话本身质量问题偏轻。
+  - 新增热路径回归测试，确认 `run_ai_reply_loop()` 会把 `customer_profile` 传进对话主流程，防止后续把画像注入链路改断。
+  - `ENABLE_CUSTOMER_MEMORY` 的代码默认值已改为 `true`，并同步到生产 `app/config.py`；生产 `ready.features.customer_memory=true` 继续保持，减少新环境忘配 `.env` 时的沉默失效风险。
+  - 新增配置测试 `tests/test_config.py`，显式验证无 `.env` 时 `ENABLE_CUSTOMER_MEMORY` 的默认值就是 `true`。
+- **风险记录**:
+  - 首次生产同步漏传既有依赖 `json_utils.py`，导致服务短暂启动失败；已补齐 `json_utils.py`、`agent_shared.py`、`model_selection.py` 并重启恢复。后续覆盖生产 Python 模块时必须同步检查 import 依赖集合，而不是只传直接改动文件。
+
+## [2026-06-24] - deploy(production): 真实企微会话接入 30 分钟空闲收口并补跑沉淀
+- **操作人**: AI (Codex)
+- **trace_id**: 20260624-production-wecom-idle-close-offline-review
+- **背景**: 本地库没有 `wecom_kf` / `wecom_1on1` 会话，但生产库已有真实企微消息。此前生产版本仍缺少 30 分钟空闲会话自动收口，导致真实企微 active 会话无法进入夜间沉淀候选。
+- **生产备份**: `/opt/yunxibakebot/backups/20260624-session-idle-close-162900n`，包含 `data/bot.db` 与本轮覆盖的应用代码文件。
+- **变更范围**:
+  - 将本地已验证的 `SESSION_IDLE_CLOSE_MINUTES=30`、空闲会话后台收口任务、离线沉淀前置收口逻辑同步到生产。
+  - 覆盖生产 `app/config.py`、`app/main.py`、`app/repository/session_repo.py`、`app/service/offline/bootstrap.py`、`app/service/offline/scheduler.py`、`app/service/ops/__init__.py`，新增 `app/service/ops/session_idle_closer.py`。
+- **验证结果**:
+  - 本地 `python -m pytest tests\repository\test_session_repo.py tests\service\test_session_idle_closer.py tests\service\test_offline_review.py tests\test_main_runtime.py -q --no-cov` 通过。
+  - 本地 `python -m ruff check ...` 通过；生产 `python3 -m compileall ...` 通过。
+  - 生产 `systemctl restart yunxibakebot` 后 `/health` 与 `/ready` 返回 200，版本为 `0.64.4`。
+  - 生产启动日志显示 `空闲活跃会话已自动关闭: 15`。
+  - 生产真实企微会话状态收口为：`wecom_1on1 closed=1`、`wecom_kf closed=11`；企微消息为 `wecom_1on1 user=9 assistant=9`、`wecom_kf user=58 assistant=54`。
+  - 手动补跑真实沉淀后新增 review：`wecom_kf/session=70fe33c5-78af-405b-83f9-0589180091e7 score=100 issues=[]`；`wecom_1on1/session=3e77de27-3766-487c-a6c0-ce40f199a2f2 score=0 issues=[]`。当前无未 review 的企微候选。
+- **结论**:
+  - 真实企微链路已有生产数据，空闲收口已部署并生效，企微闭环会话已进入沉淀。当前残留问题是 QA/画像 Agent 产出质量偏弱：旧 review 多为 `0 + []`，画像仍偏空，知识缺口为空；需要后续单独增强离线 Agent 的 JSON/语义校验、重试和画像提取质量。
+- **风险记录**:
+  - 重启时观察到既有 `order_timeout_scheduler.stop()` 在 shutdown 阶段抛出 `asyncio.exceptions.TimeoutError`，服务随后正常启动；该问题与本轮企微收口无直接关系，但应另起修复任务处理后台任务优雅停止。
+
+## [2026-06-24] - fix(session): 30 分钟空闲会话自动收口接入夜间沉淀
+- **操作人**: AI (Codex)
+- **trace_id**: 20260624-session-idle-close-offline-review
+- **背景**: 夜间沉淀调度已能运行，但本地库会话长期停在 `active`，导致 `list_review_candidates()` 没有 `closed` / `transfer_pending` / `human_service` 候选。真实客服场景应在客户长时间不回复后自动结束会话，否则离线质检、知识缺口和顾客记忆无法消费自然结束的对话。
+- **变更范围**:
+  - `app/config.py` - 新增 `SESSION_IDLE_CLOSE_MINUTES=30` 与 `SESSION_IDLE_CLOSE_SCAN_INTERVAL_SECONDS=300`。
+  - `app/repository/session_repo.py` - 新增 `close_idle_active_sessions()`，只关闭有消息、超过阈值且仍为 `active` 的会话，不处理空会话和转人工会话。
+  - `app/service/ops/session_idle_closer.py`、`app/service/ops/__init__.py`、`app/main.py` - 新增空闲会话后台收口任务并接入应用生命周期。
+  - `app/service/offline/scheduler.py`、`app/service/offline/bootstrap.py` - 离线沉淀每轮执行前显式触发一次空闲会话收口，避免后台任务启动顺序导致当轮仍拿不到候选。
+  - `tests/repository/test_session_repo.py`、`tests/service/test_session_idle_closer.py`、`tests/service/test_offline_review.py`、`tests/test_main_runtime.py` - 覆盖 30 分钟收口规则、调度器启动停止、离线沉淀前置顺序和 shutdown 清理。
+- **验证结果**:
+  - `python -m pytest tests/repository/test_session_repo.py tests/service/test_session_idle_closer.py tests/service/test_offline_review.py tests/test_main_runtime.py -q --no-cov` 通过。
+  - `python -m ruff check app\config.py app\repository\session_repo.py app\service\ops\session_idle_closer.py app\service\ops\__init__.py app\service\offline\scheduler.py app\service\offline\bootstrap.py app\main.py tests\repository\test_session_repo.py tests\service\test_session_idle_closer.py tests\service\test_offline_review.py tests\test_main_runtime.py` 通过。
+  - `python -m compileall app\config.py app\repository\session_repo.py app\service\ops\session_idle_closer.py app\service\ops\__init__.py app\service\offline\scheduler.py app\service\offline\bootstrap.py app\main.py tests\repository\test_session_repo.py tests\service\test_session_idle_closer.py tests\service\test_offline_review.py tests\test_main_runtime.py` 通过。
+  - 临时设置 `OFFLINE_REVIEW_NIGHT_START_HOUR=0`、`OFFLINE_REVIEW_NIGHT_END_HOUR=0` 启动本地服务验证：空闲收口日志显示关闭 1 条构造会话，构造会话同轮写入 `conversation_reviews`；本地既有 2 条有消息旧 active 会话也已自动转为 `closed`。其中一条旧会话质检成功写入 `conversation_reviews`，另一条因 LLM 返回非 JSON 被单会话隔离并记录错误。
+- **结论**:
+  - 30 分钟空闲自动收口已接入，夜间沉淀不再依赖人工关闭普通 active 会话；无消息 smoke/demo 会话不会进入沉淀。后续若要提高离线质检稳定性，应单独增强 QA Agent 对非 JSON LLM 输出的修复/重试能力。
+
+
+## [2026-06-24] - fix(database): 旧库迁移解锁夜间沉淀启动验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260624-offline-review-startup-migration
+- **背景**: 检查夜间沉淀是否正常运转时发现 `.env` 已打开 `ENABLE_OFFLINE_REVIEW=True`，但本地服务启动在数据库初始化阶段因旧 `youzan_products` 表缺少 `tag_ids_json` 被 schema 索引语句阻断，导致 `/ready` 无法用于观察离线调度状态。
+- **变更范围**:
+  - `app/database.py` - schema 初始化遇到旧库缺列索引时先跳过，保留版本化迁移补列和建索引的职责。
+  - `tests/scripts/test_apply_migrations.py` - 新增旧库缺少后期商品分类列的回归测试，覆盖启动期迁移能补齐 `tag_ids_json` 与分类列。
+  - `data/bot.db` - 本地执行 `scripts/apply_migrations.py --apply`，将迁移版本 7-13 补齐，缺表从 customer 相关表缺失收口为 none。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/service/test_offline_review.py tests/test_main_runtime.py -q --no-cov` 通过。
+  - `python -m ruff check app\database.py tests\scripts\test_apply_migrations.py` 通过。
+  - `python -m compileall app\database.py tests\scripts\test_apply_migrations.py` 通过。
+  - 本地 `uvicorn app.main:app --host 127.0.0.1 --port 7001` 启动成功，`/health` 返回 `status=ok, version=0.64.7`；`/ready` 显示 `database_schema_ready=true`、`offline_review=true`、`offline_review_running=false`，日志显示当前非 22:00-06:00 夜间窗口，调度器按预期跳过 `outside_night_window`。
+- **结论**:
+  - 夜间沉淀链路已从“服务无法启动观察”恢复为“服务可启动且调度器已挂载”。当前北京时间 15:04 不在夜间窗口，所以没有实际跑沉淀轮次；需要在 22:00-06:00 窗口再次观察 `offline_review_running` 或调度完成日志。
+
+
 ## [2026-06-23] - docs(customer-groups): 合并客户群增强待办口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260623-customer-group-enhancement-todo-merge
@@ -7257,3 +7669,19 @@ ______________________________________________________________________
 - **结论**:
   - 公开支付模式默认值已收紧为 `mock`，`wechat` 仍保留为真实支付联调路径；回归测试已补齐并通过。
 
+## [2026-06-25] - fix(production): 夜间沉淀切换思考模型并阻断空 review 假成功
+- **操作人**: AI (Codex)
+- **trace_id**: 20260625-offline-thinking-model-hardening
+- **背景**: 2026-06-24 夜间离线沉淀结果偏弱，生产 review 主要停留在 `mimo-v2.5`，并出现大量 `0 + []` / 空画像，无法证明真实沉淀已达预期。
+- **修复**:
+  - 生产 `.env` 补入并切换 `MIMO_THINKING_MODEL/OFFLINE_REVIEW_MODEL/OFFLINE_MEMORY_MODEL/OFFLINE_KNOWLEDGE_GAP_MODEL=mimo-v2.5-pro`。
+  - `app/service/offline/agent_qa_review.py` 增加低分空 `issues` 拦截与人工复核 fallback。
+  - `app/service/offline/agent_memory.py` / `app/service/offline/agent_knowledge_gap.py` 统一离线思考模型选择，并保留 JSON 宽容解析。
+  - `app/repository/session_repo.py` 将旧的 `0 + []` review 排除出新一轮候选。
+- **生产验证**:
+  - `systemctl restart yunxibakebot` 后 `/health`、`/ready` 正常，`offline_review` 为 `true`。
+  - `mimo-v2.5-pro` 已从生产 MiMo `/models` 列表中确认可用。
+  - 手动补跑 3 条候选后，生产库新增 review 均已使用 `mimo-v2.5-pro`；其中 1 条得分 `95`，其余低分条目写入 `["模型给出低分但未说明具体问题，需人工复核"]`，不再出现 `0 + []` 假成功。
+  - 真实企微补跑：`wecom_1on1/session=3e77de27-3766-487c-a6c0-ce40f199a2f2` 与 `wecom_kf/session=3ac6aa2b-36b1-44b9-bb15-ff2339a2fdb3` 均新增 `mimo-v2.5-pro` review，结果为 `0` 分并带人工复核提示。
+  - 当前生产统计：`mimo-v2.5-pro` review 共 `8` 条，`customer_profiles=15`，`knowledge_gaps=0`。
+  - `customer_profiles` 仍为 `15`，`knowledge_gaps` 仍为 `0`，说明本次更像是把沉淀链路修复到诚实可用，而非伪造空结果。

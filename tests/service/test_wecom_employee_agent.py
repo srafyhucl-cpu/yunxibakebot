@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+from datetime import date
+from typing import Any
+
+from app.models.employee_agent import AgentIntent, OrderQueryKind, ToolResult
+from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
+from app.service.wecom.employee_agent_service import EmployeeAgentService
+
+
+class _FakeOrderLookupService:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, Any]] = []
+
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        self.calls.append((query, plan))
+        return ToolResult(
+            ok=True,
+            summary="今天共 2 单，待发货 1 单。",
+            next_action="需要处理待发货订单。",
+        )
+
+
+class _FakeBusinessToolService:
+    async def lookup_orders(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "订单兜底"}
+
+    async def lookup_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "草莓蛋糕｜库存 6"}
+
+    async def answer_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "配送范围以后台配置为准。"}
+
+
+class _FakeOpsToolService:
+    async def list_pending_handoffs(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "当前待人工 1 个。"}
+
+
+class _FakeStatusToolService:
+    async def summarize_ops(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "系统状态 attention。"}
+
+    async def summarize_integrations(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "同步失败 0 条。"}
+
+
+def _planner() -> EmployeeAgentPlanner:
+    return EmployeeAgentPlanner(
+        today_provider=lambda: date(2026, 7, 3),
+        enable_llm=False,
+    )
+
+
+async def test_planner_builds_today_order_summary_plan() -> None:
+    plan = await _planner().plan("今天一共多少订单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-07-03"
+    assert plan.query_plan.date_to == "2026-07-03"
+
+
+async def test_planner_builds_pending_order_list_plan() -> None:
+    plan = await _planner().plan("还有哪些没发货")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.statuses == ("WAIT_SELLER_SEND_GOODS",)
+
+
+async def test_planner_builds_product_order_multi_tool_plan() -> None:
+    plan = await _planner().plan("椰椰凤梨今天卖了几单，库存还够吗")
+
+    assert plan.intent == AgentIntent.MULTI_TOOL
+    assert plan.query_plan is not None
+    assert plan.query_plan.keyword == "椰椰凤梨"
+    assert plan.tools == ("order_dynamic_query", "product_lookup")
+
+
+async def test_planner_builds_top_products_plan() -> None:
+    plan = await _planner().plan("今天哪个商品卖得多")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.TOP_PRODUCTS
+    assert plan.query_plan.date_from == "2026-07-03"
+
+
+async def test_planner_routes_knowledge_and_ops() -> None:
+    knowledge_plan = await _planner().plan("配送范围怎么说")
+    ops_plan = await _planner().plan("系统今天有没有异常")
+
+    assert knowledge_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
+    assert ops_plan.intent == AgentIntent.OPS_QUERY
+
+
+async def test_employee_agent_uses_order_lookup_service() -> None:
+    order_lookup_service = _FakeOrderLookupService()
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=order_lookup_service,
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    reply = await service.answer("今天一共多少订单")
+
+    assert "今天共 2 单" in reply
+    assert "下一步：需要处理待发货订单。" in reply
+    assert order_lookup_service.calls[0][1].kind == OrderQueryKind.SUMMARY
+
+
+async def test_employee_agent_routes_product_and_knowledge() -> None:
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    product_reply = await service.answer("草莓蛋糕还有库存吗")
+    knowledge_reply = await service.answer("配送范围怎么说")
+
+    assert "库存 6" in product_reply
+    assert "配送范围" in knowledge_reply

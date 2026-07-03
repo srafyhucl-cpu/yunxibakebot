@@ -7,6 +7,7 @@ YouzanProductRepo / YouzanOrderRepo 数据访问层单元测试。
 import aiosqlite
 import pytest
 
+from app.models.employee_agent import OrderQueryKind, OrderQueryPlan
 from app.models.order import YouzanOrderData
 from app.repository.youzan_order_repo import YouzanOrderRepo
 from app.repository.youzan_repo import YouzanProductRepo
@@ -258,3 +259,260 @@ async def test_order_upsert_older_timestamp_does_not_overwrite(
     assert row is not None
     assert row["status"] == "TRADE_SUCCESS"
     assert row["logistics_no"] == "YT9999"
+
+
+async def test_order_search_matches_order_no_and_product_title(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """订单搜索应覆盖订单号和商品标题。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202600004",
+            buyer_id="buyer_ddd",
+            status="TRADE_PAID",
+            amount_fen=26800,
+            product_titles="草莓蛋糕 x 1",
+            total_quantity=1,
+            created_at=_TS_NEW,
+            updated_at=_TS_NEW,
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202600005",
+            buyer_id="buyer_eee",
+            status="TRADE_PAID",
+            amount_fen=19800,
+            product_titles="巧克力卷 x 1",
+            total_quantity=1,
+            created_at=_TS_NEW,
+            updated_at=_TS_NEW,
+        )
+    )
+
+    title_rows = await order_repo.search_orders("草莓", limit=5)
+    order_no_rows = await order_repo.search_orders("E202600005", limit=5)
+
+    assert [row["order_no"] for row in title_rows] == ["E202600004"]
+    assert [row["order_no"] for row in order_no_rows] == ["E202600005"]
+
+
+async def test_order_search_matches_buyer_and_delivery_fields(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """订单搜索应覆盖买家标识和配送字段。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202600006",
+            buyer_id="buyer_phone_13812345678",
+            status="TRADE_PAID",
+            amount_fen=32800,
+            product_titles="生日蛋糕 x 1",
+            total_quantity=1,
+            delivery_city="上海市",
+            delivery_district="浦东新区",
+            delivery_time="2026-07-03 18:00",
+            outer_user_id="outer_customer_001",
+            order_items_json='[{"title":"生日蛋糕"}]',
+            created_at=_TS_NEW,
+            updated_at=_TS_NEW,
+        )
+    )
+
+    buyer_rows = await order_repo.search_orders("13812345678", limit=5)
+    district_rows = await order_repo.search_orders("浦东", limit=5)
+    outer_rows = await order_repo.search_orders("outer_customer", limit=5)
+
+    assert [row["order_no"] for row in buyer_rows] == ["E202600006"]
+    assert [row["order_no"] for row in district_rows] == ["E202600006"]
+    assert [row["order_no"] for row in outer_rows] == ["E202600006"]
+
+
+async def test_order_search_respects_limit(order_repo: YouzanOrderRepo) -> None:
+    """订单搜索应尊重 limit。"""
+    for index in range(3):
+        await order_repo.upsert_order(
+            YouzanOrderData(
+                order_no=f"E20260010{index}",
+                buyer_id=f"buyer_limit_{index}",
+                status="TRADE_PAID",
+                amount_fen=10000 + index,
+                product_titles="限量蛋糕 x 1",
+                total_quantity=1,
+                created_at=_TS_NEW,
+                updated_at=_TS_NEW,
+            )
+        )
+
+    rows = await order_repo.search_orders("限量蛋糕", limit=2)
+
+    assert len(rows) == 2
+
+
+async def test_order_list_recent_orders_returns_latest_first(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """最近订单应按支付或更新时间倒序返回。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202600007",
+            buyer_id="buyer_old",
+            status="TRADE_PAID",
+            amount_fen=10000,
+            product_titles="旧订单 x 1",
+            total_quantity=1,
+            pay_time=_TS_OLD,
+            created_at=_TS_OLD,
+            updated_at=_TS_OLD,
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202600008",
+            buyer_id="buyer_new",
+            status="TRADE_PAID",
+            amount_fen=12000,
+            product_titles="新订单 x 1",
+            total_quantity=1,
+            pay_time=_TS_NEW,
+            created_at=_TS_NEW,
+            updated_at=_TS_NEW,
+        )
+    )
+
+    rows = await order_repo.list_recent_orders(limit=1)
+
+    assert [row["order_no"] for row in rows] == ["E202600008"]
+
+
+async def test_order_dynamic_query_filters_date_status_and_keyword(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """动态查询计划应影响日期、状态和商品关键词。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030001",
+            buyer_id="buyer_dynamic_001",
+            status="WAIT_SELLER_SEND_GOODS",
+            amount_fen=26200,
+            product_titles="伯牙绝弦 x 1",
+            total_quantity=1,
+            pay_time="2026-07-03 20:37:23",
+            created_at="2026-07-03 20:37:23",
+            updated_at="2026-07-03 20:37:23",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607020001",
+            buyer_id="buyer_dynamic_002",
+            status="TRADE_SUCCESS",
+            amount_fen=15800,
+            product_titles="伯牙绝弦 x 1",
+            total_quantity=1,
+            pay_time="2026-07-02 12:00:00",
+            created_at="2026-07-02 12:00:00",
+            updated_at="2026-07-02 12:00:00",
+        )
+    )
+
+    rows = await order_repo.query_orders(
+        OrderQueryPlan(
+            kind=OrderQueryKind.LIST,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+            statuses=("WAIT_SELLER_SEND_GOODS",),
+            keyword="伯牙绝弦",
+            limit=5,
+        )
+    )
+
+    assert [row["order_no"] for row in rows] == ["E202607030001"]
+
+
+async def test_order_dynamic_summary_counts_statuses(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """动态统计计划应返回总数、金额和状态分布。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030002",
+            buyer_id="buyer_summary_001",
+            status="WAIT_SELLER_SEND_GOODS",
+            amount_fen=10000,
+            product_titles="草莓蛋糕 x 1",
+            total_quantity=1,
+            pay_time="2026-07-03 10:00:00",
+            created_at="2026-07-03 10:00:00",
+            updated_at="2026-07-03 10:00:00",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030003",
+            buyer_id="buyer_summary_002",
+            status="TRADE_SUCCESS",
+            amount_fen=20000,
+            product_titles="椰椰凤梨 x 1",
+            total_quantity=1,
+            pay_time="2026-07-03 11:00:00",
+            created_at="2026-07-03 11:00:00",
+            updated_at="2026-07-03 11:00:00",
+        )
+    )
+
+    summary = await order_repo.summarize_orders(
+        OrderQueryPlan(
+            kind=OrderQueryKind.SUMMARY,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+        )
+    )
+
+    assert summary["total_count"] == 2
+    assert summary["total_amount_fen"] == 30000
+    assert summary["status_counts"] == {
+        "TRADE_SUCCESS": 1,
+        "WAIT_SELLER_SEND_GOODS": 1,
+    }
+
+
+async def test_order_dynamic_top_products(order_repo: YouzanOrderRepo) -> None:
+    """动态商品聚合应按销量返回排行。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030004",
+            buyer_id="buyer_top_001",
+            status="TRADE_SUCCESS",
+            amount_fen=30000,
+            product_titles="伯牙绝弦 x 2",
+            total_quantity=2,
+            pay_time="2026-07-03 12:00:00",
+            created_at="2026-07-03 12:00:00",
+            updated_at="2026-07-03 12:00:00",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030005",
+            buyer_id="buyer_top_002",
+            status="TRADE_SUCCESS",
+            amount_fen=10000,
+            product_titles="椰椰凤梨 x 1",
+            total_quantity=1,
+            pay_time="2026-07-03 13:00:00",
+            created_at="2026-07-03 13:00:00",
+            updated_at="2026-07-03 13:00:00",
+        )
+    )
+
+    rows = await order_repo.list_top_products(
+        OrderQueryPlan(
+            kind=OrderQueryKind.TOP_PRODUCTS,
+            date_from="2026-07-03",
+            date_to="2026-07-03",
+        )
+    )
+
+    assert rows[0]["product_titles"] == "伯牙绝弦 x 2"
+    assert rows[0]["total_quantity"] == 2

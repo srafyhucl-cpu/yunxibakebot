@@ -1,8 +1,8 @@
----
-description: 代码驱动的项目文档同步工作流，用于在代码、API、前端页面、测试或状态页变更后，反向校准 README、项目进度清单、架构文档、LOGBOOK 和 Harness 入口
----
+# 代码驱动的项目文档同步工作流
 
-# 项目文档同步工作流
+> 用于在代码、API、前端页面、测试、迁移或状态页变更后，反向校准 README、项目进度清单、架构文档、LOGBOOK 和 Harness 入口。
+
+______________________________________________________________________
 
 ## 触发场景
 
@@ -14,6 +14,8 @@ description: 代码驱动的项目文档同步工作流，用于在代码、API�
 - 修改公开 API、数据结构、数据库表、状态枚举或调用关系
 - 增加测试、迁移、回调、接入流程或生产验证步骤
 - 代码行为已经变了，但 README、项目进度清单、架构文档、工作流或 Harness 入口仍写旧口径
+
+______________________________________________________________________
 
 ## 同步目标
 
@@ -29,6 +31,8 @@ description: 代码驱动的项目文档同步工作流，用于在代码、API�
 - `LOGBOOK.md`
 - `.windsurf/workflows/*.md`
 - `.agents/SKILL_AUDIT.md`（如 Skill 规则受影响）
+
+______________________________________________________________________
 
 ## 步骤
 
@@ -54,7 +58,9 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 - 测试和验证入口是否变了
 - 生产/联调前置条件是否变了
 
-### 2. 识别必须同步的文档
+______________________________________________________________________
+
+## 2. 识别必须同步的文档
 
 按变更类型判断：
 
@@ -62,10 +68,12 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 - **架构 / 边界 / 调用关系变更** → `docs/architecture/*.md`
 - **Harness / 验证 / 证据 / 交接变更** → `docs/harness-engineering/*.md`
 - **任务收口或长期记录** → `LOGBOOK.md`
-- **工作流自身的规则变化** → `.windsurf/workflows/*.md`
+- **工作流自身的规则变化** → `docs/AGENTS/*.md`
 - **Skill 触发或边界变化** → `.agents/SKILL_AUDIT.md` 和相关 `SKILL.md`
 
-### 3. 用现有代码校正文档口径
+______________________________________________________________________
+
+## 3. 用现有代码校正文档口径
 
 逐条核对文档里的这些内容是否还和代码一致：
 
@@ -81,7 +89,9 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 
 任何一项不一致，都优先以当前代码为准修改文档，不保留“看起来可能是对的旧说法”。
 
-### 4. 更新项目状态页
+______________________________________________________________________
+
+## 4. 更新项目状态页
 
 `项目进度与配置清单.md` 至少更新：
 
@@ -92,7 +102,9 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 
 如果代码已经把原先的待办实现或替代掉了，就不要继续写成待做。
 
-### 5. 更新 LOGBOOK
+______________________________________________________________________
+
+## 5. 更新 LOGBOOK
 
 在 `LOGBOOK.md` 顶部追加条目，写清：
 
@@ -101,7 +113,9 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 - 有没有发现旧口径被修正
 - 是否还存在残余待办
 
-### 6. 需要时同步 Harness
+______________________________________________________________________
+
+## 6. 需要时同步 Harness
 
 如果这次文档更新涉及追溯、验证、交接、证据或防重犯机制，补充：
 
@@ -110,7 +124,9 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 - `docs/harness-engineering/core/evidence-index.md`
 - `docs/harness-engineering/core/verification-matrix.md`
 
-### 7. 需要时同步 Skill
+______________________________________________________________________
+
+## 7. 需要时同步 Skill
 
 如果文档口径变化会影响 Skill 的触发、验收或边界，继续更新：
 
@@ -118,9 +134,13 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 - 对应 `.agents/skills/*.md`
 - `docs/AGENTS/skill-reference.md`
 
-### 8. 最后再回到提交收口
+______________________________________________________________________
+
+## 8. 最后再回到提交收口
 
 文档同步完成后，再走 `/commit` 工作流完成验证、提交和推送。
+
+______________________________________________________________________
 
 ## 验收标准
 
@@ -129,6 +149,8 @@ rg -n "class |def |router|CREATE TABLE|CREATE INDEX|include_router|/api/v1/" app
 - 过时待办不再继续冒充当前状态
 - LOGBOOK 记录了本轮文档同步原因
 - 必要时 Harness / Skill 入口也已同步
+
+______________________________________________________________________
 
 ## 收口顺序
 

@@ -114,6 +114,17 @@ def build_channel_readiness_checks() -> dict[str, bool]:
             settings.WECOM_ENCODING_AES_KEY
         ),
         "wecom_kf_id_configured": _is_configured_secret(settings.WECOM_KF_ID),
+        "wecom_bot_plugin_api_key_configured": _is_configured_secret(
+            settings.WECOM_BOT_PLUGIN_API_KEY
+        ),
+        "wecom_intelligent_bot_callback_token_configured": _is_configured_secret(
+            settings.WECOM_INTELLIGENT_BOT_TOKEN
+        )
+        or _is_configured_secret(settings.WECOM_TOKEN),
+        "wecom_intelligent_bot_encoding_aes_key_configured": _is_configured_secret(
+            settings.WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY
+        )
+        or _is_configured_secret(settings.WECOM_ENCODING_AES_KEY),
         "handoff_staff_userid_ready": _is_configured_secret(settings.WECOM_STAFF_ID)
         or _is_configured_secret(settings.WECOM_KF_SERVICER_USERID),
     }

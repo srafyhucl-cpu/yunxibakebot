@@ -26,6 +26,10 @@ from app.service.offline.agent_memory import MemoryAgent
 from app.service.offline.agent_qa_review import QaReviewAgent
 from app.service.offline.model_selection import select_offline_review_model
 from app.service.offline.orchestrator import OfflineReviewOrchestrator
+from app.service.offline.quality_signals import (
+    extract_memory_signal,
+    extract_review_issues,
+)
 from app.service.offline.scheduler import OfflineReviewScheduler, _is_night_window
 
 
@@ -137,6 +141,190 @@ async def test_qa_review_agent_repairs_empty_low_score(
     assert responses == []
 
 
+async def test_qa_review_agent_falls_back_when_low_score_has_no_issue(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """低分且模型始终不说明问题时，写入人工复核提示而不是空 issues。"""
+    await _insert_session(db, "session-fallback", "closed")
+    await MessageRepo(db).save(
+        Message(
+            id="msg-fallback",
+            session_id="session-fallback",
+            role=MessageRole.USER,
+            content="客服没有回答生日蜡烛收费规则",
+        )
+    )
+    responses = [
+        '{"quality_score": 0, "issues": []}',
+        '{"quality_score": 0, "issues": []}',
+    ]
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(content=responses.pop(0))
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    agent = _build_agent(db)
+
+    reviews = await agent.run()
+    stored = await ConversationReviewRepo(db).list_by_session("session-fallback")
+
+    assert [review.quality_score for review in reviews] == [0]
+    assert stored[0].issues_json == '["模型给出低分但未说明具体问题，需人工复核"]'
+    assert responses == []
+
+
+async def test_qa_review_agent_adds_actionable_issues_from_dialog_signals(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """模型给高分时，转人工和人工纠正信号仍应沉淀成可解释问题。"""
+    await _insert_session(db, "session-signal-review", "closed")
+    repo = MessageRepo(db)
+    await repo.save(
+        Message(
+            id="signal-user-1",
+            session_id="session-signal-review",
+            role=MessageRole.USER,
+            content="娃娃头能定制4寸的吗？",
+        )
+    )
+    await repo.save(
+        Message(
+            id="signal-assistant-1",
+            session_id="session-signal-review",
+            role=MessageRole.ASSISTANT,
+            content="可以看看4寸手绘樱桃奶油蛋糕。",
+        )
+    )
+    await repo.save(
+        Message(
+            id="signal-user-2",
+            session_id="session-signal-review",
+            role=MessageRole.USER,
+            content="转人工",
+        )
+    )
+    await repo.save(
+        Message(
+            id="signal-assistant-2",
+            session_id="session-signal-review",
+            role=MessageRole.ASSISTANT,
+            content="[人工客服] 不可以哦，这个不行",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(content='{"quality_score": 95, "issues": []}')
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    reviews = await _build_agent(db).run()
+
+    issues = json.loads(reviews[0].issues_json)
+    assert reviews[0].quality_score == 59
+    assert "用户要求转人工，需复核机器人是否已充分解决前置问题" in issues
+    assert "人工客服纠正了机器人未能明确处理的问题，需沉淀规则" in issues
+
+
+async def test_qa_review_agent_flags_repeated_greeting_stall(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """连续寒暄三次以上后才进入需求时，质检应输出具体问题。"""
+    await _insert_session(db, "session-greeting-stall", "closed")
+    repo = MessageRepo(db)
+    for index, content in enumerate(("你好？", "你好", "你好？"), start=1):
+        await repo.save(
+            Message(
+                id=f"greeting-user-{index}",
+                session_id="session-greeting-stall",
+                role=MessageRole.USER,
+                content=content,
+            )
+        )
+        await repo.save(
+            Message(
+                id=f"greeting-assistant-{index}",
+                session_id="session-greeting-stall",
+                role=MessageRole.ASSISTANT,
+                content="您好呀~ 我一直在的！请问有什么可以帮您的呀？",
+            )
+        )
+    await repo.save(
+        Message(
+            id="greeting-user-4",
+            session_id="session-greeting-stall",
+            role=MessageRole.USER,
+            content="推荐几个蛋糕吧",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(content='{"quality_score": 95, "issues": []}')
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    reviews = await _build_agent(db).run()
+
+    issues = json.loads(reviews[0].issues_json)
+    assert reviews[0].quality_score == 59
+    assert "用户连续寒暄后才进入需求，需更快识别意图并引导到具体咨询" in issues
+
+
+def test_quality_signals_handle_message_role_enum_values() -> None:
+    """规则信号应兼容仓库字符串角色和内存中的 MessageRole 枚举。"""
+    messages = [
+        Message("enum-user-1", "enum-session", MessageRole.USER, "你好？"),
+        Message("enum-ai-1", "enum-session", MessageRole.ASSISTANT, "您好~"),
+        Message("enum-user-2", "enum-session", MessageRole.USER, "你好"),
+        Message("enum-ai-2", "enum-session", MessageRole.ASSISTANT, "您好~"),
+        Message("enum-user-3", "enum-session", MessageRole.USER, "你好？"),
+        Message("enum-ai-3", "enum-session", MessageRole.ASSISTANT, "您好~"),
+        Message("enum-user-4", "enum-session", MessageRole.USER, "有荔枝的吗？"),
+    ]
+
+    issues = extract_review_issues(messages)
+    memory = extract_memory_signal(messages)
+
+    assert "用户连续寒暄后才进入需求，需更快识别意图并引导到具体咨询" in issues
+    assert memory.preferences["product_interests"] == ["荔枝口味"]
+
+
+def test_quality_signals_do_not_treat_birthday_candle_question_as_occasion() -> None:
+    """生日蜡烛收费问题是知识咨询，不应写成顾客生日场景画像。"""
+    messages = [
+        Message(
+            "candle-user-1",
+            "candle-session",
+            MessageRole.USER,
+            "生日蜡烛收费吗？",
+        )
+    ]
+
+    memory = extract_memory_signal(messages)
+
+    assert memory.order_summary == {}
+
+
+def test_quality_signals_extract_explicit_birthday_occasion() -> None:
+    """用户明确说给孩子过生日时，应写入生日使用场景。"""
+    messages = [
+        Message(
+            "birthday-user-1",
+            "birthday-session",
+            MessageRole.USER,
+            "给孩子过生日，推荐个不要太甜的蛋糕。",
+        )
+    ]
+
+    memory = extract_memory_signal(messages)
+
+    assert memory.order_summary["usage"] == "儿童蛋糕"
+    assert memory.order_summary["occasion"] == "生日"
+
+
 async def test_qa_review_agent_isolates_single_session_llm_error(
     db: aiosqlite.Connection,
     monkeypatch: pytest.MonkeyPatch,
@@ -219,6 +407,50 @@ async def test_knowledge_gap_agent_upserts_open_gap_without_duplicate_session(
     assert json.loads(open_gaps[0].related_sessions_json) == ["gap-session-1"]
 
 
+async def test_knowledge_gap_agent_adds_gap_from_dialog_signals(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """模型未发现缺口时，真实对话里的可运营缺口仍应入库。"""
+    await _insert_session(db, "gap-signal-session", "closed")
+    repo = MessageRepo(db)
+    await repo.save(
+        Message(
+            id="gap-signal-user-1",
+            session_id="gap-signal-session",
+            role=MessageRole.USER,
+            content="娃娃头能定制4寸的吗？",
+        )
+    )
+    await repo.save(
+        Message(
+            id="gap-signal-assistant-1",
+            session_id="gap-signal-session",
+            role=MessageRole.ASSISTANT,
+            content="[人工客服] 不可以哦，这个不行",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(content='{"question_norm":"","proposed_answer":""}')
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(knowledge_gap_module, "llm_chat", fake_llm_chat)
+    agent = KnowledgeGapAgent(MessageRepo(db), KnowledgeGapRepo(db))
+    reviews = [
+        ConversationReview(
+            id=1,
+            session_id="gap-signal-session",
+            quality_score=20,
+            issues_json='["人工纠正"]',
+        )
+    ]
+
+    gaps = await agent.run(reviews)
+
+    assert gaps[0].question_norm == "娃娃头水果奶油蛋糕是否支持4寸定制"
+
+
 async def test_memory_agent_upserts_profile_and_skips_current_profile(
     db: aiosqlite.Connection,
     monkeypatch: pytest.MonkeyPatch,
@@ -263,6 +495,175 @@ async def test_memory_agent_upserts_profile_and_skips_current_profile(
     assert profile.display_name == "小林"
     assert profile.preferences_json == '{"sweetness": "less"}'
     assert profile.allergens_json == '["坚果"]'
+
+
+async def test_memory_agent_merges_dialog_signals_when_model_returns_empty_profile(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """模型返回空画像时，儿童低甜和4寸定制等服务事实不能丢失。"""
+    await _insert_session(db, "memory-signal-1", "closed")
+    await db.execute(
+        "UPDATE sessions SET updated_at = ? WHERE id = ?",
+        ("2026-06-09 12:00:00", "memory-signal-1"),
+    )
+    await db.commit()
+    repo = MessageRepo(db)
+    await repo.save(
+        Message(
+            id="memory-signal-msg-1",
+            session_id="memory-signal-1",
+            role=MessageRole.USER,
+            content="推荐个孩子吃的蛋糕，不要太甜，有4寸的吗？",
+        )
+    )
+    await repo.save(
+        Message(
+            id="memory-signal-msg-2",
+            session_id="memory-signal-1",
+            role=MessageRole.USER,
+            content="娃娃头能定制4寸的吗？",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(
+            content=(
+                '{"display_name":"","preferences":{},'
+                '"order_summary":{},"special_dates":[],'
+                '"allergens":[],"consent_status":"unknown"}'
+            )
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    agent = MemoryAgent(
+        OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
+    )
+
+    profiles = await agent.run()
+    profile = await CustomerProfileRepo(db).get("youzan", "user-memory-signal-1")
+
+    assert len(profiles) == 1
+    assert profile is not None
+    preferences = json.loads(profile.preferences_json)
+    order_summary = json.loads(profile.order_summary_json)
+    assert preferences["audience"] == "孩子"
+    assert preferences["sweetness"] == "低甜"
+    assert preferences["size_interest"] == "4寸"
+    assert preferences["service_interest"] == "定制蛋糕"
+    assert order_summary["usage"] == "儿童蛋糕"
+
+
+async def test_memory_agent_merges_existing_profile_facts(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同一顾客多轮会话画像应合并事实，不能用新会话覆盖旧会话。"""
+    await _insert_session(db, "memory-merge-1", "closed")
+    await db.execute(
+        "UPDATE sessions SET updated_at = ? WHERE id = ?",
+        ("2026-06-09 12:00:00", "memory-merge-1"),
+    )
+    await MessageRepo(db).save(
+        Message(
+            id="memory-merge-msg-1",
+            session_id="memory-merge-1",
+            role=MessageRole.USER,
+            content="给孩子吃，不要太甜，想要4寸。",
+        )
+    )
+    await CustomerProfileRepo(db).upsert(
+        memory_module.CustomerProfileUpsert(
+            channel="youzan",
+            user_id="user-memory-merge-1",
+            preferences_json='{"audience":"老人","sweetness":"木糖醇"}',
+            order_summary_json='{"usage":"长辈蛋糕"}',
+            last_interaction_at="2026-06-09 11:00:00",
+        )
+    )
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        message = SimpleNamespace(
+            content=(
+                '{"display_name":"","preferences":{},'
+                '"order_summary":{},"special_dates":[],'
+                '"allergens":[],"consent_status":"unknown"}'
+            )
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    agent = MemoryAgent(
+        OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
+    )
+
+    await agent.run()
+    profile = await CustomerProfileRepo(db).get("youzan", "user-memory-merge-1")
+
+    assert profile is not None
+    preferences = json.loads(profile.preferences_json)
+    order_summary = json.loads(profile.order_summary_json)
+    assert preferences["audience"] == ["老人", "孩子"]
+    assert preferences["sweetness"] == ["木糖醇", "低甜"]
+    assert preferences["size_interest"] == "4寸"
+    assert order_summary["usage"] == ["长辈蛋糕", "儿童蛋糕"]
+
+
+async def test_memory_agent_ignores_assistant_only_birthday_prompts(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """只有助手提到生日时，不应把它当作用户画像信号触发重试。"""
+    await _insert_session(db, "memory-noisy-1", "closed")
+    await db.execute(
+        "UPDATE sessions SET updated_at = ? WHERE id = ?",
+        ("2026-06-09 12:00:00", "memory-noisy-1"),
+    )
+    await db.commit()
+    repo = MessageRepo(db)
+    await repo.save(
+        Message(
+            id="memory-noisy-msg-1",
+            session_id="memory-noisy-1",
+            role=MessageRole.USER,
+            content="推荐个蛋糕吧",
+        )
+    )
+    await repo.save(
+        Message(
+            id="memory-noisy-msg-2",
+            session_id="memory-noisy-1",
+            role=MessageRole.ASSISTANT,
+            content="请问是给谁过生日呀？",
+        )
+    )
+
+    call_count = 0
+
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+        nonlocal call_count
+        call_count += 1
+        message = SimpleNamespace(
+            content=(
+                '{"display_name":"","preferences":{},'
+                '"order_summary":{},"special_dates":[],'
+                '"allergens":[],"consent_status":"unknown"}'
+            )
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    agent = MemoryAgent(
+        OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
+    )
+
+    profiles = await agent.run()
+    profile = await CustomerProfileRepo(db).get("youzan", "user-memory-noisy-1")
+
+    assert call_count == 1
+    assert profiles == []
+    assert profile is None
 
 
 async def test_memory_agent_skips_empty_profile_without_useful_facts(

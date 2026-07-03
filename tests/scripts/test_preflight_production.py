@@ -155,6 +155,7 @@ def test_build_preflight_checks_includes_actionable_readiness_failures(
     monkeypatch.setattr(preflight.settings, "DB_PATH", str(db_path))
     monkeypatch.setattr(preflight.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(preflight.settings, "WECOM_KF_SERVICER_USERID", "")
+    monkeypatch.setattr(preflight.settings, "WECOM_BOT_PLUGIN_API_KEY", "")
 
     checks = preflight.build_preflight_checks()
     checks_by_key = {check.key: check for check in checks}
@@ -162,6 +163,11 @@ def test_build_preflight_checks_includes_actionable_readiness_failures(
     assert checks_by_key["database_path_exists"].passed is False
     assert checks_by_key["database_path_exists"].action
     assert "recovery_plan" in checks_by_key["database_schema_ready"].action
+    assert checks_by_key["wecom_bot_plugin_api_key_configured"].passed is False
+    assert (
+        "WECOM_BOT_PLUGIN_API_KEY"
+        in checks_by_key["wecom_bot_plugin_api_key_configured"].action
+    )
     assert checks_by_key["handoff_staff_userid_ready"].passed is False
     assert "WECOM_STAFF_ID" in checks_by_key["handoff_staff_userid_ready"].action
 
@@ -602,11 +608,11 @@ def test_build_json_report_includes_recovery_plan_with_overrides(
     monkeypatch.setattr(preflight, "datetime", _FrozenDateTime)
     checks = [
         preflight.PreflightCheck(
-            "handoff_staff_userid_ready",
-            "handoff",
+            "wecom_bot_plugin_api_key_configured",
+            "wecom bot",
             False,
             "failed",
-            "set staff",
+            "set plugin key",
         )
     ]
 
@@ -616,7 +622,7 @@ def test_build_json_report_includes_recovery_plan_with_overrides(
     assert payload["plan"][0]["title"] == "补齐运行配置"
     assert payload["plan"][0]["key"] == "config"
     assert payload["plan"][0]["severity"] == "critical"
-    assert payload["plan"][0]["related_keys"] == ["handoff_staff_userid_ready"]
+    assert payload["plan"][0]["related_keys"] == ["wecom_bot_plugin_api_key_configured"]
     assert payload["plan"][0]["apply_mutates_state"] is True
     assert payload["plan"][-1]["key"] == "final_validation"
     assert payload["plan"][-1]["severity"] == "critical"

@@ -1,4 +1,60 @@
 ﻿
+## E-20260703-002：企微智能机器人 API 模式 URL 回调本地验收
+
+- trace_id: 20260703-wecom-aibot-url-callback
+- generated_at: 2026-07-03
+- evidence_type: local/wecom-intelligent-bot-url-callback
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\wecom-intelligent-bot-tools.md`; `D:\Project\YunxiBakeBot\app\api\integrations\wecom_intelligent_bot.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_callback.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_dispatcher.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_messages.py`; `D:\Project\YunxiBakeBot\tests\api\test_wecom_intelligent_bot_callback_api.py`
+- command: `python -m pytest tests/api/test_wecom_intelligent_bot_callback_api.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/test_lifespan_routes_services.py tests/test_config.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_smoke_test.py -q --no-cov`; `python -m ruff check app\api\integrations\wecom_intelligent_bot.py app\service\wecom\crypto.py app\service\wecom\intelligent_bot_callback.py app\service\wecom\intelligent_bot_dispatcher.py app\service\wecom\intelligent_bot_messages.py app\config.py app\readiness.py app\lifespan_routes.py app\lifespan_services.py scripts\preflight_production.py scripts\smoke_test.py tests\api\test_wecom_intelligent_bot_callback_api.py tests\api\test_wecom_intelligent_bot_plugin_api.py tests\test_lifespan_routes_services.py tests\test_health_ready.py`; `python scripts\check_project.py --skip-tests`; `python scripts\check_mistake_ledger.py`; `rg "from app\.repository" app\api -g "*.py"`; `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`; `rg "from app\.(service|repository|api)" app\models -g "*.py"`
+- result: pass
+- related_logbook: 2026-07-03 - feat(wecom): 切换智能机器人为 API 模式 URL 回调
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录本地验证命令和文件路径；未记录企微 Token、EncodingAESKey、插件 key 或客户隐私字段。
+- summary: 本地已完成智能机器人 API 模式 URL 回调 GET 验证、POST 加密 JSON 消息解密与加密被动回复测试；普通模式工具路由仍通过。长连接草稿文件已移除，主入口固定为 `/api/v1/wecom/intelligent-bot/callback`。
+
+## E-20260703-003：企微智能机器人 API 模式 URL 回调生产同步
+
+- trace_id: 20260703-wecom-aibot-url-callback
+- generated_at: 2026-07-03
+- evidence_type: production/wecom-intelligent-bot-url-callback
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\wecom-intelligent-bot-tools.md`; production backup `/opt/yunxibakebot/backups/wecom-aibot-url-callback-20260703-154519`
+- command: `ssh root@47.94.102.250 "cd /opt/yunxibakebot && python3 -m compileall -q ..."`; `ssh root@47.94.102.250 "systemctl restart yunxibakebot && systemctl is-active yunxibakebot"`; `curl https://yunxifood.cn/health`; `curl https://yunxifood.cn/ready`; production encrypted GET/POST callback probe using runtime settings without printing secrets; `ssh root@47.94.102.250 "cd /opt/yunxibakebot && python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn"`
+- result: pass
+- related_logbook: 2026-07-03 - feat(wecom): 切换智能机器人为 API 模式 URL 回调
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录脱敏命令、备份目录和验证结论；未记录企微 Token、EncodingAESKey、插件 key 或客户隐私字段。
+- summary: 生产已同步智能机器人 API 模式 URL 回调入口 `/api/v1/wecom/intelligent-bot/callback`。首次重启因漏同步 `intelligent_bot_status_tools.py` 出现短暂 502，补同步后 `/health` 与 `/ready` 均恢复 200；生产加密 GET/POST 探针通过，普通模式工具 smoke 13/13 通过。
+
+## E-20260703-001：企微智能机器人工具输出适配与商品匹配修复
+
+- trace_id: 20260703-wecom-tool-result-not-visible
+- generated_at: 2026-07-03
+- evidence_type: production/wecom-intelligent-bot-result-adapter
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\wecom-intelligent-bot-tools.md`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_plugin.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_tool_response.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_tool_format.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_product_filter.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_intelligent_bot_tool_response_and_format.py`
+- command: `python -m pytest tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py -q --no-cov`; `python -m ruff check app/service/wecom/intelligent_bot_plugin.py app/service/wecom/intelligent_bot_tool_response.py app/service/wecom/intelligent_bot_tool_format.py app/service/wecom/intelligent_bot_product_filter.py scripts/check_wecom_intelligent_bot_contract.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_intelligent_bot_contract.py`; `python scripts/check_project.py --skip-tests`; production `python3 scripts/check_wecom_intelligent_bot_contract.py`; production `python scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn`; production read-only probes for `ping` / `product-lookup` / `knowledge-answer`; production enhanced smoke with `result_present` contract
+- result: pass
+- related_logbook: 2026-07-03 - fix(wecom): 统一智能机器人工具输出并收紧商品匹配
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录脱敏命令、路径、备份目录和验证结论；未记录 `WECOM_BOT_PLUGIN_API_KEY`、`X-Yunxi-Bot-Key`、`Authorization` 或完整客户隐私字段。
+- summary: 生产已同步统一 `result` / `resultText` 输出字段，企微后台可统一配置一个 String 输出参数；`product-lookup` 对具体商品无匹配时不再返回无关 fallback 商品。生产备份目录为 `/opt/yunxibakebot/backups/wecom-bot-result-adapter-20260703-125246`，增强 smoke 脚本备份目录为 `/opt/yunxibakebot/backups/wecom-smoke-result-contract-20260703-132901`；重启后服务 active，契约检查与完整 smoke 通过，10 个业务/连通工具均 `result_present=true`。
+
+## E-20260702-001：企微智能机器人工具生产级验收
+
+- trace_id: 20260702-wecom-bot-production-hardening
+- generated_at: 2026-07-02
+- evidence_type: production/wecom-intelligent-bot-acceptance
+- file: `D:\Project\YunxiBakeBot\reports\harness\wecom-intelligent-bot-acceptance-20260703-011421.md`; `D:\Project\YunxiBakeBot\reports\wecom-intelligent-bot-contract-20260703-011421.json`; `D:\Project\YunxiBakeBot\reports\wecom-intelligent-bot-smoke-20260703-011240.json`; `D:\Project\YunxiBakeBot\docs\architecture\wecom-intelligent-bot-tools.md`
+- command: `python scripts/check_wecom_intelligent_bot_contract.py --json --output "reports/wecom-intelligent-bot-contract-{timestamp}.json"`; `python scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn --output "reports/wecom-intelligent-bot-smoke-{timestamp}.json"`; production `python3 scripts/check_wecom_intelligent_bot_contract.py --json`; production `python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn`; `/health`; `/ready`
+- result: pass
+- related_logbook: 2026-07-02 - harden(wecom): 完成企微智能机器人工具生产级验收
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏 JSON、命令和结论；报告不包含 `WECOM_BOT_PLUGIN_API_KEY`、`X-Yunxi-Bot-Key`、`Authorization` 或完整客户隐私字段。
+- summary: 企微智能机器人 `ping` + 9 个只读业务工具已在生产域名完成冒烟，错误 key、缺 key 和 URL query key 均被拒绝；文档工具清单与 FastAPI 路由一致；`/ready` 已纳入插件 key 配置检查并返回 ready。
+
 
 ## E-20260623-003：并发压测按需 CI 编排
 
@@ -1567,3 +1623,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记 API 目录切换和本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: `app/api/channels/storefront/*` 承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出，`lifespan` 装配优先使用 canonical router；新增红线防止 MiniApp API 兼容文件重新承载真实 FastAPI router。外部 `/api/v1/miniapp/*` 和 `x-miniapp-user-id` 保持不变。
+
+## E-20260703-004：企微智能机器人 URL 回调改为 stream 回复
+
+- trace_id: 20260703-wecom-aibot-stream-reply
+- generated_at: 2026-07-03
+- evidence_type: production-fix/test/smoke
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_callback.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_dispatcher.py`; `D:\Project\YunxiBakeBot\tests\api\test_wecom_intelligent_bot_callback_api.py`; `D:\Project\YunxiBakeBot\docs\architecture\wecom-intelligent-bot-tools.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/api/test_wecom_intelligent_bot_callback_api.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/service/test_wecom_intelligent_bot_tool_response_and_format.py -q --no-cov`; `python -m ruff check app/service/wecom/intelligent_bot_callback.py app/service/wecom/intelligent_bot_dispatcher.py tests/api/test_wecom_intelligent_bot_callback_api.py`; `python scripts/check_project.py --skip-tests`; production `python3 -m compileall -q app/service/wecom/intelligent_bot_callback.py app/service/wecom/intelligent_bot_dispatcher.py`; production `/ready`; production encrypted callback probe
+- result: pass
+- related_logbook: 2026-07-03 - fix(wecom): 智能机器人消息回调用 stream 被动回复
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记命令、状态码、回复类型和备份目录，不包含企微密钥、员工原文或回复正文。
+- summary: URL 回调从 `msgtype=text` 改为一次性 `msgtype=stream`、`finish=true` 的被动回复，并增加不含正文的路由观测日志；生产加密探针确认返回 200、签名通过、解密后为 stream 回复。

@@ -63,6 +63,7 @@ def test_build_readiness_checks_reports_configured_paths(
     monkeypatch.setattr(main.settings, "WECOM_TOKEN", "wecom-token")
     monkeypatch.setattr(main.settings, "WECOM_ENCODING_AES_KEY", "wecom-aes-key")
     monkeypatch.setattr(main.settings, "WECOM_KF_ID", "wk_test")
+    monkeypatch.setattr(main.settings, "WECOM_BOT_PLUGIN_API_KEY", "plugin-key")
     monkeypatch.setattr(main.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(main.settings, "WECOM_KF_SERVICER_USERID", "servicer-user")
     monkeypatch.setattr(readiness, "ADMIN_DIST_DIR", dist_dir)
@@ -85,6 +86,9 @@ def test_build_readiness_checks_reports_configured_paths(
         "wecom_callback_token_configured": True,
         "wecom_encoding_aes_key_configured": True,
         "wecom_kf_id_configured": True,
+        "wecom_bot_plugin_api_key_configured": True,
+        "wecom_intelligent_bot_callback_token_configured": True,
+        "wecom_intelligent_bot_encoding_aes_key_configured": True,
         "handoff_staff_userid_ready": True,
         "admin_frontend_index_exists": True,
         "admin_frontend_assets_exist": True,
@@ -107,6 +111,7 @@ def test_build_readiness_checks_rejects_defaults(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(main.settings, "WECOM_TOKEN", "")
     monkeypatch.setattr(main.settings, "WECOM_ENCODING_AES_KEY", "")
     monkeypatch.setattr(main.settings, "WECOM_KF_ID", "")
+    monkeypatch.setattr(main.settings, "WECOM_BOT_PLUGIN_API_KEY", "")
     monkeypatch.setattr(main.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(main.settings, "WECOM_KF_SERVICER_USERID", "")
     monkeypatch.setattr(readiness, "ADMIN_DIST_DIR", tmp_path / "missing-dist")
@@ -123,6 +128,9 @@ def test_build_readiness_checks_rejects_defaults(monkeypatch, tmp_path) -> None:
     assert checks["wecom_callback_token_configured"] is False
     assert checks["wecom_encoding_aes_key_configured"] is False
     assert checks["wecom_kf_id_configured"] is False
+    assert checks["wecom_bot_plugin_api_key_configured"] is False
+    assert checks["wecom_intelligent_bot_callback_token_configured"] is False
+    assert checks["wecom_intelligent_bot_encoding_aes_key_configured"] is False
     assert checks["handoff_staff_userid_ready"] is False
     assert checks["admin_frontend_index_exists"] is False
     assert checks["admin_frontend_assets_exist"] is False
@@ -142,6 +150,7 @@ def test_build_channel_readiness_checks_accepts_production_channels(
     monkeypatch.setattr(main.settings, "WECOM_TOKEN", "wecom-token")
     monkeypatch.setattr(main.settings, "WECOM_ENCODING_AES_KEY", "wecom-aes-key")
     monkeypatch.setattr(main.settings, "WECOM_KF_ID", "wk_test")
+    monkeypatch.setattr(main.settings, "WECOM_BOT_PLUGIN_API_KEY", "plugin-key")
     monkeypatch.setattr(main.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(main.settings, "WECOM_KF_SERVICER_USERID", "servicer-user")
 
@@ -158,6 +167,9 @@ def test_build_channel_readiness_checks_accepts_production_channels(
         "wecom_callback_token_configured": True,
         "wecom_encoding_aes_key_configured": True,
         "wecom_kf_id_configured": True,
+        "wecom_bot_plugin_api_key_configured": True,
+        "wecom_intelligent_bot_callback_token_configured": True,
+        "wecom_intelligent_bot_encoding_aes_key_configured": True,
         "handoff_staff_userid_ready": True,
     }
 
@@ -175,6 +187,7 @@ def test_build_channel_readiness_checks_rejects_mock_mode(
     monkeypatch.setattr(main.settings, "WECOM_TOKEN", "wecom-token")
     monkeypatch.setattr(main.settings, "WECOM_ENCODING_AES_KEY", "wecom-aes-key")
     monkeypatch.setattr(main.settings, "WECOM_KF_ID", "wk_test")
+    monkeypatch.setattr(main.settings, "WECOM_BOT_PLUGIN_API_KEY", "plugin-key")
     monkeypatch.setattr(main.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(main.settings, "WECOM_KF_SERVICER_USERID", "servicer-user")
 
@@ -357,6 +370,7 @@ async def test_ready_returns_ready_when_all_checks_pass(monkeypatch, tmp_path) -
     monkeypatch.setattr(main.settings, "WECOM_TOKEN", "wecom-token")
     monkeypatch.setattr(main.settings, "WECOM_ENCODING_AES_KEY", "wecom-aes-key")
     monkeypatch.setattr(main.settings, "WECOM_KF_ID", "wk_test")
+    monkeypatch.setattr(main.settings, "WECOM_BOT_PLUGIN_API_KEY", "plugin-key")
     monkeypatch.setattr(main.settings, "WECOM_STAFF_ID", "staff-user")
     monkeypatch.setattr(main.settings, "WECOM_KF_SERVICER_USERID", "")
     monkeypatch.setattr(main.settings, "ENABLE_REPLY_GUARD", True)
@@ -384,6 +398,7 @@ async def test_ready_returns_degraded_when_check_fails(monkeypatch, tmp_path) ->
     monkeypatch.setattr(main.settings, "WECOM_TOKEN", "wecom-token")
     monkeypatch.setattr(main.settings, "WECOM_ENCODING_AES_KEY", "wecom-aes-key")
     monkeypatch.setattr(main.settings, "WECOM_KF_ID", "wk_test")
+    monkeypatch.setattr(main.settings, "WECOM_BOT_PLUGIN_API_KEY", "")
     monkeypatch.setattr(main.settings, "WECOM_STAFF_ID", "staff-user")
     monkeypatch.setattr(main.settings, "WECOM_KF_SERVICER_USERID", "")
     monkeypatch.setattr(readiness, "ADMIN_DIST_DIR", tmp_path / "missing-dist")
@@ -393,4 +408,5 @@ async def test_ready_returns_degraded_when_check_fails(monkeypatch, tmp_path) ->
     assert payload["status"] == "degraded"
     assert payload["checks"]["admin_token_configured"] is False
     assert payload["checks"]["youzan_production_mode_ready"] is False
+    assert payload["checks"]["wecom_bot_plugin_api_key_configured"] is False
     assert payload["checks"]["admin_frontend_observability_summary_built"] is False

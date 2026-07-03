@@ -7,7 +7,7 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 try:
@@ -142,7 +142,7 @@ def build_snapshot(
     current_status: str,
     root_dir: Path = ROOT_DIR,
 ) -> HarnessSnapshot:
-    generated_at = datetime.now(UTC).isoformat()
+    generated_at = datetime.now(timezone.utc).isoformat()
     return HarnessSnapshot(
         trace_id=trace_id,
         goal=goal,
@@ -211,7 +211,7 @@ def format_items(items: tuple[str, ...]) -> list[str]:
 
 
 def resolve_output_path(output: str, root_dir: Path = ROOT_DIR) -> Path:
-    timestamp = datetime.now(UTC).strftime(OUTPUT_TIMESTAMP_FORMAT)
+    timestamp = datetime.now(timezone.utc).strftime(OUTPUT_TIMESTAMP_FORMAT)
     expanded = output.replace(OUTPUT_TIMESTAMP_PLACEHOLDER, timestamp)
     path = Path(expanded)
     return path if path.is_absolute() else root_dir / path

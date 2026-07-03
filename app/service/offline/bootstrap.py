@@ -18,6 +18,7 @@ def register_offline_review_scheduler(
     repos: dict[str, Any],
     bg_tasks: set[asyncio.Task[None]],
     scope_factory: Callable[[], AsyncContextManager[object]],
+    idle_closer: Any | None = None,
 ) -> None:
     """按配置启动离线质检调度器，并持有后台任务强引用。"""
     if not settings.ENABLE_OFFLINE_REVIEW:
@@ -49,6 +50,7 @@ def register_offline_review_scheduler(
         orchestrator=orchestrator,
         interval_hours=settings.OFFLINE_REVIEW_INTERVAL_HOURS,
         scope_factory=scope_factory,
+        idle_closer=idle_closer,
     )
     app.state.offline_review_scheduler = scheduler
     bg_tasks.add(scheduler.start())

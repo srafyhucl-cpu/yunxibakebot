@@ -276,6 +276,9 @@ class AdminService:
                     "robot_webhook_configured": _is_configured(
                         settings.WECOM_ROBOT_WEBHOOK
                     ),
+                    "bot_plugin_api_key_configured": _is_configured(
+                        settings.WECOM_BOT_PLUGIN_API_KEY
+                    ),
                 },
             },
             "api": {

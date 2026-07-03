@@ -7,7 +7,7 @@ import sqlite3
 import sys
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -73,6 +73,13 @@ CHANNEL_READINESS_SETTING_NAMES = {
     "wecom_callback_token_configured": "WECOM_TOKEN",
     "wecom_encoding_aes_key_configured": "WECOM_ENCODING_AES_KEY",
     "wecom_kf_id_configured": "WECOM_KF_ID",
+    "wecom_bot_plugin_api_key_configured": "WECOM_BOT_PLUGIN_API_KEY",
+    "wecom_intelligent_bot_callback_token_configured": (
+        "WECOM_INTELLIGENT_BOT_TOKEN_OR_WECOM_TOKEN"
+    ),
+    "wecom_intelligent_bot_encoding_aes_key_configured": (
+        "WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY_OR_WECOM_ENCODING_AES_KEY"
+    ),
     "handoff_staff_userid_ready": "WECOM_STAFF_ID_OR_WECOM_KF_SERVICER_USERID",
 }
 
@@ -518,7 +525,7 @@ def print_results(results: list[SmokeResult]) -> None:
 
 def build_report_metadata() -> dict[str, str]:
     generated_at = (
-        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
     return {
         "generated_at": generated_at,

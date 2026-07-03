@@ -46,6 +46,11 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     )
     from app.service.order import OrderApplicationService
     from app.service.transfer_manager import TransferManager
+    from app.service.wecom.employee_agent_service import EmployeeAgentService
+    from app.service.wecom.intelligent_bot_ops_tools import WeComBotOpsToolService
+    from app.service.wecom.intelligent_bot_order_lookup import WeComOrderLookupService
+    from app.service.wecom.intelligent_bot_status_tools import WeComBotStatusToolService
+    from app.service.wecom.intelligent_bot_tools import WeComBotBusinessToolService
 
     admin_service = AdminService(
         session_repo=repos["session_repo"],
@@ -129,9 +134,36 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         message_repo=repos["message_repo"],
         transfer_mgr=transfer_mgr,
     )
+    wecom_order_lookup_service = WeComOrderLookupService(
+        order_service=order_service,
+        youzan_order_repo=repos.get("youzan_order_repo"),
+        knowledge_retriever=knowledge_retriever,
+        youzan_client=youzan_client,
+    )
+    wecom_bot_business_tool_service = WeComBotBusinessToolService(
+        order_service=order_service,
+        order_lookup_service=wecom_order_lookup_service,
+        catalog_service=catalog_service,
+        knowledge_retriever=knowledge_retriever,
+    )
+    wecom_bot_ops_tool_service = WeComBotOpsToolService(
+        customer_address_service=customer_address_service,
+        customer_group_service=customer_group_service,
+        transfer_mgr=transfer_mgr,
+    )
+    wecom_bot_status_tool_service = WeComBotStatusToolService(
+        observability_service=observability_service,
+    )
+    employee_agent_service = EmployeeAgentService(
+        business_tool_service=wecom_bot_business_tool_service,
+        ops_tool_service=wecom_bot_ops_tool_service,
+        status_tool_service=wecom_bot_status_tool_service,
+        order_lookup_service=wecom_order_lookup_service,
+    )
 
     services = {
         "admin_service": admin_service,
+        "knowledge_retriever": knowledge_retriever,
         "observability_service": observability_service,
         "knowledge_sync_service": knowledge_sync_service,
         "knowledge_admin_service": knowledge_admin_service,
@@ -148,6 +180,11 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "reconcile_service": reconcile_service,
         "chat_service": chat_service,
         "storefront_conversation_service": storefront_conversation_service,
+        "wecom_order_lookup_service": wecom_order_lookup_service,
+        "wecom_bot_business_tool_service": wecom_bot_business_tool_service,
+        "wecom_bot_ops_tool_service": wecom_bot_ops_tool_service,
+        "wecom_bot_status_tool_service": wecom_bot_status_tool_service,
+        "employee_agent_service": employee_agent_service,
     }
     return _with_legacy_service_aliases(services)
 

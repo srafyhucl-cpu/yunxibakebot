@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiosqlite
@@ -39,7 +39,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _now() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 async def _seed_orders(db_path: str, count: int) -> None:

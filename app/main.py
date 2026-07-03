@@ -47,8 +47,13 @@ from app.repository.order_repo import OrderRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
+from app.repository.youzan_order_repo import YouzanOrderRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.static_routes import (
+    serve_favicon as _serve_favicon,
+    serve_verify_txt as _serve_verify_txt,
+)
 
 # 以下5个服务类由lifespan_services模块内部按需导入，避免顶层循环依赖
 # （顶层仅做类型标注用）：ChatService、KnowledgeRetriever、YouzanClient、YouzanEventHandler、ProductReconcileService
@@ -168,6 +173,7 @@ def _init_repositories() -> dict[str, object]:
         "config_repo": ConfigRepo(None),
         "history_repo": ContentChangeHistoryRepo(None),
         "youzan_product_repo": YouzanProductRepo(None),
+        "youzan_order_repo": YouzanOrderRepo(None),
         "youzan_inventory_repo": YouzanInventoryRepo(None),
         "webhook_event_repo": YouzanWebhookEventRepo(None),
         "analytics_repo": AnalyticsRepo(None),
@@ -210,9 +216,24 @@ def _start_background_tasks(
     bg_tasks: set[asyncio.Task[None]] = set()
 
     from app.service.offline.bootstrap import register_offline_review_scheduler
-    from app.service.ops import register_order_timeout_scheduler
+    from app.service.ops import (
+        register_order_timeout_scheduler,
+        register_session_idle_closer,
+    )
 
-    register_offline_review_scheduler(app, repos, bg_tasks, db_session_scope)
+    register_session_idle_closer(
+        app,
+        repos["session_repo"],
+        bg_tasks,
+        db_session_scope,
+    )
+    register_offline_review_scheduler(
+        app,
+        repos,
+        bg_tasks,
+        db_session_scope,
+        getattr(app.state, "session_idle_closer", None),
+    )
     register_order_timeout_scheduler(
         app,
         services["order_service"],
@@ -264,7 +285,9 @@ async def _shutdown_lifespan_services(
     await kf_queue.stop()
 
     from app.service.offline.bootstrap import stop_offline_review_scheduler
+    from app.service.ops import stop_session_idle_closer
 
+    await stop_session_idle_closer(app)
     await stop_offline_review_scheduler(app)
 
     from app.service.ops import stop_order_timeout_scheduler
@@ -304,33 +327,18 @@ ADMIN_DIST_SUMMARY_MARKERS = (
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
-@app.get("/{filename}.txt")
 async def serve_verify_txt(filename: str):
-    """微信/有赞等平台域名所有权 TXT 文件根目录穿透自动响应路由。"""
-    import os
-    from fastapi.responses import FileResponse
-    from fastapi.exceptions import HTTPException
-
-    filename = os.path.basename(filename)
-    file_path = BASE_DIR / "static" / f"{filename}.txt"
-    if os.path.exists(file_path):
-        return FileResponse(str(file_path))
-    raise HTTPException(status_code=404, detail="Not Found")
+    """根目录平台校验 TXT 文件响应。"""
+    return await _serve_verify_txt(filename, BASE_DIR)
 
 
-@app.get("/favicon.ico", include_in_schema=False)
 async def serve_favicon():
-    """网站根目录 favicon.ico 图标响应。"""
-    from fastapi.responses import FileResponse
+    """根目录 favicon 响应。"""
+    return await _serve_favicon(BASE_DIR)
 
-    ico_path = BASE_DIR.parent / "web" / "admin" / "dist" / "favicon.ico"
-    if not ico_path.exists():
-        ico_path = BASE_DIR / "static" / "favicon.ico"
-    if ico_path.exists():
-        return FileResponse(str(ico_path))
-    from fastapi.exceptions import HTTPException
 
-    raise HTTPException(status_code=404, detail="Not Found")
+app.get("/{filename}.txt")(serve_verify_txt)
+app.get("/favicon.ico", include_in_schema=False)(serve_favicon)
 
 
 # ── 数据库连接生命周期与事务隔离中间件 ──

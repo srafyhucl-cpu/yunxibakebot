@@ -8,7 +8,7 @@ import sqlite3
 import sys
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -41,6 +41,9 @@ RECOVERY_PLAN_CONFIG_KEYS = frozenset(
         "wecom_callback_token_configured",
         "wecom_encoding_aes_key_configured",
         "wecom_kf_id_configured",
+        "wecom_bot_plugin_api_key_configured",
+        "wecom_intelligent_bot_callback_token_configured",
+        "wecom_intelligent_bot_encoding_aes_key_configured",
         "handoff_staff_userid_ready",
     }
 )
@@ -78,6 +81,9 @@ READINESS_ACTIONS = {
     "wecom_callback_token_configured": "设置 WECOM_TOKEN，用于企微回调验签。",
     "wecom_encoding_aes_key_configured": "设置 WECOM_ENCODING_AES_KEY，用于企微回调解密。",
     "wecom_kf_id_configured": "设置 WECOM_KF_ID。",
+    "wecom_bot_plugin_api_key_configured": "设置 WECOM_BOT_PLUGIN_API_KEY，用于企微智能机器人插件鉴权。",
+    "wecom_intelligent_bot_callback_token_configured": "设置 WECOM_INTELLIGENT_BOT_TOKEN，或复用 WECOM_TOKEN。",
+    "wecom_intelligent_bot_encoding_aes_key_configured": "设置 WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY，或复用 WECOM_ENCODING_AES_KEY。",
     "handoff_staff_userid_ready": "设置 WECOM_STAFF_ID 或 WECOM_KF_SERVICER_USERID。",
     "admin_frontend_index_exists": "在 web/admin 执行 npm run build:production。",
     "admin_frontend_assets_exist": "在 web/admin 执行 npm run build:production。",
@@ -330,7 +336,7 @@ def build_report_metadata(
     database_path = resolve_project_path(db_path_value or settings.DB_PATH)
     index_path = resolve_project_path(index_path_value or settings.EMBEDDING_INDEX_DIR)
     generated_at = (
-        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
     return {
         "generated_at": generated_at,

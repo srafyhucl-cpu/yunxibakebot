@@ -1,7 +1,7 @@
 from app.models.customer_profile import CustomerProfile
 from app.service.llm.profile_prompt import render_customer_profile
-from app.service.offline.agent_memory import _merge_json_lists
 from app.service.offline.agent_memory import _parse_memory_json
+from app.service.offline.memory_merge import merge_json_lists
 
 
 def test_memory_parser_keeps_multiple_special_dates() -> None:
@@ -51,7 +51,7 @@ def test_special_dates_merge_without_dropping_existing_records() -> None:
         '"date_known":true,"usage":"生日蛋糕","evidence":"妈妈5月20日生日"}]'
     )
 
-    merged = _merge_json_lists(new, existing)
+    merged = merge_json_lists(new, existing)
 
     assert merged.count("birthday") == 2
     assert "妈妈" in merged

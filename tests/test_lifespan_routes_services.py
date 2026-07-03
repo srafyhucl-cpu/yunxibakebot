@@ -10,6 +10,7 @@ from app import lifespan_routes, lifespan_services, main
 class FakeApp:
     def __init__(self) -> None:
         self.included_routers: list[Any] = []
+        self.state = types.SimpleNamespace()
 
     def include_router(self, router: Any) -> None:
         self.included_routers.append(router)
@@ -21,6 +22,14 @@ class FakeQueue:
 
     def start_worker(self, chat_service: Any) -> None:
         self.started_with.append(chat_service)
+
+
+class FakeStatusToolService:
+    def __init__(self) -> None:
+        self.offline_summary_provider: Any = None
+
+    def set_offline_summary_provider(self, provider: Any) -> None:
+        self.offline_summary_provider = provider
 
 
 def _install_module(monkeypatch: Any, name: str, **attrs: Any) -> None:
@@ -66,6 +75,14 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         monkeypatch,
         "app.api.admin.config",
         create_shop_config_router=lambda admin_service: ("config", admin_service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.admin.customer_groups",
+        create_admin_customer_groups_router=lambda service: (
+            "admin-customer-groups",
+            service,
+        ),
     )
     _install_module(
         monkeypatch,
@@ -126,6 +143,14 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
+        "app.api.channels.storefront.group_registrations",
+        create_storefront_group_registrations_router=lambda service: (
+            "miniapp-group-registrations",
+            service,
+        ),
+    )
+    _install_module(
+        monkeypatch,
         "app.api.channels.storefront.orders",
         create_storefront_orders_router=lambda service: ("miniapp-orders", service),
     )
@@ -142,8 +167,41 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "app.api.integrations.youzan_webhook",
         create_webhook_router=lambda chat_service: ("webhook", chat_service),
     )
+    _install_module(
+        monkeypatch,
+        "app.api.integrations.wecom_intelligent_bot",
+        create_wecom_intelligent_bot_router=lambda **kwargs: (
+            "wecom-intelligent-bot-router",
+            kwargs,
+        ),
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.wecom.intelligent_bot_tools",
+        WeComBotBusinessToolService=lambda **kwargs: (
+            "wecom-business-tool-service",
+            kwargs,
+        ),
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.wecom.intelligent_bot_ops_tools",
+        WeComBotOpsToolService=lambda **kwargs: (
+            "wecom-ops-tool-service",
+            kwargs,
+        ),
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.wecom.intelligent_bot_status_tools",
+        WeComBotStatusToolService=lambda **kwargs: (
+            "wecom-status-tool-service",
+            kwargs,
+        ),
+    )
     _install_module(monkeypatch, "app.api.integrations.wecom", router="wecom-router")
     app = FakeApp()
+    status_tool_service = FakeStatusToolService()
     services = {
         "chat_service": "chat",
         "admin_service": "admin-service",
@@ -157,15 +215,28 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "customer_address_service": "customer-address-service",
         "catalog_service": "catalog-service",
         "order_service": "order-service",
+        "knowledge_retriever": "knowledge-retriever",
         "storefront_conversation_service": "storefront-conversation-service",
+        "customer_group_service": "customer-group-service",
+        "wecom_bot_business_tool_service": "wecom-business-tool-service",
+        "wecom_bot_ops_tool_service": "wecom-ops-tool-service",
+        "wecom_bot_status_tool_service": status_tool_service,
+        "employee_agent_service": "employee-agent-service",
     }
 
     lifespan_routes.register_routes(app, services)
 
     assert wecom_queue.started_with == ["chat"]
     assert kf_queue.started_with == ["chat"]
-    assert len(app.included_routers) == 18
+    assert len(app.included_routers) == 21
     assert app.included_routers[0] == ("webhook", "chat")
+    wecom_router = app.included_routers[-2]
+    assert wecom_router[0] == "wecom-intelligent-bot-router"
+    assert wecom_router[1]["tool_service"] == "wecom-business-tool-service"
+    assert wecom_router[1]["ops_tool_service"] == "wecom-ops-tool-service"
+    assert wecom_router[1]["status_tool_service"] is status_tool_service
+    assert wecom_router[1]["agent_service"] == "employee-agent-service"
+    assert callable(status_tool_service.offline_summary_provider)
     assert app.included_routers[-1] == "wecom-router"
 
 
@@ -216,6 +287,10 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         def __init__(self, **kwargs: Any) -> None:
             created["customer_address_service"] = kwargs
 
+    class FakeCustomerGroupOperationsService:
+        def __init__(self, repo: Any) -> None:
+            created["customer_group_service"] = repo
+
     class FakeCatalogApplicationService:
         def __init__(self, **kwargs: Any) -> None:
             created["catalog_service"] = kwargs
@@ -227,6 +302,14 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     class FakeStorefrontConversationService:
         def __init__(self, **kwargs: Any) -> None:
             created["storefront_conversation_service"] = kwargs
+
+    class FakeWeComOrderLookupService:
+        def __init__(self, **kwargs: Any) -> None:
+            created["wecom_order_lookup_service"] = kwargs
+
+    class FakeEmployeeAgentService:
+        def __init__(self, **kwargs: Any) -> None:
+            created["employee_agent_service"] = kwargs
 
     class FakeShopPageConfigurationService:
         def __init__(self, config_repo: Any) -> None:
@@ -269,6 +352,7 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         monkeypatch,
         "app.service.customer",
         CustomerAddressService=FakeCustomerAddressService,
+        CustomerGroupOperationsService=FakeCustomerGroupOperationsService,
     )
     _install_module(
         monkeypatch,
@@ -301,6 +385,16 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "app.service.transfer_manager",
         TransferManager=FakeTransferManager,
     )
+    _install_module(
+        monkeypatch,
+        "app.service.wecom.intelligent_bot_order_lookup",
+        WeComOrderLookupService=FakeWeComOrderLookupService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.wecom.employee_agent_service",
+        EmployeeAgentService=FakeEmployeeAgentService,
+    )
     repos = {
         "session_repo": "session-repo",
         "message_repo": "message-repo",
@@ -311,11 +405,13 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "config_repo": "config-repo",
         "history_repo": "history-repo",
         "youzan_product_repo": "youzan-product-repo",
+        "youzan_order_repo": "youzan-order-repo",
         "youzan_inventory_repo": "youzan-inventory-repo",
         "order_repo": "order-repo",
         "order_event_repo": "order-event-repo",
         "customer_address_repo": "customer-address-repo",
         "customer_address_audit_repo": "customer-address-audit-repo",
+        "customer_group_repo": "customer-group-repo",
         "miniapp_address_repo": "miniapp-address-repo",
         "miniapp_address_audit_repo": "miniapp-address-audit-repo",
         "webhook_event_repo": "webhook-event-repo",
@@ -327,17 +423,24 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
 
     assert set(services) == {
         "admin_service",
+        "knowledge_retriever",
         "observability_service",
         "knowledge_sync_service",
         "knowledge_admin_service",
         "storefront_auth_service",
         "customer_address_service",
+        "customer_group_service",
         "catalog_service",
         "order_service",
         "storefront_conversation_service",
+        "wecom_order_lookup_service",
         "transfer_mgr",
         "shop_page_configuration_service",
         "shop_configuration_service",
+        "wecom_bot_business_tool_service",
+        "wecom_bot_ops_tool_service",
+        "wecom_bot_status_tool_service",
+        "employee_agent_service",
         "youzan_client",
         "youzan_event_handler",
         "reconcile_service",
@@ -355,10 +458,23 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "config-repo",
         "bm25",
     )
+    assert services["knowledge_retriever"] is not None
     assert created["transfer_mgr"] == "transfer-repo"
     assert created["chat_service"]["youzan_client"] is services["youzan_client"]
     assert created["chat_service"]["customer_profile_repo"] == "customer-profile-repo"
     assert created["order_service"]["order_repo"] == "order-repo"
+    assert created["wecom_order_lookup_service"] == {
+        "order_service": services["order_service"],
+        "youzan_order_repo": "youzan-order-repo",
+        "knowledge_retriever": services["knowledge_retriever"],
+        "youzan_client": services["youzan_client"],
+    }
+    assert created["employee_agent_service"] == {
+        "business_tool_service": services["wecom_bot_business_tool_service"],
+        "ops_tool_service": services["wecom_bot_ops_tool_service"],
+        "status_tool_service": services["wecom_bot_status_tool_service"],
+        "order_lookup_service": services["wecom_order_lookup_service"],
+    }
     assert created["order_service"]["event_repo"] == "order-event-repo"
     assert (
         created["customer_address_service"]["address_repo"] == "customer-address-repo"
@@ -367,6 +483,7 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         created["customer_address_service"]["audit_repo"]
         == "customer-address-audit-repo"
     )
+    assert created["customer_group_service"] == "customer-group-repo"
     assert (
         created["storefront_conversation_service"]["chat_service"]
         is services["chat_service"]

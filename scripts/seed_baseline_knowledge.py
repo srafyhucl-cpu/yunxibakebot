@@ -8,7 +8,7 @@ import sqlite3
 import sys
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -371,7 +371,7 @@ def print_report(report: BaselineSeedReport) -> None:
 
 def build_json_report(report: BaselineSeedReport) -> dict[str, object]:
     generated_at = (
-        datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
     return {
         "status": report.status,

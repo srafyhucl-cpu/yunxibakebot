@@ -18,10 +18,12 @@ from app.service.llm.client import chat_completion as llm_chat
 from app.service.offline.agent_shared import format_dialog
 from app.service.offline.json_utils import parse_json_object
 from app.service.offline.model_selection import select_offline_review_model
+from app.service.offline.quality_signals import extract_review_issues
 
 logger = setup_logger()
 
 LOW_QUALITY_SCORE_THRESHOLD = 60
+LOW_SCORE_EMPTY_ISSUE_FALLBACK = "模型给出低分但未说明具体问题，需人工复核"
 QA_REVIEW_SYSTEM_PROMPT = (
     "你是芸熙烘焙客服质检员。请只输出 JSON："
     '{"quality_score": 0-100, "issues": ["问题1"]}。'
@@ -70,6 +72,7 @@ class QaReviewAgent:
                 if not messages:
                     continue
                 parsed = await self._review_messages(messages)
+                parsed = _merge_signal_issues(parsed, extract_review_issues(messages))
                 reviews.append(
                     await self._review_repo.create(
                         ConversationReviewCreate(
@@ -100,8 +103,16 @@ class QaReviewAgent:
             last_content = response.choices[0].message.content or "{}"
             try:
                 return _parse_review_json(last_content)
-            except LLMError:
+            except LLMError as exc:
                 if attempt >= max_attempts - 1:
+                    if str(exc) == "低分质检必须说明具体问题":
+                        return ParsedQaReview(
+                            quality_score=0,
+                            issues_json=json.dumps(
+                                [LOW_SCORE_EMPTY_ISSUE_FALLBACK],
+                                ensure_ascii=False,
+                            ),
+                        )
                     raise
         raise LLMError("质检结果修复失败")
 
@@ -123,6 +134,33 @@ def _build_review_messages(
             "content": f"上一次输出：{last_content}\n\n对话内容：\n{dialog}",
         },
     ]
+
+
+def _merge_signal_issues(
+    parsed: ParsedQaReview,
+    signal_issues: list[str],
+) -> ParsedQaReview:
+    if not signal_issues:
+        return parsed
+    issues = _load_issues(parsed.issues_json)
+    for issue in signal_issues:
+        if issue not in issues:
+            issues.append(issue)
+    score = min(parsed.quality_score, LOW_QUALITY_SCORE_THRESHOLD - 1)
+    return ParsedQaReview(
+        quality_score=score,
+        issues_json=json.dumps(issues, ensure_ascii=False),
+    )
+
+
+def _load_issues(issues_json: str) -> list[str]:
+    try:
+        parsed = json.loads(issues_json or "[]")
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if str(item).strip()]
 
 
 def _parse_review_json(content: str) -> ParsedQaReview:

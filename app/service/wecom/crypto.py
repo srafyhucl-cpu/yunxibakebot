@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import os
 import struct
 
 from cryptography.hazmat.primitives import padding
@@ -48,16 +49,17 @@ def encrypt(encoding_aes_key: str, plaintext: str, corp_id: str) -> str:
     参数：
         encoding_aes_key: 管理后台配置的 EncodingAESKey
         plaintext: 待加密的文本
-        corp_id: 企业 ID
+        corp_id: 接收方 ID；企业内部智能机器人场景传空字符串
     返回：
         Base64 编码的密文
     """
     aes_key = _decode_aes_key(encoding_aes_key)
     iv = aes_key[:16]
 
-    raw = bytearray(16)  # 16 字节随机数（全 0 简化，生产建议 os.urandom）
-    raw.extend(struct.pack(">I", len(plaintext)))
-    raw.extend(plaintext.encode("utf-8"))
+    plaintext_bytes = plaintext.encode("utf-8")
+    raw = bytearray(os.urandom(16))
+    raw.extend(struct.pack(">I", len(plaintext_bytes)))
+    raw.extend(plaintext_bytes)
     raw.extend(corp_id.encode("utf-8"))
 
     # PKCS7 填充
@@ -81,3 +83,15 @@ def verify_signature(
     s = "".join(sorted([token, timestamp, nonce, msg_encrypt]))
     sig = hashlib.sha1(s.encode("utf-8")).hexdigest()
     return sig == msg_signature
+
+
+def generate_signature(
+    token: str,
+    timestamp: str,
+    nonce: str,
+    msg_encrypt: str,
+) -> str:
+    """生成企微回调回复签名。"""
+    return hashlib.sha1(
+        "".join(sorted([token, timestamp, nonce, msg_encrypt])).encode("utf-8")
+    ).hexdigest()

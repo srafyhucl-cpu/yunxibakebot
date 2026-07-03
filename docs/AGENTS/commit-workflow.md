@@ -46,4 +46,4 @@ ______________________________________________________________________
 
 > 中大型任务的证据归档和换手说明，优先使用 `docs/harness-engineering/core/agent-handoff-template.md` 与 `scripts/harness_snapshot.py`，不要只留在聊天记录里。
 
-> 📄 完整格式参见 `.windsurf/workflows/commit.md`
+> 📄 完整格式参见 `docs/AGENTS/sync-docs.md`

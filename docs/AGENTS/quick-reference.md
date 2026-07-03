@@ -73,3 +73,15 @@ api/ → service/ → repository/ → models/
 - 中大型任务先分配 `trace_id`，再按 `docs/harness-engineering/core/verification-matrix.md` 选验证。
 - 需要交接时优先用 `scripts/harness_snapshot.py`，不要只留聊天记录。
 - 需要长期记忆的错误先写 `docs/harness-engineering/core/mistake-ledger.md`，再补测试、脚本、pre-commit、AGENTS 或 Skill 中至少一类防线。
+
+---
+
+## 工作流入口
+
+| 场景 | 工作流 |
+|------|-------|
+| 全流程收口检查 | `/check` |
+| 代码 Review | `/review` |
+| 代码驱动文档同步 | `/sync-docs` |
+| 提交 | `/commit` |
+| Skill 同步更新 | `/sync-skills` |
