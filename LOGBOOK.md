@@ -21,7 +21,7 @@
   - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 使用新 26 项探针打旧生产 `0.69.10` 时按预期失败 1/26：`this-week-refund-summary` 被旧生产误路由到知识库。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN；`python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
 - **后续**:
-  - 提交后同步生产，复验 `/health`、`/ready` 与 26/26 回调探针；剩余为真实企微群内员工自由问法人工验收。
+  - 已同步生产 `0.69.11 / 31e64dd`，`/health`、`/ready` 与 26/26 回调探针通过；剩余为真实企微群内员工自由问法人工验收。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手订单经营金额问法
 - **操作人**: AI (Codex)
