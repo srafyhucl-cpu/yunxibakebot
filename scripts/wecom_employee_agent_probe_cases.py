@@ -494,7 +494,8 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "明天能配送吗",
             "knowledge_answer",
             ("knowledge_answer",),
-            required_any_terms=("配送",),
+            required_all_terms=("配送",),
+            required_any_terms=("排期", "确认", "人工", "可配送时段"),
             forbidden_terms=("订单尾号", "订单状态", "订单页", "后台订单"),
         ),
     )

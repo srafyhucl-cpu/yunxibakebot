@@ -16,6 +16,10 @@ async def test_delivery_knowledge_fallback_stays_on_delivery_rule() -> None:
 
     assert payload["ok"] is True
     assert "配送" in payload["result"]
+    assert "门店实际排期" in payload["result"]
+    assert "转人工确认" in payload["result"]
+    assert "不要承诺一定准时送达" in payload["result"]
+    assert "知识库没有命中" not in payload["result"]
     assert "订单尾号" not in payload["result"]
     assert "订单状态" not in payload["result"]
 

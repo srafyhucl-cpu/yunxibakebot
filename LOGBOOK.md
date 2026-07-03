@@ -1,4 +1,33 @@
 ﻿
+## [2026-07-04] - fix(wecom): 增强员工助手配送知识兜底
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-delivery-knowledge
+- **背景**: 线上 43 问已通过，但 `明天能配送吗` 这类知识类问法在知识库无命中时只提示“当前知识库没有命中具体配送安排”，对员工不够可用，也不符合“私人豆包式员工 Agent”的目标。
+- **决策**:
+  - 不新增数据库、不改 RAG 检索链路、不改变企微 API 回调入口。
+  - 复用既有配送承诺闸口径：配送范围、费用、时段和急单以门店实际排期为准，不承诺一定准时送达。
+  - 将配送类无命中兜底改为员工可复制给客户的话术，并明确下一步需要收集期望时间、地址区域和联系方式，急单/指定准确送达/疑似超区转人工确认。
+  - 强化 `delivery-knowledge` 探针，要求回复除“配送”外还必须包含排期、确认、人工或可配送时段等动作语义。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_knowledge_format.py` - 配送知识无命中兜底升级为可复制保守话术。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 收紧配送知识回调语义规则。
+  - `tests/service/test_wecom_intelligent_bot_knowledge_reply.py` - 补配送兜底质量回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_knowledge_reply.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，17 条。
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py::test_run_callback_checks_covers_employee_queries -q --no-cov` 通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_knowledge_reply_skips_llm_polish -q --no-cov` 通过。
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_knowledge_reply.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，60 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/intelligent_bot_knowledge_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_knowledge_reply.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_knowledge_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_knowledge_reply.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 提交并同步生产后，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针，重点确认 `delivery-knowledge` 回复不再出现“知识库没有命中”，并包含排期/确认/人工等可执行语义。
+
+
 ## [2026-07-04] - fix(wecom): 保留员工助手无物流标记
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-missing-logistics-guard
