@@ -18,6 +18,14 @@ CHINESE_DAY_NUMBERS = {
     "九": 9,
     "十": 10,
 }
+ORDER_REVENUE_KEYWORDS = (
+    "营业额",
+    "销售额",
+    "收入",
+    "流水",
+    "成交额",
+    "卖了多少钱",
+)
 ORDER_NO_PATTERN = re.compile(r"\bE\d{12,}\b", re.IGNORECASE)
 ORDER_PENDING_STATUSES = ("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS")
 ORDER_STATUS_KEYWORDS = {
@@ -54,10 +62,17 @@ ORDER_QUERY_STOP_WORDS = (
     "还有",
     "有",
     "多少",
+    "多少钱",
     "几单",
     "一共",
     "总共",
     "卖了",
+    "营业额",
+    "销售额",
+    "收入",
+    "流水",
+    "成交额",
+    "卖了多少钱",
     "卖得最多",
     "卖得多",
     "卖爆",
@@ -81,6 +96,8 @@ ORDER_QUERY_STOP_WORDS = (
     "出物流",
     "出",
     "咋样",
+    "怎么样",
+    "如何",
     "的",
     "吗",
 )

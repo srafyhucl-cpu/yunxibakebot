@@ -234,6 +234,32 @@ def test_evaluate_reply_requires_all_semantic_terms() -> None:
     assert matched.passed is True
 
 
+def test_evaluate_reply_rejects_revenue_empty_detour() -> None:
+    probe = callback_check.CallbackProbe(
+        "today-revenue-summary",
+        "今天营业额多少",
+        required_any_terms=("元", "营业额", "销售额"),
+        forbidden_terms=("未找到", "暂无数据", "后台订单页核对"),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "未找到今日营业额数据，请进入后台订单页核对日期范围。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 
@@ -283,6 +309,8 @@ def _fake_reply_text(content: str) -> str:
         return "当前暂无物流订单已汇总。"
     if "哪个商品" in content or "卖爆" in content:
         return "今日销量排行已汇总。"
+    if "营业额" in content or "销售额" in content:
+        return "销售额已汇总，共206.50元。"
     if "伯牙绝弦" in content and ("库存" in content or "还有吗" in content):
         return "伯牙绝弦当前库存72，售价258元。"
     if "库存" in content or "还有吗" in content:

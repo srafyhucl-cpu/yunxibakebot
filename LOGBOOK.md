@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手订单经营金额问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-revenue-summary
+- **背景**: 员工自然问经营情况时会说“今天营业额多少”“本周销售额怎么样”，不一定带“订单/单量”。原确定性规则主要覆盖订单数量、发货、物流和商品销量，金额类经营问法可能依赖 LLM 兜底或落到 unsupported，不够生产化。
+- **决策**:
+  - 不新增 SQL，不新增工具，继续复用订单动态查询的 `summarize_orders()` 白名单参数化统计。
+  - 将“营业额、销售额、收入、流水、成交额、卖了多少钱”纳入订单能力召回和规则识别。
+  - 金额类问法统一规划为 `OrderQueryKind.SUMMARY`，时间范围继续复用今天/本周/最近 N 天解析。
+  - 共享探针从 22 项扩到 24 项，覆盖“今天营业额多少”和“本周销售额怎么样”。
+- **改动**:
+  - `app/service/wecom/employee_agent_capabilities.py` - 订单能力卡补经营金额描述、示例和关键词。
+  - `app/service/wecom/employee_agent_order_constants.py` - 新增经营金额关键词常量和口语停用词。
+  - `app/service/wecom/employee_agent_order_query.py` - 金额关键词进入订单识别和 summary kind 判定。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 新增两个经营金额自由问法探针。
+  - `tests/service/test_wecom_employee_agent.py` - 补金额类规划回归测试。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - fake 回调回复补金额语义，并拦截“暂无销售额/后台订单页”类伪成功兜底。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，33 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，24/24。
+  - `python -m ruff check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 使用新 24 项探针打旧生产 `0.69.9` 时按预期失败 2/24：`today-revenue-summary` 与 `this-week-revenue-summary`，证明旧生产尚未稳定支持经营金额问法且新探针能拦截兜底伪成功。
+- **后续**:
+  - 提交前继续执行项目红线、编码检查和 24 项生产回调预检；同步生产后复验 `/health`、`/ready` 与 24/24 回调探针。
+
 ## [2026-07-04] - feat(wecom): 扩展员工助手订单相对时间范围
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-relative-date

@@ -17,6 +17,7 @@ from app.service.wecom.employee_agent_order_constants import (
     ORDER_PENDING_STATUSES,
     ORDER_QUERY_PUNCTUATION_PATTERN,
     ORDER_QUERY_STOP_WORDS,
+    ORDER_REVENUE_KEYWORDS,
     ORDER_STATUS_KEYWORDS,
 )
 
@@ -47,6 +48,8 @@ def build_order_query_plan(
 def resolve_order_kind(query: str) -> OrderQueryKind:
     if any(word in query for word in ("卖得最多", "卖最多", "销量", "卖得多", "卖爆")):
         return OrderQueryKind.TOP_PRODUCTS
+    if any(word in query for word in ORDER_REVENUE_KEYWORDS):
+        return OrderQueryKind.SUMMARY
     if any(word in query for word in ("多少", "几单", "一共", "统计", "总共", "单量")):
         return OrderQueryKind.SUMMARY
     if any(word in query for word in ("详情", "具体", "订单号")):
@@ -84,6 +87,7 @@ def looks_like_order_query(query: str) -> bool:
             "卖得多",
             "卖爆",
             "销量",
+            *ORDER_REVENUE_KEYWORDS,
         )
     )
 
