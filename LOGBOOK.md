@@ -1,4 +1,33 @@
 ﻿
+## [2026-07-04] - test(wecom): 扩展员工助手口语自由问法验收
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-casual-probes
+- **背景**: 员工助手已经从固定订单工具升级为 API 模式 Agent 底座，但真实员工在企微里不会总按规范问法提问。原有 13 个自由问法覆盖了订单、商品、知识库、运营状态、客户线索、群活动和离线复盘，但缺少“单量咋样”“卖爆”“后台稳不稳”“有没有人接”等口语表达。
+- **决策**:
+  - 不新增固定 SQL，不改变企微 API 回调入口。
+  - 将规划验收和端到端回调验收的问法、期望工具、语义必需词和隐私禁止词统一收口到 `scripts/wecom_employee_agent_probe_cases.py`。
+  - 保留订单动态查询计划的白名单参数化执行方式，只补充口语触发词和噪声词处理。
+  - 探针定义按订单、渠道工具、运营和口语分组，避免共享样本文件形成新的长函数。
+- **改动**:
+  - `scripts/wecom_employee_agent_probe_cases.py` - 新增 20 个员工助手共享探针样本，供计划和回调脚本复用。
+  - `scripts/check_wecom_employee_agent_plans.py` - 改为使用共享探针样本，避免规划验收样本重复维护。
+  - `scripts/check_wecom_employee_agent_callback.py` - 改为使用共享探针样本中的语义规则和隐私规则。
+  - `scripts/wecom_employee_agent_callback_semantics.py` - 删除重复的探针规则表，仅保留语义判断函数。
+  - `app/service/wecom/employee_agent_capabilities.py` - 增加“单子、单量、卖爆、后台、稳不稳、人接、需要人”等能力召回关键词。
+  - `app/service/wecom/employee_agent_order_constants.py` / `employee_agent_order_query.py` - 增加“没处理、没出物流、卖爆、单量”等订单口语问法解析与 keyword 噪声清理。
+  - `tests/scripts/test_check_wecom_employee_agent_plans.py` / `test_check_wecom_employee_agent_callback.py` - 改为断言共享探针样本数量和名称，避免测试与脚本样本漂移。
+- **验证结果**:
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，20/20。
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，26 条。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 使用本地扩展脚本打生产回调入口通过，20/20。
+  - `python -m ruff check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py scripts/check_wecom_employee_agent_plans.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py scripts/check_wecom_employee_agent_plans.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+  - 生产当前仍为 `0.69.4 / 753d2b7`，本轮提交同步后需复验 `/health`、`/ready` 和 20/20 回调探针。
+- **后续**:
+  - 同步生产后在真实企微群内按 20 个问法做人工验收，重点看员工可读性、口语路由、隐私隐藏和知识类不被订单话术污染。
+
 ## [2026-07-04] - refactor(wecom): 拆分员工助手订单规划文件
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-order-plan-split

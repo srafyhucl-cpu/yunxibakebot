@@ -3,6 +3,7 @@ from datetime import date
 
 from app.models.employee_agent import AgentIntent, AgentPlan
 from scripts import check_wecom_employee_agent_plans as plan_check
+from scripts.wecom_employee_agent_probe_cases import default_probe_cases
 
 
 async def test_run_plan_checks_covers_free_form_queries() -> None:
@@ -10,27 +11,14 @@ async def test_run_plan_checks_covers_free_form_queries() -> None:
     report = plan_check.build_json_report(checks)
 
     assert report["status"] == "passed"
-    assert report["total"] == 13
+    expected_cases = default_probe_cases(date(2026, 7, 3))
+    assert report["total"] == len(expected_cases)
     assert report["failed"] == 0
-    assert {check.name for check in checks} == {
-        "today-order-summary",
-        "pending-shipment-list",
-        "missing-logistics-list",
-        "product-order-summary",
-        "top-products",
-        "order-product-inventory",
-        "casual-inventory",
-        "delivery-knowledge",
-        "ops-status",
-        "handoff-pending",
-        "customer-lookup",
-        "group-campaign-summary",
-        "offline-review-summary",
-    }
+    assert {check.name for check in checks} == {case.name for case in expected_cases}
 
 
 def test_evaluate_probe_reports_field_mismatch() -> None:
-    probe = plan_check.AgentPlanProbe(
+    probe = plan_check.EmployeeAgentProbeCase(
         "wrong-intent",
         "今天一共多少订单",
         "order_query",

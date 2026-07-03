@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-005：企微员工助手 20 项口语自由问法验收
+
+- trace_id: 20260704-wecom-employee-agent-casual-probes
+- generated_at: 2026-07-04
+- evidence_type: local-and-production/wecom-employee-agent-casual-probes
+- file: `D:/Project/YunxiBakeBot/scripts/wecom_employee_agent_probe_cases.py`; `D:/Project/YunxiBakeBot/scripts/check_wecom_employee_agent_plans.py`; `D:/Project/YunxiBakeBot/scripts/check_wecom_employee_agent_callback.py`; `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_capabilities.py`; `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_order_query.py`; `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_order_constants.py`; `D:/Project/YunxiBakeBot/tests/scripts/test_check_wecom_employee_agent_plans.py`; `D:/Project/YunxiBakeBot/tests/scripts/test_check_wecom_employee_agent_callback.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`
+- command: `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m pytest tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov`; production `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`; `python -m ruff check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py scripts/check_wecom_employee_agent_plans.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py scripts/check_wecom_employee_agent_plans.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_text_encoding.py`
+- result: pass
+- related_logbook: 2026-07-04 - test(wecom): 扩展员工助手口语自由问法验收
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令、探针名称和语义验收结论；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 员工助手规划与端到端回调探针从 13 项扩展到 20 项，并将问法、计划期望、语义必需词和隐私禁止词收口到共享探针样本。新增覆盖“今天单量咋样”“发货还有没处理的吗”“哪些单子还没出物流”“今天卖爆的是哪个”“后台现在稳不稳”“有没有需要人接的”等口语表达。本地规划验收 20/20 通过；使用本地扩展脚本打生产回调入口 20/20 通过。待本轮提交同步后复验生产版本、健康检查和 20/20 回调探针。
+
 ## E-20260704-004：企微员工助手订单规划文件体量收口
 
 - trace_id: 20260704-wecom-employee-agent-order-plan-split

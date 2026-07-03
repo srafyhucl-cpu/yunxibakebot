@@ -2,6 +2,7 @@ import json
 
 from app.service.wecom.crypto import decrypt, encrypt, generate_signature
 from scripts import check_wecom_employee_agent_callback as callback_check
+from scripts.wecom_employee_agent_probe_cases import default_probe_cases
 
 
 class _FakeResponse:
@@ -98,25 +99,12 @@ async def test_run_callback_checks_covers_employee_queries(monkeypatch) -> None:
     )
     report = callback_check.build_json_report("https://yunxifood.cn", results)
     serialized = json.dumps(report, ensure_ascii=False)
+    expected_cases = default_probe_cases(__import__("datetime").date.today())
 
     assert report["status"] == "passed"
-    assert report["total"] == 13
+    assert report["total"] == len(expected_cases)
     assert report["failed"] == 0
-    assert {result.name for result in results} == {
-        "today-order-summary",
-        "pending-shipment-list",
-        "missing-logistics-list",
-        "product-order-summary",
-        "top-products",
-        "order-product-inventory",
-        "casual-inventory",
-        "delivery-knowledge",
-        "ops-status",
-        "handoff-pending",
-        "customer-lookup",
-        "group-campaign-summary",
-        "offline-review-summary",
-    }
+    assert {result.name for result in results} == {case.name for case in expected_cases}
     assert callback_check.TEST_TOKEN not in serialized
     assert callback_check.TEST_AES_KEY not in serialized
     assert "encrypt" not in serialized
@@ -251,19 +239,19 @@ async def test_main_json_output_can_be_written_to_file(monkeypatch, tmp_path) ->
 
 
 def _fake_reply_text(content: str) -> str:
-    if "没发货" in content:
+    if "没发货" in content or "没处理" in content:
         return "当前待发货订单已汇总。"
     if "物流" in content:
         return "当前暂无物流订单已汇总。"
-    if "哪个商品" in content:
+    if "哪个商品" in content or "卖爆" in content:
         return "今日销量排行已汇总。"
     if "库存" in content or "还有吗" in content:
         return "库存已汇总。"
     if "配送" in content:
         return "配送规则请按后台知识库确认。"
-    if "异常" in content:
+    if "异常" in content or "稳不稳" in content:
         return "系统状态已汇总。"
-    if "待人工" in content:
+    if "待人工" in content or "人接" in content:
         return "当前待人工事项已汇总。"
     if "地址线索" in content:
         return "客户地址线索已汇总。"

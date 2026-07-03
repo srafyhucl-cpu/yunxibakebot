@@ -41,9 +41,9 @@ def build_order_query_plan(
 
 
 def resolve_order_kind(query: str) -> OrderQueryKind:
-    if any(word in query for word in ("卖得最多", "卖最多", "销量", "卖得多")):
+    if any(word in query for word in ("卖得最多", "卖最多", "销量", "卖得多", "卖爆")):
         return OrderQueryKind.TOP_PRODUCTS
-    if any(word in query for word in ("多少", "几单", "一共", "统计", "总共")):
+    if any(word in query for word in ("多少", "几单", "一共", "统计", "总共", "单量")):
         return OrderQueryKind.SUMMARY
     if any(word in query for word in ("详情", "具体", "订单号")):
         return OrderQueryKind.DETAIL
@@ -68,7 +68,19 @@ def extract_limit_from_value(value: object) -> int:
 def looks_like_order_query(query: str) -> bool:
     return any(
         word in query
-        for word in ("订单", "下单", "发货", "物流", "几单", "待处理", "卖得多", "销量")
+        for word in (
+            "订单",
+            "单子",
+            "单量",
+            "下单",
+            "发货",
+            "物流",
+            "几单",
+            "待处理",
+            "卖得多",
+            "卖爆",
+            "销量",
+        )
     )
 
 
@@ -102,7 +114,7 @@ def _resolve_order_statuses(query: str) -> tuple[str, ...]:
 
 def _extract_order_keyword(query: str) -> str:
     keyword = query.strip()
-    for stop_word in ORDER_QUERY_STOP_WORDS:
+    for stop_word in sorted(ORDER_QUERY_STOP_WORDS, key=len, reverse=True):
         keyword = keyword.replace(stop_word, " ")
     keyword = re.sub(r"E\d{12,}", " ", keyword, flags=re.IGNORECASE)
     keyword = ORDER_QUERY_PUNCTUATION_PATTERN.sub(" ", keyword)
@@ -110,7 +122,10 @@ def _extract_order_keyword(query: str) -> str:
 
 
 def _needs_missing_logistics(query: str) -> bool:
-    return any(word in query for word in ("没物流", "无物流", "暂无物流", "还没物流"))
+    return any(
+        word in query
+        for word in ("没物流", "无物流", "暂无物流", "还没物流", "没出物流")
+    )
 
 
 def _extract_limit(query: str) -> int:

@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from time import perf_counter
 from urllib.parse import urlparse
@@ -29,8 +29,8 @@ from app.service.wecom.crypto import (  # noqa: E402
 from scripts.wecom_employee_agent_callback_semantics import (  # noqa: E402
     CallbackSemanticRule,
     is_semantic_safe,
-    semantic_rule_for,
 )
+from scripts.wecom_employee_agent_probe_cases import default_probe_cases  # noqa: E402
 
 HTTP_OK = 200
 REQUEST_TIMEOUT_SECONDS = 20
@@ -110,20 +110,14 @@ class CallbackProbeResult:
 
 
 def default_probes() -> tuple[CallbackProbe, ...]:
-    return (
-        CallbackProbe("today-order-summary", "今天一共多少订单"),
-        CallbackProbe("pending-shipment-list", "还有哪些没发货"),
-        CallbackProbe("missing-logistics-list", "还没物流的订单有哪些"),
-        CallbackProbe("product-order-summary", "椰椰凤梨今天卖了几单"),
-        CallbackProbe("top-products", "今天哪个商品卖得多"),
-        CallbackProbe("order-product-inventory", "今天订单里有伯牙绝弦吗，库存还够吗"),
-        CallbackProbe("casual-inventory", "伯牙绝弦还有吗"),
-        CallbackProbe("delivery-knowledge", "明天能配送吗"),
-        CallbackProbe("ops-status", "系统今天有没有异常"),
-        CallbackProbe("handoff-pending", "现在有哪些待人工"),
-        CallbackProbe("customer-lookup", "查一下张三地址线索"),
-        CallbackProbe("group-campaign-summary", "汇总 campaignId:abc123"),
-        CallbackProbe("offline-review-summary", "昨晚离线复盘结果"),
+    return tuple(
+        CallbackProbe(
+            case.name,
+            case.query,
+            case.required_any_terms,
+            case.forbidden_terms,
+        )
+        for case in default_probe_cases(date.today())
     )
 
 
@@ -286,9 +280,7 @@ def evaluate_reply(
 
 
 def semantic_rule(probe: CallbackProbe) -> CallbackSemanticRule:
-    if probe.required_any_terms or probe.forbidden_terms:
-        return CallbackSemanticRule(probe.required_any_terms, probe.forbidden_terms)
-    return semantic_rule_for(probe.name)
+    return CallbackSemanticRule(probe.required_any_terms, probe.forbidden_terms)
 
 
 def extract_stream_content(reply_payload: dict[str, object]) -> str:

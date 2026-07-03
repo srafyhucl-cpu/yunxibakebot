@@ -16,24 +16,14 @@ sys.path.insert(0, str(ROOT_DIR))
 from app.config import APP_VERSION  # noqa: E402
 from app.models.employee_agent import AgentPlan  # noqa: E402
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner  # noqa: E402
+from scripts.wecom_employee_agent_probe_cases import (  # noqa: E402
+    EmployeeAgentProbeCase,
+    default_probe_cases,
+)
 
 UTF8_BOM = b"\xef\xbb\xbf"
 OUTPUT_TIMESTAMP_PLACEHOLDER = "{timestamp}"
 OUTPUT_TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S"
-
-
-@dataclass(frozen=True)
-class AgentPlanProbe:
-    name: str
-    query: str
-    expected_intent: str
-    expected_tools: tuple[str, ...] = ()
-    expected_kind: str = ""
-    expected_date_from: str = ""
-    expected_date_to: str = ""
-    expected_statuses: tuple[str, ...] = ()
-    expected_keyword: str | None = None
-    expected_missing_logistics: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -68,112 +58,6 @@ class AgentPlanCheck:
         }
 
 
-def default_probes(today: date) -> tuple[AgentPlanProbe, ...]:
-    today_text = today.isoformat()
-    return (
-        AgentPlanProbe(
-            "today-order-summary",
-            "今天一共多少订单",
-            "order_query",
-            ("order_dynamic_query",),
-            "summary",
-            today_text,
-            today_text,
-            expected_keyword="",
-        ),
-        AgentPlanProbe(
-            "pending-shipment-list",
-            "还有哪些没发货",
-            "order_query",
-            ("order_dynamic_query",),
-            "list",
-            expected_statuses=("WAIT_SELLER_SEND_GOODS",),
-            expected_keyword="",
-        ),
-        AgentPlanProbe(
-            "missing-logistics-list",
-            "还没物流的订单有哪些",
-            "order_query",
-            ("order_dynamic_query",),
-            "list",
-            expected_missing_logistics=True,
-            expected_keyword="",
-        ),
-        AgentPlanProbe(
-            "product-order-summary",
-            "椰椰凤梨今天卖了几单",
-            "order_query",
-            ("order_dynamic_query",),
-            "summary",
-            today_text,
-            today_text,
-            expected_keyword="椰椰凤梨",
-        ),
-        AgentPlanProbe(
-            "top-products",
-            "今天哪个商品卖得多",
-            "order_query",
-            ("order_dynamic_query",),
-            "top_products",
-            today_text,
-            today_text,
-            expected_keyword="",
-        ),
-        AgentPlanProbe(
-            "order-product-inventory",
-            "今天订单里有伯牙绝弦吗，库存还够吗",
-            "multi_tool",
-            ("order_dynamic_query", "product_lookup"),
-            "list",
-            today_text,
-            today_text,
-            expected_keyword="伯牙绝弦",
-        ),
-        AgentPlanProbe(
-            "casual-inventory",
-            "伯牙绝弦还有吗",
-            "product_query",
-            ("product_lookup",),
-        ),
-        AgentPlanProbe(
-            "delivery-knowledge",
-            "明天能配送吗",
-            "knowledge_answer",
-            ("knowledge_answer",),
-        ),
-        AgentPlanProbe(
-            "ops-status",
-            "系统今天有没有异常",
-            "ops_query",
-            ("ops_summary",),
-        ),
-        AgentPlanProbe(
-            "handoff-pending",
-            "现在有哪些待人工",
-            "ops_query",
-            ("handoff_pending",),
-        ),
-        AgentPlanProbe(
-            "customer-lookup",
-            "查一下张三地址线索",
-            "ops_query",
-            ("customer_lookup",),
-        ),
-        AgentPlanProbe(
-            "group-campaign-summary",
-            "汇总 campaignId:abc123",
-            "ops_query",
-            ("group_campaign_summary",),
-        ),
-        AgentPlanProbe(
-            "offline-review-summary",
-            "昨晚离线复盘结果",
-            "ops_query",
-            ("offline_review_summary",),
-        ),
-    )
-
-
 async def run_plan_checks(today: date | None = None) -> list[AgentPlanCheck]:
     check_date = today or date.today()
     planner = EmployeeAgentPlanner(
@@ -181,13 +65,13 @@ async def run_plan_checks(today: date | None = None) -> list[AgentPlanCheck]:
         enable_llm=False,
     )
     checks: list[AgentPlanCheck] = []
-    for probe in default_probes(check_date):
+    for probe in default_probe_cases(check_date):
         plan = await planner.plan(probe.query)
         checks.append(evaluate_probe(probe, plan))
     return checks
 
 
-def evaluate_probe(probe: AgentPlanProbe, plan: AgentPlan) -> AgentPlanCheck:
+def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanCheck:
     query_plan = plan.query_plan
     kind = query_plan.kind.value if query_plan else ""
     date_from = query_plan.date_from if query_plan else ""
@@ -223,7 +107,7 @@ def evaluate_probe(probe: AgentPlanProbe, plan: AgentPlan) -> AgentPlanCheck:
 
 
 def _collect_mismatches(
-    probe: AgentPlanProbe,
+    probe: EmployeeAgentProbeCase,
     intent: str,
     tools: tuple[str, ...],
     kind: str,
