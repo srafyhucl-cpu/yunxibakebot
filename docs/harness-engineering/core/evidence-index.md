@@ -1,4 +1,18 @@
 ﻿
+## E-20260703-008：企微员工助手语义回调生产复验
+
+- trace_id: 20260703-wecom-employee-agent-semantic-acceptance
+- generated_at: 2026-07-03
+- evidence_type: production/wecom-employee-agent-semantic-callback-acceptance
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; production `/opt/yunxibakebot`
+- command: `Test-Path "D:\Project\YunxiBakeBot\reports\wecom-employee-agent-semantic-466f4d4.bundle"`; production `test -f /opt/yunxibakebot/wecom-employee-agent-semantic-466f4d4.bundle`; production `systemctl is-active yunxibakebot`; production `git rev-parse --short HEAD`; production `cat VERSION`; production `git diff --name-only | wc -l`; `Invoke-RestMethod https://yunxifood.cn/health`; `Invoke-RestMethod https://yunxifood.cn/ready`; `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`
+- result: pass
+- related_logbook: 2026-07-03 - docs(wecom): 记录员工助手语义回调生产复验
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记生产版本、运行状态、临时包清理和脱敏回调验收结论；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址或完整订单号。
+- summary: 生产已同步到 `0.67.2 / 466f4d43`，服务 active，`/health` ok，`/ready` ready，tracked dirty 为 `0`；本地和生产临时 bundle 均已按单文件路径清理。端到端员工助手回调语义验收 10/10 通过，`delivery-knowledge` 已返回配送规则兜底，不再被订单尾号排查话术污染。剩余事项是真实企微客户端或群内 10 个自由问法验收。
+
 ## E-20260703-007：企微员工助手知识问法语义验收
 
 - trace_id: 20260703-wecom-employee-agent-semantic-acceptance

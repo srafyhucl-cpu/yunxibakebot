@@ -1,4 +1,22 @@
 ﻿
+## [2026-07-03] - docs(wecom): 记录员工助手语义回调生产复验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-semantic-acceptance
+- **背景**: 员工助手知识问法语义修复已同步生产，需要把生产 `0.67.2 / 466f4d43` 的真实回调复验、运行状态和临时包清理结果补齐到项目证据链。
+- **决策**:
+  - 继续保留 API 模式 URL 回调入口不变，仅记录生产复验和收口证据。
+  - 验收标准从“回调非空”提高到 10 个自由问法均通过签名、解密、隐私和语义规则检查。
+  - 临时 bundle 只按明确单文件路径清理，不处理历史未跟踪备份目录。
+- **复核结果**:
+  - 本地临时包 `reports/wecom-employee-agent-semantic-466f4d4.bundle` 已不存在。
+  - 生产临时包 `/opt/yunxibakebot/wecom-employee-agent-semantic-466f4d4.bundle` 已不存在。
+  - 生产服务 `yunxibakebot` 为 `active`，生产 HEAD 为 `466f4d43`，版本为 `0.67.2`，tracked dirty 数为 `0`。
+  - 生产 `/health` 返回 `status=ok`，版本 `0.67.2`。
+  - 生产 `/ready` 返回 `status=ready`，企微智能机器人 token/AES key/plugin key、人工接手人和后台 dist 检查均为 true。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，10/10；`delivery-knowledge` 已返回配送规则兜底，不再出现订单尾号排查话术。
+- **剩余事项**:
+  - 仍需真实企微客户端或群内验收 10 个自由问法，确认客户端展示与脚本探针一致。
+
 ## [2026-07-03] - fix(wecom): 收紧员工助手知识问法语义验收
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-semantic-acceptance
