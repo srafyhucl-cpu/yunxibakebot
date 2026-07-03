@@ -18,7 +18,8 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_text_encoding.py` 通过。
 - **后续**:
-  - 补丁同步生产后重新跑 34 项线上回调探针，确认商品+话术和经营汇总均通过。
+  - 已同步生产 `0.70.2 / 3aee20c15`，`/health`、`/ready` 与 34/34 企微员工助手回调探针通过；本轮同步 bundle 已按明确单文件路径清理。
+  - 剩余为企微群内真实员工入口 34 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - fix(wecom): 收紧员工助手经营汇总下一步提示
 - **操作人**: AI (Codex)
@@ -37,7 +38,7 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_file_sizes.py`、`python scripts/check_text_encoding.py` 通过。
 - **后续**:
-  - 补丁同步生产后重新跑 `/health`、`/ready` 和 34 项线上回调探针。
+  - 已随事实保真补丁同步生产验证，`/health`、`/ready` 与 34/34 企微员工助手回调探针通过。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手商品数据加话术混合问法
 - **操作人**: AI (Codex)
@@ -64,8 +65,7 @@
   - `python -m ruff check ...` 与 `python -m ruff format --check ...` 通过。
   - 架构扫描 `api -> repository`、`service -> aiosqlite/execute/fetch*`、`models -> 上层模块` 均零输出。
 - **后续**:
-  - 待提交后同步生产，并运行 `/health`、`/ready` 与 34 项企微员工助手回调探针。
-  - 真实企微群内仍需按 34 个自由问法做人工验收，尤其关注商品库存不足时的替代推荐是否贴合门店真实经营口径。
+  - 已同步生产并通过 34/34 线上端到端回调探针；真实企微群内仍需按 34 个自由问法做人工验收，尤其关注商品库存不足时的替代推荐是否贴合门店真实经营口径。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手订单数据加话术混合问法
 - **操作人**: AI (Codex)
