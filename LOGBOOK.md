@@ -17,9 +17,21 @@
   - `python -m pytest tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，13 条。
   - `python -m ruff check app/service/wecom/employee_agent_order_plan.py scripts/check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py` 通过。
   - `python -m ruff format --check app/service/wecom/employee_agent_order_plan.py scripts/check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py` 通过。
+- **生产同步**:
+  - 生产同步采用 tracked archive + git bundle 元数据方式，不运行 `scripts/deploy.sh`，不执行递归删除，不执行 `git reset --hard`。
+  - 生产备份目录：`/opt/yunxibakebot/backups/wecom-employee-agent-foundation-20260703-231225`，其中包含同步前 tracked 文件归档和 git/status 快照。
+  - 生产已更新至版本 `0.67.0`，commit `20f690ec`，`systemctl restart yunxibakebot` 后服务为 `active`。
+- **生产验证结果**:
+  - 生产 `/health` 返回 `status=ok`，版本 `0.67.0`。
+  - 生产 `/ready` 返回 `status=ready`，`handoff_staff_userid_ready=true`，企微智能机器人 token/AES key/plugin key 检查均为 true。
+  - 生产 `python3 scripts/check_wecom_employee_agent_plans.py --json` 通过，10/10。
+  - 生产 `python3 scripts/check_wecom_intelligent_bot_contract.py --json` 通过，4/4。
+  - 生产 `python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn` 通过，13/13。
+  - 生产使用运行时配置生成加密 POST 探针请求 `POST /api/v1/wecom/intelligent-bot/callback`，返回 200，回复签名校验通过，`msgtype=stream`，`finish=true`，回复内容非空。
 - **剩余事项**:
   - `app/service/wecom/employee_agent_order_plan.py` 已达 249 行，后续订单规划继续扩展必须拆分，不得继续在该文件堆新职责。
-  - 生产同步后仍需执行生产 `/health`、`/ready`、企微 smoke、自由问法规划探针和群内真实问法验收。
+  - 仍需在企微群内用真实员工入口做 10 个自由问法验收，确认客户端显示与自动探针一致。
+  - 生产 git 工作区因本轮 archive 解包后的换行差异仍显示大量 tracked `M`，运行态已通过；后续应单独治理生产仓库换行/索引状态，避免影响后续基于 `git status` 的部署判断。
 
 ## [2026-07-03] - feat(wecom): 补强员工助手弱关键词规划和回调验收
 - **操作人**: AI (Codex)

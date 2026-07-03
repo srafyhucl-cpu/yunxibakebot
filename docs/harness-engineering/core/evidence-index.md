@@ -1,4 +1,18 @@
 ﻿
+## E-20260703-004：企微员工助手 Agent 底座生产同步与规划验收
+
+- trace_id: 20260703-wecom-employee-agent-production-gate
+- generated_at: 2026-07-03
+- evidence_type: production/wecom-employee-agent-foundation
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\wecom-intelligent-bot-tools.md`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_plans.py`; production backup `/opt/yunxibakebot/backups/wecom-employee-agent-foundation-20260703-231225`
+- command: `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m pytest tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py tests/service/test_wecom_employee_agent.py tests/repository/test_youzan_repo.py -q --no-cov`; `python scripts/check_project.py --skip-tests`; production `python3 scripts/check_wecom_employee_agent_plans.py --json`; production `python3 scripts/check_wecom_intelligent_bot_contract.py --json`; production `python3 scripts/wecom_intelligent_bot_smoke.py --json --base-url https://yunxifood.cn`; production `/health`; production `/ready`; production encrypted callback POST probe using runtime settings without printing secrets
+- result: pass
+- related_logbook: 2026-07-03 - feat(wecom): 固化员工助手自由问法规划验收
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录脱敏命令、备份目录和验证结论；未记录企微 Token、EncodingAESKey、插件 key、请求头或客户隐私字段。
+- summary: 生产已同步员工助手 Agent 底座到 `0.67.0 / 20f690ec`。`/health` 为 ok，`/ready` 为 ready；企微工具 smoke 13/13 通过；自由问法规划探针 10/10 通过，并确认订单统计/待发货/缺物流/销量排行类计划不会带噪声 keyword；加密 callback POST 探针返回 200、签名校验通过、`msgtype=stream` 且内容非空。剩余事项是企微群内真实员工入口 10 个问法验收，以及生产 git 工作区换行/索引状态单独治理。
+
 ## E-20260703-002：企微智能机器人 API 模式 URL 回调本地验收
 
 - trace_id: 20260703-wecom-aibot-url-callback
