@@ -11,12 +11,15 @@ from app.models.employee_agent import (
     OrderQueryKind,
 )
 from app.service.wecom.employee_agent_capabilities import AgentCapabilityCard
+from app.service.wecom.employee_agent_non_order_plan import (
+    build_non_order_agent_plan,
+    build_product_knowledge_agent_plan,
+)
 from app.service.wecom.employee_agent_order_query import (
     answer_style_for_order_kind,
     build_order_query_plan,
     has_exact_order_no,
     looks_like_inventory_query,
-    looks_like_ops_query,
     looks_like_order_knowledge_query,
     looks_like_order_query,
     looks_like_order_policy_query,
@@ -70,10 +73,16 @@ def build_rule_plan(
             intent=AgentIntent.ORDER_QUERY,
             tools=("order_dynamic_query",),
         )
+    product_knowledge_plan = build_product_knowledge_agent_plan(
+        query,
+        capability_names,
+    )
+    if product_knowledge_plan is not None:
+        return product_knowledge_plan
     ops_plan = build_ops_rule_plan(query, capability_names)
     if ops_plan is not None:
         return ops_plan
-    return _build_non_order_agent_plan(query, capability_names, has_order)
+    return build_non_order_agent_plan(query, capability_names, has_order)
 
 
 def _capability_names_for_rule_plan(
@@ -93,32 +102,6 @@ def _build_exact_order_plan(query: str, today: date) -> AgentPlan:
         query_plan=build_order_query_plan(query, today, OrderQueryKind.DETAIL),
         answer_style=AnswerStyle.DETAIL,
     )
-
-
-def _build_non_order_agent_plan(
-    query: str,
-    capability_names: set[str],
-    has_order: bool,
-) -> AgentPlan:
-    if "product_lookup" in capability_names and not has_order:
-        return AgentPlan(
-            intent=AgentIntent.PRODUCT_QUERY,
-            tools=("product_lookup",),
-            answer_style=AnswerStyle.SUMMARY,
-        )
-    if looks_like_ops_query(capability_names):
-        return AgentPlan(
-            intent=AgentIntent.OPS_QUERY,
-            tools=tuple(sorted(capability_names)) or ("ops_summary",),
-            answer_style=AnswerStyle.SUMMARY,
-        )
-    if "knowledge_answer" in capability_names:
-        return AgentPlan(
-            intent=AgentIntent.KNOWLEDGE_ANSWER,
-            tools=("knowledge_answer",),
-            answer_style=AnswerStyle.SUMMARY,
-        )
-    return AgentPlan(intent=AgentIntent.UNSUPPORTED)
 
 
 def _build_order_agent_plan(

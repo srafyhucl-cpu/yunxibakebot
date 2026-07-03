@@ -235,6 +235,18 @@ async def test_planner_routes_casual_inventory_question_to_product() -> None:
     assert plan.tools == ("product_lookup",)
 
 
+async def test_planner_builds_product_knowledge_multi_tool_plan() -> None:
+    replacement_plan = await _planner().plan("伯牙绝弦库存不够怎么推荐替代")
+    reply_plan = await _planner().plan("伯牙绝弦没货怎么跟客户说")
+
+    assert replacement_plan.intent == AgentIntent.MULTI_TOOL
+    assert replacement_plan.tools == ("product_lookup", "knowledge_answer")
+    assert replacement_plan.query_plan is None
+    assert reply_plan.intent == AgentIntent.MULTI_TOOL
+    assert reply_plan.tools == ("product_lookup", "knowledge_answer")
+    assert reply_plan.query_plan is None
+
+
 async def test_planner_gives_llm_all_capabilities_when_search_is_empty(
     monkeypatch,
 ) -> None:
@@ -352,6 +364,25 @@ async def test_employee_agent_multi_tool_combines_order_and_knowledge() -> None:
 
     assert "今天共 2 单" in reply
     assert "知识库回复：还有哪些没发货，怎么跟客户说。" in reply
+
+
+async def test_employee_agent_multi_tool_combines_product_and_knowledge() -> None:
+    business_tool_service = _FakeBusinessToolService()
+    service = EmployeeAgentService(
+        business_tool_service=business_tool_service,
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
+
+    assert "库存 6" in reply
+    assert "知识库回复：伯牙绝弦库存不够怎么推荐替代。" in reply
+    assert business_tool_service.product_payloads[0]["query"] == (
+        "伯牙绝弦库存不够怎么推荐替代"
+    )
 
 
 async def test_employee_agent_routes_existing_ops_tools() -> None:

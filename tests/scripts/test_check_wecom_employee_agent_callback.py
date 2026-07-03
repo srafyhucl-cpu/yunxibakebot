@@ -303,6 +303,8 @@ async def test_main_json_output_can_be_written_to_file(monkeypatch, tmp_path) ->
 
 
 def _fake_reply_text(content: str) -> str:
+    if "伯牙绝弦" in content and ("替代" in content or "怎么跟客户说" in content):
+        return "伯牙绝弦当前库存72，建议给客户回复可推荐替代款。"
     if "怎么跟客户说" in content:
         return "当前待发货订单已汇总，并给出可复制给客户的回复。"
     if "怎么回复客户" in content and ("退款" in content or "售后" in content):

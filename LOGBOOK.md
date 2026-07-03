@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手商品数据加话术混合问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-product-knowledge
+- **背景**: 员工会把商品实时状态和对客沟通放在同一句里问，例如“伯牙绝弦库存不够怎么推荐替代”“伯牙绝弦没货怎么跟客户说”。此前商品问法只走库存/价格工具，容易缺少可复制话术；若把“客户”误召回客户线索工具，又会偏离商品场景。
+- **决策**:
+  - 不新增商品工具、不复制 RAG；继续复用 `product_lookup` 和 `knowledge_answer`。
+  - 新增非订单规划模块，让商品+知识库高确定性分支先于客户线索/运营类工具，避免“客户”词误路由到 `customer_lookup`。
+  - 将“库存不够、没货、替代、怎么跟客户说”等词补进能力召回和商品查询清洗，保证商品名仍能命中。
+  - 共享探针从 32 项扩到 34 项，新增商品库存不足推荐替代和商品没货对客回复两类问法。
+- **改动**:
+  - `app/service/wecom/employee_agent_non_order_plan.py` - 新增非订单规则规划，承接商品-only、商品+知识、知识和运营兜底。
+  - `app/service/wecom/employee_agent_product_query.py` - 新增商品+知识库混合问法谓词。
+  - `app/service/wecom/employee_agent_order_plan.py` - 非订单分支改为调用独立模块，并让商品+知识优先于 ops 计划。
+  - `app/service/wecom/employee_agent_capabilities.py`、`intelligent_bot_product_filter.py` - 补商品和知识能力召回词，并清洗替代推荐/对客回复噪声词。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 共享探针扩展到 34 个自由问法。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/service/test_wecom_product_filter.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补规划、组合执行、商品过滤和回调语义回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，75 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，34/34。
+  - `python scripts/check_file_sizes.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py`、`python scripts/check_text_encoding.py` 通过。
+  - `python -m ruff check ...` 与 `python -m ruff format --check ...` 通过。
+  - 架构扫描 `api -> repository`、`service -> aiosqlite/execute/fetch*`、`models -> 上层模块` 均零输出。
+- **后续**:
+  - 待提交后同步生产，并运行 `/health`、`/ready` 与 34 项企微员工助手回调探针。
+  - 真实企微群内仍需按 34 个自由问法做人工验收，尤其关注商品库存不足时的替代推荐是否贴合门店真实经营口径。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手订单数据加话术混合问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-order-knowledge
