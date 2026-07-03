@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - fix(wecom): 保留员工助手无物流标记
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-missing-logistics-guard
+- **背景**: 生产已同步证据提交 `0.74.1 / bd278093b` 后，`/health` 与 `/ready` 正常，但 43 项企微员工助手回调探针中 `missing-logistics-list` 失败。确定性结果包含“暂无物流”，LLM 润色后概括成“未发货”列表，导致“还没物流的订单有哪些”丢失物流状态语义。
+- **决策**:
+  - 不改查询计划、不新增 SQL、不改变企微 API 回调入口。
+  - 在 `preserve_tool_facts` 中把“暂无物流/无物流”纳入事实保真标记：确定性结果出现无物流状态时，润色结果必须保留“物流”，否则回退确定性结果。
+  - 将 `missing-logistics-list` 与 `casual-missing-logistics` 探针从可选命中升级为必须包含“物流”。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 增加无物流标记保真守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 收紧无物流问法语义规则。
+  - `tests/service/test_wecom_employee_agent.py` - 补守卫单测和 Agent 润色回退回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，43 条。
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过，11 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，58 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+  - `git diff --check` 通过。
+- **后续**:
+  - 提交并同步生产后，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针，重点确认 `missing-logistics-list` 与 `casual-missing-logistics` 都保留“物流”语义。
+
+
 ## [2026-07-04] - fix(wecom): 统一员工助手发货压力口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-fulfillment-pressure

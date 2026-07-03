@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-023：企微员工助手无物流标记保真
+
+- trace_id: 20260704-wecom-employee-agent-missing-logistics-guard
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-missing-logistics-guard
+- file: `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_reply_guard.py`; `D:/Project/YunxiBakeBot/scripts/wecom_employee_agent_probe_cases.py`; `D:/Project/YunxiBakeBot/tests/service/test_wecom_employee_agent.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`; `D:/Project/YunxiBakeBot/docs/harness-engineering/core/evidence-index.md`
+- command: production failed probe `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` on `0.74.1 / bd278093b` returned 42/43, failed `missing-logistics-list`; `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov`; `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py`; `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 保留员工助手无物流标记
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令和探针名称；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 生产回调探针显示 `missing-logistics-list` 的确定性结果含“暂无物流”，但 LLM 润色概括成普通“未发货”列表，丢失员工真正要看的物流状态。补丁在回复守卫中要求确定性结果含“暂无物流/无物流”时，润色结果必须保留“物流”，否则回退确定性结果；同时将两个无物流回调样本升级为必须包含“物流”。本地相关测试 58 条通过，规划探针 43/43 通过；生产同步待执行。
+
 ## E-20260704-022：企微员工助手发货压力口径一致性
 
 - trace_id: 20260704-wecom-employee-agent-fulfillment-pressure

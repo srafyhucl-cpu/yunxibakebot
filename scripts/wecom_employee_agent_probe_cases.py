@@ -203,7 +203,7 @@ def _order_list_probe_cases(
             "list",
             expected_missing_logistics=True,
             expected_keyword="",
-            required_any_terms=("物流",),
+            required_all_terms=("物流",),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",
@@ -657,7 +657,7 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             "list",
             expected_missing_logistics=True,
             expected_keyword="",
-            required_any_terms=("物流",),
+            required_all_terms=("物流",),
             forbidden_terms=("完整订单号", "手机号"),
         ),
         EmployeeAgentProbeCase(

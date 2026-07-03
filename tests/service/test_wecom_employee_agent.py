@@ -44,6 +44,19 @@ class _FakeActionItemsOrderLookupService:
         )
 
 
+class _FakeMissingLogisticsOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "还没物流的订单有哪些：找到 1 单，按最新订单展示：\n"
+                "1. 尾号 000001｜待发货｜巧克力樱桃炸弹 x 1｜206.50 元｜"
+                "2026-07-04 10:00｜约送 2026-07-04 16:00｜暂无物流"
+            ),
+            next_action="列表默认只展示订单尾号，排查时可用尾号继续追问。",
+        )
+
+
 class _FakeBusinessToolService:
     def __init__(self) -> None:
         self.product_payloads: list[dict[str, Any]] = []
@@ -680,9 +693,52 @@ async def test_employee_agent_polish_keeps_action_insight_markers(
     assert "优先级 1" in reply
 
 
+async def test_employee_agent_polish_keeps_missing_logistics_marker(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="当前有1单未发货，请优先处理尾号000001。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeMissingLogisticsOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("还没物流的订单有哪些")
+
+    assert "暂无物流" in reply
+
+
 def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
     deterministic_reply = "当前有 2 单未发货，均只展示尾号。"
     polished_reply = "当前有 2 单未发货，请提供完整订单号排查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_missing_logistics_marker() -> None:
+    deterministic_reply = (
+        "还没物流的订单有哪些：找到 1 单。\n"
+        "1. 尾号 000001｜待发货｜巧克力樱桃炸弹｜暂无物流"
+    )
+    polished_reply = "当前有1单未发货，请优先处理尾号000001。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

@@ -23,6 +23,8 @@ PRIVATE_REPLY_TERMS = (
 ACTION_INSIGHT_REQUIRED_TERMS = ("优先级", "压力")
 ACTION_INSIGHT_SOURCE_MARKERS = ("发货压力", "优先级")
 PRESSURE_LABEL_PATTERN = re.compile(r"发货压力[:：]\s*(偏高|中等|低)")
+MISSING_LOGISTICS_SOURCE_MARKERS = ("暂无物流", "无物流")
+MISSING_LOGISTICS_REQUIRED_TERM = "物流"
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
@@ -34,6 +36,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _misses_pressure_label(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_action_insight_markers(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _misses_missing_logistics_marker(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_private_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -79,3 +83,15 @@ def _misses_action_insight_markers(
     if not has_action_insight:
         return False
     return any(term not in polished_reply for term in ACTION_INSIGHT_REQUIRED_TERMS)
+
+
+def _misses_missing_logistics_marker(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    has_missing_logistics = any(
+        marker in deterministic_reply for marker in MISSING_LOGISTICS_SOURCE_MARKERS
+    )
+    if not has_missing_logistics:
+        return False
+    return MISSING_LOGISTICS_REQUIRED_TERM not in polished_reply
