@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-004：企微员工助手订单规划文件体量收口
+
+- trace_id: 20260704-wecom-employee-agent-order-plan-split
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-order-plan-refactor
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_plan.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_query.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_constants.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_llm_plan.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent_file_size.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; production `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`; `python -m ruff check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_llm_plan.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py`; `python -m ruff format --check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_llm_plan.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_text_encoding.py`
+- result: pass
+- related_logbook: 2026-07-04 - refactor(wecom): 拆分员工助手订单规划文件
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记文件体量、测试命令和脱敏探针结论；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: `employee_agent_order_plan.py` 从 253 行拆到 114 行；新增 `employee_agent_order_query.py` 120 行和 `employee_agent_order_constants.py` 51 行，职责分别为查询计划解析和常量口径。新增文件体量回归测试锁定三份订单规划文件不超过 150 行警戒线。员工助手规划探针 13/13 通过，生产回调探针 13/13 通过，证明重构未改变现有员工入口行为。
+
 ## E-20260704-003：企微员工助手待人工工单尾号展示收口
 
 - trace_id: 20260704-wecom-employee-agent-handoff-privacy

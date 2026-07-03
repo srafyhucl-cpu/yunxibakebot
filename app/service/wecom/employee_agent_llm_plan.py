@@ -14,7 +14,7 @@ from app.models.employee_agent import (
     OrderQueryPlan,
 )
 from app.service.wecom.employee_agent_capabilities import AgentCapabilityCard
-from app.service.wecom.employee_agent_order_plan import extract_limit_from_value
+from app.service.wecom.employee_agent_order_query import extract_limit_from_value
 
 
 def build_planner_prompt(

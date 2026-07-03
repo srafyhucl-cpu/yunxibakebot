@@ -1,4 +1,31 @@
 ﻿
+## [2026-07-04] - refactor(wecom): 拆分员工助手订单规划文件
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-order-plan-split
+- **背景**: 员工助手订单规划核心文件 `employee_agent_order_plan.py` 已增长到 253 行，超过 `app/service/wecom/*.py` 文件体量硬上限 250 行。继续在该文件上增加自由问法和查询计划能力，会把“规则路由、查询解析、常量口径”混在一起，形成 Agent 底座的长期技术债。
+- **决策**:
+  - 保持员工企微 API 回调行为不变，只做职责拆分。
+  - `employee_agent_order_plan.py` 只保留“规则路由到 AgentPlan”的编排职责。
+  - 新增 `employee_agent_order_query.py` 承接时间、状态、关键词、limit、订单类型等查询计划解析。
+  - 新增 `employee_agent_order_constants.py` 承接订单规划常量和正则，避免解析模块重新接近警戒线。
+  - 新增文件体量回归测试，锁定订单规划相关文件均不超过 wecom service 150 行警戒线。
+- **改动**:
+  - `app/service/wecom/employee_agent_order_plan.py` - 从 253 行降到 114 行。
+  - `app/service/wecom/employee_agent_order_query.py` - 新增查询计划解析模块，当前 120 行。
+  - `app/service/wecom/employee_agent_order_constants.py` - 新增订单规划常量模块，当前 51 行。
+  - `app/service/wecom/employee_agent_llm_plan.py` - `extract_limit_from_value` 改从查询解析模块导入。
+  - `tests/service/test_wecom_employee_agent_file_size.py` - 新增员工助手订单规划文件体量回归测试。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，18 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，13/13。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在生产 `0.69.3` 上通过，13/13，确认本地重构未改变线上现有 API 模式行为。
+  - `python -m ruff check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_llm_plan.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_llm_plan.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 继续围绕真实企微群内自由问法和生产语义质量补验收样本，不再把新增订单问法塞回单一大文件。
+
 ## [2026-07-04] - fix(wecom): 待人工列表隐藏完整工单 UUID
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-handoff-privacy
