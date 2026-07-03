@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-04] - fix(wecom): 收紧员工助手商品库存问法匹配
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-product-keyword
+- **背景**: 20 项生产回调探针通过后继续审查回复预览，发现“帮我看看伯牙绝弦库存”和“今天订单里有伯牙绝弦吗，库存还够吗”仍可能返回“未匹配到商品”类兜底。原探针只要求出现商品名或“库存”字样，无法阻断这种员工不可用回复。
+- **决策**:
+  - 不新增商品检索链路，复用既有 `filter_products()` 和商品工具。
+  - 商品工具清理“帮我看看 / 看一下 / 还够”等员工口语噪声，避免把整句当商品名。
+  - 多工具计划里如果订单查询已经抽出商品 keyword，则商品工具优先使用 `query_plan.keyword`，而不是继续传整句。
+  - 商品库存探针必须命中真实库存数字 `库存72`，并禁止“未匹配到商品 / 未在系统匹配 / 未找到匹配商品”兜底文案。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_product_filter.py` - 增加员工口语噪声词清理。
+  - `app/service/wecom/employee_agent_service.py` - 多工具商品查询优先使用订单计划中的商品关键词。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 收紧商品库存语义规则，避免兜底文案误过。
+  - `tests/service/test_wecom_product_filter.py` - 新增商品过滤器回归测试。
+  - `tests/service/test_wecom_employee_agent.py` - 新增多工具商品查询使用计划 keyword 的断言。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - fake 回调回复对齐真实库存验收要求。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，27 条。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在当前生产 `0.69.5` 上按预期失败 2/20：`order-product-inventory` 和 `casual-product-stock`，证明新探针能抓到库存未匹配兜底问题。
+  - `python -m ruff check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_product_filter.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_product_filter.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_product_filter.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 提交并同步生产后复跑 `/health`、`/ready` 和 20/20 回调探针，确认两个商品库存问法从失败恢复为通过。
+
 ## [2026-07-04] - test(wecom): 扩展员工助手口语自由问法验收
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-casual-probes

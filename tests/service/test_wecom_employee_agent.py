@@ -24,10 +24,14 @@ class _FakeOrderLookupService:
 
 
 class _FakeBusinessToolService:
+    def __init__(self) -> None:
+        self.product_payloads: list[dict[str, Any]] = []
+
     async def lookup_orders(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "result": "订单兜底"}
 
     async def lookup_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.product_payloads.append(payload)
         return {"ok": True, "result": "草莓蛋糕｜库存 6"}
 
     async def answer_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -195,8 +199,9 @@ async def test_employee_agent_order_reply_does_not_ask_for_full_order_no() -> No
 
 
 async def test_employee_agent_routes_product_and_knowledge() -> None:
+    business_tool_service = _FakeBusinessToolService()
     service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
+        business_tool_service=business_tool_service,
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
@@ -208,6 +213,23 @@ async def test_employee_agent_routes_product_and_knowledge() -> None:
 
     assert "库存 6" in product_reply
     assert "配送范围" in knowledge_reply
+    assert business_tool_service.product_payloads[0]["query"] == "草莓蛋糕还有库存吗"
+
+
+async def test_employee_agent_multi_tool_uses_order_keyword_for_product() -> None:
+    business_tool_service = _FakeBusinessToolService()
+    service = EmployeeAgentService(
+        business_tool_service=business_tool_service,
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    await service.answer("今天订单里有伯牙绝弦吗，库存还够吗")
+
+    assert business_tool_service.product_payloads[0]["query"] == "伯牙绝弦"
 
 
 async def test_employee_agent_routes_existing_ops_tools() -> None:

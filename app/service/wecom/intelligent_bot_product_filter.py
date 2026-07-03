@@ -5,9 +5,17 @@ from typing import Any
 from app.service.wecom.intelligent_bot_tool_response import DEFAULT_TOOL_LIMIT
 
 PRODUCT_QUERY_NOISE_WORDS = (
+    "帮我看看",
+    "帮我查下",
+    "帮我查一下",
+    "看一下",
+    "看下",
     "有没有",
     "还有没有",
     "还有哪些",
+    "还够不够",
+    "够不够",
+    "还够",
     "库存",
     "价格",
     "查询",

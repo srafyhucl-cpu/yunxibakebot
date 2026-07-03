@@ -245,8 +245,10 @@ def _fake_reply_text(content: str) -> str:
         return "当前暂无物流订单已汇总。"
     if "哪个商品" in content or "卖爆" in content:
         return "今日销量排行已汇总。"
+    if "伯牙绝弦" in content and ("库存" in content or "还有吗" in content):
+        return "伯牙绝弦当前库存72，售价258元。"
     if "库存" in content or "还有吗" in content:
-        return "库存已汇总。"
+        return "商品库存已汇总。"
     if "配送" in content:
         return "配送规则请按后台知识库确认。"
     if "异常" in content or "稳不稳" in content:

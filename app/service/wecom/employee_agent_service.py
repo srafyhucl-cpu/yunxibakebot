@@ -73,7 +73,13 @@ class EmployeeAgentService:
         payload = await self._business_tool_service.lookup_orders(_query_payload(query))
         return _tool_result_from_payload(payload)
 
-    async def _run_product_tool(self, query: str) -> ToolResult:
+    async def _run_product_tool(
+        self,
+        query: str,
+        plan: AgentPlan | None = None,
+    ) -> ToolResult:
+        if plan is not None and plan.query_plan is not None and plan.query_plan.keyword:
+            query = plan.query_plan.keyword
         payload = await self._business_tool_service.lookup_products(
             _query_payload(query)
         )
@@ -121,7 +127,7 @@ class EmployeeAgentService:
         if "order_dynamic_query" in plan.tools:
             results.append(await self._run_order_tool(query, plan))
         if "product_lookup" in plan.tools:
-            results.append(await self._run_product_tool(query))
+            results.append(await self._run_product_tool(query, plan))
         if not results:
             results.append(ToolResult(ok=False, summary=UNSUPPORTED_REPLY))
         return results
