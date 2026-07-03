@@ -15,13 +15,20 @@ from app.service.wecom.employee_agent_order_constants import (
     MAX_RESULT_LIMIT,
     ORDER_NO_PATTERN,
     ORDER_PENDING_STATUSES,
-    ORDER_POLICY_KEYWORDS,
-    ORDER_QUERY_KEYWORDS,
     ORDER_QUERY_PUNCTUATION_PATTERN,
-    ORDER_QUERY_STOP_WORDS,
-    ORDER_REFUND_KEYWORDS,
-    ORDER_REVENUE_KEYWORDS,
     ORDER_STATUS_KEYWORDS,
+)
+from app.service.wecom.employee_agent_order_keywords import (
+    ORDER_QUERY_KEYWORDS,
+    ORDER_QUERY_STOP_WORDS,
+    ORDER_REVENUE_KEYWORDS,
+)
+from app.service.wecom.employee_agent_order_predicates import (
+    looks_like_order_policy_query,
+    needs_fulfillment_risk,
+    needs_missing_logistics,
+    needs_refund,
+    resolve_sort_by,
 )
 
 
@@ -41,10 +48,11 @@ def build_order_query_plan(
         date_to=date_to,
         statuses=_resolve_order_statuses(query),
         keyword=_extract_order_keyword(query),
-        needs_missing_logistics=_needs_missing_logistics(query),
-        needs_refund=_needs_refund(query),
+        needs_missing_logistics=needs_missing_logistics(query),
+        needs_refund=needs_refund(query),
+        needs_fulfillment_risk=needs_fulfillment_risk(query),
         aggregate_by="product" if kind == OrderQueryKind.TOP_PRODUCTS else "",
-        sort_by="amount" if "金额" in query else "latest",
+        sort_by=resolve_sort_by(query),
         limit=_extract_limit(query),
     )
 
@@ -54,8 +62,10 @@ def resolve_order_kind(query: str) -> OrderQueryKind:
         return OrderQueryKind.TOP_PRODUCTS
     if any(word in query for word in ORDER_REVENUE_KEYWORDS):
         return OrderQueryKind.SUMMARY
-    if _needs_refund(query):
+    if needs_refund(query):
         return OrderQueryKind.SUMMARY
+    if needs_fulfillment_risk(query):
+        return OrderQueryKind.LIST
     if any(word in query for word in ("多少", "几单", "一共", "统计", "总共", "单量")):
         return OrderQueryKind.SUMMARY
     if any(word in query for word in ("详情", "具体", "订单号")):
@@ -92,11 +102,9 @@ def looks_like_ops_query(capability_names: set[str]) -> bool:
     return bool(capability_names & {"ops_summary", "handoff_pending"})
 
 
-def looks_like_order_policy_query(query: str) -> bool:
-    return any(word in query for word in ORDER_POLICY_KEYWORDS)
-
-
 def _resolve_order_statuses(query: str) -> tuple[str, ...]:
+    if needs_fulfillment_risk(query):
+        return ORDER_PENDING_STATUSES
     if "待处理" in query:
         return ORDER_PENDING_STATUSES
     statuses = [
@@ -114,19 +122,6 @@ def _extract_order_keyword(query: str) -> str:
     keyword = re.sub(r"E\d{12,}", " ", keyword, flags=re.IGNORECASE)
     keyword = ORDER_QUERY_PUNCTUATION_PATTERN.sub(" ", keyword)
     return " ".join(keyword.split())
-
-
-def _needs_missing_logistics(query: str) -> bool:
-    return any(
-        word in query
-        for word in ("没物流", "无物流", "暂无物流", "还没物流", "没出物流")
-    )
-
-
-def _needs_refund(query: str) -> bool:
-    return any(word in query for word in ORDER_REFUND_KEYWORDS) and not (
-        looks_like_order_policy_query(query)
-    )
 
 
 def _extract_limit(query: str) -> int:

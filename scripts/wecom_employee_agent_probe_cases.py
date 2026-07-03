@@ -19,6 +19,7 @@ class EmployeeAgentProbeCase:
     expected_keyword: str | None = None
     expected_missing_logistics: bool | None = None
     expected_needs_refund: bool | None = None
+    expected_fulfillment_risk: bool | None = None
     required_any_terms: tuple[str, ...] = ()
     required_all_terms: tuple[str, ...] = ()
     forbidden_terms: tuple[str, ...] = ()
@@ -131,6 +132,18 @@ def _order_list_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "未在系统匹配",
                 "未找到匹配商品",
             ),
+        ),
+        EmployeeAgentProbeCase(
+            "fulfillment-risk-list",
+            "哪些单快超时了",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            expected_fulfillment_risk=True,
+            required_any_terms=("超时", "约送", "待发货", "待收货", "发货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
         ),
     )
 
@@ -373,6 +386,20 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             expected_keyword="",
             required_any_terms=("待发货", "未发货", "发货"),
             forbidden_terms=("完整订单号", "手机号"),
+        ),
+        EmployeeAgentProbeCase(
+            "casual-fulfillment-pressure",
+            "今天发货压力大不大",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            today_text,
+            today_text,
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            expected_fulfillment_risk=True,
+            required_any_terms=("发货", "压力", "约送", "待发货", "待收货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
         ),
         EmployeeAgentProbeCase(
             "casual-missing-logistics",

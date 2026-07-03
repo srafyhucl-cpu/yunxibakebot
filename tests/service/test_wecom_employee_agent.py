@@ -114,6 +114,21 @@ async def test_planner_builds_refund_order_summary_plan() -> None:
     assert plan.query_plan.keyword == ""
 
 
+async def test_planner_builds_fulfillment_risk_list_plan() -> None:
+    plan = await _planner().plan("哪些单快超时了")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.LIST
+    assert plan.query_plan.statuses == (
+        "WAIT_SELLER_SEND_GOODS",
+        "WAIT_BUYER_CONFIRM_GOODS",
+    )
+    assert plan.query_plan.needs_fulfillment_risk is True
+    assert plan.query_plan.sort_by == "delivery_time"
+    assert plan.query_plan.keyword == ""
+
+
 async def test_planner_keeps_refund_policy_as_knowledge() -> None:
     plan = await _planner().plan("退款规则是什么")
 

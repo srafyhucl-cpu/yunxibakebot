@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手履约风险问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-fulfillment-risk
+- **背景**: 员工除了问“有哪些没发货/没物流”，还会自然问“哪些单快超时了”“今天发货压力大不大”这类履约风险问题。原订单动态查询没有显式履约风险计划字段，容易退化成普通待发货列表，不能优先展示约送时间和待处理压力。
+- **决策**:
+  - 不新增 SQL 入口，不让模型生成 SQL；继续复用 `OrderQueryPlan` 和 `YouzanOrderRepo` 白名单参数化查询。
+  - 新增 `needs_fulfillment_risk` 布尔计划字段，仓库层固定筛选待发货/待收货且存在 `delivery_time` 的订单，并按约送时间升序排列。
+  - 员工订单列表统一展示“约送/未约送”信息，但仍只展示订单尾号，不暴露完整订单号、手机号、完整地址或买家 ID。
+  - 将订单问法关键词拆成 `employee_agent_order_keywords.py`，将问法谓词拆成 `employee_agent_order_predicates.py`，避免继续堆大文件。
+  - 共享探针从 26 项扩到 28 项，新增 `fulfillment-risk-list` 与 `casual-fulfillment-pressure`。
+- **改动**:
+  - `app/models/employee_agent.py` - `OrderQueryPlan` 新增 `needs_fulfillment_risk`。
+  - `app/repository/youzan_order_repo.py` - 白名单查询支持履约风险过滤和 `delivery_time` 排序。
+  - `app/service/wecom/employee_agent_order_keywords.py`、`employee_agent_order_predicates.py` - 拆分订单问法关键词和谓词。
+  - `app/service/wecom/intelligent_bot_order_format.py` - 员工订单行增加约送时间展示。
+  - `scripts/wecom_employee_agent_probe_cases.py` 与 `scripts/check_wecom_employee_agent_plans.py` - 共享探针和规划报告增加履约风险验收字段。
+  - `tests/repository/test_youzan_repo.py`、`tests/service/test_wecom_employee_agent.py`、`tests/service/test_wecom_employee_privacy_format.py` - 补履约风险查询、规划和隐私展示回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过，60 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，28/28。
+  - `python -m ruff check ...` 与 `python -m ruff format --check ...` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 52 个函数长度 WARN；架构边界扫描零输出。
+  - 本地服务 `/health` 通过；`/ready` 因本地 `handoff_staff_userid_ready=false` 降级；本地 28 项回调探针中新增履约风险 2 项通过，7 个旧商品/生产数据依赖样本因本地库无生产数据失败，需以生产同步后回调探针作为端到端证据。
+- **后续**:
+  - 提交并同步生产后复验 `/health`、`/ready` 与 28/28 回调探针；剩余为真实企微群内员工自由问法人工验收。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手退款订单数据问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-refund-query

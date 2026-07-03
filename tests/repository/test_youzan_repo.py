@@ -533,6 +533,62 @@ async def test_order_dynamic_query_filters_refund_state(
     assert summary["status_counts"] == {"TRADE_CLOSED": 1}
 
 
+async def test_order_dynamic_query_filters_fulfillment_risk(
+    order_repo: YouzanOrderRepo,
+) -> None:
+    """履约风险计划应只返回有约送时间的待履约订单。"""
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030041",
+            buyer_id="buyer_risk_001",
+            status="WAIT_SELLER_SEND_GOODS",
+            amount_fen=16800,
+            product_titles="快超时蛋糕 x 1",
+            total_quantity=1,
+            delivery_time="2026-07-03 18:00",
+            pay_time="2026-07-03 10:00:00",
+            created_at="2026-07-03 10:00:00",
+            updated_at="2026-07-03 10:00:00",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030042",
+            buyer_id="buyer_risk_002",
+            status="WAIT_SELLER_SEND_GOODS",
+            amount_fen=9900,
+            product_titles="未约送蛋糕 x 1",
+            total_quantity=1,
+            pay_time="2026-07-03 11:00:00",
+            created_at="2026-07-03 11:00:00",
+            updated_at="2026-07-03 11:00:00",
+        )
+    )
+    await order_repo.upsert_order(
+        YouzanOrderData(
+            order_no="E202607030043",
+            buyer_id="buyer_risk_003",
+            status="TRADE_SUCCESS",
+            amount_fen=8800,
+            product_titles="已完成蛋糕 x 1",
+            total_quantity=1,
+            delivery_time="2026-07-03 18:30",
+            pay_time="2026-07-03 12:00:00",
+            created_at="2026-07-03 12:00:00",
+            updated_at="2026-07-03 12:00:00",
+        )
+    )
+
+    rows = await order_repo.query_orders(
+        OrderQueryPlan(
+            kind=OrderQueryKind.LIST,
+            needs_fulfillment_risk=True,
+        )
+    )
+
+    assert [row["order_no"] for row in rows] == ["E202607030041"]
+
+
 async def test_order_dynamic_top_products(order_repo: YouzanOrderRepo) -> None:
     """动态商品聚合应按销量返回排行。"""
     await order_repo.upsert_order(

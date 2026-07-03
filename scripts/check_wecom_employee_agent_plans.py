@@ -40,6 +40,7 @@ class AgentPlanCheck:
     keyword: str
     missing_logistics: bool
     needs_refund: bool
+    fulfillment_risk: bool
     detail: str = ""
 
     def to_dict(self) -> dict[str, object]:
@@ -56,6 +57,7 @@ class AgentPlanCheck:
             "keyword": self.keyword,
             "missing_logistics": self.missing_logistics,
             "needs_refund": self.needs_refund,
+            "fulfillment_risk": self.fulfillment_risk,
             "detail": self.detail,
         }
 
@@ -82,6 +84,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
     keyword = query_plan.keyword if query_plan else ""
     missing_logistics = query_plan.needs_missing_logistics if query_plan else False
     needs_refund = query_plan.needs_refund if query_plan else False
+    fulfillment_risk = query_plan.needs_fulfillment_risk if query_plan else False
     mismatches = _collect_mismatches(
         probe,
         plan.intent.value,
@@ -93,6 +96,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         keyword,
         missing_logistics,
         needs_refund,
+        fulfillment_risk,
     )
     return AgentPlanCheck(
         name=probe.name,
@@ -107,6 +111,7 @@ def evaluate_probe(probe: EmployeeAgentProbeCase, plan: AgentPlan) -> AgentPlanC
         keyword=keyword,
         missing_logistics=missing_logistics,
         needs_refund=needs_refund,
+        fulfillment_risk=fulfillment_risk,
         detail="; ".join(mismatches),
     )
 
@@ -122,6 +127,7 @@ def _collect_mismatches(
     keyword: str,
     missing_logistics: bool,
     needs_refund: bool,
+    fulfillment_risk: bool,
 ) -> list[str]:
     mismatches: list[str] = []
     _append_mismatch(mismatches, "intent", probe.expected_intent, intent)
@@ -149,6 +155,13 @@ def _collect_mismatches(
             "needs_refund",
             probe.expected_needs_refund,
             needs_refund,
+        )
+    if probe.expected_fulfillment_risk is not None:
+        _append_mismatch(
+            mismatches,
+            "fulfillment_risk",
+            probe.expected_fulfillment_risk,
+            fulfillment_risk,
         )
     return mismatches
 

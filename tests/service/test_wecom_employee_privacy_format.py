@@ -66,3 +66,21 @@ def test_employee_order_line_marks_refund_without_full_order_no() -> None:
     assert "有退款/售后" in line
     assert "E202607031234567890" not in line
     assert "567890" in line
+
+
+def test_employee_order_line_shows_delivery_time_without_private_fields() -> None:
+    line = employee_order_line(
+        1,
+        {
+            "order_no": "E202607031234567891",
+            "status": "WAIT_SELLER_SEND_GOODS",
+            "product_titles": "快超时蛋糕 x1",
+            "amount_fen": 16800,
+            "pay_time": "2026-07-03 10:00:00",
+            "delivery_time": "2026-07-03 18:00",
+        },
+    )
+
+    assert "约送 2026-07-03 18:00" in line
+    assert "E202607031234567891" not in line
+    assert "567891" in line

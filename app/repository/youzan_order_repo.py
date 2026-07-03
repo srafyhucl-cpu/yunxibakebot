@@ -20,7 +20,12 @@ ORDER_DATE_EXPR = "COALESCE(NULLIF(pay_time, ''), created_at, updated_at)"
 ORDER_SORT_SQL = {
     "latest": ORDER_DATE_EXPR + " DESC, order_no DESC",
     "amount": "amount_fen DESC, " + ORDER_DATE_EXPR + " DESC",
+    "delivery_time": "delivery_time ASC, " + ORDER_DATE_EXPR + " DESC",
 }
+ORDER_FULFILLMENT_RISK_STATUSES = (
+    "WAIT_SELLER_SEND_GOODS",
+    "WAIT_BUYER_CONFIRM_GOODS",
+)
 
 
 class YouzanOrderRepo(BaseRepository):
@@ -204,10 +209,13 @@ def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
     if plan.date_to:
         clauses.append(ORDER_TIME_EXPR + " <= ?")
         params.append(plan.date_to)
-    if plan.statuses:
-        placeholders = ",".join("?" for _ in plan.statuses)
+    effective_statuses = plan.statuses
+    if plan.needs_fulfillment_risk and not effective_statuses:
+        effective_statuses = ORDER_FULFILLMENT_RISK_STATUSES
+    if effective_statuses:
+        placeholders = ",".join("?" for _ in effective_statuses)
         clauses.append("status IN (" + placeholders + ")")
-        params.extend(plan.statuses)
+        params.extend(effective_statuses)
     if plan.keyword:
         like_keyword = f"%{plan.keyword}%"
         clauses.append(
@@ -218,4 +226,6 @@ def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
         clauses.append("(logistics_no = '' OR logistics_no IS NULL)")
     if plan.needs_refund:
         clauses.append("refund_state != 0")
+    if plan.needs_fulfillment_risk:
+        clauses.append("delivery_time IS NOT NULL AND delivery_time != ''")
     return "WHERE " + " AND ".join(clauses), params
