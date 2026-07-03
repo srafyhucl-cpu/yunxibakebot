@@ -237,7 +237,14 @@ def _order_list_probe_cases(
             expected_delivery_time_start="18:00",
             expected_delivery_time_end="23:59",
             required_any_terms=("待处理", "约送", "晚上", "待发货", "待收货"),
-            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+            forbidden_terms=(
+                "完整订单号",
+                "手机号",
+                "完整地址",
+                "换商品名",
+                "时间范围再查",
+                "确认日期是否正确",
+            ),
         ),
         EmployeeAgentProbeCase(
             "tomorrow-pending-orders",
@@ -265,7 +272,14 @@ def _order_list_probe_cases(
             expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
             expected_keyword="",
             required_any_terms=("待处理", "约送", "后天", "待发货", "待收货"),
-            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+            forbidden_terms=(
+                "完整订单号",
+                "手机号",
+                "完整地址",
+                "换商品名",
+                "时间范围再查",
+                "确认日期是否正确",
+            ),
         ),
         EmployeeAgentProbeCase(
             "weekend-pending-orders",
@@ -293,7 +307,14 @@ def _order_list_probe_cases(
             expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
             expected_keyword="",
             required_any_terms=("待处理", "约送", "下周一", "待发货", "待收货"),
-            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+            forbidden_terms=(
+                "完整订单号",
+                "手机号",
+                "完整地址",
+                "换商品名",
+                "时间范围再查",
+                "确认日期是否正确",
+            ),
         ),
     )
 

@@ -812,3 +812,16 @@ def test_preserve_tool_facts_rejects_missing_pressure_label() -> None:
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 
     assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_empty_order_detour() -> None:
+    deterministic_reply = (
+        "晚上还有哪些待处理订单：没有查到约送日期 2026-07-04、"
+        "约送时间 18:00-23:59、待处理的订单。\n"
+        "下一步：这表示当前约送口径下暂无待处理订单；可继续问其他日期或查看今日待办。"
+    )
+    polished_reply = "没有查到待处理订单。建议换商品名、状态或时间范围再查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply

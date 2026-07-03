@@ -91,7 +91,7 @@ class WeComOrderLookupService:
         orders = await self._youzan_order_repo.query_orders(plan)
         if plan.kind == OrderQueryKind.SUMMARY:
             return build_order_summary_tool_result(query, summary, orders)
-        return build_order_list_tool_result(query, summary, orders)
+        return build_order_list_tool_result(query, summary, orders, plan)
 
     async def _lookup_exact_youzan_order(
         self, query: str, order_no: str

@@ -25,6 +25,13 @@ ACTION_INSIGHT_SOURCE_MARKERS = ("发货压力", "优先级")
 PRESSURE_LABEL_PATTERN = re.compile(r"发货压力[:：]\s*(偏高|中等|低)")
 MISSING_LOGISTICS_SOURCE_MARKERS = ("暂无物流", "无物流")
 MISSING_LOGISTICS_REQUIRED_TERM = "物流"
+EMPTY_ORDER_SCOPE_MARKERS = ("没有查到约送日期", "没有查到下单日期")
+EMPTY_ORDER_DETOUR_TERMS = (
+    "换商品名",
+    "时间范围再查",
+    "日期需确认",
+    "确认日期是否正确",
+)
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
@@ -38,6 +45,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _misses_action_insight_markers(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_missing_logistics_marker(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _introduces_empty_order_detour(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_private_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -95,3 +104,15 @@ def _misses_missing_logistics_marker(
     if not has_missing_logistics:
         return False
     return MISSING_LOGISTICS_REQUIRED_TERM not in polished_reply
+
+
+def _introduces_empty_order_detour(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    has_specific_empty_scope = any(
+        marker in deterministic_reply for marker in EMPTY_ORDER_SCOPE_MARKERS
+    )
+    if not has_specific_empty_scope:
+        return False
+    return any(term in polished_reply for term in EMPTY_ORDER_DETOUR_TERMS)

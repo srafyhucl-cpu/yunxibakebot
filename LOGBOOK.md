@@ -1,4 +1,34 @@
 ﻿
+## [2026-07-04] - fix(wecom): 保留员工助手空订单查询范围
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-empty-order-scope
+- **背景**: 企微员工助手空订单结果会退化成“没有查到待处理订单，建议换商品名、状态或时间范围再查”这类泛化回复。员工原问题里已经包含约送日期、约送时间段和待处理状态时，泛化建议会让人误以为系统没理解上下文，不符合“私人豆包式员工 Agent”的目标。
+- **决策**:
+  - 不改变企微 API 回调入口，不新增 SQL，不让 LLM 生成 SQL。
+  - 订单查询为空时，基于 `OrderQueryPlan` 的白名单字段生成确定性查询范围说明，例如约送日期、约送时间、待处理、无物流、履约风险和商品关键词。
+  - LLM 润色如果把具体空结果范围改写成“换商品名 / 时间范围再查 / 日期需确认”等泛化绕路话术，则回退确定性工具结果。
+  - 将空结果范围格式拆入 `intelligent_bot_order_empty_format.py`，避免继续扩大订单格式大文件。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_order_empty_format.py` - 新增订单空结果范围文案和下一步动作 helper。
+  - `app/service/wecom/intelligent_bot_order_format.py`、`intelligent_bot_order_lookup.py` - 订单列表空结果传入查询计划并使用范围化文案。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 增加空订单范围保真守卫，拒绝泛化绕路润色。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 晚上、后天、下周一待处理订单样本禁止泛化绕路词。
+  - `tests/service/test_wecom_intelligent_bot_order_lookup.py`、`tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补空结果范围和回调语义回归。
+- **验证结果**:
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_order_lookup.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，71 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/wecom/intelligent_bot_order_empty_format.py app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_order_lookup.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_order_empty_format.py app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_order_lookup.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补充 `/health`、`/ready` 与 43 问线上加密回调探针证据。
+
 ## [2026-07-04] - fix(wecom): 优化员工助手商品话术无命中兜底
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-product-knowledge-miss

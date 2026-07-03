@@ -5,7 +5,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.models.employee_agent import ToolResult
+from app.models.employee_agent import OrderQueryPlan, ToolResult
+from app.service.wecom.intelligent_bot_order_empty_format import (
+    empty_order_list_text,
+    empty_order_next_action,
+)
 from app.service.wecom.intelligent_bot_order_insights import (
     order_action_next_step,
     order_action_overview,
@@ -55,14 +59,15 @@ def build_order_list_tool_result(
     query: str,
     summary: dict[str, Any],
     orders: list[dict[str, Any]],
+    plan: OrderQueryPlan | None = None,
 ) -> ToolResult:
     """构造员工可读订单列表结果。"""
     if not orders:
         return ToolResult(
             ok=True,
-            summary=f"{query}：没有查到匹配订单。",
+            summary=f"{query}：{empty_order_list_text(plan)}",
             metrics=summary,
-            next_action="可以换商品名、状态或时间范围再问。",
+            next_action=empty_order_next_action(plan),
         )
     lines = [f"{query}：找到 {len(orders)} 单，按最新订单展示："]
     if _looks_like_fulfillment_pressure_query(query):

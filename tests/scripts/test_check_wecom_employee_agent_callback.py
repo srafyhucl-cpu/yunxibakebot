@@ -314,6 +314,32 @@ def test_evaluate_reply_rejects_product_knowledge_miss() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_empty_order_generic_detour() -> None:
+    probe = callback_check.CallbackProbe(
+        "evening-pending-orders",
+        "晚上还有哪些待处理订单",
+        required_any_terms=("待处理", "约送", "晚上", "待发货", "待收货"),
+        forbidden_terms=("换商品名", "时间范围再查"),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "没有查到待处理订单。建议换商品名、状态或时间范围再查。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 

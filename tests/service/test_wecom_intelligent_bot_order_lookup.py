@@ -53,6 +53,16 @@ class _FakeYouzanOrderRepo:
         return [_youzan_order("E202600000013"), _youzan_order("E202600000014")]
 
 
+class _EmptyYouzanOrderRepo(_FakeYouzanOrderRepo):
+    async def summarize_orders(self, plan: OrderQueryPlan) -> dict[str, Any]:
+        self.summarized_plans.append(plan)
+        return {"total_count": 0, "total_amount_fen": 0, "status_counts": {}}
+
+    async def query_orders(self, plan: OrderQueryPlan) -> list[dict[str, Any]]:
+        self.queried_plans.append(plan)
+        return []
+
+
 class _FakePlatformOrderService:
     async def list_admin_orders(self, *, page: int = 1, keyword: str = "") -> dict:
         return {
@@ -205,6 +215,30 @@ async def test_answer_agent_query_adds_fulfillment_pressure_label() -> None:
     assert "发货压力：偏高" in result.summary
     assert "待处理 2 单" in result.summary
     assert "履约风险 1 单" in result.summary
+
+
+async def test_answer_agent_query_empty_list_keeps_query_scope() -> None:
+    repo = _EmptyYouzanOrderRepo()
+    service = WeComOrderLookupService(youzan_order_repo=repo)
+
+    result = await service.answer_agent_query(
+        "晚上还有哪些待处理订单",
+        OrderQueryPlan(
+            kind=OrderQueryKind.LIST,
+            date_from="2026-07-04",
+            date_to="2026-07-04",
+            date_field="delivery_time",
+            statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            delivery_time_start="18:00",
+            delivery_time_end="23:59",
+        ),
+    )
+
+    assert "没有查到约送日期 2026-07-04" in result.summary
+    assert "约送时间 18:00-23:59" in result.summary
+    assert "待处理" in result.summary
+    assert "换商品名" not in result.next_action
+    assert "当前约送口径下暂无待处理订单" in result.next_action
 
 
 async def test_lookup_orders_calls_live_logistics_tool(
