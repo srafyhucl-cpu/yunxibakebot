@@ -22,8 +22,10 @@
   - `python scripts/check_text_encoding.py` 通过。
   - 触达 Python 文件 `ruff check` 与 `ruff format --check` 通过。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+  - 已同步生产 `0.70.8 / 734a74e60`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，39/39；新增“后天有哪些待处理订单”“周末有哪些待处理订单”“7月5日椰椰凤梨卖了几单”均通过线上语义和隐私检查。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 同步生产后复跑 `/health`、`/ready` 和 39/39 企微员工助手加密回调探针。
   - 后续再补“下周一/周五/本月/上周”等更宽时间表达，仍保持结构化计划和白名单查询。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手按约送日期查询订单
