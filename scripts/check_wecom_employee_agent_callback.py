@@ -28,6 +28,7 @@ from app.service.wecom.crypto import (  # noqa: E402
 )
 from scripts.wecom_employee_agent_callback_semantics import (  # noqa: E402
     CallbackSemanticRule,
+    has_plain_text_violation,
     is_semantic_safe,
 )
 from scripts.wecom_employee_agent_probe_cases import default_probe_cases  # noqa: E402
@@ -255,6 +256,7 @@ def evaluate_reply(
     reply_valid = is_valid_stream_reply(reply_payload, content)
     privacy_safe = is_privacy_safe(content)
     semantic_safe = is_semantic_safe(content, semantic_rule(probe))
+    plain_text_safe = not has_plain_text_violation(content)
     detail_parts = []
     if status_code != HTTP_OK:
         detail_parts.append(f"status={status_code}")
@@ -262,7 +264,7 @@ def evaluate_reply(
         detail_parts.append("invalid stream reply")
     if not privacy_safe:
         detail_parts.append("privacy leak pattern matched")
-    if not semantic_safe:
+    if not semantic_safe or not plain_text_safe:
         detail_parts.append("semantic rule mismatch")
     return CallbackProbeResult(
         name=probe.name,
@@ -271,10 +273,11 @@ def evaluate_reply(
         passed=status_code == HTTP_OK
         and reply_valid
         and privacy_safe
-        and semantic_safe,
+        and semantic_safe
+        and plain_text_safe,
         reply_valid=reply_valid,
         privacy_safe=privacy_safe,
-        semantic_safe=semantic_safe,
+        semantic_safe=semantic_safe and plain_text_safe,
         elapsed_ms=elapsed_ms,
         content_preview=content[:REPLY_PREVIEW_LIMIT],
         detail="; ".join(detail_parts),

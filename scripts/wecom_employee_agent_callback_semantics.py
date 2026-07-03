@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+PLAIN_TEXT_FORBIDDEN_MARKERS = ("**", "__", "`")
+
 
 @dataclass(frozen=True)
 class CallbackSemanticRule:
@@ -25,3 +27,8 @@ def is_semantic_safe(content: str, rule: CallbackSemanticRule) -> bool:
     ):
         return False
     return not any(term in content for term in rule.forbidden_terms)
+
+
+def has_plain_text_violation(content: str) -> bool:
+    """企微员工助手 stream 回复必须是纯文本，不保留 Markdown 装饰。"""
+    return any(marker in content for marker in PLAIN_TEXT_FORBIDDEN_MARKERS)

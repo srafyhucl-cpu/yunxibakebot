@@ -340,6 +340,26 @@ def test_evaluate_reply_rejects_empty_order_generic_detour() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_markdown_decorations() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe("plain-text", "今天哪个商品卖得多"),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "今日销量第一：**巧克力樱桃炸弹**。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 

@@ -6,6 +6,7 @@ from typing import Any
 
 from app.logger import setup_logger
 from app.models.employee_agent import AgentIntent, AgentPlan, ToolResult
+from app.service.chat_reply import clean_plain_text_reply
 from app.service.llm.client import chat_completion as llm_chat
 from app.service.wecom.employee_agent_ops_plan import extract_campaign_id
 from app.service.wecom.employee_agent_mixed_reply import build_mixed_tool_reply
@@ -50,8 +51,9 @@ class EmployeeAgentService:
             AgentIntent.KNOWLEDGE_ANSWER,
             AgentIntent.OPS_QUERY,
         ):
-            return deterministic_reply
-        return await self._polish_reply(query, plan, deterministic_reply)
+            return clean_plain_text_reply(deterministic_reply)
+        reply = await self._polish_reply(query, plan, deterministic_reply)
+        return clean_plain_text_reply(reply)
 
     async def _execute_plan(self, query: str, plan: AgentPlan) -> list[ToolResult]:
         if plan.intent == AgentIntent.ORDER_QUERY:

@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - fix(wecom): 清理员工助手 Markdown 装饰
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-plain-text-reply
+- **背景**: 生产 43 问回调探针虽然全部通过，但多个 `content_preview` 已显示 `**尾号...**`、`**优先级...**` 这类 Markdown 粗体标记。企微智能机器人 `stream.content` 是员工群纯文本入口，保留 Markdown 装饰会让回复像模型草稿，不符合员工助手生产化体验；项目 LLM 守卫也要求纯文本渠道输出后处理清理 Markdown。
+- **决策**:
+  - 不在各个订单、商品、知识库工具里重复清理；复用并增强 `app.service.chat_reply.clean_plain_text_reply`，作为纯文本渠道统一后处理。
+  - `EmployeeAgentService.answer()` 的最终出口统一清理 Markdown，覆盖确定性回复、知识/运营跳过润色回复和 LLM 润色回复。
+  - 回调验收脚本新增全局纯文本规则，发现 `**`、`__` 或反引号残留即判定语义失败，避免以后线上探针继续漏过格式污染。
+- **改动**:
+  - `app/service/chat_reply.py` - 新增 `clean_plain_text_reply()`，清理粗体/斜体、标题、行内代码和多余空行。
+  - `app/service/wecom/employee_agent_service.py` - 员工助手最终回复统一走纯文本清理。
+  - `scripts/wecom_employee_agent_callback_semantics.py`、`scripts/check_wecom_employee_agent_callback.py` - 增加纯文本标记违规检查，并并入 `semantic_safe`。
+  - `tests/service/test_chat_refactor.py`、`tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补公共清理、员工助手润色清理和回调拒绝 Markdown 的回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_chat_refactor.py::test_postprocess_reply_removes_markdown_marks tests/service/test_wecom_employee_agent.py::test_employee_agent_reply_removes_markdown_from_polish tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_markdown_decorations -q --no-cov` 通过，3 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，64 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python -m ruff check app/service/chat_reply.py app/service/wecom/employee_agent_service.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/service/test_chat_refactor.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/chat_reply.py app/service/wecom/employee_agent_service.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/service/test_chat_refactor.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补充 `/health`、`/ready` 与 43 问线上回调探针证据，重点确认 `fulfillment-risk-list`、`tomorrow-pending-orders`、`today-action-items`、`casual-order-attention`、`top-products`、`casual-top-product` 不再出现 Markdown 装饰。
+
 ## [2026-07-04] - fix(wecom): 保留员工助手空订单查询范围
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-empty-order-scope

@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-027：企微员工助手纯文本回复清理
+
+- trace_id: 20260704-wecom-employee-agent-plain-text-reply
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-plain-text-reply
+- file: `D:/Project/YunxiBakeBot/app/service/chat_reply.py`; `D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_service.py`; `D:/Project/YunxiBakeBot/scripts/check_wecom_employee_agent_callback.py`; `D:/Project/YunxiBakeBot/scripts/wecom_employee_agent_callback_semantics.py`; `D:/Project/YunxiBakeBot/tests/service/test_chat_refactor.py`; `D:/Project/YunxiBakeBot/tests/service/test_wecom_employee_agent.py`; `D:/Project/YunxiBakeBot/tests/scripts/test_check_wecom_employee_agent_callback.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`; `D:/Project/YunxiBakeBot/项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_chat_refactor.py::test_postprocess_reply_removes_markdown_marks tests/service/test_wecom_employee_agent.py::test_employee_agent_reply_removes_markdown_from_polish tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_markdown_decorations -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python scripts/check_file_sizes.py`; `python -m ruff check app/service/chat_reply.py app/service/wecom/employee_agent_service.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/service/test_chat_refactor.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check app/service/chat_reply.py app/service/wecom/employee_agent_service.py scripts/check_wecom_employee_agent_callback.py scripts/wecom_employee_agent_callback_semantics.py tests/service/test_chat_refactor.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 清理员工助手 Markdown 装饰
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令和探针名称；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 生产回调探针预览暴露 `**尾号...**`、`**优先级...**` 等 Markdown 装饰残留。员工助手最终回复现统一复用 `clean_plain_text_reply()`，覆盖确定性回复、知识/运营跳过润色回复和 LLM 润色回复；回调验收新增全局纯文本规则，出现 `**`、`__` 或反引号即判定语义失败。本地相关测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；待同步生产后补线上证据。
+
 ## E-20260704-026：企微员工助手空订单查询范围保真
 
 - trace_id: 20260704-wecom-employee-agent-empty-order-scope

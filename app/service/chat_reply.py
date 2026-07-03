@@ -1,6 +1,7 @@
 """ChatService 的回复后处理与埋点边界。"""
 
 import json
+import re
 from typing import Any
 
 from app.logger import setup_logger
@@ -13,15 +14,30 @@ from app.utils import now_str
 
 logger = setup_logger()
 
+MARKDOWN_DECORATION_PATTERN = re.compile(r"(\*\*|__)(.+?)\1")
+INLINE_CODE_PATTERN = re.compile(r"`([^`]+)`")
+HEADING_MARK_PATTERN = re.compile(r"(?m)^#{1,6}\s+")
+EXCESSIVE_BLANK_LINES_PATTERN = re.compile(r"\n{3,}")
+
 
 def postprocess_reply(reply: str | None, user_content: str) -> str | None:
     if not reply:
         return reply
 
-    cleaned_reply = reply.replace("**", "").replace("*", "").replace("__", "")
+    cleaned_reply = clean_plain_text_reply(reply)
     if needs_soothe(user_content):
         return apply_soothe(cleaned_reply)
     return cleaned_reply
+
+
+def clean_plain_text_reply(reply: str) -> str:
+    """清理纯文本渠道不支持的 Markdown 装饰。"""
+    cleaned_reply = MARKDOWN_DECORATION_PATTERN.sub(r"\2", reply)
+    cleaned_reply = INLINE_CODE_PATTERN.sub(r"\1", cleaned_reply)
+    cleaned_reply = HEADING_MARK_PATTERN.sub("", cleaned_reply)
+    cleaned_reply = cleaned_reply.replace("**", "").replace("__", "")
+    cleaned_reply = EXCESSIVE_BLANK_LINES_PATTERN.sub("\n\n", cleaned_reply)
+    return cleaned_reply.strip()
 
 
 async def save_assistant_reply(

@@ -673,6 +673,40 @@ async def test_employee_agent_polish_keeps_product_stock_number(monkeypatch) -> 
     assert "知识库回复" in reply
 
 
+async def test_employee_agent_reply_removes_markdown_from_polish(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="**今日销量第一**：`巧克力樱桃炸弹`，共1单。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("今天一共多少订单")
+
+    assert "今日销量第一" in reply
+    assert "巧克力樱桃炸弹" in reply
+    assert "**" not in reply
+    assert "`" not in reply
+
+
 async def test_employee_agent_polish_drops_private_marker(monkeypatch) -> None:
     async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
         return SimpleNamespace(
