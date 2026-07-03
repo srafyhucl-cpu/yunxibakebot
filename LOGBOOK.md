@@ -24,8 +24,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.4 / f0aabffa`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`delivery-knowledge` 回复已返回可复制配送话术，包含门店排期、可配送时段、转人工确认等语义，未再出现“知识库没有命中”弱兜底。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 提交并同步生产后，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针，重点确认 `delivery-knowledge` 回复不再出现“知识库没有命中”，并包含排期/确认/人工等可执行语义。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 
 ## [2026-07-04] - fix(wecom): 保留员工助手无物流标记
