@@ -23,6 +23,11 @@
   - `python -m ruff format --check app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_llm_plan.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py` 通过。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+  - 生产已同步到 `0.69.4 / b539cd537`，`systemctl is-active yunxibakebot` 为 active，生产 tracked dirty 为 `0`。
+  - `Invoke-RestMethod https://yunxifood.cn/health` 返回 `status=ok, version=0.69.4`。
+  - `Invoke-RestMethod https://yunxifood.cn/ready` 返回 `status=ready, version=0.69.4`。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，13/13。
+  - 本地 `reports\wecom-employee-agent-order-split-b539cd5.bundle` 与生产 `/opt/yunxibakebot/wecom-employee-agent-order-split-b539cd5.bundle` 均已按明确路径清理。
 - **后续**:
   - 继续围绕真实企微群内自由问法和生产语义质量补验收样本，不再把新增订单问法塞回单一大文件。
 
