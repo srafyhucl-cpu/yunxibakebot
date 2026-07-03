@@ -22,7 +22,7 @@
   - `python -m ruff format --check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_query.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_file_size.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
   - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 使用新 24 项探针打旧生产 `0.69.9` 时按预期失败 2/24：`today-revenue-summary` 与 `this-week-revenue-summary`，证明旧生产尚未稳定支持经营金额问法且新探针能拦截兜底伪成功。
 - **后续**:
-  - 提交前继续执行项目红线、编码检查和 24 项生产回调预检；同步生产后复验 `/health`、`/ready` 与 24/24 回调探针。
+  - 已同步生产 `0.69.10 / 5bed12a`，`/health`、`/ready` 与 24/24 回调探针通过；剩余为真实企微群内员工自由问法人工验收。
 
 ## [2026-07-04] - feat(wecom): 扩展员工助手订单相对时间范围
 - **操作人**: AI (Codex)
