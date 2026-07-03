@@ -1,4 +1,18 @@
 ﻿
+## E-20260703-005：企微员工助手生产 git 工作区清理复核
+
+- trace_id: 20260703-wecom-employee-agent-production-gate
+- generated_at: 2026-07-03
+- evidence_type: production/git-workspace-cleanup-verification
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; production `/opt/yunxibakebot`
+- command: production `git rev-parse --short HEAD`; production `git diff --name-only | wc -l`; production `git status --short | head -40`; `Invoke-RestMethod https://yunxifood.cn/health`; `Invoke-RestMethod https://yunxifood.cn/ready`; production `python3 scripts/check_wecom_employee_agent_plans.py --json`; production `python3 scripts/check_wecom_intelligent_bot_contract.py --json`
+- result: pass
+- related_logbook: 2026-07-03 - docs(wecom): 记录员工助手生产工作区清理证据
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录生产 HEAD、tracked dirty 数、未跟踪备份类别和脱敏验证结论；未记录 `.env`、企微密钥、请求头或客户隐私字段。
+- summary: 生产已处于 `0.67.0 / 241ed517`，tracked dirty 数为 `0`；`git status --short` 仅剩历史 `.bak-wecom-*`、`.windsurf/workflows/sync-docs.md` 和 `backups/` 等未跟踪备份。复核后 `/health` ok、`/ready` ready，员工助手 10 个自由问法规划探针 10/10 通过，企微工具契约 4/4 通过。剩余事项仍是真实企微群内员工入口验收。
+
 ## E-20260703-004：企微员工助手 Agent 底座生产同步与规划验收
 
 - trace_id: 20260703-wecom-employee-agent-production-gate
@@ -11,7 +25,7 @@
 - related_adr: none
 - contains_sensitive_data: no
 - retention_note: 仅记录脱敏命令、备份目录和验证结论；未记录企微 Token、EncodingAESKey、插件 key、请求头或客户隐私字段。
-- summary: 生产已同步员工助手 Agent 底座到 `0.67.0 / 20f690ec`。`/health` 为 ok，`/ready` 为 ready；企微工具 smoke 13/13 通过；自由问法规划探针 10/10 通过，并确认订单统计/待发货/缺物流/销量排行类计划不会带噪声 keyword；加密 callback POST 探针返回 200、签名校验通过、`msgtype=stream` 且内容非空。剩余事项是企微群内真实员工入口 10 个问法验收，以及生产 git 工作区换行/索引状态单独治理。
+- summary: 生产已同步员工助手 Agent 底座到 `0.67.0 / 20f690ec`，随后文档元数据同步到 `241ed517`。`/health` 为 ok，`/ready` 为 ready；企微工具 smoke 13/13 通过；自由问法规划探针 10/10 通过，并确认订单统计/待发货/缺物流/销量排行类计划不会带噪声 keyword；加密 callback POST 探针返回 200、签名校验通过、`msgtype=stream` 且内容非空。生产 git 工作区清理复核见 `E-20260703-005`；剩余事项是企微群内真实员工入口 10 个问法验收。
 
 ## E-20260703-002：企微智能机器人 API 模式 URL 回调本地验收
 

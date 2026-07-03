@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-03] - docs(wecom): 记录员工助手生产工作区清理证据
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-production-gate
+- **背景**: 员工助手 Agent 底座已同步生产并通过运行态验证，但前一轮生产仓库因 archive 解包换行差异出现大量 tracked `M`，需要单独确认生产 git 工作区不再影响后续部署判断。
+- **决策**:
+  - 仅做只读状态复核和文档留痕，不运行 `scripts/deploy.sh`，不执行递归删除，不执行 `git reset --hard`。
+  - 历史 `.bak-wecom-*` 文件和 `backups/` 目录仍作为未跟踪备份保留，不在本轮清理。
+- **复核结果**:
+  - 生产 `git rev-parse --short HEAD` 为 `241ed517`，与本地最新文档提交一致。
+  - 生产 `git diff --name-only | wc -l` 为 `0`，tracked dirty 已清零。
+  - 生产 `git status --short` 仅剩 `.env.bak-wecom-*`、`.bak-wecom-tools-*`、`.windsurf/workflows/sync-docs.md` 和 `backups/` 等未跟踪历史备份。
+  - 生产 `/health` 返回 `status=ok`，版本 `0.67.0`。
+  - 生产 `/ready` 返回 `status=ready`，企微智能机器人 token/AES key/plugin key、人工接手人和后台 dist 检查均为 true。
+  - 生产 `python3 scripts/check_wecom_employee_agent_plans.py --json` 通过，10/10。
+  - 生产 `python3 scripts/check_wecom_intelligent_bot_contract.py --json` 通过，4/4。
+- **剩余事项**:
+  - 仍需在企微群内用真实员工入口做 10 个自由问法验收，确认客户端展示与自动探针一致。
+  - 后续如需清理生产未跟踪备份，必须逐个明确文件路径处理，不能批量或递归删除。
+
 ## [2026-07-03] - feat(wecom): 固化员工助手自由问法规划验收
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-production-gate
