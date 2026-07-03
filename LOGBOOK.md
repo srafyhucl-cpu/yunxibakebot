@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-03] - fix(wecom): 保持知识库工具冒烟响应速度
+- **操作人**: AI (Codex)
+- **trace_id**: 20260703-wecom-employee-agent-smoke
+- **背景**: 员工助手 Agent 底座提交后，本地企微 smoke 中 `knowledge-answer` 走完整知识库检索路径，10 秒内超时；工具冒烟需要验证接口契约和返回结构，不应被向量检索慢路径阻塞。
+- **决策**:
+  - 企微知识库工具优先调用 `search_keyword_only()`，用于插件/API 工具 smoke 和员工助手快速规则问答。
+  - 保留 `search()` 兜底，兼容没有关键词检索方法的检索器实现。
+  - 不改变企微外部接口和 Agent 编排入口。
+- **改动**:
+  - `WeComBotBusinessToolService.answer_knowledge()` 优先使用关键词检索，失败时仍走既有错误包装。
+- **验证结果**:
+  - 本地 `/health` 返回 `status=ok`，版本 `0.64.11`。
+  - 本地 `/ready` 返回 `degraded`，唯一当前阻塞为 `handoff_staff_userid_ready=false`，属于本地人工接待人配置项。
+  - `python scripts/wecom_intelligent_bot_smoke.py --json --base-url http://127.0.0.1:7001` 通过，13/13；`knowledge-answer` 响应约 17ms。
+- **剩余事项**:
+  - 生产同步前仍需在生产环境重新执行 `/health`、`/ready`、企微 smoke 和群内自由问法验收。
+
 ## [2026-07-03] - feat(wecom): 搭建员工助手全业务 Agent 底座
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-foundation

@@ -111,7 +111,12 @@ class WeComBotBusinessToolService:
         if not question:
             return missing_query("knowledge_answer", "请提供要查询的规则、话术或问题。")
         try:
-            entries = await self._knowledge_retriever.search(question, limit=limit)
+            if hasattr(self._knowledge_retriever, "search_keyword_only"):
+                entries = await self._knowledge_retriever.search_keyword_only(
+                    question, limit=limit
+                )
+            else:
+                entries = await self._knowledge_retriever.search(question, limit=limit)
         except Exception as exc:
             logger.error("企微知识库工具失败 question=%s err=%s", question, exc)
             return failed(
