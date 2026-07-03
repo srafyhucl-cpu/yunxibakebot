@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-002：企微员工助手 13 项回调生产语义验收
+
+- trace_id: 20260704-wecom-employee-agent-ops-expansion
+- generated_at: 2026-07-04
+- evidence_type: production/wecom-employee-agent-ops-callback-acceptance
+- file: `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_callback_semantics.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/yunxibakebot`
+- command: `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py -q --no-cov`; `python -m ruff check scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `Invoke-RestMethod https://yunxifood.cn/health`; `Invoke-RestMethod https://yunxifood.cn/ready`; `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`
+- result: pass
+- related_logbook: 2026-07-04 - test(wecom): 对齐员工助手 13 项回调语义规则
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录脱敏命令和语义验收结论；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址或完整订单号。
+- summary: 生产 `0.67.3` 已通过员工助手 13 项端到端加密回调验收；语义规则允许正确的“观察台状态”和“活动批次不存在”口径，同时继续禁止群活动问法被带偏到库存、小程序商品、退款或后台订单工作流。
+
 ## E-20260704-001：企微员工助手运营类工具接入 Agent
 
 - trace_id: 20260704-wecom-employee-agent-ops-expansion

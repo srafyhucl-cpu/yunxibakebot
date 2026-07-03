@@ -47,7 +47,7 @@ CALLBACK_SEMANTIC_RULES: dict[str, CallbackSemanticRule] = {
         forbidden_terms=("订单尾号", "订单状态", "订单页", "后台订单"),
     ),
     "ops-status": CallbackSemanticRule(
-        required_any_terms=("系统",),
+        required_any_terms=("系统", "观察台", "状态"),
         forbidden_terms=("完整订单号", "手机号"),
     ),
     "handoff-pending": CallbackSemanticRule(
@@ -66,7 +66,7 @@ CALLBACK_SEMANTIC_RULES: dict[str, CallbackSemanticRule] = {
         ),
     ),
     "group-campaign-summary": CallbackSemanticRule(
-        required_any_terms=("群活动", "客户群", "campaignId", "campaign"),
+        required_any_terms=("群活动", "客户群", "campaignId", "campaign", "活动批次"),
         forbidden_terms=(
             "手机号",
             "完整地址",

@@ -1,4 +1,18 @@
 ﻿
+## [2026-07-04] - test(wecom): 对齐员工助手 13 项回调语义规则
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-ops-expansion
+- **背景**: 员工助手运营类工具同步生产后，13 项回调验收发现业务结果已走到正确工具，但 `ops-status` 的确定性输出使用“观察台状态”而非“系统”，`group-campaign-summary` 的未命中输出使用“活动批次不存在”而非 campaign 关键词，旧语义规则过窄。
+- **决策**:
+  - 放宽 `ops-status` 必需词为“系统 / 观察台 / 状态”任一命中。
+  - 放宽 `group-campaign-summary` 必需词为“群活动 / 客户群 / campaignId / campaign / 活动批次”任一命中。
+  - 保留禁止词，不允许群活动问法被改写成库存、小程序商品、退款或后台订单工作流。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，20 条。
+  - `python -m ruff check scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check scripts/wecom_employee_agent_callback_semantics.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在生产 `0.67.3` 上通过，13/13。
+
 ## [2026-07-04] - feat(wecom): 员工助手接入客户线索、群活动和离线复盘
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-ops-expansion
