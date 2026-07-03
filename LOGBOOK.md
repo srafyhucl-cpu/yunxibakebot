@@ -21,8 +21,11 @@
   - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
   - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+  - 已同步生产 `0.72.0 / 1053f6be5`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；旧混合问法“还有哪些没发货，怎么跟客户说”已通过线上语义和隐私检查。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 同步生产后重新跑 `/health`、`/ready` 和 43/43 企微端到端加密回调探针，确认旧混合问法不再被 LLM 润色引入隐私禁词。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手更宽自然时间问法
 - **操作人**: AI (Codex)
@@ -49,8 +52,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - 触达 Python 文件 `ruff check` 与 `ruff format --check` 通过。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+  - 已同步生产 `0.72.0 / 1053f6be5`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；新增“本月销售额怎么样”“上周退款多少”“下周一有哪些待处理订单”“周五椰椰凤梨卖了几单”均通过线上语义和隐私检查。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 同步生产后运行 `/health`、`/ready` 和 43/43 企微端到端加密回调探针，并补生产证据。
+  - 剩余为企微群内真实员工入口 43 个问法人工验收，并继续补商品、知识库、运营和混合场景的生产化深水区。
 
 ## [2026-07-04] - feat(wecom): 支持员工助手自然日期订单问法
 - **操作人**: AI (Codex)
