@@ -25,7 +25,6 @@ from app.service.wecom.employee_agent_order_constants import (
 )
 from app.service.wecom.employee_agent_order_keywords import (
     ORDER_QUERY_KEYWORDS,
-    ORDER_QUERY_STOP_WORDS,
     ORDER_REVENUE_KEYWORDS,
 )
 from app.service.wecom.employee_agent_order_predicates import (
@@ -37,6 +36,7 @@ from app.service.wecom.employee_agent_order_predicates import (
     needs_refund,
     resolve_sort_by,
 )
+from app.service.wecom.employee_agent_order_stop_words import ORDER_QUERY_STOP_WORDS
 
 
 def has_exact_order_no(query: str) -> bool:

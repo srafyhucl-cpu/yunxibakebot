@@ -107,6 +107,17 @@ async def test_planner_builds_this_week_revenue_summary_plan() -> None:
     assert plan.query_plan.keyword == ""
 
 
+async def test_planner_builds_this_month_revenue_summary_plan() -> None:
+    plan = await _planner().plan("本月销售额怎么样")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-07-01"
+    assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.keyword == ""
+
+
 async def test_planner_builds_refund_order_summary_plan() -> None:
     plan = await _planner().plan("今天有退款订单吗")
 
@@ -115,6 +126,18 @@ async def test_planner_builds_refund_order_summary_plan() -> None:
     assert plan.query_plan.kind == OrderQueryKind.SUMMARY
     assert plan.query_plan.date_from == "2026-07-03"
     assert plan.query_plan.date_to == "2026-07-03"
+    assert plan.query_plan.needs_refund is True
+    assert plan.query_plan.keyword == ""
+
+
+async def test_planner_builds_last_week_refund_summary_plan() -> None:
+    plan = await _planner().plan("上周退款多少")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-06-22"
+    assert plan.query_plan.date_to == "2026-06-28"
     assert plan.query_plan.needs_refund is True
     assert plan.query_plan.keyword == ""
 
@@ -238,6 +261,22 @@ async def test_planner_builds_weekend_pending_delivery_date_plan() -> None:
     assert plan.query_plan.keyword == ""
 
 
+async def test_planner_builds_next_monday_pending_delivery_date_plan() -> None:
+    plan = await _planner().plan("下周一有哪些待处理订单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.LIST
+    assert plan.query_plan.date_from == "2026-07-06"
+    assert plan.query_plan.date_to == "2026-07-06"
+    assert plan.query_plan.date_field == "delivery_time"
+    assert plan.query_plan.statuses == (
+        "WAIT_SELLER_SEND_GOODS",
+        "WAIT_BUYER_CONFIRM_GOODS",
+    )
+    assert plan.query_plan.keyword == ""
+
+
 async def test_planner_builds_product_order_multi_tool_plan() -> None:
     plan = await _planner().plan("椰椰凤梨今天卖了几单，库存还够吗")
 
@@ -275,6 +314,17 @@ async def test_planner_builds_month_day_order_range_plan() -> None:
     assert plan.query_plan.kind == OrderQueryKind.SUMMARY
     assert plan.query_plan.date_from == "2026-07-05"
     assert plan.query_plan.date_to == "2026-07-05"
+    assert plan.query_plan.keyword == "椰椰凤梨"
+
+
+async def test_planner_builds_weekday_order_range_plan() -> None:
+    plan = await _planner().plan("周五椰椰凤梨卖了几单")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.kind == OrderQueryKind.SUMMARY
+    assert plan.query_plan.date_from == "2026-07-03"
+    assert plan.query_plan.date_to == "2026-07-03"
     assert plan.query_plan.keyword == "椰椰凤梨"
 
 

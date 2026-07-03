@@ -33,23 +33,39 @@ def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     tomorrow_text = date.fromordinal(today.toordinal() + 1).isoformat()
     after_tomorrow_text = date.fromordinal(today.toordinal() + 2).isoformat()
     weekend_start_text, weekend_end_text = _weekend_text_range(today)
+    next_monday_text = _weekday_text(today, 0, is_next_week=True)
+    friday_text = _weekday_text(today, 4, is_next_week=False)
     recent_three_days_text = date.fromordinal(today.toordinal() - 2).isoformat()
     week_start_text = date.fromordinal(today.toordinal() - today.weekday()).isoformat()
+    previous_week_start_text = date.fromordinal(
+        today.toordinal() - today.weekday() - 7
+    ).isoformat()
+    previous_week_end_text = date.fromordinal(
+        today.toordinal() - today.weekday() - 1
+    ).isoformat()
+    month_start_text = today.replace(day=1).isoformat()
     month_day_text = date(today.year, 7, 5).isoformat()
     return (
-        *_order_summary_probe_cases(today_text),
+        *_order_summary_probe_cases(
+            today_text,
+            month_start_text,
+            previous_week_start_text,
+            previous_week_end_text,
+        ),
         *_order_list_probe_cases(
             today_text,
             tomorrow_text,
             after_tomorrow_text,
             weekend_start_text,
             weekend_end_text,
+            next_monday_text,
         ),
         *_order_product_probe_cases(
             today_text,
             recent_three_days_text,
             week_start_text,
             month_day_text,
+            friday_text,
         ),
         *_channel_tool_probe_cases(),
         *_ops_status_probe_cases(),
@@ -59,7 +75,12 @@ def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     )
 
 
-def _order_summary_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, ...]:
+def _order_summary_probe_cases(
+    today_text: str,
+    month_start_text: str,
+    previous_week_start_text: str,
+    previous_week_end_text: str,
+) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
             "today-order-summary",
@@ -110,6 +131,31 @@ def _order_summary_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase,
             required_any_terms=("退款", "售后", "退单", "单"),
             forbidden_terms=("退款规则", "话术", "完整订单号", "手机号"),
         ),
+        EmployeeAgentProbeCase(
+            "this-month-revenue-summary",
+            "本月销售额怎么样",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            month_start_text,
+            today_text,
+            expected_keyword="",
+            required_any_terms=("元", "销售额", "营业额"),
+            forbidden_terms=("完整订单号", "手机号", "后台订单页核对"),
+        ),
+        EmployeeAgentProbeCase(
+            "last-week-refund-summary",
+            "上周退款多少",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            previous_week_start_text,
+            previous_week_end_text,
+            expected_keyword="",
+            expected_needs_refund=True,
+            required_any_terms=("退款", "售后", "退单", "元", "单"),
+            forbidden_terms=("退款规则", "话术", "完整订单号", "手机号"),
+        ),
     )
 
 
@@ -119,6 +165,7 @@ def _order_list_probe_cases(
     after_tomorrow_text: str,
     weekend_start_text: str,
     weekend_end_text: str,
+    next_monday_text: str,
 ) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
@@ -234,6 +281,20 @@ def _order_list_probe_cases(
             required_any_terms=("待处理", "约送", "周末", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
         ),
+        EmployeeAgentProbeCase(
+            "next-monday-pending-orders",
+            "下周一有哪些待处理订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            next_monday_text,
+            next_monday_text,
+            "delivery_time",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            required_any_terms=("待处理", "约送", "下周一", "待发货", "待收货"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
     )
 
 
@@ -242,6 +303,7 @@ def _order_product_probe_cases(
     recent_three_days_text: str,
     week_start_text: str,
     month_day_text: str,
+    friday_text: str,
 ) -> tuple[EmployeeAgentProbeCase, ...]:
     return (
         EmployeeAgentProbeCase(
@@ -281,6 +343,18 @@ def _order_product_probe_cases(
             "summary",
             month_day_text,
             month_day_text,
+            expected_keyword="椰椰凤梨",
+            required_any_terms=("单",),
+            forbidden_terms=("完整订单号", "手机号"),
+        ),
+        EmployeeAgentProbeCase(
+            "friday-product-order-summary",
+            "周五椰椰凤梨卖了几单",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            friday_text,
+            friday_text,
             expected_keyword="椰椰凤梨",
             required_any_terms=("单",),
             forbidden_terms=("完整订单号", "手机号"),
@@ -641,3 +715,9 @@ def _weekend_text_range(today: date) -> tuple[str, str]:
         weekend_start = date.fromordinal(weekend_start.toordinal() + 7)
         weekend_end = date.fromordinal(weekend_end.toordinal() + 7)
     return weekend_start.isoformat(), weekend_end.isoformat()
+
+
+def _weekday_text(today: date, target_weekday: int, *, is_next_week: bool) -> str:
+    week_start = date.fromordinal(today.toordinal() - today.weekday())
+    offset_days = target_weekday + (7 if is_next_week else 0)
+    return date.fromordinal(week_start.toordinal() + offset_days).isoformat()

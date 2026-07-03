@@ -321,6 +321,8 @@ def _fake_reply_text(content: str) -> str:
         return "后天待处理订单已汇总，包含约送时间和待发货状态。"
     if "周末" in content and "待处理" in content:
         return "周末待处理订单已汇总，包含约送时间和待发货状态。"
+    if "下周一" in content and "待处理" in content:
+        return "下周一待处理订单已汇总，包含约送时间和待发货状态。"
     if "没发货" in content or "没处理" in content:
         return "当前待发货订单已汇总。"
     if "物流" in content:

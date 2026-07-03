@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - feat(wecom): 支持员工助手更宽自然时间问法
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-wider-date-phrases
+- **背景**: 员工助手已覆盖“后天/周末/具体月日”等自然日期，但真实员工会继续用“本月”“上周”“下周一”“周五”这类经营与履约问法。为了更接近“私人豆包式”随口问，继续扩大订单动态计划的时间理解范围。
+- **决策**:
+  - 继续复用 `OrderQueryPlan.date_from/date_to/date_field`，不新增并行日期系统，也不改 repository SQL。
+  - `本月/这个月/当月` 解析为当月 1 日到今天；`上周/上星期` 解析为上一自然周周一到周日。
+  - `周五/星期五` 解析为当前自然周目标 weekday；`下周一/下星期一` 解析为下一自然周目标 weekday。
+  - 日期解析仍只输出结构化计划，后端白名单参数化查询负责执行，不让模型生成 SQL。
+- **改动**:
+  - `app/service/wecom/employee_agent_order_date.py` - 增加本月、上周和 weekday 解析入口。
+  - `app/service/wecom/employee_agent_order_date_calendar.py` - 新增日历表达 helper，承接周末、具体月日和 weekday 解析。
+  - `app/service/wecom/employee_agent_order_stop_words.py` - 新增订单关键词清理停用词模块，避免时间词污染商品关键词。
+  - `app/service/wecom/employee_agent_order_keywords.py`、`app/service/wecom/employee_agent_order_query.py` - 调整停用词依赖，避免循环导入。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 共享探针从 39 项扩展到 43 项，覆盖本月销售额、上周退款、下周一待处理订单和周五商品销量。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py`、`tests/service/test_wecom_employee_agent_file_size.py` - 补规划、回调脚本和文件体量回归。
+- **验证结果**:
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，88 条。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - 触达 Python 文件 `ruff check` 与 `ruff format --check` 通过。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均无输出。
+- **后续**:
+  - 同步生产后运行 `/health`、`/ready` 和 43/43 企微端到端加密回调探针，并补生产证据。
+
 ## [2026-07-04] - feat(wecom): 支持员工助手自然日期订单问法
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-natural-dates

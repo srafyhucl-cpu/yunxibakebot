@@ -5,11 +5,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EMPLOYEE_AGENT_FILES = (
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_constants.py",
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_date.py",
+    PROJECT_ROOT / "app/service/wecom/employee_agent_order_date_calendar.py",
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_delivery_time.py",
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_keywords.py",
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_plan.py",
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_predicates.py",
     PROJECT_ROOT / "app/service/wecom/employee_agent_order_query.py",
+    PROJECT_ROOT / "app/service/wecom/employee_agent_order_stop_words.py",
 )
 WECOM_SERVICE_WARNING_LIMIT = 150
 
