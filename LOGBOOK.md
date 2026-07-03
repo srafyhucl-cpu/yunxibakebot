@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-04] - feat(wecom): 员工助手接入客户线索、群活动和离线复盘
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-ops-expansion
+- **背景**: 员工助手 Agent 底座已覆盖订单、商品、知识库、运营状态和待人工，但普通模式中已经存在的 `customer-lookup`、`group-campaign-summary`、`offline-review-summary` 仍未进入 API 模式自然语言 Agent 编排，员工问这些业务时会被泛化成订单或观察台建议。
+- **决策**:
+  - 不新建数据通道，直接复用现有只读工具服务：客户地址簿线索、客户群活动批次汇总、离线复盘摘要。
+  - 新增 `employee_agent_ops_plan.py` 承接非订单规则规划，避免继续扩大接近体量上限的 `employee_agent_order_plan.py`。
+  - 运营类工具结果与知识类一样跳过通用 LLM 润色，防止确定性结果被改写成订单尾号、库存或退款话术。
+  - 端到端回调探针从 10 个自由问法扩到 13 个，并收紧新增能力的语义禁止词。
+- **改动**:
+  - `EmployeeAgentCapabilityRegistry` 新增 `customer_lookup`、`group_campaign_summary`、`offline_review_summary` 能力卡。
+  - `EmployeeAgentPlanner` 通过新模块为客户线索、campaignId 群活动和离线复盘问法生成 `ops_query` 计划。
+  - `EmployeeAgentService` 对新增工具调用现有 `ops_tool_service` / `status_tool_service`，并对 `ops_query` 跳过 LLM 润色。
+  - `check_wecom_employee_agent_plans.py` 和 `check_wecom_employee_agent_callback.py` 均扩展到 13 个问法。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过，24 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，13/13。
+  - `python -m ruff check ...` 通过；`python -m ruff format --check ...` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过；`python scripts/check_text_encoding.py` 通过。
+  - 未同步生产前，`python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 正确失败 2/13，抓到 `group-campaign-summary` 和 `offline-review-summary` 被旧生产逻辑带偏，证明新语义验收有效。
+- **待生产验证**:
+  - 同步生产后复跑 13 项回调语义验收，目标为 13/13 通过。
+
 ## [2026-07-03] - docs(wecom): 记录员工助手语义回调生产复验
 - **操作人**: AI (Codex)
 - **trace_id**: 20260703-wecom-employee-agent-semantic-acceptance

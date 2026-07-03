@@ -100,7 +100,7 @@ async def test_run_callback_checks_covers_employee_queries(monkeypatch) -> None:
     serialized = json.dumps(report, ensure_ascii=False)
 
     assert report["status"] == "passed"
-    assert report["total"] == 10
+    assert report["total"] == 13
     assert report["failed"] == 0
     assert {result.name for result in results} == {
         "today-order-summary",
@@ -113,6 +113,9 @@ async def test_run_callback_checks_covers_employee_queries(monkeypatch) -> None:
         "delivery-knowledge",
         "ops-status",
         "handoff-pending",
+        "customer-lookup",
+        "group-campaign-summary",
+        "offline-review-summary",
     }
     assert callback_check.TEST_TOKEN not in serialized
     assert callback_check.TEST_AES_KEY not in serialized
@@ -243,4 +246,10 @@ def _fake_reply_text(content: str) -> str:
         return "系统状态已汇总。"
     if "待人工" in content:
         return "当前待人工事项已汇总。"
+    if "地址线索" in content:
+        return "客户地址线索已汇总。"
+    if "campaign" in content:
+        return "群活动 campaign 已汇总。"
+    if "离线复盘" in content:
+        return "昨晚离线复盘结果已汇总。"
     return "今日订单共1单。"

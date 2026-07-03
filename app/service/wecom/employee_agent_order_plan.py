@@ -13,6 +13,7 @@ from app.models.employee_agent import (
     OrderQueryPlan,
 )
 from app.service.wecom.employee_agent_capabilities import AgentCapabilityCard
+from app.service.wecom.employee_agent_ops_plan import build_ops_rule_plan
 
 DEFAULT_RESULT_LIMIT = 5
 MAX_RESULT_LIMIT = 10
@@ -94,6 +95,9 @@ def build_rule_plan(
             intent=AgentIntent.ORDER_QUERY,
             tools=("order_dynamic_query",),
         )
+    ops_plan = build_ops_rule_plan(query, capability_names)
+    if ops_plan is not None:
+        return ops_plan
     return _build_non_order_agent_plan(query, capability_names, has_order)
 
 

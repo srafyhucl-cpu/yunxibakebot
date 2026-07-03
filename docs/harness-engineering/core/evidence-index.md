@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-001：企微员工助手运营类工具接入 Agent
+
+- trace_id: 20260704-wecom-employee-agent-ops-expansion
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-ops-expansion
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_capabilities.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_ops_plan.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_plan.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_service.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_plans.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_callback_semantics.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_plans.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m ruff check ...`; `python -m ruff format --check ...`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_text_encoding.py`; pre-production `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`
+- result: pass
+- related_logbook: 2026-07-04 - feat(wecom): 员工助手接入客户线索、群活动和离线复盘
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录脱敏测试命令、脚本结果和能力范围；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址或完整订单号。
+- summary: 员工助手 API 模式自然语言入口新增复用既有只读 `customer_lookup`、`group_campaign_summary`、`offline_review_summary` 工具，规划探针扩展为 13/13。未同步生产前，端到端回调语义验收正确抓到旧生产 `group-campaign-summary` 和 `offline-review-summary` 语义带偏，作为同步后复验基线。
+
 ## E-20260703-008：企微员工助手语义回调生产复验
 
 - trace_id: 20260703-wecom-employee-agent-semantic-acceptance

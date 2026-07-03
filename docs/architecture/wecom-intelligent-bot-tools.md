@@ -31,11 +31,11 @@
 
 当前回调消息优先进入员工助手 Agent，而不是直接按关键词分发：
 
-1. `EmployeeAgentCapabilityRegistry` 召回订单、商品、知识库、运营状态、待人工等能力卡。
+1. `EmployeeAgentCapabilityRegistry` 召回订单、商品、知识库、运营状态、待人工、客户线索、客户群活动和离线复盘等能力卡。
 2. `EmployeeAgentPlanner` 生成结构化 `AgentPlan`，必要时使用 LLM 辅助规划，但只允许输出查询计划，不允许输出 SQL。
-3. `EmployeeAgentService` 按计划调用订单、商品、知识库、运营状态等只读工具。
+3. `EmployeeAgentService` 按计划调用订单、商品、知识库、运营状态、客户线索、客户群活动和离线复盘等只读工具。
 4. 订单类问题由 `OrderQueryPlan` 驱动仓库层白名单参数化 SQL，支持统计、列表、状态筛选、商品关键词、销量排行和订单+库存混合问法。
-5. 工具结果先形成确定性文本，LLM 只做轻量润色；润色失败时直接返回确定性结果。
+5. 工具结果先形成确定性文本，LLM 只做轻量润色；知识库和运营类工具直接返回确定性结果，避免被润色成错误工作流。
 
 未注入员工 Agent 的测试或调试场景仍保留旧 dispatcher 作为兜底。
 
@@ -122,7 +122,7 @@ python scripts/check_wecom_employee_agent_callback.py --json --base-url https://
 python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_wecom_intelligent_bot_smoke.py tests/scripts/test_check_wecom_intelligent_bot_contract.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov
 ```
 
-报告不记录 `X-Yunxi-Bot-Key`、`Authorization`、`WECOM_BOT_PLUGIN_API_KEY`、企微回调 Token、EncodingAESKey、密文或签名的真实值。`check_wecom_employee_agent_plans.py` 不访问生产服务和数据库，只检查 10 个员工自由问法是否能生成预期 `AgentPlan`，并确认订单查询计划不会带上“多少 / 还有 / 哪个商品”等无意义关键词。`check_wecom_employee_agent_callback.py` 会真实打生产回调 URL，校验加密 POST、回复签名、`stream` 内容非空和隐私泄漏模式。
+报告不记录 `X-Yunxi-Bot-Key`、`Authorization`、`WECOM_BOT_PLUGIN_API_KEY`、企微回调 Token、EncodingAESKey、密文或签名的真实值。`check_wecom_employee_agent_plans.py` 不访问生产服务和数据库，只检查 13 个员工自由问法是否能生成预期 `AgentPlan`，并确认订单查询计划不会带上“多少 / 还有 / 哪个商品”等无意义关键词。`check_wecom_employee_agent_callback.py` 会真实打生产回调 URL，校验加密 POST、回复签名、`stream` 内容非空、隐私泄漏模式和按问法定义的语义规则。
 
 ## 员工验收样例
 

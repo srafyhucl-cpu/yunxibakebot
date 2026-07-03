@@ -153,6 +153,24 @@ def default_probes(today: date) -> tuple[AgentPlanProbe, ...]:
             "ops_query",
             ("handoff_pending",),
         ),
+        AgentPlanProbe(
+            "customer-lookup",
+            "查一下张三地址线索",
+            "ops_query",
+            ("customer_lookup",),
+        ),
+        AgentPlanProbe(
+            "group-campaign-summary",
+            "汇总 campaignId:abc123",
+            "ops_query",
+            ("group_campaign_summary",),
+        ),
+        AgentPlanProbe(
+            "offline-review-summary",
+            "昨晚离线复盘结果",
+            "ops_query",
+            ("offline_review_summary",),
+        ),
     )
 
 

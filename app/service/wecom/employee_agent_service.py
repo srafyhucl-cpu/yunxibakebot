@@ -7,6 +7,7 @@ from typing import Any
 from app.logger import setup_logger
 from app.models.employee_agent import AgentIntent, AgentPlan, ToolResult
 from app.service.llm.client import chat_completion as llm_chat
+from app.service.wecom.employee_agent_ops_plan import extract_campaign_id
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 
 logger = setup_logger()
@@ -43,7 +44,10 @@ class EmployeeAgentService:
         plan = await self._planner.plan(query)
         tool_results = await self._execute_plan(query, plan)
         deterministic_reply = _deterministic_reply(tool_results)
-        if not self._enable_llm_reply or plan.intent == AgentIntent.KNOWLEDGE_ANSWER:
+        if not self._enable_llm_reply or plan.intent in (
+            AgentIntent.KNOWLEDGE_ANSWER,
+            AgentIntent.OPS_QUERY,
+        ):
             return deterministic_reply
         return await self._polish_reply(query, plan, deterministic_reply)
 
@@ -82,8 +86,27 @@ class EmployeeAgentService:
         return _tool_result_from_payload(payload)
 
     async def _run_ops_tool(self, query: str, plan: AgentPlan) -> ToolResult:
+        if "customer_lookup" in plan.tools:
+            payload = await self._ops_tool_service.lookup_customer(
+                _query_payload(query)
+            )
+            return _tool_result_from_payload(payload)
+        if "group_campaign_summary" in plan.tools:
+            payload = await self._ops_tool_service.summarize_group_campaign(
+                {
+                    "campaignId": extract_campaign_id(query),
+                    "query": query,
+                    "limit": DEFAULT_AGENT_LIMIT,
+                }
+            )
+            return _tool_result_from_payload(payload)
         if "handoff_pending" in plan.tools:
             payload = await self._ops_tool_service.list_pending_handoffs({})
+            return _tool_result_from_payload(payload)
+        if "offline_review_summary" in plan.tools:
+            payload = await self._status_tool_service.summarize_offline_review(
+                _query_payload(query)
+            )
             return _tool_result_from_payload(payload)
         if "integration_status" in plan.tools:
             payload = await self._status_tool_service.summarize_integrations(

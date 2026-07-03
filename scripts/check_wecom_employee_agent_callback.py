@@ -117,6 +117,9 @@ def default_probes() -> tuple[CallbackProbe, ...]:
         CallbackProbe("delivery-knowledge", "明天能配送吗"),
         CallbackProbe("ops-status", "系统今天有没有异常"),
         CallbackProbe("handoff-pending", "现在有哪些待人工"),
+        CallbackProbe("customer-lookup", "查一下张三地址线索"),
+        CallbackProbe("group-campaign-summary", "汇总 campaignId:abc123"),
+        CallbackProbe("offline-review-summary", "昨晚离线复盘结果"),
     )
 
 

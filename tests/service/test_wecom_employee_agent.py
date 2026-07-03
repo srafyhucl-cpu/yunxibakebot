@@ -35,6 +35,15 @@ class _FakeBusinessToolService:
 
 
 class _FakeOpsToolService:
+    async def lookup_customer(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "找到 1 条地址/客户线索。"}
+
+    async def summarize_group_campaign(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "result": f"群活动 {payload.get('campaignId')} 已汇总。",
+        }
+
     async def list_pending_handoffs(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "result": "当前待人工 1 个。"}
 
@@ -45,6 +54,9 @@ class _FakeStatusToolService:
 
     async def summarize_integrations(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "result": "同步失败 0 条。"}
+
+    async def summarize_offline_review(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "result": "昨晚离线复盘已完成。"}
 
 
 def _planner() -> EmployeeAgentPlanner:
@@ -94,10 +106,16 @@ async def test_planner_routes_knowledge_and_ops() -> None:
     knowledge_plan = await _planner().plan("配送范围怎么说")
     casual_delivery_plan = await _planner().plan("明天能配送吗")
     ops_plan = await _planner().plan("系统今天有没有异常")
+    customer_plan = await _planner().plan("查一下张三地址线索")
+    campaign_plan = await _planner().plan("汇总 campaignId:abc123")
+    offline_review_plan = await _planner().plan("昨晚离线复盘结果")
 
     assert knowledge_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
     assert casual_delivery_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
     assert ops_plan.intent == AgentIntent.OPS_QUERY
+    assert customer_plan.tools == ("customer_lookup",)
+    assert campaign_plan.tools == ("group_campaign_summary",)
+    assert offline_review_plan.tools == ("offline_review_summary",)
 
 
 async def test_planner_routes_casual_inventory_question_to_product() -> None:
@@ -192,6 +210,24 @@ async def test_employee_agent_routes_product_and_knowledge() -> None:
     assert "配送范围" in knowledge_reply
 
 
+async def test_employee_agent_routes_existing_ops_tools() -> None:
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    customer_reply = await service.answer("查一下张三地址线索")
+    campaign_reply = await service.answer("汇总 campaignId:abc123")
+    offline_review_reply = await service.answer("昨晚离线复盘结果")
+
+    assert "地址/客户线索" in customer_reply
+    assert "abc123" in campaign_reply
+    assert "离线复盘" in offline_review_reply
+
+
 async def test_employee_agent_knowledge_reply_skips_llm_polish(monkeypatch) -> None:
     async def fail_llm_chat(*args: Any, **kwargs: Any) -> None:
         raise AssertionError("knowledge reply should not call LLM polish")
@@ -210,3 +246,23 @@ async def test_employee_agent_knowledge_reply_skips_llm_polish(monkeypatch) -> N
     reply = await service.answer("明天能配送吗")
 
     assert "配送范围" in reply
+
+
+async def test_employee_agent_ops_reply_skips_llm_polish(monkeypatch) -> None:
+    async def fail_llm_chat(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("ops reply should not call LLM polish")
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fail_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("查一下张三地址线索")
+
+    assert "地址/客户线索" in reply

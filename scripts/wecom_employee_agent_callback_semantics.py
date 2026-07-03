@@ -54,6 +54,32 @@ CALLBACK_SEMANTIC_RULES: dict[str, CallbackSemanticRule] = {
         required_any_terms=("待人工", "转人工"),
         forbidden_terms=("买家", "ID:", "user"),
     ),
+    "customer-lookup": CallbackSemanticRule(
+        required_any_terms=("客户", "地址", "线索"),
+        forbidden_terms=(
+            "完整地址",
+            "手机号",
+            "买家ID",
+            "订单尾号",
+            "尾号",
+            "后台订单",
+        ),
+    ),
+    "group-campaign-summary": CallbackSemanticRule(
+        required_any_terms=("群活动", "客户群", "campaignId", "campaign"),
+        forbidden_terms=(
+            "手机号",
+            "完整地址",
+            "库存",
+            "小程序商品",
+            "退款",
+            "后台订单",
+        ),
+    ),
+    "offline-review-summary": CallbackSemanticRule(
+        required_any_terms=("离线复盘", "复盘"),
+        forbidden_terms=("手机号", "完整地址", "买家ID"),
+    ),
 }
 
 

@@ -5,12 +5,12 @@ from app.models.employee_agent import AgentIntent, AgentPlan
 from scripts import check_wecom_employee_agent_plans as plan_check
 
 
-async def test_run_plan_checks_covers_ten_free_form_queries() -> None:
+async def test_run_plan_checks_covers_free_form_queries() -> None:
     checks = await plan_check.run_plan_checks(date(2026, 7, 3))
     report = plan_check.build_json_report(checks)
 
     assert report["status"] == "passed"
-    assert report["total"] == 10
+    assert report["total"] == 13
     assert report["failed"] == 0
     assert {check.name for check in checks} == {
         "today-order-summary",
@@ -23,6 +23,9 @@ async def test_run_plan_checks_covers_ten_free_form_queries() -> None:
         "delivery-knowledge",
         "ops-status",
         "handoff-pending",
+        "customer-lookup",
+        "group-campaign-summary",
+        "offline-review-summary",
     }
 
 

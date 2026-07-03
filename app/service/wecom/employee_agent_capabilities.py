@@ -72,6 +72,27 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
         examples=("现在有哪些待人工", "待接单还有几个"),
         keywords=("待人工", "转人工", "待接单", "人工处理"),
     ),
+    AgentCapabilityCard(
+        name="customer_lookup",
+        intent="ops_query",
+        description="查询客户地址簿线索，返回脱敏地址预览和人工核对提示。",
+        examples=("查一下张三地址线索", "客户王小明的收货地址有吗"),
+        keywords=("客户", "地址线索", "收货地址", "地址"),
+    ),
+    AgentCapabilityCard(
+        name="group_campaign_summary",
+        intent="ops_query",
+        description="按 campaignId 汇总客户群团购、预订或活动批次。",
+        examples=("汇总 campaignId abc123", "campaignId:abc123 这个群活动怎么样"),
+        keywords=("campaign", "campaignid", "群活动", "客户群", "团购", "预订"),
+    ),
+    AgentCapabilityCard(
+        name="offline_review_summary",
+        intent="ops_query",
+        description="查询最近一轮离线复盘、知识缺口、画像沉淀和跳过原因。",
+        examples=("昨晚离线复盘结果", "夜间复盘有没有跑"),
+        keywords=("离线复盘", "昨晚复盘", "夜间复盘", "复盘结果", "知识缺口"),
+    ),
 )
 
 
