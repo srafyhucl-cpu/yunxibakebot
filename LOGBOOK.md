@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-04] - fix(wecom): 保留员工助手待办洞察标记
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-action-insights
+- **背景**: `feat(wecom): add employee order action insights` 同步生产 `0.72.1 / e46a84aab` 后，`/health` 和 `/ready` 通过，但 43 项企微回调探针中 `today-action-items` 失败。确定性工具结果包含“发货压力”和“优先级”，LLM 润色后保留了“优先级”但删掉“压力”，导致新强化的语义验收失败。
+- **决策**:
+  - 不降低探针要求，不关闭员工助手整体润色。
+  - 继续复用既有 `preserve_tool_facts` 回复守卫，只在确定性结果同时包含“发货压力”和“优先级”时要求润色结果保留“优先级 / 压力”两个经营洞察标记。
+  - 若润色丢失经营洞察标记，回退确定性结果，避免员工拿到缺少压力判断的待办回复。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 增加 action insight marker 保真守卫。
+  - `tests/service/test_wecom_employee_agent.py` - 补直接守卫测试和 Agent 润色路径回归，覆盖线上失败形态。
+- **验证结果**:
+  - 生产失败复现证据：`python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 在 `0.72.1 / e46a84aab` 返回 42/43，失败项 `today-action-items`，`semantic rule mismatch`，回复缺少“压力”。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov` 通过，50 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/service/test_wecom_employee_privacy_format.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/repository/test_youzan_repo.py tests/service/test_wecom_employee_agent_file_size.py tests/service/test_wecom_product_filter.py -q --no-cov` 通过，94 条。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py tests/service/test_wecom_employee_agent.py` 通过。
+- **后续**:
+  - 待提交并重新同步生产，复跑 `/health`、`/ready` 和 43/43 企微员工助手回调探针；通过后把 E-20260704-021 从 local 更新为 local-and-production。
+
 ## [2026-07-04] - feat(wecom): 增强员工助手今日经营待办洞察
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-action-insights

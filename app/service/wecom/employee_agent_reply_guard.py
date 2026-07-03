@@ -20,6 +20,8 @@ PRIVATE_REPLY_TERMS = (
     "买家ID",
     "买家 id",
 )
+ACTION_INSIGHT_REQUIRED_TERMS = ("优先级", "压力")
+ACTION_INSIGHT_SOURCE_MARKERS = ("发货压力", "优先级")
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
@@ -27,6 +29,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if not polished_reply.strip():
         return deterministic_reply
     if _misses_stock_values(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _misses_action_insight_markers(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_private_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -52,3 +56,15 @@ def _introduces_private_markers(
         if pattern.search(polished_reply) and not pattern.search(deterministic_reply):
             return True
     return False
+
+
+def _misses_action_insight_markers(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    has_action_insight = all(
+        marker in deterministic_reply for marker in ACTION_INSIGHT_SOURCE_MARKERS
+    )
+    if not has_action_insight:
+        return False
+    return any(term not in polished_reply for term in ACTION_INSIGHT_REQUIRED_TERMS)

@@ -29,6 +29,21 @@ class _FakeOrderLookupService:
         )
 
 
+class _FakeActionItemsOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "今天有什么要盯的：\n"
+                "今天 1 单，合计 206.50 元；发货压力：偏高。\n"
+                "待处理 1 单，履约风险 1 单，退款/售后 0 单，无物流 1 单。\n"
+                "优先级 1：先处理快到约送时间的履约风险单\n"
+                "1. 尾号 000001｜待发货｜巧克力樱桃炸弹 x 1｜206.50 元"
+            ),
+            next_action="先处理履约风险单，再按无物流、退款/售后顺序核对。",
+        )
+
+
 class _FakeBusinessToolService:
     def __init__(self) -> None:
         self.product_payloads: list[dict[str, Any]] = []
@@ -630,9 +645,56 @@ async def test_employee_agent_polish_drops_private_marker(monkeypatch) -> None:
     assert "今天共 2 单" in reply
 
 
+async def test_employee_agent_polish_keeps_action_insight_markers(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "今天需重点处理1单：优先处理尾号000001，"
+                            "约送16:00，暂无物流。"
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeActionItemsOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("今天有什么要盯的")
+
+    assert "发货压力：偏高" in reply
+    assert "优先级 1" in reply
+
+
 def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
     deterministic_reply = "当前有 2 单未发货，均只展示尾号。"
     polished_reply = "当前有 2 单未发货，请提供完整订单号排查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_missing_action_insight_marker() -> None:
+    deterministic_reply = (
+        "今天 1 单，合计 206.50 元；发货压力：偏高。\n"
+        "优先级 1：先处理快到约送时间的履约风险单"
+    )
+    polished_reply = "今天需重点处理1单：优先处理尾号000001。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 
