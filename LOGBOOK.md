@@ -27,8 +27,14 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.24 / 121b1331a`，`systemctl is-active yunxibakebot` 返回 active。
+  - 生产 `/health` 返回 `status=ok, version=0.74.24`。
+  - 生产 `/ready` 返回 `status=ready, version=0.74.24`。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43。
+  - 履约风险完整回复抽查 `fulfillment-risk-list`、`casual-fulfillment-pressure`、`today-action-items` 均保留 `尾号 / 约送 / 物流`，且履约风险列表按约送时间展示。
+  - 本轮同步 bundle `wecom-fulfillment-list-121b133.bundle` 已按明确单文件路径清理，本地与远端均已删除。
 - **后续**:
-  - 同步生产后补录 `/health`、`/ready`、43 问加密回调探针和履约风险解密抽查证据。
+  - 继续做群内真实员工问法验收，优先观察订单列表是否仍被 LLM 润色压缩或改写排序口径。
 
 ## [2026-07-04] - fix(wecom): 标记已过约送时间的履约风险单
 - **操作人**: AI (Codex)
