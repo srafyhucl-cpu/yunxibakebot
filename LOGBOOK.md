@@ -27,8 +27,13 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.26 / 8b669d8e8`，`systemctl is-active yunxibakebot` 返回 active。
+  - 生产 `/health` 返回 `status=ok, version=0.74.26`。
+  - 生产 `/ready` 返回 `status=ready, version=0.74.26`。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43。
+  - 普通订单列表解密抽查 `pending-shipment-list`、`casual-pending-shipment`、`missing-logistics-list`、`casual-missing-logistics`、`tomorrow-pending-orders`、`weekend-pending-orders` 均保留 `尾号 / 待发货或待收货 / 金额 / 暂无物流` 行级字段。
 - **后续**:
-  - 同步生产后补录 `/health`、`/ready`、43 问加密回调探针和普通订单列表解密抽查证据。
+  - 继续做群内真实员工问法验收，优先观察普通订单列表是否仍出现可读性压缩或口径漂移。
 
 ## [2026-07-04] - fix(wecom): 保留履约风险订单列表结构
 - **操作人**: AI (Codex)
