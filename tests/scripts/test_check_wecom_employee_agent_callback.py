@@ -388,6 +388,34 @@ def test_evaluate_reply_rejects_ump_marker_in_handoff_summary() -> None:
     assert "semantic" in result.detail
 
 
+def test_evaluate_reply_rejects_raw_offline_review_skip_marker() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe(
+            "offline-review-summary",
+            "昨晚离线复盘结果",
+            required_any_terms=("离线复盘", "复盘"),
+            forbidden_terms=("outside_night_window", "skippedReason"),
+        ),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": (
+                    "最近一轮离线复盘未执行：outside_night_window。\n"
+                    "下一步：如果 skippedReason 不为空，先确认夜间窗口。"
+                ),
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 

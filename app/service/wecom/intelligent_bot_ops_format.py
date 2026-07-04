@@ -15,6 +15,17 @@ OPS_STATUS_LABELS = {
     "attention": "系统需要关注",
     "unknown": "系统状态未知",
 }
+OFFLINE_REVIEW_SKIPPED_REASON_LABELS = {
+    "outside_night_window": "当前不在夜间复盘窗口，最近一轮没有执行",
+    "not_run": "最近一轮还没有执行记录",
+}
+OFFLINE_REVIEW_SKIPPED_FALLBACK = "最近一轮没有执行，原因需到后台调度日志确认"
+OFFLINE_REVIEW_SKIPPED_NEXT_ACTION = (
+    "如需立即复盘，请确认离线复盘开关和夜间执行窗口；否则等夜间任务自动运行后再查看。"
+)
+OFFLINE_REVIEW_COMPLETED_NEXT_ACTION = (
+    "可根据质检、知识缺口和客户记忆数量继续追踪异常会话。"
+)
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 ADDRESS_PATTERN = re.compile(r"[\u4e00-\u9fa5A-Za-z0-9]{1,16}[路街道巷弄]\s*\d+\s*号?")
 DANGLING_UMP_PATTERN = re.compile(r"\s*\[UMP:\s*.*$", re.DOTALL)
@@ -116,13 +127,26 @@ def webhook_line(item: dict[str, Any]) -> str:
 
 def offline_review_line(summary: Any) -> str:
     if not bool(getattr(summary, "ran", False)):
-        reason = str(getattr(summary, "skipped_reason", "")) or "not_run"
-        return f"最近一轮离线复盘未执行：{reason}。"
+        return f"{offline_review_skipped_reason_text(summary)}。"
     return (
         "最近一轮离线复盘已执行："
         f"质检 {int(getattr(summary, 'review_count', 0) or 0)}，"
         f"知识缺口 {int(getattr(summary, 'gap_count', 0) or 0)}，"
         f"客户记忆 {int(getattr(summary, 'profile_count', 0) or 0)}。"
+    )
+
+
+def offline_review_next_action(summary: Any) -> str:
+    if not bool(getattr(summary, "ran", False)):
+        return OFFLINE_REVIEW_SKIPPED_NEXT_ACTION
+    return OFFLINE_REVIEW_COMPLETED_NEXT_ACTION
+
+
+def offline_review_skipped_reason_text(summary: Any) -> str:
+    reason = str(getattr(summary, "skipped_reason", "") or "not_run")
+    return OFFLINE_REVIEW_SKIPPED_REASON_LABELS.get(
+        reason,
+        OFFLINE_REVIEW_SKIPPED_FALLBACK,
     )
 
 

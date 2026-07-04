@@ -589,7 +589,13 @@ def _ops_business_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "ops_query",
             ("offline_review_summary",),
             required_any_terms=("离线复盘", "复盘"),
-            forbidden_terms=("手机号", "完整地址", "买家ID"),
+            forbidden_terms=(
+                "手机号",
+                "完整地址",
+                "买家ID",
+                "outside_night_window",
+                "skippedReason",
+            ),
         ),
     )
 

@@ -1,5 +1,7 @@
 from app.service.wecom.intelligent_bot_ops_format import (
     compact_transfer,
+    offline_review_line,
+    offline_review_next_action,
     ops_summary_line,
     transfer_line,
 )
@@ -35,6 +37,16 @@ class _TransferWithDanglingUmp:
         "AI：好的，给您～ [UMP: type=card&id=3437083272&title=%E5%B0%8F"
     )
     created_at = "2026-07-04 09:06:00"
+
+
+class _SkippedOfflineReviewSummary:
+    ran = False
+    skipped_reason = "outside_night_window"
+
+
+class _UnknownSkippedOfflineReviewSummary:
+    ran = False
+    skipped_reason = "scheduler_paused"
 
 
 def test_ops_summary_line_uses_staff_readable_status() -> None:
@@ -77,6 +89,23 @@ def test_transfer_line_removes_ump_card_marker_from_summary() -> None:
     assert "UMP" not in reply
     assert "type=card" not in reply
     assert "%E5%B0%8F" not in reply
+
+
+def test_offline_review_line_hides_raw_skipped_reason() -> None:
+    reply = offline_review_line(_SkippedOfflineReviewSummary())
+    next_action = offline_review_next_action(_SkippedOfflineReviewSummary())
+
+    assert "当前不在夜间复盘窗口" in reply
+    assert "如需立即复盘" in next_action
+    assert "outside_night_window" not in reply
+    assert "skippedReason" not in next_action
+
+
+def test_offline_review_line_hides_unknown_raw_skipped_reason() -> None:
+    reply = offline_review_line(_UnknownSkippedOfflineReviewSummary())
+
+    assert "原因需到后台调度日志确认" in reply
+    assert "scheduler_paused" not in reply
 
 
 def test_transfer_line_removes_dangling_ump_card_marker() -> None:

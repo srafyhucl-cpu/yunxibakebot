@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -184,13 +186,27 @@ class _FakeOfflineReviewSummary:
     total_processed = 6
 
 
+class _FakeSkippedOfflineReviewSummary:
+    started_at = "2026-07-02 14:00:00"
+    finished_at = "2026-07-02 14:00:01"
+    ran = False
+    skipped_reason = "outside_night_window"
+    review_count = 0
+    gap_count = 0
+    profile_count = 0
+    total_processed = 0
+
+
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(create_wecom_intelligent_bot_router())
     return TestClient(app)
 
 
-def _business_client() -> TestClient:
+def _business_client(
+    offline_summary_provider: Callable[[], Any] | None = None,
+) -> TestClient:
+    provider = offline_summary_provider or (lambda: _FakeOfflineReviewSummary())
     app = FastAPI()
     app.include_router(
         create_wecom_intelligent_bot_router(
@@ -206,7 +222,7 @@ def _business_client() -> TestClient:
             ),
             status_tool_service=WeComBotStatusToolService(
                 observability_service=_FakeObservabilityService(),
-                offline_summary_provider=lambda: _FakeOfflineReviewSummary(),
+                offline_summary_provider=provider,
             ),
         )
     )
@@ -494,3 +510,28 @@ def test_offline_review_summary_returns_latest_run(monkeypatch) -> None:
     assert payload["tool"] == "offline_review_summary"
     assert payload["ran"] is True
     assert payload["totalProcessed"] == 6
+    assert "skippedReason" not in payload["nextAction"]
+
+
+def test_offline_review_summary_hides_raw_skipped_reason(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+
+    response = _business_client(
+        offline_summary_provider=lambda: _FakeSkippedOfflineReviewSummary(),
+    ).post(
+        "/api/v1/wecom/intelligent-bot/tools/offline-review-summary",
+        headers={"X-Yunxi-Bot-Key": "expected-secret"},
+        json={},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["ran"] is False
+    assert payload["skippedReason"] == "outside_night_window"
+    assert "当前不在夜间复盘窗口" in payload["result"]
+    assert "如需立即复盘" in payload["nextAction"]
+    assert "outside_night_window" not in payload["result"]
+    assert "outside_night_window" not in payload["nextAction"]
+    assert "skippedReason" not in payload["result"]
+    assert "skippedReason" not in payload["nextAction"]

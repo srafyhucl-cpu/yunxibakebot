@@ -7,6 +7,7 @@ from app.logger import setup_logger
 from app.service.wecom.intelligent_bot_ops_format import (
     compact_webhook,
     offline_review_line,
+    offline_review_next_action,
     ops_summary_line,
     webhook_line,
 )
@@ -101,5 +102,5 @@ class WeComBotStatusToolService:
             gapCount=int(getattr(summary, "gap_count", 0) or 0),
             profileCount=int(getattr(summary, "profile_count", 0) or 0),
             totalProcessed=int(getattr(summary, "total_processed", 0) or 0),
-            nextAction="如果 skippedReason 不为空，先确认离线复盘开关和夜间窗口。",
+            nextAction=offline_review_next_action(summary),
         )

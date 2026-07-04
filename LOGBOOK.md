@@ -1,4 +1,34 @@
 ﻿
+## [2026-07-04] - fix(wecom): 优化离线复盘摘要员工可读性
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-offline-review-readable
+- **背景**: 员工助手生产探针已覆盖 `offline-review-summary`，但真实回复仍可能出现 `outside_night_window` 和 `skippedReason` 这类内部调度字段。该信息对开发调试有用，但企微员工群需要看到的是“为什么没执行、下一步怎么处理”的中文说明。
+- **决策**:
+  - 不改企微 API 回调入口，不改 Agent 编排和计划器，不新增 SQL。
+  - 在 `intelligent_bot_ops_format.py` 格式层把离线复盘跳过原因转成中文员工口径，并提供统一 `nextAction` 文案。
+  - 保留 `skippedReason` 结构化字段给单工具调试使用，但 `result`、`resultText`、`suggestedReply` 和 `nextAction` 不再暴露内部字段名或 snake_case 原因。
+  - 43 问回调探针把 `outside_night_window`、`skippedReason` 加入离线复盘禁用词，防止生产回归。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 新增离线复盘跳过原因中文映射、未知原因兜底和统一下一步动作。
+  - `app/service/wecom/intelligent_bot_status_tools.py` - 离线复盘工具复用格式层 nextAction，避免员工回复拼出内部字段。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 离线复盘回调样本禁止裸内部跳过原因和字段名。
+  - `tests/service/test_wecom_intelligent_bot_ops_format.py` - 增加真实跳过值与未知跳过值格式回归。
+  - `tests/api/test_wecom_intelligent_bot_plugin_api.py` - 增加跳过场景单工具契约回归。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 增加 callback 语义检查拒绝裸跳过字段回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py::test_offline_review_summary_returns_latest_run tests/api/test_wecom_intelligent_bot_plugin_api.py::test_offline_review_summary_hides_raw_skipped_reason tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_raw_offline_review_skip_marker -q --no-cov` 通过，9 条。
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，43 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，46 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_status_tools.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_status_tools.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 提交后同步生产，并用 `/health`、`/ready` 和 `check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn` 复验 43 问。
+
 ## [2026-07-04] - fix(wecom): 清理待人工摘要 UMP 标记
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-handoff-ump-cleanup
