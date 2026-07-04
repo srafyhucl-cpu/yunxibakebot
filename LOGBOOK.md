@@ -26,8 +26,14 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.23 / cae499c82`，`systemctl is-active yunxibakebot` 返回 active。
+  - 生产 `/health` 返回 `status=ok, version=0.74.23`。
+  - 生产 `/ready` 返回 `status=ready, version=0.74.23`。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43。
+  - 履约风险完整回复抽查 `fulfillment-risk-list`、`casual-fulfillment-pressure`、`today-action-items` 均保留 `已过约送时间` 或 `已过` 语义，且未出现 `需在 / 前完成 / 前安排`。
+  - 本轮同步 bundle `wecom-overdue-fulfillment-cae499c.bundle` 已按明确单文件路径清理，本地与远端均已删除。
 - **后续**:
-  - 同步生产 `0.74.23` 后运行 `/health`、`/ready`、43 问加密回调探针和履约风险完整回复抽查。
+  - 继续把履约风险列表的短摘要和确定性列表格式统一，让 `fulfillment-risk-list` 也稳定展示尾号、状态、约送时间和无物流标记。
 
 ## [2026-07-04] - fix(wecom): 守住履约日期和销量备货口径
 - **操作人**: AI (Codex)
