@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-04] - fix(wecom): 清理待人工摘要 UMP 标记
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-handoff-ump-cleanup
+- **背景**: 运营状态可读性切片上线后，生产 43 问探针显示 `handoff-pending` 与 `casual-handoff-pending` 已带脱敏摘要，但摘要中仍出现 `[UMP: type=card&id=...]` 这类客服商品卡片协议标记。该标记对客服发送链路有价值，但在员工助手待人工摘要里属于机器协议噪声，不符合“给人看”的目标。
+- **决策**:
+  - 复用既有 `app.service.wecom.ump.parse_ump_tags()`，不重复实现 UMP 解析。
+  - 在 `redact_sensitive_text()` 入口统一移除 UMP 标记，再继续做手机号、地址脱敏和摘要截断；这样待人工摘要、客户群备注、Webhook 错误预览都能共享同一条安全清理链路。
+  - 不改变 UMP 正常客服发送链路，不修改 `parse_ump_tags()` 行为。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 脱敏摘要清理前先移除 UMP 标记。
+  - `tests/service/test_wecom_intelligent_bot_ops_format.py` - 增加待人工摘要 UMP 卡片标记清理回归。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py::test_handoff_pending_returns_pending_transfers tests/api/test_wecom_intelligent_bot_plugin_api.py::test_ops_summary_returns_observability_counts -q --no-cov` 通过，5 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_intelligent_bot_ops_format.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_intelligent_bot_ops_format.py` 通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，80 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补 `/health`、`/ready` 和 43 问真实回调证据，重点确认待人工预览不再出现 `UMP` 或 `type=card`。
+
 ## [2026-07-04] - fix(wecom): 优化员工助手运营状态可读性
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-ops-readable

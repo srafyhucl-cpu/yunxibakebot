@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from app.service.wecom.intelligent_bot_tool_format import mask_phone, snippet
+from app.service.wecom.ump import parse_ump_tags
 
 ADDRESS_PREVIEW_LENGTH = 4
 IDENTIFIER_PREFIX_LENGTH = 4
@@ -176,11 +177,13 @@ def short_identifier(value: str) -> str:
 
 
 def redact_sensitive_text(content: str) -> str:
+    clean_content, _tags = parse_ump_tags(content)
+
     def replace_phone(match: re.Match[str]) -> str:
         return mask_phone(match.group(0))
 
     def replace_address(match: re.Match[str]) -> str:
         return mask_address(match.group(0))
 
-    phone_redacted = PHONE_PATTERN.sub(replace_phone, content)
+    phone_redacted = PHONE_PATTERN.sub(replace_phone, clean_content)
     return snippet(ADDRESS_PATTERN.sub(replace_address, phone_redacted))

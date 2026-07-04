@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-029：企微员工助手待人工摘要 UMP 标记清理
+
+- trace_id: 20260704-wecom-employee-agent-handoff-ump-cleanup
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-handoff-ump-cleanup
+- file: `D:/Project/YunxiBakeBot/app/service/wecom/intelligent_bot_ops_format.py`; `D:/Project/YunxiBakeBot/tests/service/test_wecom_intelligent_bot_ops_format.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`; `D:/Project/YunxiBakeBot/项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py::test_handoff_pending_returns_pending_transfers tests/api/test_wecom_intelligent_bot_plugin_api.py::test_ops_summary_returns_observability_counts -q --no-cov`; `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_intelligent_bot_ops_format.py`; `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_intelligent_bot_ops_format.py`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 清理待人工摘要 UMP 标记
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令和探针名称；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 待人工摘要会话预览中出现 `[UMP: type=card&id=...]` 商品卡片协议标记。现复用既有 `parse_ump_tags()`，在运营工具脱敏摘要入口统一移除 UMP 标记，再做手机号、地址脱敏和截断；不改变正常客服 UMP 发送链路。本地相关测试、员工 Agent 80 条测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；待生产同步后补生产证据。
+
 ## E-20260704-028：企微员工助手运营状态可读性
 
 - trace_id: 20260704-wecom-employee-agent-ops-readable

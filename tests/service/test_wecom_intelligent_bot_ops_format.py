@@ -14,6 +14,18 @@ class _Transfer:
     created_at = "2026-07-04 09:00:00"
 
 
+class _TransferWithUmp:
+    id = "da8f723e-d755-4868-8c48-bf9813a77f41"
+    session_id = "sess_002"
+    user_id = "user_002"
+    reason = "转人工"
+    conversation_summary = (
+        "AI：好的，给您～ "
+        "[UMP: type=card&id=3437083272&title=%E5%B0%8F%E7%86%8A%E8%9B%8B%E7%B3%95]"
+    )
+    created_at = "2026-07-04 09:05:00"
+
+
 def test_ops_summary_line_uses_staff_readable_status() -> None:
     reply = ops_summary_line(
         {
@@ -43,3 +55,14 @@ def test_transfer_line_includes_safe_summary_preview() -> None:
     assert "13812345678" not in reply
     assert "隐私路 99 号" not in reply
     assert "user_001" not in reply
+
+
+def test_transfer_line_removes_ump_card_marker_from_summary() -> None:
+    item = compact_transfer(_TransferWithUmp())
+    reply = transfer_line(item)
+
+    assert "工单尾号 77f41" in reply
+    assert "AI：好的，给您～" in reply
+    assert "UMP" not in reply
+    assert "type=card" not in reply
+    assert "%E5%B0%8F" not in reply
