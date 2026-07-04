@@ -9,6 +9,11 @@ ADDRESS_PREVIEW_LENGTH = 4
 IDENTIFIER_PREFIX_LENGTH = 4
 IDENTIFIER_SUFFIX_LENGTH = 4
 TRANSFER_ID_SUFFIX_LENGTH = 5
+OPS_STATUS_LABELS = {
+    "ok": "系统状态正常",
+    "attention": "系统需要关注",
+    "unknown": "系统状态未知",
+}
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 ADDRESS_PATTERN = re.compile(r"[\u4e00-\u9fa5A-Za-z0-9]{1,16}[路街道巷弄]\s*\d+\s*号?")
 
@@ -81,18 +86,23 @@ def group_summary_line(summary: dict[str, Any]) -> str:
 
 
 def transfer_line(item: dict[str, Any]) -> str:
-    return f"工单尾号 {short_identifier(item['id'])}｜{item['reason'] or '未填写原因'}"
+    line = f"工单尾号 {short_identifier(item['id'])}｜{item['reason'] or '未填写原因'}"
+    if item["summaryPreview"]:
+        line += f"｜摘要：{item['summaryPreview']}"
+    return line
 
 
 def ops_summary_line(summary: dict[str, Any]) -> str:
     counts = summary.get("counts", {})
-    return (
-        f"观察台状态：{summary.get('status', 'unknown')}；"
-        f"内容失败 {counts.get('content_change_failures', 0)}，"
-        f"Webhook 失败 {counts.get('webhook_failures', 0)}，"
-        f"处理中 {counts.get('webhook_processing', 0)}，"
-        f"慢请求 {counts.get('slow_webhooks', 0)}。"
-    )
+    status = str(summary.get("status", "unknown") or "unknown")
+    status_label = OPS_STATUS_LABELS.get(status, OPS_STATUS_LABELS["unknown"])
+    parts = [
+        _count_part("内容回写失败", counts.get("content_change_failures", 0)),
+        _count_part("Webhook 失败", counts.get("webhook_failures", 0)),
+        _count_part("处理中", counts.get("webhook_processing", 0)),
+        _count_part("慢请求", counts.get("slow_webhooks", 0)),
+    ]
+    return f"{status_label}：{_join_non_empty(parts)}。{_ops_attention_hint(counts)}"
 
 
 def webhook_line(item: dict[str, Any]) -> str:
@@ -112,6 +122,28 @@ def offline_review_line(summary: Any) -> str:
         f"知识缺口 {int(getattr(summary, 'gap_count', 0) or 0)}，"
         f"客户记忆 {int(getattr(summary, 'profile_count', 0) or 0)}。"
     )
+
+
+def _count_part(label: str, value: Any) -> str:
+    count = int(value or 0)
+    return f"{label} {count} 条" if count else ""
+
+
+def _join_non_empty(parts: list[str]) -> str:
+    values = [part for part in parts if part]
+    return "，".join(values) if values else "暂无失败或积压"
+
+
+def _ops_attention_hint(counts: dict[str, Any]) -> str:
+    if int(counts.get("webhook_failures", 0) or 0):
+        return "先看 Webhook 失败记录，再核对内容回写历史。"
+    if int(counts.get("content_change_failures", 0) or 0):
+        return "先看内容回写历史，确认是否有商品或知识同步失败。"
+    if int(counts.get("slow_webhooks", 0) or 0):
+        return "先看慢请求记录，确认是否有外部接口超时。"
+    if int(counts.get("webhook_processing", 0) or 0):
+        return "有消息仍在处理，稍后再复查是否堆积。"
+    return "无需立刻处理。"
 
 
 def mask_address(address: str) -> str:

@@ -55,7 +55,7 @@ class WeComBotStatusToolService:
             ops_summary_line(summary),
             status=str(summary.get("status", "")),
             counts=summary.get("counts", {}),
-            nextAction="status=attention 时，优先查看失败 webhook 和内容回写历史。",
+            nextAction="需要关注时，优先查看 Webhook 失败记录和内容回写历史。",
         )
 
     async def summarize_integrations(self, payload: dict[str, Any]) -> dict[str, Any]:

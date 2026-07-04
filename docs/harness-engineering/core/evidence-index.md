@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-028：企微员工助手运营状态可读性
+
+- trace_id: 20260704-wecom-employee-agent-ops-readable
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-ops-readable
+- file: `D:/Project/YunxiBakeBot/app/service/wecom/intelligent_bot_ops_format.py`; `D:/Project/YunxiBakeBot/app/service/wecom/intelligent_bot_status_tools.py`; `D:/Project/YunxiBakeBot/tests/service/test_wecom_intelligent_bot_ops_format.py`; `D:/Project/YunxiBakeBot/tests/api/test_wecom_intelligent_bot_plugin_api.py`; `D:/Project/YunxiBakeBot/LOGBOOK.md`; `D:/Project/YunxiBakeBot/项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py::test_handoff_pending_returns_pending_transfers tests/api/test_wecom_intelligent_bot_plugin_api.py::test_ops_summary_returns_observability_counts -q --no-cov`; `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_status_tools.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py`; `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_status_tools.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 优化员工助手运营状态可读性
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记脱敏命令和探针名称；不记录企微 Token、EncodingAESKey、密文、签名、手机号、完整地址、完整订单号或完整内部 UUID。
+- summary: 运营状态和待人工回复从机器字段展示收口为员工可读动作摘要：`attention` 转为“系统需要关注”，观察台计数只展示有问题的类别并提示先看 Webhook 失败或内容回写历史；待人工列表继续只展示工单尾号，同时增加已脱敏的会话摘要预览。本地相关测试、员工 Agent 80 条测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；待生产同步后补生产证据。
+
 ## E-20260704-027：企微员工助手纯文本回复清理
 
 - trace_id: 20260704-wecom-employee-agent-plain-text-reply

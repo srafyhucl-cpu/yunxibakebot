@@ -427,6 +427,7 @@ def test_handoff_pending_returns_pending_transfers(monkeypatch) -> None:
     assert payload["tool"] == "handoff_pending"
     assert payload["transfers"][0]["id"] == "tr_001"
     assert "客户要求人工确认配送" in payload["transfersText"]
+    assert "摘要：" in payload["transfersText"]
     serialized = _serialized(payload)
     assert "13812345678" not in serialized
     assert "隐私路 99 号" not in serialized
@@ -448,6 +449,11 @@ def test_ops_summary_returns_observability_counts(monkeypatch) -> None:
     assert payload["tool"] == "ops_summary"
     assert payload["status"] == "attention"
     assert payload["counts"]["webhook_failures"] == 2
+    assert "系统需要关注" in payload["result"]
+    assert "Webhook 失败 2 条" in payload["result"]
+    assert "先看 Webhook 失败记录" in payload["result"]
+    assert "status=attention" not in payload["result"]
+    assert "status=attention" not in payload["nextAction"]
     assert "recentFailures" not in payload
     assert "slowWebhooks" not in payload
 

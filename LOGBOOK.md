@@ -1,4 +1,33 @@
 ﻿
+## [2026-07-04] - fix(wecom): 优化员工助手运营状态可读性
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-ops-readable
+- **背景**: 企微员工助手 43 问生产探针已全绿，但 `系统今天有没有异常 / 后台现在稳不稳 / 现在有哪些待人工 / 有没有需要人接的` 的回复仍偏工具字段展示：直接暴露 `attention`、`status=attention`、Webhook 失败计数字段和工单尾号列表。员工群入口需要的是“当前是否要处理、先处理什么、按什么线索找”，而不是机器状态码。
+- **决策**:
+  - 不改企微 API 回调入口，不改 Agent 编排层，不新增 SQL 或 LLM 特殊分支。
+  - 在 `intelligent_bot_ops_format.py` 格式层收口运营工具文案，把 `ok/attention/unknown` 转成中文员工可读状态，并按失败类型给出优先排查建议。
+  - 待人工列表继续只展示工单尾号，但增加已脱敏的会话摘要预览，方便员工判断接手原因；手机号、完整地址、买家 ID 和完整 UUID 仍不外泄。
+  - 工具 `nextAction` 不再使用 `status=attention` 这类机器表达，改为中文动作建议。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 新增运营状态中文标签、故障优先级提示和待人工安全摘要展示。
+  - `app/service/wecom/intelligent_bot_status_tools.py` - 观察台摘要下一步动作改为员工可读中文。
+  - `tests/service/test_wecom_intelligent_bot_ops_format.py` - 新增格式层回归，锁定中文状态、故障提示和脱敏摘要。
+  - `tests/api/test_wecom_intelligent_bot_plugin_api.py` - 强化 `ops-summary` 与 `handoff-pending` 单工具契约断言。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py::test_handoff_pending_returns_pending_transfers tests/api/test_wecom_intelligent_bot_plugin_api.py::test_ops_summary_returns_observability_counts -q --no-cov` 通过，4 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_status_tools.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_status_tools.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，80 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补 `/health`、`/ready` 和 43 问真实回调证据；继续处理客户线索、客户群活动和离线复盘等运营工具的员工可读性。
+
 ## [2026-07-04] - fix(wecom): 清理员工助手 Markdown 装饰
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-plain-text-reply
