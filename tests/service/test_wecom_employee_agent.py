@@ -1347,6 +1347,25 @@ def test_preserve_tool_facts_rejects_order_list_logistics_compression() -> None:
     assert reply == deterministic_reply
 
 
+def test_preserve_tool_facts_rejects_missing_logistics_heading_only() -> None:
+    deterministic_reply = (
+        "还没物流的订单有哪些：找到 2 单，按最新订单展示：\n"
+        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
+        "2026-07-04 13:52:38｜未约送｜暂无物流\n"
+        "2. 尾号 500031｜待收货｜送你快乐星球 x 1｜376.00 元｜"
+        "2026-07-04 12:28:15｜约送 2026-07-04 16:00:00｜暂无物流"
+    )
+    polished_reply = (
+        "收到，共2单暂无物流，按最新订单排列如下：\n"
+        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00元｜未约送\n"
+        "2. 尾号 500031｜待收货｜送你快乐星球 x 1｜376.00元｜约送16:00"
+    )
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
 def test_preserve_tool_facts_rejects_missing_pressure_label() -> None:
     deterministic_reply = (
         "今天发货压力大不大：找到 5 单，按最新订单展示：\n"

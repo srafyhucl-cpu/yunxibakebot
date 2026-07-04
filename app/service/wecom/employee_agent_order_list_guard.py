@@ -8,7 +8,7 @@ ORDER_TAIL_PATTERN = re.compile(r"尾号\s*([A-Za-z0-9]+)")
 ORDER_AMOUNT_PATTERN = re.compile(r"\d+(?:\.\d{1,2})?\s*元")
 ORDER_LIST_SOURCE_MARKERS = ("按最新订单展示", "按约送时间")
 ORDER_LIST_STATUS_TERMS = ("待付款", "待发货", "待收货", "交易成功", "已关闭", "已付款")
-ORDER_LIST_LOGISTICS_TERMS = ("暂无物流", "无物流", "有物流单号", "物流")
+ORDER_LIST_LOGISTICS_TERMS = ("暂无物流", "无物流", "有物流单号")
 
 
 def compresses_employee_order_list(
@@ -58,4 +58,7 @@ def _misses_per_order_terms(
 
 
 def _source_term_count(source_text: str, terms: tuple[str, ...]) -> int:
-    return sum(source_text.count(term) for term in terms)
+    term_pattern = "|".join(
+        re.escape(term) for term in sorted(terms, key=len, reverse=True)
+    )
+    return len(re.findall(term_pattern, source_text))

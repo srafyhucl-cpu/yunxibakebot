@@ -7,6 +7,7 @@
   - 不改企微 API 回调入口，不改订单查询计划和仓库 SQL。
   - 把普通订单列表也纳入事实保真：确定性结果中多条订单行如果包含尾号、状态、金额和物流标记，润色结果必须保留相同数量级的行级字段。
   - 将通用订单列表结构判断拆到 `employee_agent_order_list_guard.py`，避免 `employee_agent_reply_guard.py` 继续膨胀。
+  - 订单列表物流标记计数使用长词优先的非重叠匹配，避免 `暂无物流` 被同时算作 `无物流` 而放过标题级概括。
   - 43 问探针把待发货和无物流列表从宽泛“已汇总”升级为必须包含尾号、状态/物流等可排查字段。
 - **改动**:
   - `app/service/wecom/employee_agent_order_list_guard.py` - 新增通用订单列表结构保真判断。
@@ -15,7 +16,7 @@
   - `tests/service/test_wecom_employee_agent.py` - 覆盖普通订单列表被压缩时的函数级和服务级回退。
   - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖回调语义验收拒绝压缩待发货列表。
 - **验证结果**:
-  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_status_compression tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_logistics_compression tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_preserves_pending_order_list_shape tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_compressed_pending_list -q --no-cov` 通过，4 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_status_compression tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_logistics_compression tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_missing_logistics_heading_only tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_preserves_pending_order_list_shape tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_compressed_pending_list -q --no-cov` 通过，5 条。
   - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，员工助手相关测试通过。
   - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
   - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py app/service/wecom/employee_agent_order_list_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
