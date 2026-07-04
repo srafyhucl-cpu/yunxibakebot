@@ -24,8 +24,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.17 / d562e5d0d`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`refund-order-customer-reply` 生产预览已无 `>` blockquote 引用符。
+  - 本轮同步 bundle `wecom-blockquote-cleanup-d562e5d.bundle` 已按明确单文件路径清理，本地与远端均已删除。
 - **后续**:
-  - 同步生产后补登记生产 `/health`、`/ready`、43 问 callback 探针和 bundle 清理证据。
+  - 继续处理员工助手商品、知识库、运营和混合场景里的生产可读性深水区；后续纯文本验收必须继续覆盖 Markdown 装饰残留。
 
 ## [2026-07-04] - fix(wecom): 补强订单混合问法客户回复话术
 - **操作人**: AI (Codex)
