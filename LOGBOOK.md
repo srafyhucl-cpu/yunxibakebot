@@ -27,8 +27,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.11 / db8176469`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；新探针规则已禁止待人工回复出现 `UMP / type=card / %E5%`，`handoff-pending` 与 `casual-handoff-pending` 预览均只保留可读摘要。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 同步生产后补 `/health`、`/ready` 和 43 问真实回调证据，重点确认待人工预览不再出现 `UMP` 或 `type=card`。
+  - 继续处理客户线索、客户群活动和离线复盘等运营工具的员工可读性；后续如待人工摘要仍包含客服内部协议噪声，优先补探针禁用词。
 
 ## [2026-07-04] - fix(wecom): 优化员工助手运营状态可读性
 - **操作人**: AI (Codex)
