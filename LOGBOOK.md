@@ -24,8 +24,14 @@
   - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+  - 已同步生产 `0.74.16 / 712ec0533`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`pending-shipment-customer-reply` 和 `refund-order-customer-reply` 在必须同时包含“客户 / 回复”的新规则下通过。
+  - 本轮同步 bundle `wecom-order-customer-reply-712ec05.bundle` 已按明确单文件路径清理，本地与远端均已删除。
 - **后续**:
-  - 提交后同步生产，并用 `/health`、`/ready` 和线上 43 问回调探针确认 `pending-shipment-customer-reply`、`refund-order-customer-reply` 均保留客户回复语义。
+  - 继续处理员工助手商品、知识库、运营和混合场景里的生产可读性深水区；后续“怎么跟客户说 / 怎么回复客户”新增样本必须进入语义探针。
 
 ## [2026-07-04] - fix(wecom): 优化客户线索和客户群空结果回复
 - **操作人**: AI (Codex)
