@@ -222,9 +222,12 @@ async def test_handle_transfer_intent_updates_state_and_saves_reply(
 
 
 def test_postprocess_reply_removes_markdown_marks() -> None:
-    reply = postprocess_reply("# title\n**hello** __ok__ `code`", user_content="normal")
+    reply = postprocess_reply(
+        "# title\n**hello** __ok__ `code`\n> quoted reply",
+        user_content="normal",
+    )
 
-    assert reply == "title\nhello ok code"
+    assert reply == "title\nhello ok code\nquoted reply"
 
 
 @pytest.mark.asyncio

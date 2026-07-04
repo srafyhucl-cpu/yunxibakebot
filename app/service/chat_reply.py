@@ -17,6 +17,7 @@ logger = setup_logger()
 MARKDOWN_DECORATION_PATTERN = re.compile(r"(\*\*|__)(.+?)\1")
 INLINE_CODE_PATTERN = re.compile(r"`([^`]+)`")
 HEADING_MARK_PATTERN = re.compile(r"(?m)^#{1,6}\s+")
+BLOCKQUOTE_MARK_PATTERN = re.compile(r"(?m)^>\s*")
 EXCESSIVE_BLANK_LINES_PATTERN = re.compile(r"\n{3,}")
 
 
@@ -35,6 +36,7 @@ def clean_plain_text_reply(reply: str) -> str:
     cleaned_reply = MARKDOWN_DECORATION_PATTERN.sub(r"\2", reply)
     cleaned_reply = INLINE_CODE_PATTERN.sub(r"\1", cleaned_reply)
     cleaned_reply = HEADING_MARK_PATTERN.sub("", cleaned_reply)
+    cleaned_reply = BLOCKQUOTE_MARK_PATTERN.sub("", cleaned_reply)
     cleaned_reply = cleaned_reply.replace("**", "").replace("__", "")
     cleaned_reply = EXCESSIVE_BLANK_LINES_PATTERN.sub("\n\n", cleaned_reply)
     return cleaned_reply.strip()

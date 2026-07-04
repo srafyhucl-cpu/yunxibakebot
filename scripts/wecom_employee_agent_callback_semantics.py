@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 PLAIN_TEXT_FORBIDDEN_MARKERS = ("**", "__", "`")
+BLOCKQUOTE_MARK_PATTERN = re.compile(r"(?m)^>\s*")
 
 
 @dataclass(frozen=True)
@@ -31,4 +33,6 @@ def is_semantic_safe(content: str, rule: CallbackSemanticRule) -> bool:
 
 def has_plain_text_violation(content: str) -> bool:
     """企微员工助手 stream 回复必须是纯文本，不保留 Markdown 装饰。"""
-    return any(marker in content for marker in PLAIN_TEXT_FORBIDDEN_MARKERS)
+    return any(marker in content for marker in PLAIN_TEXT_FORBIDDEN_MARKERS) or bool(
+        BLOCKQUOTE_MARK_PATTERN.search(content)
+    )

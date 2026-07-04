@@ -360,6 +360,26 @@ def test_evaluate_reply_rejects_markdown_decorations() -> None:
     assert "semantic" in result.detail
 
 
+def test_evaluate_reply_rejects_markdown_blockquote() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe("markdown-blockquote", "今天有退款订单吗"),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "可复制回复：\n> 亲，已收到。",
+            },
+        },
+        1,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
 def test_evaluate_reply_rejects_ump_marker_in_handoff_summary() -> None:
     result = callback_check.evaluate_reply(
         callback_check.CallbackProbe(

@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - fix(wecom): 清理员工助手 Markdown 引用符
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-blockquote-cleanup
+- **背景**: 订单+客户话术切片上线后，生产回调预览暴露 `refund-order-customer-reply` 可能返回 `可复制回复客户：\n> 亲...`。企微员工群需要纯文本回复，已有清理只覆盖 `**`、`__`、反引号和标题符号，未覆盖行首 `>` 引用符；回调验收也没有拦截该类 Markdown 残留。
+- **决策**:
+  - 不改企微 API 回调入口，不改 Agent 编排、工具计划和查询逻辑。
+  - 在统一纯文本清理函数 `clean_plain_text_reply()` 中去掉行首 `>` 引用符，覆盖确定性回复、知识/运营跳过润色回复和 LLM 润色回复。
+  - 在企微员工助手 callback 语义验收中把行首 `>` 作为纯文本违规，防止生产探针再次放过 Markdown blockquote。
+- **改动**:
+  - `app/service/chat_reply.py` - 新增 blockquote 标记清理。
+  - `scripts/wecom_employee_agent_callback_semantics.py` - 新增 blockquote 纯文本违规检查。
+  - `tests/service/test_chat_refactor.py` - 覆盖回复后处理去掉 `>` 引用符。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖 callback 语义验收拒绝 `>` 引用符。
+- **验证结果**:
+  - `python -m pytest tests/service/test_chat_refactor.py::test_postprocess_reply_removes_markdown_marks tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_markdown_decorations tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_markdown_blockquote -q --no-cov` 通过，3 条。
+  - `python -m pytest tests/service/test_chat_refactor.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，90 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/chat_reply.py scripts/wecom_employee_agent_callback_semantics.py tests/service/test_chat_refactor.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/chat_reply.py scripts/wecom_employee_agent_callback_semantics.py tests/service/test_chat_refactor.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补登记生产 `/health`、`/ready`、43 问 callback 探针和 bundle 清理证据。
+
 ## [2026-07-04] - fix(wecom): 补强订单混合问法客户回复话术
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-order-customer-reply
