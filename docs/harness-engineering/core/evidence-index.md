@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-035：企微员工助手无物流关闭退款口径守卫
+
+- trace_id: 20260704-wecom-employee-agent-missing-logistics-scope
+- generated_at: 2026-07-04
+- evidence_type: local-and-production/wecom-employee-agent-missing-logistics-scope
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_reply_guard.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_missing_logistics_exclusion_distortion -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_missing_logistics_exclusion_distortion -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py`; `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`; production `git rev-parse --short HEAD && cat VERSION && systemctl is-active yunxibakebot`; production `Invoke-RestMethod https://yunxifood.cn/health`; production `Invoke-RestMethod https://yunxifood.cn/ready`; production `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn`; cleanup `Remove-Item "D:\Project\YunxiBakeBot\reports\wecom-missing-logistics-scope-3adede1.bundle"`; cleanup `rm /opt/yunxibakebot/wecom-missing-logistics-scope-3adede1.bundle`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 守住无物流订单的关闭退款口径
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记命令、版本、状态码和脱敏预览结论；不记录企微 Token、AES key、密文、完整订单号、手机号或完整地址。
+- summary: 员工助手无物流列表回复新增范围口径守卫。确定性结果为“暂无物流 / 无物流”但没有明确排除关闭或退款单时，LLM 润色若凭空声明“已剔除 / 不含已关闭 / 不含退款 / 剔除已关闭 / 剔除退款”会回退确定性工具结果。无物流探针样本同步加入禁用词。本地聚焦回归 2 条、员工助手相关 75 条测试、43 问规划探针、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.19 / 3adede196`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`missing-logistics-list` 和 `casual-missing-logistics` 生产预览均未出现“已剔除 / 不含已关闭 / 不含退款”；本轮同步 bundle 已按明确单文件路径清理。
+
 ## E-20260704-034：企微员工助手销量并列爆款判断收紧
 
 - trace_id: 20260704-wecom-employee-agent-top-products-tie

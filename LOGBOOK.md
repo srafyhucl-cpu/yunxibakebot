@@ -24,8 +24,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.19 / 3adede196`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`missing-logistics-list` 和 `casual-missing-logistics` 生产预览均保留“暂无物流/物流”口径，未出现“已剔除 / 不含已关闭 / 不含退款”。
+  - 本轮同步 bundle `wecom-missing-logistics-scope-3adede1.bundle` 已按明确单文件路径清理，本地与远端均已删除。
 - **后续**:
-  - 同步生产后补充 `/health`、`/ready` 和 43 问线上回调探针证据；继续收紧订单类可读性和知识库/商品混合问法。
+  - 继续收紧订单类可读性和知识库/商品混合问法；无物流类若后续要真正排除关闭/退款单，必须先在工具结果中明确范围口径，再允许润色复述。
 
 ## [2026-07-04] - fix(wecom): 收紧销量并列时的爆款判断
 - **操作人**: AI (Codex)
