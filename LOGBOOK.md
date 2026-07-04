@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - fix(wecom): 补强订单混合问法客户回复话术
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-order-customer-reply
+- **背景**: 员工助手 43 问探针虽然通过，但生产预览显示 `pending-shipment-customer-reply` 这类“还有哪些没发货，怎么跟客户说”问法可能只输出订单列表，缺少员工真正要复制给客户的回复话术。这属于语义验收过松：问题里有“怎么跟客户说 / 怎么回复客户”，回复必须包含客户回复建议，而不能只汇总数据。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单动态查询计划，不新增 SQL。
+  - 在 `employee_agent_mixed_reply.py` 统一处理 `order_dynamic_query + knowledge_answer` 的混合结果；只要员工问法包含客户回复诉求，就在订单工具结果后追加“给客户可复制回复”。
+  - 退款/售后回复和未发货回复分开生成确定性话术；空订单结果也给保守回复，避免暗示存在未查到的订单。
+  - 在 `employee_agent_reply_guard.py` 增加客户回复保真守卫：确定性结果里有“给客户可复制回复”时，LLM 润色必须保留“客户”和“回复”，否则回退确定性结果。
+  - 43 问探针把 `pending-shipment-customer-reply` 和 `refund-order-customer-reply` 从宽松 `required_any` 升级为必须同时包含“客户 / 回复”。
+- **改动**:
+  - `app/service/wecom/employee_agent_mixed_reply.py` - 新增订单+知识库混合问法的客户回复整理逻辑。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增客户回复语义保真守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 强化订单+客户话术样本的语义约束。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖确定性话术生成和 LLM 润色丢失话术时的回退。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_multi_tool_combines_order_and_knowledge tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_keeps_customer_reply tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_drops_private_marker tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_generic_customer_lookup_empty_text -q --no-cov` 通过，4 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，69 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent_file_size.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/wecom/employee_agent_mixed_reply.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_mixed_reply.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+- **后续**:
+  - 提交后同步生产，并用 `/health`、`/ready` 和线上 43 问回调探针确认 `pending-shipment-customer-reply`、`refund-order-customer-reply` 均保留客户回复语义。
+
 ## [2026-07-04] - fix(wecom): 优化客户线索和客户群空结果回复
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-ops-empty-readable

@@ -544,6 +544,8 @@ async def test_employee_agent_multi_tool_combines_order_and_knowledge() -> None:
     reply = await service.answer("还有哪些没发货，怎么跟客户说")
 
     assert "今天共 2 单" in reply
+    assert "给客户可复制回复" in reply
+    assert "订单目前还在备货处理中" in reply
     assert "知识库回复：还有哪些没发货，怎么跟客户说。" in reply
 
 
@@ -735,6 +737,35 @@ async def test_employee_agent_polish_drops_private_marker(monkeypatch) -> None:
 
     assert "完整订单号" not in reply
     assert "今天共 2 单" in reply
+
+
+async def test_employee_agent_polish_keeps_customer_reply(monkeypatch) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="当前待发货订单已经汇总。")
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("还有哪些没发货，怎么跟客户说")
+
+    assert "给客户可复制回复" in reply
+    assert "客户" in reply
+    assert "回复" in reply
 
 
 async def test_employee_agent_polish_keeps_action_insight_markers(

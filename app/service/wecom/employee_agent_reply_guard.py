@@ -32,6 +32,8 @@ EMPTY_ORDER_DETOUR_TERMS = (
     "日期需确认",
     "确认日期是否正确",
 )
+CUSTOMER_REPLY_SOURCE_MARKER = "给客户可复制回复"
+CUSTOMER_REPLY_REQUIRED_TERMS = ("客户", "回复")
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
@@ -47,6 +49,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _misses_missing_logistics_marker(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_empty_order_detour(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _misses_customer_reply(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_private_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -116,3 +120,9 @@ def _introduces_empty_order_detour(
     if not has_specific_empty_scope:
         return False
     return any(term in polished_reply for term in EMPTY_ORDER_DETOUR_TERMS)
+
+
+def _misses_customer_reply(polished_reply: str, deterministic_reply: str) -> bool:
+    if CUSTOMER_REPLY_SOURCE_MARKER not in deterministic_reply:
+        return False
+    return any(term not in polished_reply for term in CUSTOMER_REPLY_REQUIRED_TERMS)
