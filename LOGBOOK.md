@@ -1,4 +1,36 @@
 ﻿
+## [2026-07-04] - fix(wecom): 守住商品无库存与未命中回复口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-product-stockout-miss
+- **背景**: 继续推进企微员工助手 Agent 生产化时，生产抽查发现两个商品深水区问题：`招牌牛奶吐司还有吗` 命中 0 库存商品后，LLM 润色会编造具体替代品名；`不存在的月球蛋糕还有吗` 未命中商品后，回复会丢掉“未命中不等于缺货”的保护语。
+- **决策**:
+  - 不改企微 API 回调入口，不改商品实时数据来源和商品过滤逻辑。
+  - 在回复事实保真层拦截商品未命中保护语丢失：确定性结果包含“未命中结果 / 缺货结论”时，润色结果必须保留“未命中”和“缺货”关系。
+  - 在回复事实保真层拦截 0 库存替代品幻觉：确定性结果只提示“同品类或相近价位替代款”时，润色不能编造具体替代品名或示例。
+  - 将 `招牌牛奶吐司还有吗` 和 `不存在的月球蛋糕还有吗` 加入共享探针，规划和回调验收从 43 条扩展到 45 条。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增商品未命中保护语和无库存替代品幻觉守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 新增 0 库存和商品未命中共享探针。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖 Agent 润色回退和事实保真函数。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖回调语义拒绝坏回复，并更新 fake 回调样本。
+  - `tests/api/test_wecom_intelligent_bot_plugin_api.py` - 覆盖单工具 0 库存和未命中动作建议。
+  - `VERSION` - 升级到 `0.74.28`。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_no_stock_replacement_hallucination tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_keeps_product_miss_guardrail tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_product_miss_guardrail_loss tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_no_stock_replacement_hallucination tests/scripts/test_check_wecom_employee_agent_callback.py::test_run_callback_checks_covers_employee_queries tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_no_stock_replacement_hallucination tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_missing_product_guardrail_loss tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_no_stock_is_actionable tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_miss_is_not_stockout -q --no-cov` 通过，9 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，员工助手和企微插件相关测试通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，45/45。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+  - 生产同步待执行。
+- **后续**:
+  - 同步生产后跑 `/health`、`/ready` 和 45/45 企微加密回调探针，并抽查 `no-stock-product`、`missing-product` 两条真实回复。
+
 ## [2026-07-04] - fix(wecom): 商品高库存不提示低库存
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-product-stock-action

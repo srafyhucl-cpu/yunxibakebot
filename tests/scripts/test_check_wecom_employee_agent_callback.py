@@ -391,6 +391,60 @@ def test_evaluate_reply_rejects_high_stock_low_stock_hint() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_no_stock_replacement_hallucination() -> None:
+    probe = callback_check.CallbackProbe(
+        "no-stock-product",
+        "招牌牛奶吐司还有吗",
+        required_all_terms=("库存", "0", "暂无可售库存", "不要承诺有货"),
+        forbidden_terms=("比如", "北海道牛奶吐司", "经典白吐司"),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": (
+                    "招牌牛奶吐司库存为0，暂时无货。"
+                    "比如可推荐【北海道牛奶吐司】或【经典白吐司】。"
+                ),
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
+def test_evaluate_reply_rejects_missing_product_guardrail_loss() -> None:
+    probe = callback_check.CallbackProbe(
+        "missing-product",
+        "不存在的月球蛋糕还有吗",
+        required_all_terms=("未找到匹配商品", "未命中结果", "缺货结论"),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "未找到“月球蛋糕”商品。请换其他名称或关键词再查。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 def test_evaluate_reply_rejects_empty_order_generic_detour() -> None:
     probe = callback_check.CallbackProbe(
         "evening-pending-orders",
@@ -606,6 +660,17 @@ async def test_main_json_output_can_be_written_to_file(monkeypatch, tmp_path) ->
 
 
 def _fake_reply_text(content: str) -> str:
+    if "招牌牛奶吐司" in content:
+        return (
+            "招牌牛奶吐司｜15.00元｜库存 0｜甜品和面包\n"
+            "下一步：当前命中商品暂无可售库存，先不要承诺有货；"
+            "可推荐同品类或相近价位替代款。"
+        )
+    if "月球蛋糕" in content:
+        return (
+            "未找到匹配商品\n"
+            "下一步：请换商品名、品类或关键词再查；不要把未命中结果当作缺货结论。"
+        )
     if "伯牙绝弦" in content and ("替代" in content or "怎么跟客户说" in content):
         return "伯牙绝弦当前库存72，建议给客户回复可推荐替代款。"
     if "怎么跟客户说" in content:

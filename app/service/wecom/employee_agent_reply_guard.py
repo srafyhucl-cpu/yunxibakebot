@@ -69,6 +69,10 @@ TOP_PRODUCTS_SOURCE_MARKERS = ("按销量粗略排行", "销量排行")
 TOP_PRODUCTS_STOCKING_ADVICE_TERMS = ("优先备货",)
 TOP_PRODUCTS_TIE_ACCEPTABLE_TERMS = ("并列", "持平")
 TOP_PRODUCTS_TIE_FORBIDDEN_TERMS = ("优先备货", "销量第一", "当前爆款")
+PRODUCT_MISS_SOURCE_MARKERS = ("未命中结果", "缺货结论")
+PRODUCT_MISS_REQUIRED_TERMS = ("未命中", "缺货")
+NO_STOCK_SOURCE_MARKER = "暂无可售库存"
+NO_STOCK_REPLACEMENT_EXAMPLE_TERMS = ("比如", "例如", "推荐你", "推荐：")
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
@@ -103,6 +107,10 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _distorts_top_products_tie(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_top_products_stocking_advice(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _misses_product_miss_guardrail(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _introduces_no_stock_replacement_example(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_private_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -280,3 +288,25 @@ def _introduces_top_products_stocking_advice(
         term in polished_reply and term not in deterministic_reply
         for term in TOP_PRODUCTS_STOCKING_ADVICE_TERMS
     )
+
+
+def _misses_product_miss_guardrail(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    if not all(marker in deterministic_reply for marker in PRODUCT_MISS_SOURCE_MARKERS):
+        return False
+    return not all(term in polished_reply for term in PRODUCT_MISS_REQUIRED_TERMS)
+
+
+def _introduces_no_stock_replacement_example(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    if NO_STOCK_SOURCE_MARKER not in deterministic_reply:
+        return False
+    has_example = any(
+        term in polished_reply for term in NO_STOCK_REPLACEMENT_EXAMPLE_TERMS
+    )
+    has_bracketed_name = "【" in polished_reply or "】" in polished_reply
+    return (has_example or has_bracketed_name) and polished_reply != deterministic_reply

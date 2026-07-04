@@ -61,6 +61,21 @@ class _FakeCatalogService:
         ]
 
 
+class _FakeNoStockCatalogService:
+    async def list_products(self, *, featured: bool = False) -> list[dict]:
+        return [
+            {
+                "id": "71002",
+                "title": "招牌牛奶吐司",
+                "priceFen": 1500,
+                "stock": 0,
+                "categoryName": "甜品和面包",
+                "soldText": "已售 8",
+                "tags": ["吐司", "面包"],
+            }
+        ]
+
+
 class _FakeKnowledgeRetriever:
     async def search(self, query: str, limit: int = 8) -> list[KnowledgeEntry]:
         return [
@@ -226,6 +241,7 @@ def _business_client(
     offline_summary_provider: Callable[[], Any] | None = None,
     customer_address_service: Any | None = None,
     customer_group_service: Any | None = None,
+    catalog_service: Any | None = None,
 ) -> TestClient:
     provider = offline_summary_provider or (lambda: _FakeOfflineReviewSummary())
     app = FastAPI()
@@ -233,7 +249,7 @@ def _business_client(
         create_wecom_intelligent_bot_router(
             tool_service=WeComBotBusinessToolService(
                 order_service=_FakeOrderService(),
-                catalog_service=_FakeCatalogService(),
+                catalog_service=catalog_service or _FakeCatalogService(),
                 knowledge_retriever=_FakeKnowledgeRetriever(),
             ),
             ops_tool_service=WeComBotOpsToolService(
@@ -366,6 +382,42 @@ def test_product_lookup_returns_stock_for_valid_key(monkeypatch) -> None:
     assert "库存 6" in payload["productsText"]
     assert "低库存" not in payload["nextAction"]
     assert "库存和价格以小程序商品数据为准" in payload["nextAction"]
+
+
+def test_product_lookup_no_stock_is_actionable(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+
+    response = _business_client(catalog_service=_FakeNoStockCatalogService()).post(
+        "/api/v1/wecom/intelligent-bot/tools/product-lookup",
+        headers={"X-Yunxi-Bot-Key": "expected-secret"},
+        json={"query": "招牌牛奶吐司"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["products"][0]["stock"] == 0
+    assert "库存 0" in payload["productsText"]
+    assert "暂无可售库存" in payload["nextAction"]
+    assert "不要承诺有货" in payload["nextAction"]
+
+
+def test_product_lookup_miss_is_not_stockout(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+
+    response = _business_client().post(
+        "/api/v1/wecom/intelligent-bot/tools/product-lookup",
+        headers={"X-Yunxi-Bot-Key": "expected-secret"},
+        json={"query": "不存在的月球蛋糕"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["products"] == []
+    assert "未找到匹配商品" in payload["productsText"]
+    assert "未命中结果" in payload["nextAction"]
+    assert "缺货结论" in payload["nextAction"]
 
 
 def test_knowledge_answer_returns_sources_for_valid_key(monkeypatch) -> None:

@@ -189,6 +189,35 @@ class _FakeBusinessToolServiceWithKnowledgeMiss(_FakeBusinessToolService):
         }
 
 
+class _FakeBusinessToolServiceWithNoStock(_FakeBusinessToolService):
+    async def lookup_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.product_payloads.append(payload)
+        return {
+            "ok": True,
+            "result": "招牌牛奶吐司｜15.00元｜库存 0｜甜品和面包",
+            "products": [
+                {
+                    "title": "招牌牛奶吐司",
+                    "priceFen": 1500,
+                    "stock": 0,
+                    "categoryName": "甜品和面包",
+                }
+            ],
+            "nextAction": "当前命中商品暂无可售库存，先不要承诺有货；可推荐同品类或相近价位替代款。",
+        }
+
+
+class _FakeBusinessToolServiceWithProductMiss(_FakeBusinessToolService):
+    async def lookup_products(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.product_payloads.append(payload)
+        return {
+            "ok": True,
+            "result": "未找到匹配商品",
+            "products": [],
+            "nextAction": "请换商品名、品类或关键词再查；不要把未命中结果当作缺货结论。",
+        }
+
+
 class _FakeOpsToolService:
     async def lookup_customer(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "result": "找到 1 条地址/客户线索。"}
@@ -793,6 +822,75 @@ async def test_employee_agent_polish_keeps_product_stock_number(monkeypatch) -> 
 
     assert "库存 6" in reply
     assert "知识库回复" in reply
+
+
+async def test_employee_agent_polish_rejects_no_stock_replacement_hallucination(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "招牌牛奶吐司库存为0，暂时无货。"
+                            "比如可推荐【北海道牛奶吐司】或【经典白吐司】。"
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolServiceWithNoStock(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("招牌牛奶吐司还有吗")
+
+    assert "库存 0" in reply
+    assert "暂无可售库存" in reply
+    assert "不要承诺有货" in reply
+    assert "北海道牛奶吐司" not in reply
+    assert "经典白吐司" not in reply
+
+
+async def test_employee_agent_polish_keeps_product_miss_guardrail(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="未找到“月球蛋糕”商品。请换其他名称或关键词再查。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolServiceWithProductMiss(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("不存在的月球蛋糕还有吗")
+
+    assert "未找到匹配商品" in reply
+    assert "未命中结果" in reply
+    assert "缺货结论" in reply
 
 
 async def test_employee_agent_reply_removes_markdown_from_polish(
@@ -1414,6 +1512,33 @@ def test_preserve_tool_facts_rejects_empty_order_detour() -> None:
         "下一步：这表示当前约送口径下暂无待处理订单；可继续问其他日期或查看今日待办。"
     )
     polished_reply = "没有查到待处理订单。建议换商品名、状态或时间范围再查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_product_miss_guardrail_loss() -> None:
+    deterministic_reply = (
+        "未找到匹配商品\n"
+        "下一步：请换商品名、品类或关键词再查；不要把未命中结果当作缺货结论。"
+    )
+    polished_reply = "未找到“月球蛋糕”商品。请换其他名称或关键词再查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_no_stock_replacement_hallucination() -> None:
+    deterministic_reply = (
+        "招牌牛奶吐司｜15.00元｜库存 0｜甜品和面包\n"
+        "下一步：当前命中商品暂无可售库存，先不要承诺有货；"
+        "可推荐同品类或相近价位替代款。"
+    )
+    polished_reply = (
+        "招牌牛奶吐司库存为0，暂时无货。比如可推荐【北海道牛奶吐司】或【经典白吐司】。"
+    )
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

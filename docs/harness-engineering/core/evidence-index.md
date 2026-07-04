@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-041：企微员工助手商品无库存和未命中回复口径
+
+- trace_id: 20260704-wecom-employee-agent-product-stockout-miss
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-product-stockout-miss
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_reply_guard.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\tests\api\test_wecom_intelligent_bot_plugin_api.py`; `D:\Project\YunxiBakeBot\VERSION`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_no_stock_replacement_hallucination tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_keeps_product_miss_guardrail tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_product_miss_guardrail_loss tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_no_stock_replacement_hallucination tests/scripts/test_check_wecom_employee_agent_callback.py::test_run_callback_checks_covers_employee_queries tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_no_stock_replacement_hallucination tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_missing_product_guardrail_loss tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_no_stock_is_actionable tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_miss_is_not_stockout -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py`; `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 守住商品无库存与未命中回复口径
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记本地验证命令和商品回复口径结论，不包含企微 Token、AES key、密文、客户数据或订单明细。
+- summary: 员工助手商品回复事实保真层新增两个守卫：商品未命中时，LLM 润色不能丢掉“未命中不等于缺货”的保护语；0 库存商品只允许建议同品类或相近价位替代，不能编造具体替代品名。共享探针新增 `no-stock-product` 与 `missing-product`，规划和回调验收样本扩展到 45 条。本地聚焦回归 9 条、员工助手和企微插件相关测试、45/45 规划探针、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；生产同步待执行。
+
 ## E-20260704-040：企微员工助手商品高库存下一步动作
 
 - trace_id: 20260704-wecom-employee-agent-product-stock-action
