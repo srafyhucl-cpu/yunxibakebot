@@ -27,8 +27,13 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
   - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+  - 已同步生产 `0.74.15 / 9addc9fc5`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`customer-lookup` 生产预览已只展示 `张三` 线索结果，不再回显“查一下张三地址线索”整句。
+  - 本轮同步 bundle `wecom-customer-empty-query-9addc9f.bundle` 已按明确单文件路径清理，本地与远端均已删除。
 - **后续**:
-  - 提交后同步生产，并用 `/health`、`/ready` 和线上 43 问回调探针确认 `customer-lookup`、`group-campaign-summary` 预览不再出现旧空结果文案。
+  - 继续处理员工助手商品、知识库、运营和混合场景里的生产可读性深水区；如后续客户线索新增手机号正向样本，必须继续保持 payload 和回复脱敏。
 
 ## [2026-07-04] - fix(wecom): 优化离线复盘摘要员工可读性
 - **操作人**: AI (Codex)
