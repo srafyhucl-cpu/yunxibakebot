@@ -102,6 +102,19 @@ class _FakeTopProductsTieOrderLookupService:
         )
 
 
+class _FakeTopProductsOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "本周哪个商品卖得多：按销量粗略排行如下：\n"
+                "1. 红豆碱水包、椰蓉碱水包：18 件，2 单，188.00 元\n"
+                "2. 巧克力樱桃炸弹：6 件，6 单，1239.00 元"
+            ),
+            next_action="如需备货判断，建议继续结合库存和履约压力。",
+        )
+
+
 class _FakeBusinessToolService:
     def __init__(self) -> None:
         self.product_payloads: list[dict[str, Any]] = []
@@ -981,6 +994,40 @@ async def test_employee_agent_polish_keeps_top_products_tie_caution(
     assert "优先备货" not in reply
 
 
+async def test_employee_agent_polish_rejects_top_products_stocking_advice(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "本周销量第一是红豆碱水包、椰蓉碱水包，建议优先备货这几款。"
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeTopProductsOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("本周哪个商品卖得多")
+
+    assert "按销量粗略排行" in reply
+    assert "优先备货" not in reply
+
+
 def test_build_top_products_tool_result_marks_low_sample_tie() -> None:
     result = build_top_products_tool_result(
         "今天卖爆的是哪个",
@@ -1096,6 +1143,19 @@ def test_preserve_tool_facts_rejects_top_products_tie_distortion() -> None:
         "提示：当前销量并列且样本很少，还不能判断单一爆款。"
     )
     polished_reply = "今日销量第一是巧克力樱桃炸弹，可优先备货。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_top_products_stocking_advice() -> None:
+    deterministic_reply = (
+        "本周哪个商品卖得多：按销量粗略排行如下：\n"
+        "1. 红豆碱水包、椰蓉碱水包：18 件，2 单，188.00 元\n"
+        "下一步：如需备货判断，建议继续结合库存和履约压力。"
+    )
+    polished_reply = "本周销量第一是红豆碱水包、椰蓉碱水包，建议优先备货这几款。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

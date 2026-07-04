@@ -54,6 +54,8 @@ EMPTY_ORDER_DETOUR_TERMS = (
 CUSTOMER_REPLY_SOURCE_MARKER = "给客户可复制回复"
 CUSTOMER_REPLY_REQUIRED_TERMS = ("客户", "回复")
 TOP_PRODUCTS_TIE_SOURCE_MARKERS = ("销量并列", "第一梯队销量并列")
+TOP_PRODUCTS_SOURCE_MARKERS = ("按销量粗略排行", "销量排行")
+TOP_PRODUCTS_STOCKING_ADVICE_TERMS = ("优先备货",)
 TOP_PRODUCTS_TIE_ACCEPTABLE_TERMS = ("并列", "持平")
 TOP_PRODUCTS_TIE_FORBIDDEN_TERMS = ("优先备货", "销量第一", "当前爆款")
 
@@ -82,6 +84,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _misses_customer_reply(polished_reply, deterministic_reply):
         return deterministic_reply
     if _distorts_top_products_tie(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _introduces_top_products_stocking_advice(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_private_markers(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -203,3 +207,18 @@ def _distorts_top_products_tie(
     if not any(term in polished_reply for term in TOP_PRODUCTS_TIE_ACCEPTABLE_TERMS):
         return True
     return any(term in polished_reply for term in TOP_PRODUCTS_TIE_FORBIDDEN_TERMS)
+
+
+def _introduces_top_products_stocking_advice(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    has_top_products_result = any(
+        marker in deterministic_reply for marker in TOP_PRODUCTS_SOURCE_MARKERS
+    )
+    if not has_top_products_result:
+        return False
+    return any(
+        term in polished_reply and term not in deterministic_reply
+        for term in TOP_PRODUCTS_STOCKING_ADVICE_TERMS
+    )

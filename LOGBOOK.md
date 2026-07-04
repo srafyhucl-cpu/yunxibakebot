@@ -1,16 +1,17 @@
 ﻿
-## [2026-07-04] - fix(wecom): 守住履约风险约送日期口径
+## [2026-07-04] - fix(wecom): 守住履约日期和销量备货口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-delivery-date-scope
-- **背景**: 无物流口径守卫上线后继续抽查生产完整回复，发现 `fulfillment-risk-list` 和 `casual-fulfillment-pressure` 这类履约风险问法里，确定性工具结果包含 `约送 2026-06-06 / 2026-06-07` 等绝对日期，但 LLM 润色可能改写成“明天11点前 / 明天11点送达”。这会把已过期履约风险误说成未来风险，直接影响员工处理优先级。
+- **背景**: 无物流口径守卫上线后继续抽查生产完整回复，发现 `fulfillment-risk-list` 和 `casual-fulfillment-pressure` 这类履约风险问法里，确定性工具结果包含 `约送 2026-06-06 / 2026-06-07` 等绝对日期，但 LLM 润色可能改写成“明天11点前 / 明天11点送达”。这会把已过期履约风险误说成未来风险，直接影响员工处理优先级。同步 `0.74.20 / 6bc3ec5a5` 后线上 43 问首次验收又暴露 `this-week-top-products` 被 LLM 润色成“优先备货”，说明此前“销量排行不能单独给备货动作”的防线只覆盖并列场景，还需要覆盖所有销量排行。
 - **决策**:
   - 不改企微 API 回调入口，不改订单查询计划器和 SQL。
   - 在统一回复事实保真层新增约送日期守卫：确定性结果出现 `约送 YYYY-MM-DD` 时，LLM 润色不能新增工具结果里没有的“今天 / 明天 / 后天 / 周末 / 下周”等相对日期口径；一旦出现就回退确定性工具结果。
+  - 将销量排行“优先备货”守卫从并列排行扩展到所有销量排行工具结果：只凭销量排行不能凭空生成备货动作，必须结合库存和履约压力。
   - 43 问探针把履约风险和发货压力类回复加入错误相对日期禁用词，防止端到端验收放过同类漂移。
 - **改动**:
-  - `app/service/wecom/employee_agent_reply_guard.py` - 新增绝对约送日期与相对日期口径守卫。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增绝对约送日期与相对日期口径守卫，并扩展销量排行备货建议守卫。
   - `scripts/wecom_employee_agent_probe_cases.py` - 履约风险和发货压力探针禁止“明天 / 后天 / 周末 / 下周”等相对日期漂移。
-  - `tests/service/test_wecom_employee_agent.py` - 覆盖函数级和服务级 LLM 润色回退。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖履约日期漂移、销量排行备货建议漂移的函数级和服务级 LLM 润色回退。
 - **验证结果**:
   - `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_relative_delivery_date_distortion tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_relative_delivery_date_distortion -q --no-cov` 通过，2 条。
   - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
@@ -23,8 +24,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 同步生产 `0.74.20 / 6bc3ec5a5` 后 `/health` ok、`/ready` ready，但 `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 首次返回 42/43，失败项为 `this-week-top-products`，原因是回复包含“优先备货”。
+  - 补销量排行备货建议守卫后，`python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_top_products_stocking_advice tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_top_products_stocking_advice -q --no-cov` 通过，2 条。
+  - 补守卫后，`python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，79 条；`python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43；Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过。
 - **后续**:
-  - 同步生产后补充 `/health`、`/ready` 和线上回调探针证据；继续复核履约风险回复是否需要进一步在确定性格式层输出“已逾期/已超约送时间”等更明确动作口径。
+  - 重新同步生产后补充 `/health`、`/ready` 和线上 43 问回调探针证据；继续复核履约风险回复是否需要进一步在确定性格式层输出“已逾期/已超约送时间”等更明确动作口径。
 
 ## [2026-07-04] - fix(wecom): 守住无物流订单的关闭退款口径
 - **操作人**: AI (Codex)
