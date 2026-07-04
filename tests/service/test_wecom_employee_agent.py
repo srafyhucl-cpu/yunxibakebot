@@ -47,6 +47,21 @@ class _FakeActionItemsOrderLookupService:
         )
 
 
+class _FakeFulfillmentRiskOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "哪些单快超时了：找到 2 单，按约送时间展示：\n"
+                "1. 尾号 200101｜待收货｜水果盛宴 x 1｜313.00 元｜"
+                "2026-06-06 10:00｜约送 2026-06-06 11:00｜暂无物流\n"
+                "2. 尾号 200023｜待收货｜焦糖杏仁糯米船 x 1｜198.00 元｜"
+                "2026-06-07 10:00｜约送 2026-06-07 11:00｜暂无物流"
+            ),
+            next_action="这些是履约风险单，请按约送时间从早到晚优先处理。",
+        )
+
+
 class _FakeMissingLogisticsOrderLookupService:
     async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
         return ToolResult(
@@ -833,6 +848,41 @@ async def test_employee_agent_polish_keeps_action_insight_markers(
     assert "优先级 1" in reply
 
 
+async def test_employee_agent_polish_rejects_relative_delivery_date_distortion(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "以下2单即将超时，其余需在明天11点前安排发货或更新物流。"
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeFulfillmentRiskOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("哪些单快超时了")
+
+    assert "约送 2026-06-06 11:00" in reply
+    assert "约送 2026-06-07 11:00" in reply
+    assert "明天11点" not in reply
+
+
 async def test_employee_agent_polish_keeps_missing_logistics_marker(
     monkeypatch,
 ) -> None:
@@ -994,6 +1044,19 @@ def test_preserve_tool_facts_rejects_missing_action_insight_marker() -> None:
         "优先级 1：先处理快到约送时间的履约风险单"
     )
     polished_reply = "今天需重点处理1单：优先处理尾号000001。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_relative_delivery_date_distortion() -> None:
+    deterministic_reply = (
+        "哪些单快超时了：找到 2 单。\n"
+        "1. 尾号 200101｜待收货｜约送 2026-06-06 11:00｜暂无物流\n"
+        "2. 尾号 200023｜待收货｜约送 2026-06-07 11:00｜暂无物流"
+    )
+    polished_reply = "以下2单即将超时，其余需在明天11点前安排发货或更新物流。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

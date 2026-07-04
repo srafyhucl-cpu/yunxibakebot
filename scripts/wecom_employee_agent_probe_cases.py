@@ -35,6 +35,12 @@ MISSING_LOGISTICS_EXCLUSION_FORBIDDEN_TERMS = (
     "剔除已关闭",
     "剔除退款",
 )
+FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS = (
+    "明天",
+    "后天",
+    "周末",
+    "下周",
+)
 
 
 def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
@@ -232,7 +238,8 @@ def _order_list_probe_cases(
             expected_keyword="",
             expected_fulfillment_risk=True,
             required_any_terms=("超时", "约送", "待发货", "待收货", "发货"),
-            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址")
+            + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS,
         ),
         EmployeeAgentProbeCase(
             "evening-pending-orders",
@@ -692,7 +699,8 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             expected_fulfillment_risk=True,
             required_all_terms=("发货压力",),
             required_any_terms=("偏高", "中等", "低", "约送", "待发货", "待收货"),
-            forbidden_terms=("完整订单号", "手机号", "完整地址", "压力不大"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址", "压力不大")
+            + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS,
         ),
         EmployeeAgentProbeCase(
             "casual-missing-logistics",

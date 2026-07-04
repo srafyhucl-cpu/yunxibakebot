@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 STOCK_VALUE_PATTERN = re.compile(r"库存\s*(\d+)")
+DELIVERY_DATE_PATTERN = re.compile(r"约送\s*(20\d{2}-\d{2}-\d{2})")
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 LONG_IDENTIFIER_PATTERN = re.compile(r"\b[A-Z]?\d{14,}\b")
 PRIVATE_FIELD_PATTERN = re.compile(
@@ -23,6 +24,17 @@ PRIVATE_REPLY_TERMS = (
 ACTION_INSIGHT_REQUIRED_TERMS = ("优先级", "压力")
 ACTION_INSIGHT_SOURCE_MARKERS = ("发货压力", "优先级")
 PRESSURE_LABEL_PATTERN = re.compile(r"发货压力[:：]\s*(偏高|中等|低)")
+RELATIVE_DELIVERY_DATE_TERMS = (
+    "今天",
+    "明天",
+    "后天",
+    "昨天",
+    "前天",
+    "本周",
+    "这周",
+    "周末",
+    "下周",
+)
 MISSING_LOGISTICS_SOURCE_MARKERS = ("暂无物流", "无物流")
 MISSING_LOGISTICS_REQUIRED_TERM = "物流"
 MISSING_LOGISTICS_EXCLUSION_TERMS = (
@@ -55,6 +67,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _misses_pressure_label(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_action_insight_markers(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _introduces_relative_delivery_date(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_missing_logistics_marker(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -113,6 +127,19 @@ def _misses_action_insight_markers(
     if not has_action_insight:
         return False
     return any(term not in polished_reply for term in ACTION_INSIGHT_REQUIRED_TERMS)
+
+
+def _introduces_relative_delivery_date(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    delivery_dates = set(DELIVERY_DATE_PATTERN.findall(deterministic_reply))
+    if not delivery_dates:
+        return False
+    return any(
+        term in polished_reply and term not in deterministic_reply
+        for term in RELATIVE_DELIVERY_DATE_TERMS
+    )
 
 
 def _misses_missing_logistics_marker(

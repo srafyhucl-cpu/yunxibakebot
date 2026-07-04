@@ -1,4 +1,31 @@
 ﻿
+## [2026-07-04] - fix(wecom): 守住履约风险约送日期口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-delivery-date-scope
+- **背景**: 无物流口径守卫上线后继续抽查生产完整回复，发现 `fulfillment-risk-list` 和 `casual-fulfillment-pressure` 这类履约风险问法里，确定性工具结果包含 `约送 2026-06-06 / 2026-06-07` 等绝对日期，但 LLM 润色可能改写成“明天11点前 / 明天11点送达”。这会把已过期履约风险误说成未来风险，直接影响员工处理优先级。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单查询计划器和 SQL。
+  - 在统一回复事实保真层新增约送日期守卫：确定性结果出现 `约送 YYYY-MM-DD` 时，LLM 润色不能新增工具结果里没有的“今天 / 明天 / 后天 / 周末 / 下周”等相对日期口径；一旦出现就回退确定性工具结果。
+  - 43 问探针把履约风险和发货压力类回复加入错误相对日期禁用词，防止端到端验收放过同类漂移。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增绝对约送日期与相对日期口径守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 履约风险和发货压力探针禁止“明天 / 后天 / 周末 / 下周”等相对日期漂移。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖函数级和服务级 LLM 润色回退。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_relative_delivery_date_distortion tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_relative_delivery_date_distortion -q --no-cov` 通过，2 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，77 条。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补充 `/health`、`/ready` 和线上回调探针证据；继续复核履约风险回复是否需要进一步在确定性格式层输出“已逾期/已超约送时间”等更明确动作口径。
+
 ## [2026-07-04] - fix(wecom): 守住无物流订单的关闭退款口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-missing-logistics-scope
