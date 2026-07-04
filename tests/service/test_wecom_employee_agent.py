@@ -60,6 +60,19 @@ class _FakeMissingLogisticsOrderLookupService:
         )
 
 
+class _FakeMissingLogisticsClosedRefundOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "哪些单子还没出物流：找到 5 单，按最新订单展示：\n"
+                "1. 尾号 000077｜已关闭｜售后退款蛋糕 x 1｜88.00 元｜"
+                "2026-07-04 09:00｜约送 2026-07-04 15:00｜暂无物流｜有退款/售后"
+            ),
+            next_action="先核对未出物流原因；已关闭或退款售后单单独标记，避免误催发货。",
+        )
+
+
 class _FakeTopProductsTieOrderLookupService:
     async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
         return ToolResult(
@@ -851,6 +864,39 @@ async def test_employee_agent_polish_keeps_missing_logistics_marker(
     assert "暂无物流" in reply
 
 
+async def test_employee_agent_polish_rejects_missing_logistics_exclusion_distortion(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="以下为未出物流的订单，共5单，已剔除已关闭/退款单。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeMissingLogisticsClosedRefundOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("哪些单子还没出物流")
+
+    assert "有退款/售后" in reply
+    assert "已关闭" in reply
+    assert "已剔除" not in reply
+
+
 async def test_employee_agent_polish_keeps_top_products_tie_caution(
     monkeypatch,
 ) -> None:
@@ -924,6 +970,18 @@ def test_preserve_tool_facts_rejects_missing_logistics_marker() -> None:
         "1. 尾号 000001｜待发货｜巧克力樱桃炸弹｜暂无物流"
     )
     polished_reply = "当前有1单未发货，请优先处理尾号000001。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_missing_logistics_exclusion_distortion() -> None:
+    deterministic_reply = (
+        "哪些单子还没出物流：找到 5 单。\n"
+        "1. 尾号 000077｜已关闭｜售后退款蛋糕｜暂无物流｜有退款/售后"
+    )
+    polished_reply = "以下为未出物流的订单，共5单，已剔除已关闭/退款单。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

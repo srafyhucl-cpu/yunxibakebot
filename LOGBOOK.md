@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-04] - fix(wecom): 守住无物流订单的关闭退款口径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-missing-logistics-scope
+- **背景**: 继续复核企微员工助手生产预览时，发现 `casual-missing-logistics` 这类“哪些单子还没出物流”问法存在 LLM 润色事实漂移风险：确定性工具结果可能包含“已关闭 / 有退款/售后”的订单，但润色文本可能误写成“已剔除已关闭/退款单”，导致员工误判当前列表范围。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单查询计划器和 SQL。
+  - 在统一回复事实保真层新增无物流范围守卫：只要确定性结果是“暂无物流 / 无物流”场景，LLM 润色不能凭空引入“已剔除 / 不含已关闭 / 不含退款 / 剔除已关闭 / 剔除退款”等排除口径；若确定性结果没有明确同样口径，则回退确定性工具结果。
+  - 43 问探针把无物流列表类回复加入排除口径禁用词，防止端到端验收放过同类漂移。
+- **改动**:
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增无物流关闭/退款范围口径守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 无物流探针样本禁止凭空声明已剔除或不含关闭/退款单。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖函数级和服务级 LLM 润色回退。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_missing_logistics_exclusion_distortion -q --no-cov` 通过，1 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_missing_logistics_exclusion_distortion -q --no-cov` 通过，1 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，75 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补充 `/health`、`/ready` 和 43 问线上回调探针证据；继续收紧订单类可读性和知识库/商品混合问法。
+
 ## [2026-07-04] - fix(wecom): 收紧销量并列时的爆款判断
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-top-products-tie

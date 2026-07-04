@@ -28,6 +28,15 @@ class EmployeeAgentProbeCase:
     forbidden_terms: tuple[str, ...] = ()
 
 
+MISSING_LOGISTICS_EXCLUSION_FORBIDDEN_TERMS = (
+    "已剔除",
+    "不含已关闭",
+    "不含退款",
+    "剔除已关闭",
+    "剔除退款",
+)
+
+
 def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
     today_text = today.isoformat()
     tomorrow_text = date.fromordinal(today.toordinal() + 1).isoformat()
@@ -194,7 +203,8 @@ def _order_list_probe_cases(
                 "手机号",
                 "未在系统匹配",
                 "未找到匹配商品",
-            ),
+            )
+            + MISSING_LOGISTICS_EXCLUSION_FORBIDDEN_TERMS,
         ),
         EmployeeAgentProbeCase(
             "missing-logistics-list",
@@ -693,7 +703,8 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             expected_missing_logistics=True,
             expected_keyword="",
             required_all_terms=("物流",),
-            forbidden_terms=("完整订单号", "手机号"),
+            forbidden_terms=("完整订单号", "手机号")
+            + MISSING_LOGISTICS_EXCLUSION_FORBIDDEN_TERMS,
         ),
         EmployeeAgentProbeCase(
             "casual-top-product",
