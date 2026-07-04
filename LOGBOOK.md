@@ -26,8 +26,13 @@
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
   - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
   - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+  - 已同步生产 `0.74.13 / e27090cb1`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`offline-review-summary` 生产预览为“当前不在夜间复盘窗口，最近一轮没有执行。下一步：如需立即复盘...”，未出现 `outside_night_window` 或 `skippedReason`。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认删除命令执行成功。
 - **后续**:
-  - 提交后同步生产，并用 `/health`、`/ready` 和 `check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn` 复验 43 问。
+  - 继续处理客户线索、客户群活动等运营工具的员工可读性；如后续新增离线复盘跳过原因，先补中文映射和探针禁用词。
 
 ## [2026-07-04] - fix(wecom): 清理待人工摘要 UMP 标记
 - **操作人**: AI (Codex)
