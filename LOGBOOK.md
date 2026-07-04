@@ -1,4 +1,34 @@
 ﻿
+## [2026-07-04] - fix(wecom): 标记已过约送时间的履约风险单
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-overdue-fulfillment-marker
+- **背景**: 继续复核企微员工助手生产完整回复时，发现 `fulfillment-risk-list` 的真实回复虽然已避免“明天”等相对日期漂移，但仍可能把已过约送时间的订单总结成“需在 6月7日11:00 前完成发货/更新物流”，容易让员工误判为未来截止时间。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单查询计划器和 SQL。
+  - 在订单确定性展示层对已早于当前北京时间的 `delivery_time` 追加 `已过约送时间` 标记。
+  - 在回复事实保真层要求 LLM 润色保留已过/逾期/超时语义，且不能把已过约送时间改写为“需在 / 前完成 / 前安排”等未来截止表达。
+  - 43 问探针把履约风险和发货压力类回复加入“需在 / 前完成 / 前安排”禁用词，防止端到端验收放过同类漂移。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_order_format.py` - 订单配送时间格式化追加逾期标记，并兼容带时区 ISO 时间。
+  - `app/service/wecom/intelligent_bot_order_insights.py` - 今日待办优先级标题明确“已过或快到约送时间”。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增已过约送时间保真守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 履约风险类探针禁止未来截止误导话术。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖配送时间逾期标记、函数级保真回退和服务级 LLM 润色回退。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_delivery_time_text_marks_overdue_delivery tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_overdue_delivery_detour tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_overdue_delivery_detour -q --no-cov` 通过，3 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，82 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产 `0.74.23` 后运行 `/health`、`/ready`、43 问加密回调探针和履约风险完整回复抽查。
+
 ## [2026-07-04] - fix(wecom): 守住履约日期和销量备货口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-delivery-date-scope

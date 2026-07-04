@@ -35,6 +35,9 @@ RELATIVE_DELIVERY_DATE_TERMS = (
     "周末",
     "下周",
 )
+OVERDUE_DELIVERY_SOURCE_MARKER = "已过约送时间"
+OVERDUE_DELIVERY_ACCEPTABLE_TERMS = ("已过", "已逾期", "超时")
+OVERDUE_DELIVERY_DETOUR_TERMS = ("需在", "前完成", "前安排")
 MISSING_LOGISTICS_SOURCE_MARKERS = ("暂无物流", "无物流")
 MISSING_LOGISTICS_REQUIRED_TERM = "物流"
 MISSING_LOGISTICS_EXCLUSION_TERMS = (
@@ -71,6 +74,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _misses_action_insight_markers(polished_reply, deterministic_reply):
         return deterministic_reply
     if _introduces_relative_delivery_date(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _distorts_overdue_delivery_marker(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_missing_logistics_marker(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -144,6 +149,20 @@ def _introduces_relative_delivery_date(
         term in polished_reply and term not in deterministic_reply
         for term in RELATIVE_DELIVERY_DATE_TERMS
     )
+
+
+def _distorts_overdue_delivery_marker(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    if OVERDUE_DELIVERY_SOURCE_MARKER not in deterministic_reply:
+        return False
+    keeps_overdue_marker = any(
+        term in polished_reply for term in OVERDUE_DELIVERY_ACCEPTABLE_TERMS
+    )
+    if not keeps_overdue_marker:
+        return True
+    return any(term in polished_reply for term in OVERDUE_DELIVERY_DETOUR_TERMS)
 
 
 def _misses_missing_logistics_marker(

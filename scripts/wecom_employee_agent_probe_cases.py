@@ -41,6 +41,11 @@ FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS = (
     "周末",
     "下周",
 )
+FULFILLMENT_RISK_DETOUR_FORBIDDEN_TERMS = (
+    "需在",
+    "前完成",
+    "前安排",
+)
 
 
 def default_probe_cases(today: date) -> tuple[EmployeeAgentProbeCase, ...]:
@@ -239,7 +244,8 @@ def _order_list_probe_cases(
             expected_fulfillment_risk=True,
             required_any_terms=("超时", "约送", "待发货", "待收货", "发货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址")
-            + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS,
+            + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS
+            + FULFILLMENT_RISK_DETOUR_FORBIDDEN_TERMS,
         ),
         EmployeeAgentProbeCase(
             "evening-pending-orders",
@@ -700,7 +706,8 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             required_all_terms=("发货压力",),
             required_any_terms=("偏高", "中等", "低", "约送", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址", "压力不大")
-            + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS,
+            + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS
+            + FULFILLMENT_RISK_DETOUR_FORBIDDEN_TERMS,
         ),
         EmployeeAgentProbeCase(
             "casual-missing-logistics",

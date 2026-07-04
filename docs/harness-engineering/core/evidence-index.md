@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-037：企微员工助手已过约送时间履约风险标记
+
+- trace_id: 20260704-wecom-employee-agent-overdue-fulfillment-marker
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-overdue-fulfillment-marker
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_order_format.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_order_insights.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_reply_guard.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_delivery_time_text_marks_overdue_delivery tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_overdue_delivery_detour tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_overdue_delivery_detour -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m ruff check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py`; `python -m ruff format --check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_order_insights.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`
+- result: local pass; production sync pending
+- related_logbook: 2026-07-04 - fix(wecom): 标记已过约送时间的履约风险单
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记本地验证命令和员工助手回复口径守卫结论，不包含订单明细、客户数据或企微密钥。
+- summary: 订单行会对已过约送时间追加明确标记，LLM 润色若把逾期风险改写为未来截止表达会回退确定性工具结果；43 问探针已加入“需在 / 前完成 / 前安排”禁用词。
+
 ## E-20260704-036：企微员工助手履约日期和销量备货口径守卫
 
 - trace_id: 20260704-wecom-employee-agent-delivery-date-scope

@@ -36,7 +36,7 @@ def order_priority_heading(
     refund_count: int,
 ) -> str:
     if risk_count:
-        return "优先级 1：先处理快到约送时间的履约风险单"
+        return "优先级 1：先处理已过或快到约送时间的履约风险单"
     if pending_count:
         return "优先级 1：先处理待发货/待收货订单"
     if missing_logistics_count:

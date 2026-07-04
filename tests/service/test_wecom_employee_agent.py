@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,6 +16,7 @@ from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 from app.service.wecom.employee_agent_service import EmployeeAgentService
 from app.service.wecom.intelligent_bot_order_format import (
     build_top_products_tool_result,
+    employee_delivery_time_text,
 )
 
 
@@ -59,6 +60,21 @@ class _FakeFulfillmentRiskOrderLookupService:
                 "2026-06-07 10:00｜约送 2026-06-07 11:00｜暂无物流"
             ),
             next_action="这些是履约风险单，请按约送时间从早到晚优先处理。",
+        )
+
+
+class _FakeOverdueFulfillmentRiskOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "哪些单快超时了：找到 2 单，按约送时间展示：\n"
+                "1. 尾号 200101｜待收货｜水果盛宴 x 1｜313.00 元｜"
+                "2026-06-06 10:00｜约送 2026-06-06 11:00（已过约送时间）｜暂无物流\n"
+                "2. 尾号 200023｜待收货｜焦糖杏仁糯米船 x 1｜198.00 元｜"
+                "2026-06-07 10:00｜约送 2026-06-07 11:00（已过约送时间）｜暂无物流"
+            ),
+            next_action="这些是履约风险单，请按已过约送时间和约送时间从早到晚优先处理。",
         )
 
 
@@ -896,6 +912,38 @@ async def test_employee_agent_polish_rejects_relative_delivery_date_distortion(
     assert "明天11点" not in reply
 
 
+async def test_employee_agent_polish_rejects_overdue_delivery_detour(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="以下2单需在6月7日11:00前完成发货/更新物流信息。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOverdueFulfillmentRiskOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("哪些单快超时了")
+
+    assert "已过约送时间" in reply
+    assert "需在6月7日11:00前完成" not in reply
+
+
 async def test_employee_agent_polish_keeps_missing_logistics_marker(
     monkeypatch,
 ) -> None:
@@ -1052,6 +1100,19 @@ def test_build_top_products_tool_result_marks_low_sample_tie() -> None:
     assert "后续订单趋势" in result.next_action
 
 
+def test_employee_delivery_time_text_marks_overdue_delivery(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.service.wecom.intelligent_bot_order_format.now_beijing_naive",
+        lambda: datetime(2026, 7, 4, 12, 0, 0),
+    )
+
+    delivery_text = employee_delivery_time_text(
+        {"delivery_time": "2026-06-06 11:00:00"}
+    )
+
+    assert delivery_text == "约送 2026-06-06 11:00:00（已过约送时间）"
+
+
 def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
     deterministic_reply = "当前有 2 单未发货，均只展示尾号。"
     polished_reply = "当前有 2 单未发货，请提供完整订单号排查。"
@@ -1104,6 +1165,18 @@ def test_preserve_tool_facts_rejects_relative_delivery_date_distortion() -> None
         "2. 尾号 200023｜待收货｜约送 2026-06-07 11:00｜暂无物流"
     )
     polished_reply = "以下2单即将超时，其余需在明天11点前安排发货或更新物流。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_overdue_delivery_detour() -> None:
+    deterministic_reply = (
+        "哪些单快超时了：\n"
+        "1. 尾号 200101｜约送 2026-06-06 11:00（已过约送时间）｜暂无物流"
+    )
+    polished_reply = "尾号200101需在6月7日11:00前完成发货。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 
