@@ -18,6 +18,7 @@ from app.service.wecom.intelligent_bot_ops_format import (
     compact_transfer,
     customer_lookup_empty_line,
     customer_lookup_empty_next_action,
+    customer_lookup_query_preview,
     group_campaign_missing_line,
     group_campaign_missing_next_action,
     group_summary_line,
@@ -25,6 +26,19 @@ from app.service.wecom.intelligent_bot_ops_format import (
 )
 
 logger = setup_logger()
+CUSTOMER_LOOKUP_NOISE_TERMS = (
+    "帮我查一下",
+    "帮我看看",
+    "查一下",
+    "查询",
+    "客户",
+    "收货地址",
+    "地址线索",
+    "地址",
+    "有没有",
+    "有吗",
+)
+CUSTOMER_LOOKUP_STRIP_CHARS = " ：:，,。？?的"
 
 
 class WeComBotOpsToolService:
@@ -42,13 +56,12 @@ class WeComBotOpsToolService:
         self._transfer_mgr = transfer_mgr
 
     async def lookup_customer(self, payload: dict[str, Any]) -> dict[str, Any]:
-        query = extract_text(payload)
+        raw_query = extract_text(payload)
+        query = _normalize_customer_lookup_query(raw_query)
         if self._customer_address_service is None:
             return unavailable("customer_lookup", "客户查询")
         if not query:
-            return missing_query(
-                "customer_lookup", "请提供手机号、客户名或地址关键词。"
-            )
+            return missing_query("customer_lookup", "请提供客户姓名或地址关键词。")
         try:
             result = await self._customer_address_service.list_admin_addresses(
                 page=1,
@@ -61,7 +74,7 @@ class WeComBotOpsToolService:
         addresses_text = "\n".join(address_line(item) for item in addresses)
         return ok_response(
             "customer_lookup",
-            query,
+            customer_lookup_query_preview(query),
             f"找到 {result.get('total', len(addresses))} 条地址/客户线索。",
             addresses=addresses,
             addressesText=addresses_text or customer_lookup_empty_line(query),
@@ -131,6 +144,13 @@ class WeComBotOpsToolService:
 def _extract_named_text(payload: dict[str, Any], key: str) -> str:
     value = payload.get(key)
     return value.strip() if isinstance(value, str) else extract_text(payload)
+
+
+def _normalize_customer_lookup_query(query: str) -> str:
+    clean_query = query.strip()
+    for noise_term in CUSTOMER_LOOKUP_NOISE_TERMS:
+        clean_query = clean_query.replace(noise_term, "")
+    return clean_query.strip(CUSTOMER_LOOKUP_STRIP_CHARS)
 
 
 def _customer_lookup_next_action(addresses: list[dict[str, Any]]) -> str:

@@ -99,14 +99,18 @@ def group_summary_line(summary: dict[str, Any]) -> str:
 
 
 def customer_lookup_empty_line(query: str) -> str:
-    clean_query = query.strip()
-    if clean_query:
-        return f"没找到“{clean_query}”的客户地址线索。"
+    query_preview = customer_lookup_query_preview(query)
+    if query_preview:
+        return f"没找到“{query_preview}”的客户地址线索。"
     return "没找到匹配的客户地址线索。"
 
 
 def customer_lookup_empty_next_action() -> str:
     return "请换客户姓名或地址关键词再查；如果是新客户，先让客户补充收货信息。"
+
+
+def customer_lookup_query_preview(query: str) -> str:
+    return _safe_lookup_query_preview(query)
 
 
 def group_campaign_missing_line(campaign_id: str) -> str:
@@ -234,4 +238,19 @@ def redact_sensitive_text(content: str) -> str:
         return mask_address(match.group(0))
 
     phone_redacted = PHONE_PATTERN.sub(replace_phone, clean_content)
+    return snippet(ADDRESS_PATTERN.sub(replace_address, phone_redacted))
+
+
+def _safe_lookup_query_preview(query: str) -> str:
+    clean_query = query.strip()
+    if not clean_query:
+        return ""
+
+    def replace_phone(match: re.Match[str]) -> str:
+        return mask_phone(match.group(0))
+
+    def replace_address(match: re.Match[str]) -> str:
+        return mask_address(match.group(0))
+
+    phone_redacted = PHONE_PATTERN.sub(replace_phone, clean_query)
     return snippet(ADDRESS_PATTERN.sub(replace_address, phone_redacted))

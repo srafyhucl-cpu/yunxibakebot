@@ -7,17 +7,18 @@
   - 不改企微 API 回调入口，不改 Agent 编排层，不新增 SQL。
   - 在 `intelligent_bot_ops_format.py` 统一收口客户线索空结果和客户群活动不存在文案，避免中文动作建议散落在 service。
   - 客户地址空结果继续 `ok=True`，但员工可见文案改成“没找到某客户的客户地址线索”，并提示换客户姓名或地址关键词再查；不提示手机号、订单尾号或后台订单，避免触发隐私/语义禁用词。
+  - 客户线索查询先清理“查一下 / 地址线索 / 地址”等员工口语噪声，再把有效姓名、手机号或地址关键词交给后端查询；工具 payload 和员工可见回复只展示脱敏后的查询预览。
   - 客户群活动不存在从系统失败改为确定性未命中结果，保留 `campaignId`，提示确认 ID 是否复制完整或到后台客户群活动列表按群名/标题查对应批次。
   - 43 问探针新增旧文案禁用词，禁止退回“未找到匹配客户地址”“活动批次不存在”“请稍后重试”。
 - **改动**:
-  - `app/service/wecom/intelligent_bot_ops_format.py` - 新增客户线索空结果、客户群活动不存在和对应 nextAction helper。
-  - `app/service/wecom/intelligent_bot_ops_tools.py` - 客户查询空结果和客户群不存在批次复用格式层 helper。
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 新增客户线索空结果、客户查询预览脱敏、客户群活动不存在和对应 nextAction helper。
+  - `app/service/wecom/intelligent_bot_ops_tools.py` - 客户查询空结果和客户群不存在批次复用格式层 helper，并在查询前归一员工口语噪声。
   - `scripts/wecom_employee_agent_probe_cases.py` - 客户线索和客户群样本新增旧文案禁用词。
   - `tests/api/test_wecom_intelligent_bot_plugin_api.py` - 增加客户线索空结果、客户群不存在批次单工具契约回归。
   - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 增加 callback 语义检查拒绝旧空结果文案回归。
 - **验证结果**:
-  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py::test_customer_lookup_empty_result_is_actionable tests/api/test_wecom_intelligent_bot_plugin_api.py::test_group_campaign_missing_result_is_actionable tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_generic_customer_lookup_empty_text tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_group_campaign_retry_detour -q --no-cov` 通过，4 条。
-  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，41 条。
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py::test_customer_lookup_empty_result_is_actionable tests/api/test_wecom_intelligent_bot_plugin_api.py::test_customer_lookup_empty_result_masks_sensitive_query tests/api/test_wecom_intelligent_bot_plugin_api.py::test_group_campaign_missing_result_is_actionable tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_generic_customer_lookup_empty_text tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_group_campaign_retry_detour -q --no-cov` 通过，5 条。
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，42 条。
   - `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，46 条。
   - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_ops_tools.py scripts/wecom_employee_agent_probe_cases.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
   - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_ops_tools.py scripts/wecom_employee_agent_probe_cases.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。

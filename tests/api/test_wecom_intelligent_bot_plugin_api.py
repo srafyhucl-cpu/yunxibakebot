@@ -97,12 +97,16 @@ class _FakeCustomerAddressService:
 
 
 class _FakeEmptyCustomerAddressService:
+    def __init__(self) -> None:
+        self.keywords: list[str] = []
+
     async def list_admin_addresses(
         self,
         *,
         page: int = 1,
         keyword: str = "",
     ) -> dict:
+        self.keywords.append(keyword)
         return {"items": [], "total": 0}
 
 
@@ -428,9 +432,10 @@ def test_customer_lookup_returns_address_leads(monkeypatch) -> None:
 
 def test_customer_lookup_empty_result_is_actionable(monkeypatch) -> None:
     monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+    customer_address_service = _FakeEmptyCustomerAddressService()
 
     response = _business_client(
-        customer_address_service=_FakeEmptyCustomerAddressService(),
+        customer_address_service=customer_address_service,
     ).post(
         "/api/v1/wecom/intelligent-bot/tools/customer-lookup",
         headers={"X-Yunxi-Bot-Key": "expected-secret"},
@@ -441,12 +446,35 @@ def test_customer_lookup_empty_result_is_actionable(monkeypatch) -> None:
     payload = response.json()
     assert payload["ok"] is True
     assert payload["addresses"] == []
+    assert customer_address_service.keywords == ["张三"]
     assert "没找到“张三”的客户地址线索" in payload["result"]
     assert "请换客户姓名或地址关键词再查" in payload["nextAction"]
     serialized = _serialized(payload)
     assert "未找到匹配客户地址" not in serialized
     assert "手机号" not in serialized
     assert "订单尾号" not in serialized
+
+
+def test_customer_lookup_empty_result_masks_sensitive_query(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+    customer_address_service = _FakeEmptyCustomerAddressService()
+
+    response = _business_client(
+        customer_address_service=customer_address_service,
+    ).post(
+        "/api/v1/wecom/intelligent-bot/tools/customer-lookup",
+        headers={"X-Yunxi-Bot-Key": "expected-secret"},
+        json={"query": "查一下13812345678地址线索"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert customer_address_service.keywords == ["13812345678"]
+    assert "138****5678" in payload["result"]
+    serialized = _serialized(payload)
+    assert "13812345678" not in serialized
+    assert "手机号" not in serialized
 
 
 def test_group_campaign_summary_returns_summary_text(monkeypatch) -> None:
