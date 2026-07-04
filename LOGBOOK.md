@@ -25,8 +25,13 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.27 / 786b738a3`，`systemctl is-active yunxibakebot` 返回 active。
+  - 生产 `/health` 返回 `status=ok, version=0.74.27`。
+  - 生产 `/ready` 返回 `status=ready, version=0.74.27`。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43。
+  - 商品完整回复抽查 `casual-inventory`、`casual-product-stock`、`order-product-inventory`、`product-stock-customer-reply` 均保留 `库存72`，且未出现“低库存”误导提示。
 - **后续**:
-  - 同步生产后补录 `/health`、`/ready`、43 问加密回调探针和商品库存完整回复抽查证据。
+  - 继续扩展商品深水区，优先覆盖低库存、无库存和商品未命中的真实生产问法。
 
 ## [2026-07-04] - fix(wecom): 保留普通订单列表结构
 - **操作人**: AI (Codex)
