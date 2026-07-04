@@ -25,8 +25,11 @@
   - `python scripts/check_text_encoding.py` 通过。
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
+  - 已同步生产 `0.74.9 / 91ab70cc9`，`/health` 返回 ok，`/ready` 返回 ready。
+  - `python scripts/check_wecom_employee_agent_callback.py --json --base-url https://yunxifood.cn` 通过，43/43；`ops-status` 和 `casual-ops-status` 均返回“系统需要关注...”中文动作摘要，未再出现 `status=attention`。
+  - 本轮同步 bundle 已按明确单文件路径清理，本地与远端均确认不存在。
 - **后续**:
-  - 同步生产后补 `/health`、`/ready` 和 43 问真实回调证据；继续处理客户线索、客户群活动和离线复盘等运营工具的员工可读性。
+  - 继续处理待人工摘要中的卡片标记预览，以及客户线索、客户群活动和离线复盘等运营工具的员工可读性。
 
 ## [2026-07-04] - fix(wecom): 清理员工助手 Markdown 装饰
 - **操作人**: AI (Codex)
