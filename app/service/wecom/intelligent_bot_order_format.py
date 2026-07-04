@@ -16,6 +16,9 @@ from app.service.wecom.intelligent_bot_order_insights import (
     order_priority_heading,
     order_pressure_label,
 )
+from app.service.wecom.intelligent_bot_top_products_format import (
+    build_top_products_tool_result as build_top_products_tool_result,
+)
 
 ORDER_STATUS_LABELS = {
     "WAIT_BUYER_PAY": "待付款",
@@ -82,24 +85,6 @@ def build_order_list_tool_result(
         metrics=summary,
         next_action="列表默认只展示订单尾号，排查时可用尾号继续追问。",
     )
-
-
-def build_top_products_tool_result(
-    query: str,
-    rows: list[dict[str, Any]],
-) -> ToolResult:
-    """构造商品销量排行结果。"""
-    if not rows:
-        return ToolResult(ok=True, summary=f"{query}：没有查到匹配商品订单。")
-    lines = [f"{query}：按销量粗略排行如下："]
-    for index, row in enumerate(rows, 1):
-        amount_yuan = int(row.get("total_amount_fen", 0) or 0) / 100
-        lines.append(
-            f"{index}. {row.get('product_titles') or '未记录商品'}："
-            f"{int(row.get('total_quantity', 0) or 0)} 件，"
-            f"{int(row.get('order_count', 0) or 0)} 单，{amount_yuan:.2f} 元"
-        )
-    return ToolResult(ok=True, summary="\n".join(lines), items=rows)
 
 
 def build_order_action_items_tool_result(

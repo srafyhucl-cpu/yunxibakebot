@@ -391,7 +391,7 @@ def _order_product_probe_cases(
             today_text,
             expected_keyword="",
             required_any_terms=("销量",),
-            forbidden_terms=("完整订单号", "手机号"),
+            forbidden_terms=("完整订单号", "手机号", "优先备货"),
         ),
         EmployeeAgentProbeCase(
             "this-week-top-products",
@@ -403,7 +403,7 @@ def _order_product_probe_cases(
             today_text,
             expected_keyword="",
             required_any_terms=("销量",),
-            forbidden_terms=("完整订单号", "手机号"),
+            forbidden_terms=("完整订单号", "手机号", "优先备货"),
         ),
         EmployeeAgentProbeCase(
             "this-week-revenue-summary",
@@ -705,7 +705,7 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             today_text,
             expected_keyword="",
             required_any_terms=("销量", "卖", "爆款"),
-            forbidden_terms=("完整订单号", "手机号"),
+            forbidden_terms=("完整订单号", "手机号", "优先备货"),
         ),
     )
 

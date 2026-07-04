@@ -1,4 +1,35 @@
 ﻿
+## [2026-07-04] - fix(wecom): 收紧销量并列时的爆款判断
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-top-products-tie
+- **背景**: 生产 43 问探针通过后继续复核真实预览，发现 `casual-top-product` 这类“今天卖爆的是哪个”问法在今日仅两单且销量并列时，LLM 润色可能把并列低样本误写成“当前爆款”“优先备货”。这会把查询结果从事实汇总变成经营建议，容易误导员工备货判断。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单动态查询 SQL 和计划器。
+  - 将销量排行展示从 `intelligent_bot_order_format.py` 拆到 `intelligent_bot_top_products_format.py`，避免订单格式文件继续超出体量门禁。
+  - 在销量排行工具结果中识别第一名并列：低样本并列提示“还不能判断单一爆款”，高样本并列提示结合金额、库存和后续订单判断主推商品。
+  - 在回复保真守卫中新增销量并列守卫：确定性结果标注并列时，LLM 润色必须保留并列/持平语义，且不能改写为“销量第一 / 当前爆款 / 优先备货”。
+  - 43 问探针把销量排行类回复加入“优先备货”禁用词，防止只凭销量排行给出过度动作建议。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_top_products_format.py` - 新增销量排行格式化和并列提示。
+  - `app/service/wecom/intelligent_bot_order_format.py` - 保留兼容导入，移出销量排行实现，修复文件体量超线。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增销量并列语义保真守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 销量排行类样本禁止“优先备货”。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖低样本并列提示、LLM 爆款误写回退和守卫函数。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_build_top_products_tool_result_marks_low_sample_tie tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_top_products_tie_distortion tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_keeps_top_products_tie_caution -q --no-cov` 通过，3 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，73 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_top_products_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_top_products_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补登记生产 `/health`、`/ready`、43 问 callback 探针和 bundle 清理证据。
+
 ## [2026-07-04] - fix(wecom): 清理员工助手 Markdown 引用符
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-blockquote-cleanup

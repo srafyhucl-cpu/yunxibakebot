@@ -14,6 +14,9 @@ from app.service.wecom import employee_agent_planner
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 from app.service.wecom.employee_agent_service import EmployeeAgentService
+from app.service.wecom.intelligent_bot_order_format import (
+    build_top_products_tool_result,
+)
 
 
 class _FakeOrderLookupService:
@@ -54,6 +57,20 @@ class _FakeMissingLogisticsOrderLookupService:
                 "2026-07-04 10:00｜约送 2026-07-04 16:00｜暂无物流"
             ),
             next_action="列表默认只展示订单尾号，排查时可用尾号继续追问。",
+        )
+
+
+class _FakeTopProductsTieOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "今天卖爆的是哪个：按销量粗略排行如下：\n"
+                "1. 巧克力樱桃炸弹：1 件，1 单，206.50 元\n"
+                "2. 绿野仙踪蝴蝶款：1 件，1 单，273.50 元\n"
+                "提示：当前销量并列且样本很少，还不能判断单一爆款。"
+            ),
+            next_action="如需备货判断，建议继续结合库存、履约压力和后续订单趋势。",
         )
 
 
@@ -834,6 +851,64 @@ async def test_employee_agent_polish_keeps_missing_logistics_marker(
     assert "暂无物流" in reply
 
 
+async def test_employee_agent_polish_keeps_top_products_tie_caution(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="当前爆款是巧克力樱桃炸弹，可优先备货。"
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeTopProductsTieOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("今天卖爆的是哪个")
+
+    assert "销量并列" in reply
+    assert "不能判断单一爆款" in reply
+    assert "当前爆款是" not in reply
+    assert "优先备货" not in reply
+
+
+def test_build_top_products_tool_result_marks_low_sample_tie() -> None:
+    result = build_top_products_tool_result(
+        "今天卖爆的是哪个",
+        [
+            {
+                "product_titles": "巧克力樱桃炸弹",
+                "total_quantity": 1,
+                "order_count": 1,
+                "total_amount_fen": 20650,
+            },
+            {
+                "product_titles": "绿野仙踪蝴蝶款",
+                "total_quantity": 1,
+                "order_count": 1,
+                "total_amount_fen": 27350,
+            },
+        ],
+    )
+
+    assert "销量并列" in result.summary
+    assert "不能判断单一爆款" in result.summary
+    assert "后续订单趋势" in result.next_action
+
+
 def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
     deterministic_reply = "当前有 2 单未发货，均只展示尾号。"
     polished_reply = "当前有 2 单未发货，请提供完整订单号排查。"
@@ -886,6 +961,20 @@ def test_preserve_tool_facts_rejects_empty_order_detour() -> None:
         "下一步：这表示当前约送口径下暂无待处理订单；可继续问其他日期或查看今日待办。"
     )
     polished_reply = "没有查到待处理订单。建议换商品名、状态或时间范围再查。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_top_products_tie_distortion() -> None:
+    deterministic_reply = (
+        "今天卖爆的是哪个：按销量粗略排行如下：\n"
+        "1. 巧克力樱桃炸弹：1 件，1 单，206.50 元\n"
+        "2. 绿野仙踪蝴蝶款：1 件，1 单，273.50 元\n"
+        "提示：当前销量并列且样本很少，还不能判断单一爆款。"
+    )
+    polished_reply = "今日销量第一是巧克力樱桃炸弹，可优先备货。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 
