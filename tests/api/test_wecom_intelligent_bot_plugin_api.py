@@ -364,6 +364,8 @@ def test_product_lookup_returns_stock_for_valid_key(monkeypatch) -> None:
     assert payload["products"][0]["title"] == "草莓蛋糕"
     assert payload["products"][0]["stock"] == 6
     assert "库存 6" in payload["productsText"]
+    assert "低库存" not in payload["nextAction"]
+    assert "库存和价格以小程序商品数据为准" in payload["nextAction"]
 
 
 def test_knowledge_answer_returns_sources_for_valid_key(monkeypatch) -> None:

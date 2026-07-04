@@ -484,6 +484,7 @@ def _order_product_probe_cases(
                 "未匹配到商品",
                 "未在系统匹配",
                 "未找到匹配商品",
+                "低库存",
             ),
         ),
     )
@@ -503,6 +504,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "未匹配到商品",
                 "未在系统匹配",
                 "未找到匹配商品",
+                "低库存",
             ),
         ),
         EmployeeAgentProbeCase(
@@ -520,6 +522,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "未匹配到商品",
                 "未在系统匹配",
                 "未找到匹配商品",
+                "低库存",
             ),
         ),
         EmployeeAgentProbeCase(
@@ -537,6 +540,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "未匹配到商品",
                 "未在系统匹配",
                 "未找到匹配商品",
+                "低库存",
             ),
         ),
         EmployeeAgentProbeCase(
@@ -755,6 +759,7 @@ def _casual_support_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "未匹配到商品",
                 "未在系统匹配",
                 "未找到匹配商品",
+                "低库存",
             ),
         ),
         EmployeeAgentProbeCase(

@@ -1,4 +1,33 @@
 ﻿
+## [2026-07-04] - fix(wecom): 商品高库存不提示低库存
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-product-stock-action
+- **背景**: 继续推进企微员工助手 Agent 生产化时，发现商品查询工具的下一步动作是固定文案，即使命中商品库存充足，也会提示“低库存商品建议尽快确认”。这会让员工把高库存商品误判为库存紧张，削弱助手的可信度。
+- **决策**:
+  - 不改企微 API 回调入口，不改商品查询数据来源和商品过滤逻辑。
+  - 将商品下一步动作从固定文案改为按命中商品库存动态生成：未命中、无库存、低库存、高库存分别给不同员工动作建议。
+  - 43 问探针中当前明确要求 `库存 72` 的高库存商品问法，禁止回复出现“低库存”。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_product_action.py` - 新增商品库存上下文下一步动作生成。
+  - `app/service/wecom/intelligent_bot_tools.py` - 商品查询工具接入动态下一步动作。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 高库存商品探针禁止“低库存”。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖高库存员工助手回复和商品动作建议分支。
+  - `tests/api/test_wecom_intelligent_bot_plugin_api.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖插件工具响应和回调语义验收。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_product_next_action_uses_stock_context tests/service/test_wecom_employee_agent.py::test_employee_agent_high_stock_product_reply_has_no_low_stock_hint tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_returns_stock_for_valid_key tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_high_stock_low_stock_hint -q --no-cov` 通过，4 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，员工助手和企微插件相关测试通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/intelligent_bot_tools.py app/service/wecom/intelligent_bot_product_action.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_tools.py app/service/wecom/intelligent_bot_product_action.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补录 `/health`、`/ready`、43 问加密回调探针和商品库存完整回复抽查证据。
+
 ## [2026-07-04] - fix(wecom): 保留普通订单列表结构
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-order-list-shape

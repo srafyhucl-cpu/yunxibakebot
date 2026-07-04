@@ -365,6 +365,32 @@ def test_evaluate_reply_rejects_product_knowledge_miss() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_high_stock_low_stock_hint() -> None:
+    probe = callback_check.CallbackProbe(
+        "casual-inventory",
+        "伯牙绝弦还有吗",
+        required_all_terms=("库存", "72"),
+        forbidden_terms=("低库存",),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "伯牙绝弦当前库存72，库存以小程序为准，低库存建议尽快确认。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 def test_evaluate_reply_rejects_empty_order_generic_detour() -> None:
     probe = callback_check.CallbackProbe(
         "evening-pending-orders",

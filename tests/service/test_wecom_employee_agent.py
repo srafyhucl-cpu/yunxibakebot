@@ -20,6 +20,7 @@ from app.service.wecom.intelligent_bot_order_format import (
     build_top_products_tool_result,
     employee_delivery_time_text,
 )
+from app.service.wecom.intelligent_bot_product_action import product_next_action
 
 
 class _FakeOrderLookupService:
@@ -177,7 +178,7 @@ class _FakeBusinessToolServiceWithKnowledgeMiss(_FakeBusinessToolService):
                     "categoryName": "生日蛋糕",
                 }
             ],
-            "nextAction": "库存和价格以小程序商品数据为准，低库存商品建议尽快确认。",
+            "nextAction": "库存和价格以小程序商品数据为准；可按当前库存回复，特殊数量先人工核对。",
         }
 
     async def answer_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -218,6 +219,10 @@ def _planner() -> EmployeeAgentPlanner:
         today_provider=lambda: date(2026, 7, 3),
         enable_llm=False,
     )
+
+
+def _product(stock: int) -> dict[str, Any]:
+    return {"title": "草莓蛋糕", "stock": stock}
 
 
 async def test_planner_builds_today_order_summary_plan() -> None:
@@ -677,6 +682,30 @@ async def test_employee_agent_product_knowledge_miss_uses_staff_reply() -> None:
     assert "推荐" in reply
     assert "替代款" in reply
     assert "客户" in reply
+
+
+async def test_employee_agent_high_stock_product_reply_has_no_low_stock_hint() -> None:
+    business_tool_service = _FakeBusinessToolServiceWithKnowledgeMiss()
+    service = EmployeeAgentService(
+        business_tool_service=business_tool_service,
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+        enable_llm_reply=False,
+    )
+
+    reply = await service.answer("伯牙绝弦还有吗")
+
+    assert "库存 72" in reply
+    assert "低库存" not in reply
+    assert "库存和价格以小程序商品数据为准" in reply
+
+
+def test_product_next_action_uses_stock_context() -> None:
+    assert "低库存" not in product_next_action("伯牙绝弦还有吗", [_product(72)])
+    assert "低库存" in product_next_action("草莓蛋糕还有吗", [_product(3)])
+    assert "暂无可售库存" in product_next_action("草莓蛋糕还有吗", [_product(0)])
+    assert "未命中结果" in product_next_action("草莓蛋糕还有吗", [])
 
 
 async def test_employee_agent_routes_existing_ops_tools() -> None:

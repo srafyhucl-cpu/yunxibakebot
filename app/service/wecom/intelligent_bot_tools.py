@@ -5,6 +5,7 @@ from typing import Any
 from app.logger import setup_logger
 from app.service.wecom.intelligent_bot_knowledge_format import knowledge_answer_text
 from app.service.wecom.intelligent_bot_plugin import extract_text
+from app.service.wecom.intelligent_bot_product_action import product_next_action
 from app.service.wecom.intelligent_bot_tool_format import (
     compact_knowledge_entry,
     compact_order,
@@ -100,7 +101,7 @@ class WeComBotBusinessToolService:
             f"找到 {len(matched_products)} 个可展示商品。",
             productsText=products_text,
             products=matched_products,
-            nextAction="库存和价格以小程序商品数据为准，低库存商品建议尽快确认。",
+            nextAction=product_next_action(query, matched_products),
         )
 
     async def answer_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
