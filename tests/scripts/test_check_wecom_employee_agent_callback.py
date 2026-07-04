@@ -313,6 +313,31 @@ def test_evaluate_reply_rejects_compressed_fulfillment_list() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_compressed_pending_list() -> None:
+    probe = callback_check.CallbackProbe(
+        "pending-shipment-list",
+        "还有哪些没发货",
+        required_all_terms=("尾号", "待发货", "物流"),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "当前待发货订单已汇总。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 def test_evaluate_reply_rejects_product_knowledge_miss() -> None:
     probe = callback_check.CallbackProbe(
         "product-stock-recommend-replacement",
@@ -580,9 +605,9 @@ def _fake_reply_text(content: str) -> str:
     if "下周一" in content and "待处理" in content:
         return "下周一待处理订单已汇总，包含约送时间和待发货状态。"
     if "没发货" in content or "没处理" in content:
-        return "当前待发货订单已汇总。"
+        return "1. 尾号 000001｜待发货｜约送 2026-07-04 16:00｜暂无物流"
     if "物流" in content:
-        return "当前暂无物流订单已汇总。"
+        return "1. 尾号 000001｜待发货｜约送 2026-07-04 16:00｜暂无物流"
     if "哪个商品" in content or "卖爆" in content:
         return "今日销量排行已汇总。"
     if "营业额" in content or "销售额" in content:

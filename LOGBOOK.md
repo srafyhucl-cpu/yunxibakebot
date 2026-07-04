@@ -1,4 +1,34 @@
 ﻿
+## [2026-07-04] - fix(wecom): 保留普通订单列表结构
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-order-list-shape
+- **背景**: 继续抽查企微员工助手生产回复时，发现 `casual-pending-shipment`、`missing-logistics-list`、`casual-missing-logistics` 和 `weekend-pending-orders` 等普通订单列表仍可能被 LLM 润色压缩，出现每行缺少中文状态、金额或物流标记的情况。员工能看到尾号，但不能直接判断该先处理哪一单。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单查询计划和仓库 SQL。
+  - 把普通订单列表也纳入事实保真：确定性结果中多条订单行如果包含尾号、状态、金额和物流标记，润色结果必须保留相同数量级的行级字段。
+  - 将通用订单列表结构判断拆到 `employee_agent_order_list_guard.py`，避免 `employee_agent_reply_guard.py` 继续膨胀。
+  - 43 问探针把待发货和无物流列表从宽泛“已汇总”升级为必须包含尾号、状态/物流等可排查字段。
+- **改动**:
+  - `app/service/wecom/employee_agent_order_list_guard.py` - 新增通用订单列表结构保真判断。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 接入通用订单列表结构守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 待发货和无物流列表探针要求尾号、物流和状态词。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖普通订单列表被压缩时的函数级和服务级回退。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖回调语义验收拒绝压缩待发货列表。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_status_compression tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_logistics_compression tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_preserves_pending_order_list_shape tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_compressed_pending_list -q --no-cov` 通过，4 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，员工助手相关测试通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py app/service/wecom/employee_agent_order_list_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py app/service/wecom/employee_agent_order_list_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补录 `/health`、`/ready`、43 问加密回调探针和普通订单列表解密抽查证据。
+
 ## [2026-07-04] - fix(wecom): 保留履约风险订单列表结构
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-fulfillment-list-shape

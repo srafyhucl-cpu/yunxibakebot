@@ -93,6 +93,21 @@ class _FakeMissingLogisticsOrderLookupService:
         )
 
 
+class _FakePendingOrderListLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary=(
+                "还有哪些没发货：找到 2 单，按最新订单展示：\n"
+                "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
+                "2026-07-04 13:52:38｜未约送｜暂无物流\n"
+                "2. 尾号 700059｜待发货｜杏好有你 x 1｜302.50 元｜"
+                "2026-07-04 13:24:39｜约送 2026-07-06 11:00:00｜暂无物流"
+            ),
+            next_action="列表默认只展示订单尾号，排查时可用尾号继续追问。",
+        )
+
+
 class _FakeMissingLogisticsClosedRefundOrderLookupService:
     async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
         return ToolResult(
@@ -982,6 +997,42 @@ async def test_employee_agent_polish_preserves_fulfillment_order_list_shape(
     assert "暂无物流" in reply
 
 
+async def test_employee_agent_polish_preserves_pending_order_list_shape(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "当前有2单待发货：尾号300061、700059，"
+                            "其中一单约送7月6日11点。"
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakePendingOrderListLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("还有哪些没发货")
+
+    assert "尾号 300061｜待发货" in reply
+    assert "158.00 元" in reply
+    assert "暂无物流" in reply
+
+
 async def test_employee_agent_polish_keeps_missing_logistics_marker(
     monkeypatch,
 ) -> None:
@@ -1260,6 +1311,36 @@ def test_preserve_tool_facts_rejects_fulfillment_order_list_compression() -> Non
     polished_reply = (
         "发货压力偏高，2单已过约送时间且暂无物流，建议优先处理尾号200101、200023。"
     )
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_order_list_status_compression() -> None:
+    deterministic_reply = (
+        "还有哪些没发货：找到 2 单，按最新订单展示：\n"
+        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
+        "2026-07-04 13:52:38｜未约送｜暂无物流\n"
+        "2. 尾号 700059｜待发货｜杏好有你 x 1｜302.50 元｜"
+        "2026-07-04 13:24:39｜约送 2026-07-06 11:00:00｜暂无物流"
+    )
+    polished_reply = "当前有2单待发货：尾号300061、700059，其中一单约送7月6日11点。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_order_list_logistics_compression() -> None:
+    deterministic_reply = (
+        "还没物流的订单有哪些：找到 2 单，按最新订单展示：\n"
+        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
+        "2026-07-04 13:52:38｜未约送｜暂无物流\n"
+        "2. 尾号 500031｜待收货｜送你快乐星球 x 1｜376.00 元｜"
+        "2026-07-04 12:28:15｜约送 2026-07-04 16:00:00｜暂无物流"
+    )
+    polished_reply = "未出物流共2单：尾号300061待发货未约送，尾号500031待收货约送16点。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

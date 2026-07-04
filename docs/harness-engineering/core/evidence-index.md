@@ -1,4 +1,18 @@
 ﻿
+## E-20260704-039：企微员工助手普通订单列表结构保真
+
+- trace_id: 20260704-wecom-employee-agent-order-list-shape
+- generated_at: 2026-07-04
+- evidence_type: local/wecom-employee-agent-order-list-shape
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_list_guard.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_reply_guard.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_status_compression tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_order_list_logistics_compression tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_preserves_pending_order_list_shape tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_compressed_pending_list -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m ruff check app/service/wecom/employee_agent_reply_guard.py app/service/wecom/employee_agent_order_list_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check app/service/wecom/employee_agent_reply_guard.py app/service/wecom/employee_agent_order_list_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-04 - fix(wecom): 保留普通订单列表结构
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记本地验证命令和普通订单列表结构守卫结论，不包含订单明细、客户数据、企微密钥或完整回调密文。
+- summary: 普通订单列表新增行级结构保真守卫。确定性结果中多条订单行若包含尾号、状态、金额和物流标记，LLM 润色必须保留同等数量级的行级字段，否则回退确定性工具结果；待发货和无物流探针也升级为必须出现尾号、物流和状态词。生产同步和线上解密抽查将在本切片提交后补录。
+
 ## E-20260704-038：企微员工助手履约风险列表结构保真
 
 - trace_id: 20260704-wecom-employee-agent-fulfillment-list-shape

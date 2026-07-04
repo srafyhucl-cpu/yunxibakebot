@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import re
 
+from app.service.wecom.employee_agent_order_list_guard import (
+    ORDER_TAIL_PATTERN,
+    compresses_employee_order_list,
+)
+
 STOCK_VALUE_PATTERN = re.compile(r"库存\s*(\d+)")
 DELIVERY_DATE_PATTERN = re.compile(r"约送\s*(20\d{2}-\d{2}-\d{2})")
-ORDER_TAIL_PATTERN = re.compile(r"尾号\s*([A-Za-z0-9]+)")
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 LONG_IDENTIFIER_PATTERN = re.compile(r"\b[A-Z]?\d{14,}\b")
 PRIVATE_FIELD_PATTERN = re.compile(
@@ -80,6 +84,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _introduces_relative_delivery_date(polished_reply, deterministic_reply):
         return deterministic_reply
     if _distorts_overdue_delivery_marker(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if compresses_employee_order_list(polished_reply, deterministic_reply):
         return deterministic_reply
     if _compresses_fulfillment_order_list(polished_reply, deterministic_reply):
         return deterministic_reply
