@@ -16,6 +16,10 @@ from app.service.wecom.intelligent_bot_ops_format import (
     compact_address,
     compact_group_followup,
     compact_transfer,
+    customer_lookup_empty_line,
+    customer_lookup_empty_next_action,
+    group_campaign_missing_line,
+    group_campaign_missing_next_action,
     group_summary_line,
     transfer_line,
 )
@@ -60,8 +64,8 @@ class WeComBotOpsToolService:
             query,
             f"找到 {result.get('total', len(addresses))} 条地址/客户线索。",
             addresses=addresses,
-            addressesText=addresses_text or "未找到匹配客户地址。",
-            nextAction="这是地址簿线索，不等于完整 CRM 主档；重要操作请人工核对。",
+            addressesText=addresses_text or customer_lookup_empty_line(query),
+            nextAction=_customer_lookup_next_action(addresses),
         )
 
     async def summarize_group_campaign(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -74,8 +78,18 @@ class WeComBotOpsToolService:
             summary = await self._customer_group_service.get_campaign_summary(
                 campaign_id
             )
-        except ValueError as exc:
-            return failed("group_campaign_summary", str(exc))
+        except ValueError:
+            missing_summary = group_campaign_missing_line(campaign_id)
+            return ok_response(
+                "group_campaign_summary",
+                campaign_id,
+                missing_summary,
+                summaryText=missing_summary,
+                campaign={},
+                productTotals=[],
+                pendingFollowups=[],
+                nextAction=group_campaign_missing_next_action(),
+            )
         except Exception as exc:
             logger.error("企微客户群汇总工具失败 campaign=%s err=%s", campaign_id, exc)
             return failed("group_campaign_summary", "客户群汇总失败，请稍后重试。")
@@ -117,3 +131,9 @@ class WeComBotOpsToolService:
 def _extract_named_text(payload: dict[str, Any], key: str) -> str:
     value = payload.get(key)
     return value.strip() if isinstance(value, str) else extract_text(payload)
+
+
+def _customer_lookup_next_action(addresses: list[dict[str, Any]]) -> str:
+    if addresses:
+        return "这是地址簿线索，不等于完整 CRM 主档；重要操作请人工核对。"
+    return customer_lookup_empty_next_action()

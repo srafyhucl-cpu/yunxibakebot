@@ -98,6 +98,28 @@ def group_summary_line(summary: dict[str, Any]) -> str:
     )
 
 
+def customer_lookup_empty_line(query: str) -> str:
+    clean_query = query.strip()
+    if clean_query:
+        return f"没找到“{clean_query}”的客户地址线索。"
+    return "没找到匹配的客户地址线索。"
+
+
+def customer_lookup_empty_next_action() -> str:
+    return "请换客户姓名或地址关键词再查；如果是新客户，先让客户补充收货信息。"
+
+
+def group_campaign_missing_line(campaign_id: str) -> str:
+    clean_campaign_id = campaign_id.strip()
+    if clean_campaign_id:
+        return f"未找到客户群活动批次 campaignId:{clean_campaign_id}。"
+    return "未找到客户群活动批次。"
+
+
+def group_campaign_missing_next_action() -> str:
+    return "请确认 campaignId 是否复制完整；如果只知道群名或活动标题，先到后台客户群活动列表查对应批次。"
+
+
 def transfer_line(item: dict[str, Any]) -> str:
     line = f"工单尾号 {short_identifier(item['id'])}｜{item['reason'] or '未填写原因'}"
     if item["summaryPreview"]:

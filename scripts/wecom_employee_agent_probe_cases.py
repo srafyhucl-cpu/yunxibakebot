@@ -560,6 +560,7 @@ def _ops_business_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "订单尾号",
                 "尾号",
                 "后台订单",
+                "未找到匹配客户地址",
             ),
         ),
         EmployeeAgentProbeCase(
@@ -581,6 +582,8 @@ def _ops_business_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "小程序商品",
                 "退款",
                 "后台订单",
+                "请稍后重试",
+                "活动批次不存在",
             ),
         ),
         EmployeeAgentProbeCase(

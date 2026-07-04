@@ -96,6 +96,16 @@ class _FakeCustomerAddressService:
         }
 
 
+class _FakeEmptyCustomerAddressService:
+    async def list_admin_addresses(
+        self,
+        *,
+        page: int = 1,
+        keyword: str = "",
+    ) -> dict:
+        return {"items": [], "total": 0}
+
+
 class _FakeCustomerGroupService:
     async def get_campaign_summary(self, campaign_id: str) -> dict:
         return {
@@ -120,6 +130,11 @@ class _FakeCustomerGroupService:
             ],
             "summaryText": "周六团购登记汇总：\n1. 草莓蛋糕：3份",
         }
+
+
+class _FakeMissingCustomerGroupService:
+    async def get_campaign_summary(self, campaign_id: str) -> dict:
+        raise ValueError("活动批次不存在")
 
 
 class _FakeTransferManager:
@@ -205,6 +220,8 @@ def _client() -> TestClient:
 
 def _business_client(
     offline_summary_provider: Callable[[], Any] | None = None,
+    customer_address_service: Any | None = None,
+    customer_group_service: Any | None = None,
 ) -> TestClient:
     provider = offline_summary_provider or (lambda: _FakeOfflineReviewSummary())
     app = FastAPI()
@@ -216,8 +233,12 @@ def _business_client(
                 knowledge_retriever=_FakeKnowledgeRetriever(),
             ),
             ops_tool_service=WeComBotOpsToolService(
-                customer_address_service=_FakeCustomerAddressService(),
-                customer_group_service=_FakeCustomerGroupService(),
+                customer_address_service=(
+                    customer_address_service or _FakeCustomerAddressService()
+                ),
+                customer_group_service=(
+                    customer_group_service or _FakeCustomerGroupService()
+                ),
                 transfer_mgr=_FakeTransferManager(),
             ),
             status_tool_service=WeComBotStatusToolService(
@@ -405,6 +426,29 @@ def test_customer_lookup_returns_address_leads(monkeypatch) -> None:
     assert "user_001" not in serialized
 
 
+def test_customer_lookup_empty_result_is_actionable(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+
+    response = _business_client(
+        customer_address_service=_FakeEmptyCustomerAddressService(),
+    ).post(
+        "/api/v1/wecom/intelligent-bot/tools/customer-lookup",
+        headers={"X-Yunxi-Bot-Key": "expected-secret"},
+        json={"query": "张三"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["addresses"] == []
+    assert "没找到“张三”的客户地址线索" in payload["result"]
+    assert "请换客户姓名或地址关键词再查" in payload["nextAction"]
+    serialized = _serialized(payload)
+    assert "未找到匹配客户地址" not in serialized
+    assert "手机号" not in serialized
+    assert "订单尾号" not in serialized
+
+
 def test_group_campaign_summary_returns_summary_text(monkeypatch) -> None:
     monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
 
@@ -426,6 +470,31 @@ def test_group_campaign_summary_returns_summary_text(monkeypatch) -> None:
     assert "13912345678" not in serialized
     assert "隐私路 99 号" not in serialized
     assert "wecom-user-001" not in serialized
+
+
+def test_group_campaign_missing_result_is_actionable(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_BOT_PLUGIN_API_KEY", "expected-secret")
+
+    response = _business_client(
+        customer_group_service=_FakeMissingCustomerGroupService(),
+    ).post(
+        "/api/v1/wecom/intelligent-bot/tools/group-campaign-summary",
+        headers={"X-Yunxi-Bot-Key": "expected-secret"},
+        json={"campaignId": "abc123"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["campaign"] == {}
+    assert payload["productTotals"] == []
+    assert payload["pendingFollowups"] == []
+    assert "未找到客户群活动批次 campaignId:abc123" in payload["result"]
+    assert "请确认 campaignId 是否复制完整" in payload["nextAction"]
+    serialized = _serialized(payload)
+    assert "请稍后重试" not in serialized
+    assert "活动批次不存在" not in serialized
+    assert "手机号" not in serialized
 
 
 def test_handoff_pending_returns_pending_transfers(monkeypatch) -> None:

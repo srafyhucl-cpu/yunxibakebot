@@ -416,6 +416,56 @@ def test_evaluate_reply_rejects_raw_offline_review_skip_marker() -> None:
     assert "semantic" in result.detail
 
 
+def test_evaluate_reply_rejects_generic_customer_lookup_empty_text() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe(
+            "customer-lookup",
+            "查一下张三地址线索",
+            required_any_terms=("客户", "地址", "线索"),
+            forbidden_terms=("未找到匹配客户地址",),
+        ),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "未找到匹配客户地址。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
+def test_evaluate_reply_rejects_group_campaign_retry_detour() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe(
+            "group-campaign-summary",
+            "汇总 campaignId:abc123",
+            required_any_terms=("客户群", "campaignId", "活动批次"),
+            forbidden_terms=("请稍后重试", "活动批次不存在"),
+        ),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "活动批次不存在\n下一步：请稍后重试，或进入后台人工查询。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 

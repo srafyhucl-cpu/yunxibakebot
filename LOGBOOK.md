@@ -1,4 +1,34 @@
 ﻿
+## [2026-07-04] - fix(wecom): 优化客户线索和客户群空结果回复
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-ops-empty-readable
+- **背景**: 离线复盘可读性切片上线后，生产 43 问探针继续全绿，但 `customer-lookup` 空结果和 `group-campaign-summary` 不存在批次仍偏工具化：客户线索回复是“未找到匹配客户地址”，客户群活动不存在时返回“活动批次不存在 / 请稍后重试”。这类空结果不是系统故障，员工需要的是下一步换什么线索查、到哪里核对。
+- **决策**:
+  - 不改企微 API 回调入口，不改 Agent 编排层，不新增 SQL。
+  - 在 `intelligent_bot_ops_format.py` 统一收口客户线索空结果和客户群活动不存在文案，避免中文动作建议散落在 service。
+  - 客户地址空结果继续 `ok=True`，但员工可见文案改成“没找到某客户的客户地址线索”，并提示换客户姓名或地址关键词再查；不提示手机号、订单尾号或后台订单，避免触发隐私/语义禁用词。
+  - 客户群活动不存在从系统失败改为确定性未命中结果，保留 `campaignId`，提示确认 ID 是否复制完整或到后台客户群活动列表按群名/标题查对应批次。
+  - 43 问探针新增旧文案禁用词，禁止退回“未找到匹配客户地址”“活动批次不存在”“请稍后重试”。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 新增客户线索空结果、客户群活动不存在和对应 nextAction helper。
+  - `app/service/wecom/intelligent_bot_ops_tools.py` - 客户查询空结果和客户群不存在批次复用格式层 helper。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 客户线索和客户群样本新增旧文案禁用词。
+  - `tests/api/test_wecom_intelligent_bot_plugin_api.py` - 增加客户线索空结果、客户群不存在批次单工具契约回归。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 增加 callback 语义检查拒绝旧空结果文案回归。
+- **验证结果**:
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py::test_customer_lookup_empty_result_is_actionable tests/api/test_wecom_intelligent_bot_plugin_api.py::test_group_campaign_missing_result_is_actionable tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_generic_customer_lookup_empty_text tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_group_campaign_retry_detour -q --no-cov` 通过，4 条。
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，41 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，46 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_ops_tools.py scripts/wecom_employee_agent_probe_cases.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py app/service/wecom/intelligent_bot_ops_tools.py scripts/wecom_employee_agent_probe_cases.py tests/api/test_wecom_intelligent_bot_plugin_api.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+- **后续**:
+  - 提交后同步生产，并用 `/health`、`/ready` 和线上 43 问回调探针确认 `customer-lookup`、`group-campaign-summary` 预览不再出现旧空结果文案。
+
 ## [2026-07-04] - fix(wecom): 优化离线复盘摘要员工可读性
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-offline-review-readable
