@@ -540,7 +540,7 @@ def _ops_status_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "ops_query",
             ("handoff_pending",),
             required_any_terms=("待人工", "转人工"),
-            forbidden_terms=("买家", "ID:", "user"),
+            forbidden_terms=("买家", "ID:", "user", "UMP", "type=card", "%E5%"),
         ),
     )
 
@@ -729,7 +729,7 @@ def _casual_support_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "ops_query",
             ("handoff_pending",),
             required_any_terms=("待人工", "转人工"),
-            forbidden_terms=("买家", "ID:", "user"),
+            forbidden_terms=("买家", "ID:", "user", "UMP", "type=card", "%E5%"),
         ),
     )
 

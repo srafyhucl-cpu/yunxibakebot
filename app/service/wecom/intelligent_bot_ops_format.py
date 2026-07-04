@@ -17,6 +17,7 @@ OPS_STATUS_LABELS = {
 }
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 ADDRESS_PATTERN = re.compile(r"[\u4e00-\u9fa5A-Za-z0-9]{1,16}[路街道巷弄]\s*\d+\s*号?")
+DANGLING_UMP_PATTERN = re.compile(r"\s*\[UMP:\s*.*$", re.DOTALL)
 
 
 def compact_address(address: dict[str, Any]) -> dict[str, Any]:
@@ -178,6 +179,7 @@ def short_identifier(value: str) -> str:
 
 def redact_sensitive_text(content: str) -> str:
     clean_content, _tags = parse_ump_tags(content)
+    clean_content = DANGLING_UMP_PATTERN.sub("", clean_content)
 
     def replace_phone(match: re.Match[str]) -> str:
         return mask_phone(match.group(0))

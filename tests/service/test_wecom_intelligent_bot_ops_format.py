@@ -26,6 +26,17 @@ class _TransferWithUmp:
     created_at = "2026-07-04 09:05:00"
 
 
+class _TransferWithDanglingUmp:
+    id = "da8f723e-d755-4868-8c48-bf9813a77f42"
+    session_id = "sess_003"
+    user_id = "user_003"
+    reason = "转人工"
+    conversation_summary = (
+        "AI：好的，给您～ [UMP: type=card&id=3437083272&title=%E5%B0%8F"
+    )
+    created_at = "2026-07-04 09:06:00"
+
+
 def test_ops_summary_line_uses_staff_readable_status() -> None:
     reply = ops_summary_line(
         {
@@ -62,6 +73,17 @@ def test_transfer_line_removes_ump_card_marker_from_summary() -> None:
     reply = transfer_line(item)
 
     assert "工单尾号 77f41" in reply
+    assert "AI：好的，给您～" in reply
+    assert "UMP" not in reply
+    assert "type=card" not in reply
+    assert "%E5%B0%8F" not in reply
+
+
+def test_transfer_line_removes_dangling_ump_card_marker() -> None:
+    item = compact_transfer(_TransferWithDanglingUmp())
+    reply = transfer_line(item)
+
+    assert "工单尾号 77f42" in reply
     assert "AI：好的，给您～" in reply
     assert "UMP" not in reply
     assert "type=card" not in reply

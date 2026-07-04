@@ -360,6 +360,34 @@ def test_evaluate_reply_rejects_markdown_decorations() -> None:
     assert "semantic" in result.detail
 
 
+def test_evaluate_reply_rejects_ump_marker_in_handoff_summary() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe(
+            "handoff-pending",
+            "现在有哪些待人工",
+            required_any_terms=("待人工", "转人工"),
+            forbidden_terms=("UMP", "type=card", "%E5%"),
+        ),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": (
+                    "工单尾号 77f40｜转人工｜摘要：AI：好的 "
+                    "[UMP: type=card&id=1&title=%E5%B0%8F]"
+                ),
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+    assert "semantic" in result.detail
+
+
 async def test_main_requires_callback_credentials(monkeypatch, capsys) -> None:
     monkeypatch.setattr(callback_check, "resolve_callback_credentials", lambda: None)
 

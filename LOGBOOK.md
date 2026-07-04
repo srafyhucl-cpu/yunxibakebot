@@ -6,15 +6,20 @@
 - **决策**:
   - 复用既有 `app.service.wecom.ump.parse_ump_tags()`，不重复实现 UMP 解析。
   - 在 `redact_sensitive_text()` 入口统一移除 UMP 标记，再继续做手机号、地址脱敏和摘要截断；这样待人工摘要、客户群备注、Webhook 错误预览都能共享同一条安全清理链路。
+  - 生产首次同步后发现历史摘要中可能保存被截断的 `[UMP: ...` 残缺标记，既有 `parse_ump_tags()` 只能移除完整标签；因此新增残缺 UMP 尾部清理。
+  - 43 问探针的待人工样本新增 `UMP / type=card / %E5%` 禁用词，避免语义验收再漏过机器协议噪声。
   - 不改变 UMP 正常客服发送链路，不修改 `parse_ump_tags()` 行为。
 - **改动**:
-  - `app/service/wecom/intelligent_bot_ops_format.py` - 脱敏摘要清理前先移除 UMP 标记。
-  - `tests/service/test_wecom_intelligent_bot_ops_format.py` - 增加待人工摘要 UMP 卡片标记清理回归。
+  - `app/service/wecom/intelligent_bot_ops_format.py` - 脱敏摘要清理前先移除完整 UMP 标记，并清掉残缺 UMP 尾部标记。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 待人工两个回调样本禁止出现 UMP 卡片协议残留。
+  - `tests/service/test_wecom_intelligent_bot_ops_format.py` - 增加完整与残缺待人工摘要 UMP 卡片标记清理回归。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 增加 UMP 标记语义失败回归。
 - **验证结果**:
-  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/api/test_wecom_intelligent_bot_plugin_api.py::test_handoff_pending_returns_pending_transfers tests/api/test_wecom_intelligent_bot_plugin_api.py::test_ops_summary_returns_observability_counts -q --no-cov` 通过，5 条。
-  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_intelligent_bot_ops_format.py` 通过。
-  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_intelligent_bot_ops_format.py` 通过。
-  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，80 条。
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_ump_marker_in_handoff_summary -q --no-cov` 通过，5 条。
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_ops_format.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，39 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，46 条。
+  - `python -m ruff check app/service/wecom/intelligent_bot_ops_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_ops_format.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_intelligent_bot_ops_format.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
   - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
   - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
   - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
