@@ -8,6 +8,7 @@ from app.models.employee_agent import (
     AgentIntent,
     AnswerStyle,
     OrderQueryKind,
+    OrderQueryPlan,
     ToolResult,
 )
 from app.service.wecom import employee_agent_planner
@@ -15,6 +16,7 @@ from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 from app.service.wecom.employee_agent_service import EmployeeAgentService
 from app.service.wecom.intelligent_bot_order_format import (
+    build_order_list_tool_result,
     build_top_products_tool_result,
     employee_delivery_time_text,
 )
@@ -944,6 +946,42 @@ async def test_employee_agent_polish_rejects_overdue_delivery_detour(
     assert "需在6月7日11:00前完成" not in reply
 
 
+async def test_employee_agent_polish_preserves_fulfillment_order_list_shape(
+    monkeypatch,
+) -> None:
+    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "发货压力偏高，2单已过约送时间且暂无物流，"
+                            "建议优先处理尾号200101、200023。"
+                        )
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOverdueFulfillmentRiskOrderLookupService(),
+        planner=_planner(),
+        enable_llm_reply=True,
+    )
+
+    reply = await service.answer("哪些单快超时了")
+
+    assert "尾号 200101｜待收货" in reply
+    assert "约送 2026-06-06 11:00" in reply
+    assert "暂无物流" in reply
+
+
 async def test_employee_agent_polish_keeps_missing_logistics_marker(
     monkeypatch,
 ) -> None:
@@ -1102,7 +1140,7 @@ def test_build_top_products_tool_result_marks_low_sample_tie() -> None:
 
 def test_employee_delivery_time_text_marks_overdue_delivery(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.service.wecom.intelligent_bot_order_format.now_beijing_naive",
+        "app.service.wecom.intelligent_bot_delivery_format.now_beijing_naive",
         lambda: datetime(2026, 7, 4, 12, 0, 0),
     )
 
@@ -1111,6 +1149,34 @@ def test_employee_delivery_time_text_marks_overdue_delivery(monkeypatch) -> None
     )
 
     assert delivery_text == "约送 2026-06-06 11:00:00（已过约送时间）"
+
+
+def test_build_order_list_tool_result_labels_fulfillment_risk_order() -> None:
+    result = build_order_list_tool_result(
+        "哪些单快超时了",
+        {"total_count": 1},
+        [
+            {
+                "order_no": "E202607041200101",
+                "status": "WAIT_BUYER_CONFIRM_GOODS",
+                "product_titles": "水果盛宴 x 1",
+                "amount_fen": 31300,
+                "pay_time": "2026-06-06 10:00:00",
+                "delivery_time": "2026-06-06 11:00:00",
+            }
+        ],
+        OrderQueryPlan(
+            needs_fulfillment_risk=True,
+            date_field="delivery_time",
+            statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            sort_by="delivery_time",
+        ),
+    )
+
+    assert "按约送时间从早到晚展示" in result.summary
+    assert "尾号 200101｜待收货" in result.summary
+    assert "暂无物流" in result.summary
+    assert "已过约送时间" in result.next_action
 
 
 def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
@@ -1177,6 +1243,23 @@ def test_preserve_tool_facts_rejects_overdue_delivery_detour() -> None:
         "1. 尾号 200101｜约送 2026-06-06 11:00（已过约送时间）｜暂无物流"
     )
     polished_reply = "尾号200101需在6月7日11:00前完成发货。"
+
+    reply = preserve_tool_facts(polished_reply, deterministic_reply)
+
+    assert reply == deterministic_reply
+
+
+def test_preserve_tool_facts_rejects_fulfillment_order_list_compression() -> None:
+    deterministic_reply = (
+        "哪些单快超时了：找到 2 单，按约送时间从早到晚展示：\n"
+        "1. 尾号 200101｜待收货｜水果盛宴 x 1｜313.00 元｜"
+        "2026-06-06 10:00｜约送 2026-06-06 11:00（已过约送时间）｜暂无物流\n"
+        "2. 尾号 200023｜待收货｜焦糖杏仁糯米船 x 1｜198.00 元｜"
+        "2026-06-07 10:00｜约送 2026-06-07 11:00（已过约送时间）｜暂无物流"
+    )
+    polished_reply = (
+        "发货压力偏高，2单已过约送时间且暂无物流，建议优先处理尾号200101、200023。"
+    )
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 

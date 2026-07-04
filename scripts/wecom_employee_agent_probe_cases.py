@@ -242,6 +242,7 @@ def _order_list_probe_cases(
             expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
             expected_keyword="",
             expected_fulfillment_risk=True,
+            required_all_terms=("尾号", "约送", "物流"),
             required_any_terms=("超时", "约送", "待发货", "待收货", "发货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址")
             + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS
@@ -703,7 +704,7 @@ def _casual_order_probe_cases(today_text: str) -> tuple[EmployeeAgentProbeCase, 
             expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
             expected_keyword="",
             expected_fulfillment_risk=True,
-            required_all_terms=("发货压力",),
+            required_all_terms=("发货压力", "尾号", "约送", "物流"),
             required_any_terms=("偏高", "中等", "低", "约送", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址", "压力不大")
             + FULFILLMENT_RISK_RELATIVE_DATE_FORBIDDEN_TERMS

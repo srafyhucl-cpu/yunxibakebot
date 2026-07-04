@@ -1,4 +1,35 @@
 ﻿
+## [2026-07-04] - fix(wecom): 保留履约风险订单列表结构
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-fulfillment-list-shape
+- **背景**: 继续生产化验收企微员工助手时，发现 `fulfillment-risk-list` 和 `casual-fulfillment-pressure` 虽然能查到履约风险订单，但 LLM 润色可能把多单列表压缩成一句摘要，员工看不到每单尾号、状态、约送时间和物流标记，影响实际排查效率。
+- **决策**:
+  - 不改企微 API 回调入口，不改订单动态查询计划和仓库 SQL。
+  - 对履约风险订单列表的确定性标题改为“按约送时间从早到晚展示”，让员工知道排序口径。
+  - 对履约风险列表的下一步动作明确优先处理已过约送时间或暂无物流订单。
+  - 在回复事实保真层拦截 LLM 润色压缩多单列表：若确定性结果包含多条履约风险尾号，润色必须保留尾号、约送、物流和待发货/待收货状态，且不能减少尾号数量。
+  - 将配送时间格式化拆到独立模块，避免订单格式文件继续膨胀。
+- **改动**:
+  - `app/service/wecom/intelligent_bot_delivery_format.py` - 新增配送时间员工展示格式和已过约送时间判断。
+  - `app/service/wecom/intelligent_bot_order_format.py` - 履约风险列表标题、下一步动作和配送时间格式引用收口。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 新增履约风险多单列表结构保真守卫。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 履约风险和发货压力探针要求回复同时包含尾号、约送和物流。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 覆盖履约风险列表确定性格式、LLM 压缩回退和回调语义拒绝。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py::test_build_order_list_tool_result_labels_fulfillment_risk_order tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_fulfillment_order_list_compression tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_preserves_fulfillment_order_list_shape -q --no-cov` 通过，3 条。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，员工助手相关测试通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，43/43。
+  - `python -m ruff check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_delivery_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check app/service/wecom/intelligent_bot_order_format.py app/service/wecom/intelligent_bot_delivery_format.py app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 同步生产后补录 `/health`、`/ready`、43 问加密回调探针和履约风险解密抽查证据。
+
 ## [2026-07-04] - fix(wecom): 标记已过约送时间的履约风险单
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-overdue-fulfillment-marker

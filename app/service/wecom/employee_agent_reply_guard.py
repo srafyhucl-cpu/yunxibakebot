@@ -6,6 +6,7 @@ import re
 
 STOCK_VALUE_PATTERN = re.compile(r"库存\s*(\d+)")
 DELIVERY_DATE_PATTERN = re.compile(r"约送\s*(20\d{2}-\d{2}-\d{2})")
+ORDER_TAIL_PATTERN = re.compile(r"尾号\s*([A-Za-z0-9]+)")
 PHONE_PATTERN = re.compile(r"1[3-9]\d{9}")
 LONG_IDENTIFIER_PATTERN = re.compile(r"\b[A-Z]?\d{14,}\b")
 PRIVATE_FIELD_PATTERN = re.compile(
@@ -38,6 +39,9 @@ RELATIVE_DELIVERY_DATE_TERMS = (
 OVERDUE_DELIVERY_SOURCE_MARKER = "已过约送时间"
 OVERDUE_DELIVERY_ACCEPTABLE_TERMS = ("已过", "已逾期", "超时")
 OVERDUE_DELIVERY_DETOUR_TERMS = ("需在", "前完成", "前安排")
+FULFILLMENT_ORDER_LIST_SOURCE_MARKERS = ("按约送时间", "履约风险")
+FULFILLMENT_ORDER_LIST_REQUIRED_TERMS = ("尾号", "约送", "物流")
+FULFILLMENT_ORDER_LIST_STATUS_TERMS = ("待发货", "待收货")
 MISSING_LOGISTICS_SOURCE_MARKERS = ("暂无物流", "无物流")
 MISSING_LOGISTICS_REQUIRED_TERM = "物流"
 MISSING_LOGISTICS_EXCLUSION_TERMS = (
@@ -76,6 +80,8 @@ def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:
     if _introduces_relative_delivery_date(polished_reply, deterministic_reply):
         return deterministic_reply
     if _distorts_overdue_delivery_marker(polished_reply, deterministic_reply):
+        return deterministic_reply
+    if _compresses_fulfillment_order_list(polished_reply, deterministic_reply):
         return deterministic_reply
     if _misses_missing_logistics_marker(polished_reply, deterministic_reply):
         return deterministic_reply
@@ -163,6 +169,33 @@ def _distorts_overdue_delivery_marker(
     if not keeps_overdue_marker:
         return True
     return any(term in polished_reply for term in OVERDUE_DELIVERY_DETOUR_TERMS)
+
+
+def _compresses_fulfillment_order_list(
+    polished_reply: str,
+    deterministic_reply: str,
+) -> bool:
+    if not _has_fulfillment_order_list(deterministic_reply):
+        return False
+    if any(
+        term not in polished_reply for term in FULFILLMENT_ORDER_LIST_REQUIRED_TERMS
+    ):
+        return True
+    if not any(term in polished_reply for term in FULFILLMENT_ORDER_LIST_STATUS_TERMS):
+        return True
+    source_tail_count = len(ORDER_TAIL_PATTERN.findall(deterministic_reply))
+    polished_tail_count = len(ORDER_TAIL_PATTERN.findall(polished_reply))
+    return polished_tail_count < source_tail_count
+
+
+def _has_fulfillment_order_list(deterministic_reply: str) -> bool:
+    has_list_marker = any(
+        marker in deterministic_reply
+        for marker in FULFILLMENT_ORDER_LIST_SOURCE_MARKERS
+    )
+    if not has_list_marker:
+        return False
+    return len(ORDER_TAIL_PATTERN.findall(deterministic_reply)) > 1
 
 
 def _misses_missing_logistics_marker(

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import re
 from typing import Any
 
 from app.models.employee_agent import OrderQueryPlan, ToolResult
-from app.utils import BEIJING_TIMEZONE, now_beijing_naive
+from app.service.wecom.intelligent_bot_delivery_format import (
+    employee_delivery_time_text as employee_delivery_time_text,
+)
 from app.service.wecom.intelligent_bot_order_empty_format import (
     empty_order_list_text,
     empty_order_next_action,
@@ -30,7 +31,6 @@ ORDER_STATUS_LABELS = {
     "TRADE_CLOSED": "已关闭",
     "TRADE_PAID": "已付款",
 }
-DELIVERY_OVERDUE_MARKER = "已过约送时间"
 
 
 def build_order_summary_tool_result(
@@ -75,7 +75,7 @@ def build_order_list_tool_result(
             metrics=summary,
             next_action=empty_order_next_action(plan),
         )
-    lines = [f"{query}：找到 {len(orders)} 单，按最新订单展示："]
+    lines = [_order_list_heading(query, len(orders), plan)]
     if _looks_like_fulfillment_pressure_query(query):
         lines.append(_fulfillment_pressure_line(summary, orders))
     lines.extend(
@@ -86,7 +86,7 @@ def build_order_list_tool_result(
         summary="\n".join(lines),
         items=[compact_employee_order(order) for order in orders],
         metrics=summary,
-        next_action="列表默认只展示订单尾号，排查时可用尾号继续追问。",
+        next_action=_order_list_next_action(plan),
     )
 
 
@@ -173,6 +173,22 @@ def _looks_like_fulfillment_pressure_query(query: str) -> bool:
     return "发货压力" in query or "履约压力" in query
 
 
+def _order_list_heading(
+    query: str,
+    order_count: int,
+    plan: OrderQueryPlan | None,
+) -> str:
+    if plan is not None and plan.needs_fulfillment_risk:
+        return f"{query}：找到 {order_count} 单，按约送时间从早到晚展示："
+    return f"{query}：找到 {order_count} 单，按最新订单展示："
+
+
+def _order_list_next_action(plan: OrderQueryPlan | None) -> str:
+    if plan is not None and plan.needs_fulfillment_risk:
+        return "先处理已过约送时间或暂无物流的履约风险单；排查时可用尾号继续追问。"
+    return "列表默认只展示订单尾号，排查时可用尾号继续追问。"
+
+
 def _fulfillment_pressure_line(
     summary: dict[str, Any],
     orders: list[dict[str, Any]],
@@ -235,34 +251,6 @@ def employee_logistics_text(order: dict[str, Any]) -> str:
     if logistics_no:
         return "有物流单号"
     return "暂无物流"
-
-
-def employee_delivery_time_text(order: dict[str, Any]) -> str:
-    """格式化员工可读配送时间。"""
-    delivery_time = str(order.get("delivery_time") or "").strip()
-    if not delivery_time:
-        return "未约送"
-    overdue_text = (
-        f"（{DELIVERY_OVERDUE_MARKER}）"
-        if _is_delivery_time_overdue(delivery_time)
-        else ""
-    )
-    return f"约送 {delivery_time}{overdue_text}"
-
-
-def _is_delivery_time_overdue(delivery_time: str) -> bool:
-    normalized_delivery_time = delivery_time.strip()
-    if not normalized_delivery_time:
-        return False
-    try:
-        parsed_delivery_time = datetime.fromisoformat(normalized_delivery_time)
-    except ValueError:
-        return False
-    if parsed_delivery_time.tzinfo is not None:
-        parsed_delivery_time = parsed_delivery_time.astimezone(
-            BEIJING_TIMEZONE
-        ).replace(tzinfo=None)
-    return parsed_delivery_time < now_beijing_naive()
 
 
 def employee_refund_text(order: dict[str, Any]) -> str:

@@ -287,6 +287,32 @@ def test_evaluate_reply_rejects_wrong_fulfillment_pressure() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_rejects_compressed_fulfillment_list() -> None:
+    probe = callback_check.CallbackProbe(
+        "casual-fulfillment-pressure",
+        "今天发货压力大不大",
+        required_all_terms=("发货压力", "尾号", "约送", "物流"),
+        required_any_terms=("偏高", "中等", "低"),
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "发货压力偏高，履约风险已汇总。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is False
+    assert result.semantic_safe is False
+
+
 def test_evaluate_reply_rejects_product_knowledge_miss() -> None:
     probe = callback_check.CallbackProbe(
         "product-stock-recommend-replacement",
@@ -540,7 +566,9 @@ def _fake_reply_text(content: str) -> str:
             "今日订单优先级和发货压力已汇总，包含待处理、履约风险、退款和无物流事项。"
         )
     if "快超时" in content or "发货压力" in content or "履约压力" in content:
-        return "发货压力：偏高。待发货履约风险已汇总，含约送时间和订单尾号。"
+        return (
+            "发货压力：偏高。\n1. 尾号 000001｜待发货｜约送 2026-07-04 16:00｜暂无物流"
+        )
     if "晚上" in content and "待处理" in content:
         return "晚上待处理订单已汇总，包含约送时间和待发货状态。"
     if "明天" in content and "待处理" in content:
