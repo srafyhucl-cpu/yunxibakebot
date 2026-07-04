@@ -520,8 +520,10 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
                 "完整地址",
                 "比如",
                 "例如",
+                "北海道吐司",
                 "北海道牛奶吐司",
                 "经典白吐司",
+                "原味手撕包",
             ),
         ),
         EmployeeAgentProbeCase(

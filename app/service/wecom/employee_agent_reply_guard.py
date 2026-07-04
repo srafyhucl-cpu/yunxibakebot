@@ -72,7 +72,7 @@ TOP_PRODUCTS_TIE_FORBIDDEN_TERMS = ("优先备货", "销量第一", "当前爆�
 PRODUCT_MISS_SOURCE_MARKERS = ("未命中结果", "缺货结论")
 PRODUCT_MISS_REQUIRED_TERMS = ("未命中", "缺货")
 NO_STOCK_SOURCE_MARKER = "暂无可售库存"
-NO_STOCK_REPLACEMENT_EXAMPLE_TERMS = ("比如", "例如", "推荐你", "推荐：")
+NO_STOCK_REPLACEMENT_EXAMPLE_TERMS = ("比如", "例如", "如", "推荐你", "推荐：")
 
 
 def preserve_tool_facts(polished_reply: str, deterministic_reply: str) -> str:

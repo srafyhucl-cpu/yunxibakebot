@@ -6,7 +6,7 @@
 - **决策**:
   - 不改企微 API 回调入口，不改商品实时数据来源和商品过滤逻辑。
   - 在回复事实保真层拦截商品未命中保护语丢失：确定性结果包含“未命中结果 / 缺货结论”时，润色结果必须保留“未命中”和“缺货”关系。
-  - 在回复事实保真层拦截 0 库存替代品幻觉：确定性结果只提示“同品类或相近价位替代款”时，润色不能编造具体替代品名或示例。
+  - 在回复事实保真层拦截 0 库存替代品幻觉：确定性结果只提示“同品类或相近价位替代款”时，润色不能编造具体替代品名或示例；生产复查暴露“如北海道吐司 / 原味手撕包”分支后，已把“如 + 具体替代品”纳入同一守卫。
   - 将 `招牌牛奶吐司还有吗` 和 `不存在的月球蛋糕还有吗` 加入共享探针，规划和回调验收从 43 条扩展到 45 条。
 - **改动**:
   - `app/service/wecom/employee_agent_reply_guard.py` - 新增商品未命中保护语和无库存替代品幻觉守卫。
@@ -17,6 +17,7 @@
   - `VERSION` - 升级到 `0.74.28`。
 - **验证结果**:
   - `python -m pytest tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_rejects_no_stock_replacement_hallucination tests/service/test_wecom_employee_agent.py::test_employee_agent_polish_keeps_product_miss_guardrail tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_product_miss_guardrail_loss tests/service/test_wecom_employee_agent.py::test_preserve_tool_facts_rejects_no_stock_replacement_hallucination tests/scripts/test_check_wecom_employee_agent_callback.py::test_run_callback_checks_covers_employee_queries tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_no_stock_replacement_hallucination tests/scripts/test_check_wecom_employee_agent_callback.py::test_evaluate_reply_rejects_missing_product_guardrail_loss tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_no_stock_is_actionable tests/api/test_wecom_intelligent_bot_plugin_api.py::test_product_lookup_miss_is_not_stockout -q --no-cov` 通过，9 条。
+  - 生产首次同步后，单独抽查 `no-stock-product` 发现 LLM 仍可能用“如北海道吐司 / 原味手撕包”编具体替代品；已补 `test_employee_agent_polish_rejects_no_stock_replacement_hallucination`、`test_preserve_tool_facts_rejects_no_stock_replacement_hallucination`、`test_evaluate_reply_rejects_no_stock_replacement_hallucination` 覆盖该分支，聚焦 3 条通过。
   - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，员工助手和企微插件相关测试通过。
   - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，45/45。
   - `python -m ruff check app/service/wecom/employee_agent_reply_guard.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。

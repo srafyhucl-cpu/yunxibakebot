@@ -396,7 +396,13 @@ def test_evaluate_reply_rejects_no_stock_replacement_hallucination() -> None:
         "no-stock-product",
         "招牌牛奶吐司还有吗",
         required_all_terms=("库存", "0", "暂无可售库存", "不要承诺有货"),
-        forbidden_terms=("比如", "北海道牛奶吐司", "经典白吐司"),
+        forbidden_terms=(
+            "比如",
+            "北海道吐司",
+            "北海道牛奶吐司",
+            "经典白吐司",
+            "原味手撕包",
+        ),
     )
 
     result = callback_check.evaluate_reply(
@@ -409,7 +415,7 @@ def test_evaluate_reply_rejects_no_stock_replacement_hallucination() -> None:
                 "finish": True,
                 "content": (
                     "招牌牛奶吐司库存为0，暂时无货。"
-                    "比如可推荐【北海道牛奶吐司】或【经典白吐司】。"
+                    "建议推荐同价位替代款，如北海道吐司或原味手撕包。"
                 ),
             },
         },

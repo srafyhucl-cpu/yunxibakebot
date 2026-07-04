@@ -834,7 +834,7 @@ async def test_employee_agent_polish_rejects_no_stock_replacement_hallucination(
                     message=SimpleNamespace(
                         content=(
                             "招牌牛奶吐司库存为0，暂时无货。"
-                            "比如可推荐【北海道牛奶吐司】或【经典白吐司】。"
+                            "建议推荐同价位替代款，如北海道吐司或原味手撕包。"
                         )
                     )
                 )
@@ -857,8 +857,8 @@ async def test_employee_agent_polish_rejects_no_stock_replacement_hallucination(
     assert "库存 0" in reply
     assert "暂无可售库存" in reply
     assert "不要承诺有货" in reply
-    assert "北海道牛奶吐司" not in reply
-    assert "经典白吐司" not in reply
+    assert "北海道吐司" not in reply
+    assert "原味手撕包" not in reply
 
 
 async def test_employee_agent_polish_keeps_product_miss_guardrail(
@@ -1536,9 +1536,7 @@ def test_preserve_tool_facts_rejects_no_stock_replacement_hallucination() -> Non
         "下一步：当前命中商品暂无可售库存，先不要承诺有货；"
         "可推荐同品类或相近价位替代款。"
     )
-    polished_reply = (
-        "招牌牛奶吐司库存为0，暂时无货。比如可推荐【北海道牛奶吐司】或【经典白吐司】。"
-    )
+    polished_reply = "招牌牛奶吐司库存为0，暂时无货。建议推荐同价位替代款，如北海道吐司或原味手撕包。"
 
     reply = preserve_tool_facts(polished_reply, deterministic_reply)
 
