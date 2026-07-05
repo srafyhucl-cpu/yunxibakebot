@@ -163,9 +163,13 @@ async def run_phase_a() -> bool:
     _TEST_START = time.monotonic()
 
     print("\n" + "=" * 60)
-    print("Phase A：客服消息（含订单号）→ LLM Function Calling → 有赞 API → youzan_orders 回写")
+    print(
+        "Phase A：客服消息（含订单号）→ LLM Function Calling → 有赞 API → youzan_orders 回写"
+    )
     print("=" * 60)
-    print("  路径：DELIVERY_TRACKING 意图 → _ai_conversation_loop → get_order_info → upsert_order")
+    print(
+        "  路径：DELIVERY_TRACKING 意图 → _ai_conversation_loop → get_order_info → upsert_order"
+    )
 
     db_path = str(ROOT_DIR / settings.DB_PATH)
 
@@ -226,15 +230,24 @@ async def run_phase_a() -> bool:
     t_post_elapsed = time.monotonic() - t_post
 
     if response.status_code == HTTP_OK:
-        _ok(f"Webhook 接收返回 200（往返 {t_post_elapsed:.2f}s）",
-            f"body={response.text[:80]}")
+        _ok(
+            f"Webhook 接收返回 200（往返 {t_post_elapsed:.2f}s）",
+            f"body={response.text[:80]}",
+        )
     else:
-        _fail(f"Webhook 返回非 200", f"status={response.status_code}  body={response.text[:120]}")
+        _fail(
+            f"Webhook 返回非 200",
+            f"status={response.status_code}  body={response.text[:120]}",
+        )
         return False
 
     # ── Step 3：轮询等待 Function Calling → DB 写入 ───────────────────────────
-    _step(f"轮询等待 LLM Function Calling → 有赞 API → upsert_order（最长 {POLL_MAX_S}s）")
-    _info("链路：意图识别 → _ai_conversation_loop → get_order_info → youzan.trade.get → upsert_order")
+    _step(
+        f"轮询等待 LLM Function Calling → 有赞 API → upsert_order（最长 {POLL_MAX_S}s）"
+    )
+    _info(
+        "链路：意图识别 → _ai_conversation_loop → get_order_info → youzan.trade.get → upsert_order"
+    )
     record = await _poll_order(db_path, order_no, test_start_ts)
 
     # ── Step 4：断言 DB 写入 ───────────────────────────────────────────────────
@@ -249,7 +262,9 @@ async def run_phase_a() -> bool:
 
     # updated_at 存储有赞订单自身的 update_time，不是 DB 写入时间
     # 判断依据：测试前已 DELETE 过该 order_no，能查到记录即证明本次 Function Calling 写入
-    _ok(f"youzan_orders 有记录（测试前已删除，现重新出现，证明本次 Function Calling 写入成功）")
+    _ok(
+        f"youzan_orders 有记录（测试前已删除，现重新出现，证明本次 Function Calling 写入成功）"
+    )
     updated_ts = record.get("updated_at", "")
     print(f"\n              {'字段':<22} {'值'}")
     print(f"              {'-' * 55}")
@@ -279,5 +294,7 @@ async def run_phase_a() -> bool:
 if __name__ == "__main__":
     result = asyncio.run(run_phase_a())
     elapsed = time.monotonic() - _TEST_START
-    print(f"\n{'✅ Phase A 通过' if result else '❌ Phase A 失败'}  总耗时 {elapsed:.1f}s\n")
+    print(
+        f"\n{'✅ Phase A 通过' if result else '❌ Phase A 失败'}  总耗时 {elapsed:.1f}s\n"
+    )
     sys.exit(0 if result else 1)

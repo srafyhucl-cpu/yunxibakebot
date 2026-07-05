@@ -1,4 +1,5 @@
 """临时用：查询本地 DB 打印测试详细结果，用完可删。"""
+
 import sqlite3
 import sys
 from pathlib import Path

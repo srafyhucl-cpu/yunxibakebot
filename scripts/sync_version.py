@@ -19,6 +19,7 @@ Pre-commit hook: 版本同步门禁。
 用法（由 .pre-commit-config.yaml 自动调用）：
   python scripts/sync_version.py [commit_msg_file]
 """
+
 from __future__ import annotations
 
 import os
@@ -51,6 +52,7 @@ FORCE_BUMP_ENV = "VERSION_BUMP"
 # 1. 版本号工具
 # ────────────────────────────────────────────
 
+
 def read_version() -> str:
     """读取 VERSION 文件中的当前版本号。"""
     return VERSION_FILE.read_text(encoding="utf-8").strip()
@@ -65,7 +67,9 @@ def bump_version(current: str, bump_type: str) -> str:
     """根据递增类型计算新版本号。"""
     parts = current.split(".")
     if len(parts) != 3:
-        print(f"[version-sync] [WARN] VERSION 文件格式异常: {current!r}，预期 semver (x.y.z)")
+        print(
+            f"[version-sync] [WARN] VERSION 文件格式异常: {current!r}，预期 semver (x.y.z)"
+        )
         return current
 
     major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
@@ -145,11 +149,19 @@ def get_staged_commit_msg() -> str:
 # 2. 文档同步校验
 # ────────────────────────────────────────────
 
+
 def get_staged_files() -> list[str]:
     """获取本次暂存的文件列表。"""
     result = subprocess.run(
-        ["git", "-c", "core.quotepath=false",
-         "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        [
+            "git",
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACMR",
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -159,10 +171,7 @@ def get_staged_files() -> list[str]:
 
 def has_code_changes(staged: list[str]) -> bool:
     """判断暂存区中是否存在代码变更。"""
-    return any(
-        any(f.endswith(ext) for ext in CODE_EXTENSIONS)
-        for f in staged
-    )
+    return any(any(f.endswith(ext) for ext in CODE_EXTENSIONS) for f in staged)
 
 
 def check_doc_sync(staged: list[str]) -> list[str]:
@@ -186,7 +195,9 @@ def check_config_version_consistency(new_version: str) -> bool:
 
     actual = read_version()
     if actual != new_version:
-        print(f"[version-sync] [ERR] VERSION 文件内容不一致: 期望 {new_version!r}，实际 {actual!r}")
+        print(
+            f"[version-sync] [ERR] VERSION 文件内容不一致: 期望 {new_version!r}，实际 {actual!r}"
+        )
         return False
 
     return True
@@ -195,6 +206,7 @@ def check_config_version_consistency(new_version: str) -> bool:
 # ────────────────────────────────────────────
 # 3. 版本号注入到项目进度与配置清单
 # ────────────────────────────────────────────
+
 
 def inject_version_to_progress(new_version: str) -> None:
     """在项目进度与配置清单.md 的表头中注入版本号。"""
@@ -229,6 +241,7 @@ def inject_version_to_progress(new_version: str) -> None:
 # 4. 主流程
 # ────────────────────────────────────────────
 
+
 def main() -> int:
     # 0. 检查跳过标志
     if os.environ.get(SKIP_ENV):
@@ -252,7 +265,9 @@ def main() -> int:
     force_bump = os.environ.get(FORCE_BUMP_ENV)
     if force_bump in ("major", "minor", "patch"):
         bump_type = force_bump
-        print(f"[version-sync] 强制递增类型: {bump_type}（来自环境变量 {FORCE_BUMP_ENV}）")
+        print(
+            f"[version-sync] 强制递增类型: {bump_type}（来自环境变量 {FORCE_BUMP_ENV}）"
+        )
     else:
         commit_msg = get_staged_commit_msg()
         bump_type = determine_bump_type(commit_msg)

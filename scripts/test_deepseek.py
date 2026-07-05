@@ -24,7 +24,9 @@ async def test_deepseek() -> None:
     print("=" * 60)
     print(f"  模型:         {settings.DEEPSEEK_MODEL}")
     print(f"  API 地址:     {settings.DEEPSEEK_BASE_URL}")
-    print(f"  API Key:      {settings.DEEPSEEK_API_KEY[:8]}...{settings.DEEPSEEK_API_KEY[-4:]}")
+    print(
+        f"  API Key:      {settings.DEEPSEEK_API_KEY[:8]}...{settings.DEEPSEEK_API_KEY[-4:]}"
+    )
 
     client = AsyncOpenAI(
         api_key=settings.DEEPSEEK_API_KEY,
@@ -40,12 +42,19 @@ async def test_deepseek() -> None:
     print("发送请求 (Request)")
     print("=" * 60)
     print("\n请求参数:")
-    print(json.dumps({
-        "model": settings.DEEPSEEK_MODEL,
-        "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 1024,
-    }, ensure_ascii=False, indent=2, default=str))
+    print(
+        json.dumps(
+            {
+                "model": settings.DEEPSEEK_MODEL,
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 1024,
+            },
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+    )
 
     print(f"\n{'=' * 60}")
     print("接收响应 (Response)")

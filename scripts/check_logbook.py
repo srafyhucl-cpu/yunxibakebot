@@ -6,6 +6,7 @@ Pre-commit hook: 检查本次暂存的变更是否同步更新了必要的项目
   2. 项目进度与配置清单.md  — 项目进度与配置状态（进度/功能/已知问题等）
 可用环境变量 SKIP_LOGBOOK_CHECK=1 临时跳过（纯配置/格式修正时使用）。
 """
+
 import os
 import subprocess
 import sys
@@ -29,8 +30,15 @@ CODE_EXTENSIONS = {".py", ".html", ".css", ".js"}
 def get_staged_files() -> list[str]:
     # core.quotepath=false 禁止 git 对中文文件名做八进制转义
     result = subprocess.run(
-        ["git", "-c", "core.quotepath=false",
-         "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        [
+            "git",
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACMR",
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -47,10 +55,7 @@ def main() -> int:
     if not staged:
         return 0
 
-    has_code = any(
-        any(f.endswith(ext) for ext in CODE_EXTENSIONS)
-        for f in staged
-    )
+    has_code = any(any(f.endswith(ext) for ext in CODE_EXTENSIONS) for f in staged)
     if not has_code:
         return 0
 

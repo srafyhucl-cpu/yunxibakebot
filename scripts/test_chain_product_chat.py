@@ -115,7 +115,9 @@ async def _fetch_assistant_reply(db_path: str, buyer_id: str) -> str | None:
             return row[0] if row else None
 
 
-async def _poll_assistant_reply(db_path: str, buyer_id: str, timeout: int = 20) -> str | None:
+async def _poll_assistant_reply(
+    db_path: str, buyer_id: str, timeout: int = 20
+) -> str | None:
     """轮询直到 buyer_id 对应会话中出现 assistant 回复（LLM 生成回复有延迟）。"""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -209,8 +211,12 @@ async def run_phase_c() -> bool:
     print("Phase C：客服消息（含商品 item_id）→ LLM get_product_info")
     print("         → 有赞 API → youzan_products + knowledge_base + 向量三路回写")
     print("=" * 60)
-    print("  路径：PRODUCT_INQUIRY 意图 → _ai_conversation_loop → get_product_info(product_id=item_id)")
-    print("        → _refresh_product_live → youzan.item.get → upsert_product + upsert_product_knowledge + vs.upsert_one")
+    print(
+        "  路径：PRODUCT_INQUIRY 意图 → _ai_conversation_loop → get_product_info(product_id=item_id)"
+    )
+    print(
+        "        → _refresh_product_live → youzan.item.get → upsert_product + upsert_product_knowledge + vs.upsert_one"
+    )
 
     db_path = str(ROOT_DIR / settings.DB_PATH)
 
@@ -225,7 +231,9 @@ async def run_phase_c() -> bool:
     _step("采集重置前快照")
     snapshot_before = await _snapshot_product(db_path, item_id)
     _info(f"title={snapshot_before['title'] if snapshot_before else 'N/A'}")
-    _info(f"price_fen={snapshot_before['price_fen'] if snapshot_before else 'N/A'}  stock={snapshot_before['stock'] if snapshot_before else 'N/A'}")
+    _info(
+        f"price_fen={snapshot_before['price_fen'] if snapshot_before else 'N/A'}  stock={snapshot_before['stock'] if snapshot_before else 'N/A'}"
+    )
 
     _step("重置 youzan_products + knowledge_base updated_at 到 2000 年")
     await _reset_timestamps(db_path, item_id)
@@ -262,8 +270,12 @@ async def run_phase_c() -> bool:
         return False
 
     # ── 轮询等待 ──────────────────────────────────────────────────────────────
-    _step(f"轮询等待 LLM Function Calling → 有赞 API → 三路写入（最长 {WAIT_MAX_SECONDS}s）")
-    _info("链路：意图识别 → _ai_conversation_loop → get_product_info → _refresh_product_live → upsert*3")
+    _step(
+        f"轮询等待 LLM Function Calling → 有赞 API → 三路写入（最长 {WAIT_MAX_SECONDS}s）"
+    )
+    _info(
+        "链路：意图识别 → _ai_conversation_loop → get_product_info → _refresh_product_live → upsert*3"
+    )
 
     updated_row = await _poll_product_updated(db_path, item_id)
 
@@ -272,7 +284,9 @@ async def run_phase_c() -> bool:
     _step("断言 youzan_products 回写")
     prod_ok = updated_row is not None
     if prod_ok:
-        _ok("youzan_products 已写入（updated_at 超过哨兵，证明本次 Function Calling 触发 API 刷新）")
+        _ok(
+            "youzan_products 已写入（updated_at 超过哨兵，证明本次 Function Calling 触发 API 刷新）"
+        )
         _print_diff_table(snapshot_before, updated_row)
     else:
         _fail(f"youzan_products 未在 {WAIT_MAX_SECONDS}s 内更新")
@@ -284,7 +298,9 @@ async def run_phase_c() -> bool:
     if kb_ok:
         _ok("knowledge_base 已更新", f"id={kb['id']}  updated_at={kb['updated_at']}")
     elif kb:
-        _fail(f"knowledge_base 存在但 updated_at 未刷新（{kb['updated_at']} ≤ {_SENTINEL}）")
+        _fail(
+            f"knowledge_base 存在但 updated_at 未刷新（{kb['updated_at']} ≤ {_SENTINEL}）"
+        )
     else:
         _fail("knowledge_base 无对应条目")
 
@@ -292,12 +308,18 @@ async def run_phase_c() -> bool:
     emb_mtime_r1, emb_keys_r1 = _snapshot_embeddings()
     emb_ok = emb_mtime_r1 > test_start_ts
     if emb_ok:
-        _ok("embeddings.json 已刷新落盘", f"mtime 进阶 +{emb_mtime_r1 - test_start_ts:.2f}s，doc_keys 共 {len(emb_keys_r1)} 条")
+        _ok(
+            "embeddings.json 已刷新落盘",
+            f"mtime 进阶 +{emb_mtime_r1 - test_start_ts:.2f}s，doc_keys 共 {len(emb_keys_r1)} 条",
+        )
     else:
         _fail("embeddings.json 未刷新（periodic_save_task 尚未唤醒）")
     key_ok = str(item_id) in emb_keys_r1
     if key_ok:
-        _ok("doc_keys 包含目标商品", f"item_id={item_id} 在向量矩阵中（共 {len(emb_keys_r1)} 条）")
+        _ok(
+            "doc_keys 包含目标商品",
+            f"item_id={item_id} 在向量矩阵中（共 {len(emb_keys_r1)} 条）",
+        )
     else:
         _fail(f"doc_keys 未找到 item_id={item_id}")
 
@@ -310,8 +332,10 @@ async def run_phase_c() -> bool:
         for line in reply[:200].splitlines():
             print(f"              {line}")
     else:
-        _fail("assistant 回复为空或过短（可能意图识别错误/兜底失败）",
-              f"reply={repr(reply)}")
+        _fail(
+            "assistant 回复为空或过短（可能意图识别错误/兜底失败）",
+            f"reply={repr(reply)}",
+        )
 
     # ══════════════════════════════════════════════════════════════════════════
     print(f"\n  ── Run 2（重复推送同 item_id，期望 doc_keys 幂等不增）──")
@@ -344,10 +368,12 @@ async def run_phase_c() -> bool:
     if idempotent:
         _ok(
             f"doc_keys 数量未变（{len(emb_keys_r1)} → {len(emb_keys_r2)}）",
-            "重复推送同 item_id 是原地替换而非追加，幂等性通过"
+            "重复推送同 item_id 是原地替换而非追加，幂等性通过",
         )
     else:
-        _fail(f"doc_keys 意外新增（{len(emb_keys_r1)} → {len(emb_keys_r2)}），幂等防线失效")
+        _fail(
+            f"doc_keys 意外新增（{len(emb_keys_r1)} → {len(emb_keys_r2)}），幂等防线失效"
+        )
 
     passed = prod_ok and kb_ok and emb_ok and key_ok and reply_ok and idempotent
     return passed
@@ -356,5 +382,7 @@ async def run_phase_c() -> bool:
 if __name__ == "__main__":
     result = asyncio.run(run_phase_c())
     elapsed = time.monotonic() - _TEST_START
-    print(f"\n{'✅ Phase C 通过' if result else '❌ Phase C 失败'}  总耗时 {elapsed:.1f}s\n")
+    print(
+        f"\n{'✅ Phase C 通过' if result else '❌ Phase C 失败'}  总耗时 {elapsed:.1f}s\n"
+    )
     sys.exit(0 if result else 1)

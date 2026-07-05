@@ -203,10 +203,18 @@ async def run_phase_b() -> bool:
     snapshot_before = await _snapshot_product(db_path, item_id)
     analytics_before = await _count_analytics(db_path, item_id)
     kb_before = await _fetch_knowledge(db_path, item_id)
-    _info(f"youzan_products.title={snapshot_before['title'] if snapshot_before else 'N/A'}")
-    _info(f"youzan_products.updated_at={snapshot_before['updated_at'] if snapshot_before else 'N/A'}")
-    _info(f"youzan_products.price_fen={snapshot_before['price_fen'] if snapshot_before else 'N/A'}")
-    _info(f"youzan_products.stock={snapshot_before['stock'] if snapshot_before else 'N/A'}")
+    _info(
+        f"youzan_products.title={snapshot_before['title'] if snapshot_before else 'N/A'}"
+    )
+    _info(
+        f"youzan_products.updated_at={snapshot_before['updated_at'] if snapshot_before else 'N/A'}"
+    )
+    _info(
+        f"youzan_products.price_fen={snapshot_before['price_fen'] if snapshot_before else 'N/A'}"
+    )
+    _info(
+        f"youzan_products.stock={snapshot_before['stock'] if snapshot_before else 'N/A'}"
+    )
     _info(f"knowledge_base 条目: {'存在' if kb_before else '不存在'}")
     _info(f"analytics_events(price_sync/stock_alert)={analytics_before}")
 
@@ -216,11 +224,15 @@ async def run_phase_b() -> bool:
 
     emb_mtime_base, emb_keys_base = _snapshot_embeddings()
     test_start_ts = time.time()
-    test_start_str = datetime.datetime.fromtimestamp(test_start_ts).strftime("%Y-%m-%d %H:%M:%S")
+    test_start_str = datetime.datetime.fromtimestamp(test_start_ts).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     _step("构造 item_ItemUpdate 事件并 POST")
     raw_body, sig = _build_system_event_body(item_id)
     payload_preview = json.loads(raw_body)
-    _info(f"type={payload_preview['type']}  item_id={item_id}  kdt_id={payload_preview['kdt_id']}")
+    _info(
+        f"type={payload_preview['type']}  item_id={item_id}  kdt_id={payload_preview['kdt_id']}"
+    )
     _info(f"signature={sig}")
 
     status, elapsed = await _post_event(raw_body, sig)
@@ -238,9 +250,9 @@ async def run_phase_b() -> bool:
 
     _step("断言 youzan_products 回写")
     snapshot_r1 = await _snapshot_product(db_path, item_id)
-    updated = (
-        snapshot_r1 is not None
-        and (snapshot_before is None or snapshot_r1["updated_at"] >= snapshot_before["updated_at"])
+    updated = snapshot_r1 is not None and (
+        snapshot_before is None
+        or snapshot_r1["updated_at"] >= snapshot_before["updated_at"]
     )
     if updated:
         _ok("updated_at 已刷新")
@@ -255,21 +267,25 @@ async def run_phase_b() -> bool:
     if kb_updated:
         _ok(
             f"knowledge_base 已更新",
-            f"id={kb_r1['id']}  updated_at={kb_r1['updated_at']}  （测试前已降至 2000-01-01，现为新时间证明本次写入）"
+            f"id={kb_r1['id']}  updated_at={kb_r1['updated_at']}  （测试前已降至 2000-01-01，现为新时间证明本次写入）",
         )
         print(f"\n              ── 知识内容前 300 字 ──")
         for line in kb_r1["content_preview"].splitlines():
             print(f"              {line}")
     elif kb_r1:
-        _fail(f"knowledge_base 条目存在但 updated_at 未刷新（{kb_r1['updated_at']} ≤ {_SENTINEL}）")
+        _fail(
+            f"knowledge_base 条目存在但 updated_at 未刷新（{kb_r1['updated_at']} ≤ {_SENTINEL}）"
+        )
     else:
         _fail("knowledge_base 无对应条目")
 
     _step("断言 analytics_events 埋点")
     analytics_r1 = await _count_analytics(db_path, item_id)
     if analytics_r1 >= analytics_before:
-        _ok(f"analytics_events 数量 ≥ 基线（{analytics_before} → {analytics_r1}）",
-            "price_sync / stock_alert 至少持平（无变化时正常为 0）")
+        _ok(
+            f"analytics_events 数量 ≥ 基线（{analytics_before} → {analytics_r1}）",
+            "price_sync / stock_alert 至少持平（无变化时正常为 0）",
+        )
     else:
         _fail(f"analytics_events 数量异常下降（{analytics_before} → {analytics_r1}）")
 
@@ -279,13 +295,16 @@ async def run_phase_b() -> bool:
     if emb_updated:
         _ok(
             f"embeddings.json 已刷新落盘",
-            f"mtime 进阶 +{emb_mtime_r1 - test_start_ts:.2f}s，doc_keys 共 {len(emb_keys_r1)} 条"
+            f"mtime 进阶 +{emb_mtime_r1 - test_start_ts:.2f}s，doc_keys 共 {len(emb_keys_r1)} 条",
         )
     else:
         _fail("embeddings.json 未刷新（可能 periodic_save_task 尚未唤醒）")
     emb_key_hit = str(item_id) in emb_keys_r1
     if emb_key_hit:
-        _ok(f"doc_keys 包含目标商品", f"item_id={item_id} 在向量矩阵中（共 {len(emb_keys_r1)} 条）")
+        _ok(
+            f"doc_keys 包含目标商品",
+            f"item_id={item_id} 在向量矩阵中（共 {len(emb_keys_r1)} 条）",
+        )
     else:
         _fail(f"doc_keys 未找到 item_id={item_id}（当前共 {len(emb_keys_r1)} 条）")
 
@@ -321,15 +340,22 @@ async def run_phase_b() -> bool:
     if emb_idempotent:
         _ok(
             f"doc_keys 数量未变（{len(emb_keys_r1)} → {len(emb_keys_r2)}）",
-            f"重复推送是原地替换而非追加，幂等性通过"
+            f"重复推送是原地替换而非追加，幂等性通过",
         )
     else:
-        _fail(f"doc_keys 意外新增（{len(emb_keys_r1)} → {len(emb_keys_r2)}），幂等防线失效")
+        _fail(
+            f"doc_keys 意外新增（{len(emb_keys_r1)} → {len(emb_keys_r2)}），幂等防线失效"
+        )
 
     passed = (
-        updated and kb_updated and (analytics_r1 >= analytics_before)
-        and (status == HTTP_OK) and idempotent
-        and emb_updated and emb_key_hit and emb_idempotent
+        updated
+        and kb_updated
+        and (analytics_r1 >= analytics_before)
+        and (status == HTTP_OK)
+        and idempotent
+        and emb_updated
+        and emb_key_hit
+        and emb_idempotent
     )
     return passed
 
@@ -337,5 +363,7 @@ async def run_phase_b() -> bool:
 if __name__ == "__main__":
     result = asyncio.run(run_phase_b())
     elapsed = time.monotonic() - _TEST_START
-    print(f"\n{'✅ Phase B 通过' if result else '❌ Phase B 失败'}  总耗时 {elapsed:.1f}s\n")
+    print(
+        f"\n{'✅ Phase B 通过' if result else '❌ Phase B 失败'}  总耗时 {elapsed:.1f}s\n"
+    )
     sys.exit(0 if result else 1)

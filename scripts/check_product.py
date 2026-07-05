@@ -1,5 +1,7 @@
 import aiosqlite
 import asyncio
+
+
 async def c():
     conn = await aiosqlite.connect("data/bot.db")
     conn.row_factory = aiosqlite.Row
@@ -19,5 +21,6 @@ async def c():
         print(f"--- 示例产品: {row2[0]['title']} ---")
         print(row2[0]["content"])
     await conn.close()
+
 
 asyncio.run(c())

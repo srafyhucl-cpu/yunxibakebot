@@ -1,9 +1,12 @@
 """测试新的 8 意图分类"""
+
 import sys
 import asyncio
 import httpx
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 
 async def test():
     url = "http://127.0.0.1:7001/api/v1/admin/chat-test"
@@ -19,7 +22,13 @@ async def test():
         ("🙋 人工服务", {"content": "转人工", "user_id": "t_human"}),
         ("👋 闲聊其他", {"content": "你好呀", "user_id": "t_greeting"}),
         ("⚠️ 极端噪声(过滤)", {"content": "!!!🎂🍰???", "user_id": "t_noise"}),
-        ("🙋 多意图交织(高优提升)", {"content": "你们蛋糕送过来全碎了，赶紧退款，叫你们真人客服出来解决！", "user_id": "t_complex"}),
+        (
+            "🙋 多意图交织(高优提升)",
+            {
+                "content": "你们蛋糕送过来全碎了，赶紧退款，叫你们真人客服出来解决！",
+                "user_id": "t_complex",
+            },
+        ),
     ]
 
     async with httpx.AsyncClient() as c:
@@ -43,5 +52,6 @@ async def test():
                 print()
             except Exception as exc:
                 print(f"请求失败 {label}: {exc}")
+
 
 asyncio.run(test())

@@ -41,6 +41,7 @@ def _load_item_ids() -> list[int]:
     """启动时同步从本地 DB 取 item_id 样本（最多 20 个）。"""
     try:
         import sqlite3
+
         db_path = str(ROOT_DIR / settings.DB_PATH)
         with sqlite3.connect(db_path) as conn:
             rows = conn.execute(

@@ -45,7 +45,9 @@ async def main() -> None:
         print(f"  - 真实在线在售商品共: {len(onsale_ids)} 个")
 
         if not onsale_ids:
-            print("❌ 未拉取到任何在线商品，请检查有赞 API 配置，暂不执行状态校准以防误伤。")
+            print(
+                "❌ 未拉取到任何在线商品，请检查有赞 API 配置，暂不执行状态校准以防误伤。"
+            )
             return
 
         # 2. 全量状态校准（以有赞在售列表为唯一准则）
@@ -57,27 +59,31 @@ async def main() -> None:
         # 将有赞在售的商品，在 youzan_products 和 knowledge_base 里全部恢复为在售 (is_active=1)
         cursor_yp_active = await db.execute(
             f"UPDATE youzan_products SET is_active = 1 WHERE item_id IN ({placeholders}) AND is_active = 0",
-            tuple(onsale_ids)
+            tuple(onsale_ids),
         )
         cursor_kb_active = await db.execute(
             f"UPDATE knowledge_base SET is_active = 1 WHERE youzan_item_id IN ({placeholders}) AND is_active = 0 AND category = 'product'",
-            tuple(map(str, onsale_ids))
+            tuple(map(str, onsale_ids)),
         )
 
         # 将不在有赞在售的商品，在 youzan_products 和 knowledge_base 里全部标记为下架 (is_active=0)
         cursor_yp_inactive = await db.execute(
             f"UPDATE youzan_products SET is_active = 0 WHERE item_id NOT IN ({placeholders}) AND is_active = 1",
-            tuple(onsale_ids)
+            tuple(onsale_ids),
         )
         cursor_kb_inactive = await db.execute(
             f"UPDATE knowledge_base SET is_active = 0 WHERE youzan_item_id NOT IN ({placeholders}) AND is_active = 1 AND category = 'product'",
-            tuple(map(str, onsale_ids))
+            tuple(map(str, onsale_ids)),
         )
 
         await db.commit()
 
-        print(f"  - [youzan_products] 表状态校准: 恢复上架 {cursor_yp_active.rowcount} 个，联动下架 {cursor_yp_inactive.rowcount} 个")
-        print(f"  - [knowledge_base] 表状态校准: 恢复上架 {cursor_kb_active.rowcount} 个，联动下架 {cursor_kb_inactive.rowcount} 个")
+        print(
+            f"  - [youzan_products] 表状态校准: 恢复上架 {cursor_yp_active.rowcount} 个，联动下架 {cursor_yp_inactive.rowcount} 个"
+        )
+        print(
+            f"  - [knowledge_base] 表状态校准: 恢复上架 {cursor_kb_active.rowcount} 个，联动下架 {cursor_kb_inactive.rowcount} 个"
+        )
 
         # 3. 补齐商品编码 item_no
         print("[3] 正在获取数据库中商品编码为空的商品记录...")
@@ -96,17 +102,21 @@ async def main() -> None:
                 async with sem:
                     try:
                         raw = await yz_client.get_product(iid)
-                        item = (raw.get("data") or raw.get("response") or {}).get("item") or {}
+                        item = (raw.get("data") or raw.get("response") or {}).get(
+                            "item"
+                        ) or {}
                         item_no = item.get("item_no", "") or ""
                         sold_num = int(item.get("sold_num", 0) or 0)
 
                         # 强制写入数据库
                         await db.execute(
                             "UPDATE youzan_products SET item_no = ?, sold_num = ? WHERE item_id = ?",
-                            (item_no, sold_num, iid)
+                            (item_no, sold_num, iid),
                         )
                         await db.commit()
-                        print(f"    [OK] 补齐 [{title}] (ID: {iid}) -> 编码: {item_no}, 销量: {sold_num}")
+                        print(
+                            f"    [OK] 补齐 [{title}] (ID: {iid}) -> 编码: {item_no}, 销量: {sold_num}"
+                        )
                         updated_count += 1
                     except Exception as exc:
                         print(f"    [ERROR] 补齐 [{title}] (ID: {iid}) 失败: {exc}")
@@ -114,7 +124,9 @@ async def main() -> None:
 
             tasks = [_fetch_and_update(row["item_id"], row["title"]) for row in rows]
             await asyncio.gather(*tasks)
-            print(f"\n编码补齐与销量回写执行完毕！成功: {updated_count}，失败: {failed_count}")
+            print(
+                f"\n编码补齐与销量回写执行完毕！成功: {updated_count}，失败: {failed_count}"
+            )
 
         await yz_client.close()
         print("\n🏆 全量状态对齐与编码自愈任务完美结束！")

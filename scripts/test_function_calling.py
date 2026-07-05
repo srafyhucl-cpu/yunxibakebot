@@ -28,7 +28,10 @@ async def test_function_calling() -> None:
     # 场景 1：用户查订单
     # =========================================
     messages = [
-        {"role": "system", "content": "你是芸熙烘焙的智能客服。可以通过工具查询订单信息。"},
+        {
+            "role": "system",
+            "content": "你是芸熙烘焙的智能客服。可以通过工具查询订单信息。",
+        },
         {"role": "user", "content": "帮我查一下订单 E20240516001 到哪了"},
     ]
 
@@ -64,7 +67,10 @@ async def test_function_calling() -> None:
     # 场景 2：用户要求转人工
     # =========================================
     messages2 = [
-        {"role": "system", "content": "你是芸熙烘焙的智能客服。当用户要求转人工时可以调用工具。"},
+        {
+            "role": "system",
+            "content": "你是芸熙烘焙的智能客服。当用户要求转人工时可以调用工具。",
+        },
         {"role": "user", "content": "我要投诉，转人工客服"},
     ]
 

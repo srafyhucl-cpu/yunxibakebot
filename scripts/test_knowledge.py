@@ -1,8 +1,10 @@
 """
 测试知识库注入后 AI 能否准确回答真实价格。
 """
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import asyncio

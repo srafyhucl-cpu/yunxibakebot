@@ -25,6 +25,7 @@ LOGBOOK 自动追加工具。
   chore     构建/工程
   test      测试
 """
+
 from __future__ import annotations
 
 import argparse
@@ -66,8 +67,15 @@ def get_today() -> str:
 def get_git_diff_files() -> list[str]:
     """获取当前暂存区中变更的文件列表。"""
     result = subprocess.run(
-        ["git", "-c", "core.quotepath=false",
-         "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        [
+            "git",
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACMR",
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -203,7 +211,11 @@ def main() -> int:
         scope = args.scope
         desc = args.desc
         task = args.task
-        files = [f.strip() for f in args.files.split(",") if f.strip()] if args.files else []
+        files = (
+            [f.strip() for f in args.files.split(",") if f.strip()]
+            if args.files
+            else []
+        )
         operator = args.operator
     else:
         # 交互模式

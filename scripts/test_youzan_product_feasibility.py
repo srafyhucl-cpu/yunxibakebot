@@ -32,8 +32,14 @@ async def test_youzan_product_feasibility() -> None:
             )
             token_data = token_resp.json()
             # 判断是否成功获取 Token
-            if token_resp.status_code != 200 or "data" not in token_data or "access_token" not in token_data["data"]:
-                output_lines.append(f"[ERROR] 获取 Token 失败! HTTP 状态码: {token_resp.status_code}")
+            if (
+                token_resp.status_code != 200
+                or "data" not in token_data
+                or "access_token" not in token_data["data"]
+            ):
+                output_lines.append(
+                    f"[ERROR] 获取 Token 失败! HTTP 状态码: {token_resp.status_code}"
+                )
                 output_lines.append(f"响应内容: {token_data}")
                 _write_file(output_lines)
                 return
@@ -50,7 +56,9 @@ async def test_youzan_product_feasibility() -> None:
         # 3. 调用商品列表 API (youzan.items.onsale.get)
         api_url = f"https://open.youzanyun.com/api/youzan.items.onsale.get/3.0.0?access_token={access_token}"
         try:
-            output_lines.append("\n正在请求有赞在售商品列表 (youzan.items.onsale.get/3.0.0)...")
+            output_lines.append(
+                "\n正在请求有赞在售商品列表 (youzan.items.onsale.get/3.0.0)..."
+            )
             api_resp = await client.post(
                 api_url,
                 json={
@@ -67,9 +75,13 @@ async def test_youzan_product_feasibility() -> None:
                 data_obj = api_data["data"]
                 count = data_obj.get("count", 0)
                 items = data_obj.get("items", [])
-                output_lines.append(f"[OK] 商品列表拉取成功! 共找到 {count} 个在售商品。")
+                output_lines.append(
+                    f"[OK] 商品列表拉取成功! 共找到 {count} 个在售商品。"
+                )
 
-                output_lines.append("\n=== [所有商品的别名(Alias)与详情链接(Detail URL)精简列表] ===")
+                output_lines.append(
+                    "\n=== [所有商品的别名(Alias)与详情链接(Detail URL)精简列表] ==="
+                )
                 for i, item in enumerate(items, 1):
                     title = item.get("title", "未知标题")
                     alias = item.get("alias", "无Alias")

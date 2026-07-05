@@ -14,8 +14,11 @@ def main_handler(event: dict, context: dict) -> dict:
     method = event.get("httpMethod", "GET")
     path = event.get("path", "/api/v1/wecom/callback")
     qs = event.get("queryString") or ""
-    headers = {k: v for k, v in (event.get("headers") or {}).items()
-               if k.lower() not in ("host", "x-request-id")}
+    headers = {
+        k: v
+        for k, v in (event.get("headers") or {}).items()
+        if k.lower() not in ("host", "x-request-id")
+    }
     body = event.get("body") or ""
 
     url = f"{VPS_URL}{path}"
