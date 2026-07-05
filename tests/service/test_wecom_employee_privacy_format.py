@@ -58,6 +58,17 @@ def test_transfer_line_does_not_expose_user_identifier() -> None:
     assert line == "工单尾号 77f40｜客户要求人工"
 
 
+def test_transfer_line_allows_missing_summary_preview() -> None:
+    line = transfer_line(
+        {
+            "id": "da8f723e-d755-4868-8c48-bf9813a77f40",
+            "reason": "客户要求人工",
+        }
+    )
+
+    assert line == "工单尾号 77f40｜客户要求人工"
+
+
 def test_short_identifier_keeps_only_suffix() -> None:
     assert short_identifier("da8f723e-d755-4868-8c48-bf9813a77f40") == "77f40"
     assert short_identifier("") == "***"
@@ -149,7 +160,7 @@ def test_order_action_items_prioritizes_risk_orders() -> None:
 
     assert "今天 6 单" in result.summary
     assert "发货压力：偏高" in result.summary
-    assert "优先级 1：先处理快到约送时间的履约风险单" in result.summary
+    assert "优先级 1：先处理已过或快到约送时间的履约风险单" in result.summary
     assert "567893" in result.summary
     assert result.next_action == "先处理履约风险单，再按无物流、退款/售后顺序核对。"
 

@@ -13,7 +13,6 @@ from app.models.employee_agent import (
 )
 from app.service.wecom import employee_agent_planner
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
-from app.service.wecom.employee_agent_reply_guard import preserve_tool_facts
 from app.service.wecom.employee_agent_service import EmployeeAgentService
 from app.service.wecom.intelligent_bot_order_format import (
     build_order_list_tool_result,
@@ -48,6 +47,14 @@ class _FakeActionItemsOrderLookupService:
                 "1. 尾号 000001｜待发货｜巧克力樱桃炸弹 x 1｜206.50 元"
             ),
             next_action="先处理履约风险单，再按无物流、退款/售后顺序核对。",
+        )
+
+
+class _FakeMarkdownOrderLookupService:
+    async def answer_agent_query(self, query: str, plan: Any) -> ToolResult:
+        return ToolResult(
+            ok=True,
+            summary="**今日销量第一**：`巧克力樱桃炸弹`，共1单。",
         )
 
 
@@ -596,7 +603,6 @@ async def test_employee_agent_uses_order_lookup_service() -> None:
         status_tool_service=_FakeStatusToolService(),
         order_lookup_service=order_lookup_service,
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     reply = await service.answer("今天一共多少订单")
@@ -613,7 +619,6 @@ async def test_employee_agent_order_reply_does_not_ask_for_full_order_no() -> No
         status_tool_service=_FakeStatusToolService(),
         order_lookup_service=_FakeOrderLookupService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     reply = await service.answer("今天一共多少订单")
@@ -629,7 +634,6 @@ async def test_employee_agent_routes_product_and_knowledge() -> None:
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     product_reply = await service.answer("草莓蛋糕还有库存吗")
@@ -648,7 +652,6 @@ async def test_employee_agent_multi_tool_uses_order_keyword_for_product() -> Non
         status_tool_service=_FakeStatusToolService(),
         order_lookup_service=_FakeOrderLookupService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     await service.answer("今天订单里有伯牙绝弦吗，库存还够吗")
@@ -663,7 +666,6 @@ async def test_employee_agent_multi_tool_combines_order_and_knowledge() -> None:
         status_tool_service=_FakeStatusToolService(),
         order_lookup_service=_FakeOrderLookupService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     reply = await service.answer("还有哪些没发货，怎么跟客户说")
@@ -681,7 +683,6 @@ async def test_employee_agent_multi_tool_combines_product_and_knowledge() -> Non
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
@@ -700,7 +701,6 @@ async def test_employee_agent_product_knowledge_miss_uses_staff_reply() -> None:
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
@@ -720,7 +720,6 @@ async def test_employee_agent_high_stock_product_reply_has_no_low_stock_hint() -
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     reply = await service.answer("伯牙绝弦还有吗")
@@ -743,7 +742,6 @@ async def test_employee_agent_routes_existing_ops_tools() -> None:
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=False,
     )
 
     customer_reply = await service.answer("查一下张三地址线索")
@@ -755,101 +753,36 @@ async def test_employee_agent_routes_existing_ops_tools() -> None:
     assert "离线复盘" in offline_review_reply
 
 
-async def test_employee_agent_knowledge_reply_skips_llm_polish(monkeypatch) -> None:
-    async def fail_llm_chat(*args: Any, **kwargs: Any) -> None:
-        raise AssertionError("knowledge reply should not call LLM polish")
+async def test_employee_agent_service_has_no_reply_llm_entrypoint() -> None:
+    from app.service.wecom import employee_agent_service
 
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fail_llm_chat
+    assert not hasattr(employee_agent_service, "llm_chat")
+    assert all(
+        not name.startswith("_pol" + "ish") for name in dir(EmployeeAgentService)
     )
+
+
+async def test_employee_agent_product_reply_returns_deterministic_stock() -> None:
     service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
+        business_tool_service=_FakeBusinessToolServiceWithKnowledgeMiss(),
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=True,
     )
 
-    reply = await service.answer("明天能配送吗")
+    reply = await service.answer("伯牙绝弦还有吗")
 
-    assert "知识库回复：明天能配送吗。" in reply
-
-
-async def test_employee_agent_ops_reply_skips_llm_polish(monkeypatch) -> None:
-    async def fail_llm_chat(*args: Any, **kwargs: Any) -> None:
-        raise AssertionError("ops reply should not call LLM polish")
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fail_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("查一下张三地址线索")
-
-    assert "地址/客户线索" in reply
+    assert "库存 72" in reply
+    assert "库存和价格以小程序商品数据为准" in reply
+    assert "低库存" not in reply
 
 
-async def test_employee_agent_polish_keeps_product_stock_number(monkeypatch) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="建议回复客户：这款库存紧张，可以推荐替代款。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
-
-    assert "库存 6" in reply
-    assert "知识库回复" in reply
-
-
-async def test_employee_agent_polish_rejects_no_stock_replacement_hallucination(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            "招牌牛奶吐司库存为0，暂时无货。"
-                            "建议推荐同价位替代款，如北海道吐司或原味手撕包。"
-                        )
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
+async def test_employee_agent_no_stock_reply_does_not_invent_replacements() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolServiceWithNoStock(),
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=True,
     )
 
     reply = await service.answer("招牌牛奶吐司还有吗")
@@ -861,29 +794,12 @@ async def test_employee_agent_polish_rejects_no_stock_replacement_hallucination(
     assert "原味手撕包" not in reply
 
 
-async def test_employee_agent_polish_keeps_product_miss_guardrail(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="未找到“月球蛋糕”商品。请换其他名称或关键词再查。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
+async def test_employee_agent_product_miss_reply_keeps_guardrail_terms() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolServiceWithProductMiss(),
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         planner=_planner(),
-        enable_llm_reply=True,
     )
 
     reply = await service.answer("不存在的月球蛋糕还有吗")
@@ -893,264 +809,13 @@ async def test_employee_agent_polish_keeps_product_miss_guardrail(
     assert "缺货结论" in reply
 
 
-async def test_employee_agent_reply_removes_markdown_from_polish(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="**今日销量第一**：`巧克力樱桃炸弹`，共1单。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("今天一共多少订单")
-
-    assert "今日销量第一" in reply
-    assert "巧克力樱桃炸弹" in reply
-    assert "**" not in reply
-    assert "`" not in reply
-
-
-async def test_employee_agent_polish_drops_private_marker(monkeypatch) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="有 2 单未发货，请让员工提供完整订单号再回复客户。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("还有哪些没发货，怎么跟客户说")
-
-    assert "完整订单号" not in reply
-    assert "今天共 2 单" in reply
-
-
-async def test_employee_agent_polish_keeps_customer_reply(monkeypatch) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(content="当前待发货订单已经汇总。")
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("还有哪些没发货，怎么跟客户说")
-
-    assert "给客户可复制回复" in reply
-    assert "客户" in reply
-    assert "回复" in reply
-
-
-async def test_employee_agent_polish_keeps_action_insight_markers(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            "今天需重点处理1单：优先处理尾号000001，"
-                            "约送16:00，暂无物流。"
-                        )
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeActionItemsOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("今天有什么要盯的")
-
-    assert "发货压力：偏高" in reply
-    assert "优先级 1" in reply
-
-
-async def test_employee_agent_polish_rejects_relative_delivery_date_distortion(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            "以下2单即将超时，其余需在明天11点前安排发货或更新物流。"
-                        )
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeFulfillmentRiskOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("哪些单快超时了")
-
-    assert "约送 2026-06-06 11:00" in reply
-    assert "约送 2026-06-07 11:00" in reply
-    assert "明天11点" not in reply
-
-
-async def test_employee_agent_polish_rejects_overdue_delivery_detour(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="以下2单需在6月7日11:00前完成发货/更新物流信息。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeOverdueFulfillmentRiskOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("哪些单快超时了")
-
-    assert "已过约送时间" in reply
-    assert "需在6月7日11:00前完成" not in reply
-
-
-async def test_employee_agent_polish_preserves_fulfillment_order_list_shape(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            "发货压力偏高，2单已过约送时间且暂无物流，"
-                            "建议优先处理尾号200101、200023。"
-                        )
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeOverdueFulfillmentRiskOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("哪些单快超时了")
-
-    assert "尾号 200101｜待收货" in reply
-    assert "约送 2026-06-06 11:00" in reply
-    assert "暂无物流" in reply
-
-
-async def test_employee_agent_polish_preserves_pending_order_list_shape(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            "当前有2单待发货：尾号300061、700059，"
-                            "其中一单约送7月6日11点。"
-                        )
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
+async def test_employee_agent_order_list_reply_keeps_row_shape() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolService(),
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
         order_lookup_service=_FakePendingOrderListLookupService(),
         planner=_planner(),
-        enable_llm_reply=True,
     )
 
     reply = await service.answer("还有哪些没发货")
@@ -1160,136 +825,21 @@ async def test_employee_agent_polish_preserves_pending_order_list_shape(
     assert "暂无物流" in reply
 
 
-async def test_employee_agent_polish_keeps_missing_logistics_marker(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="当前有1单未发货，请优先处理尾号000001。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
+async def test_employee_agent_reply_cleans_markdown_from_deterministic_result() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolService(),
         ops_tool_service=_FakeOpsToolService(),
         status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeMissingLogisticsOrderLookupService(),
+        order_lookup_service=_FakeMarkdownOrderLookupService(),
         planner=_planner(),
-        enable_llm_reply=True,
     )
 
-    reply = await service.answer("还没物流的订单有哪些")
+    reply = await service.answer("今天一共多少订单")
 
-    assert "暂无物流" in reply
-
-
-async def test_employee_agent_polish_rejects_missing_logistics_exclusion_distortion(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="以下为未出物流的订单，共5单，已剔除已关闭/退款单。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeMissingLogisticsClosedRefundOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("哪些单子还没出物流")
-
-    assert "有退款/售后" in reply
-    assert "已关闭" in reply
-    assert "已剔除" not in reply
-
-
-async def test_employee_agent_polish_keeps_top_products_tie_caution(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="当前爆款是巧克力樱桃炸弹，可优先备货。"
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeTopProductsTieOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("今天卖爆的是哪个")
-
-    assert "销量并列" in reply
-    assert "不能判断单一爆款" in reply
-    assert "当前爆款是" not in reply
-    assert "优先备货" not in reply
-
-
-async def test_employee_agent_polish_rejects_top_products_stocking_advice(
-    monkeypatch,
-) -> None:
-    async def fake_llm_chat(*args: Any, **kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            "本周销量第一是红豆碱水包、椰蓉碱水包，建议优先备货这几款。"
-                        )
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        "app.service.wecom.employee_agent_service.llm_chat", fake_llm_chat
-    )
-    service = EmployeeAgentService(
-        business_tool_service=_FakeBusinessToolService(),
-        ops_tool_service=_FakeOpsToolService(),
-        status_tool_service=_FakeStatusToolService(),
-        order_lookup_service=_FakeTopProductsOrderLookupService(),
-        planner=_planner(),
-        enable_llm_reply=True,
-    )
-
-    reply = await service.answer("本周哪个商品卖得多")
-
-    assert "按销量粗略排行" in reply
-    assert "优先备货" not in reply
+    assert "今日销量第一" in reply
+    assert "巧克力樱桃炸弹" in reply
+    assert "**" not in reply
+    assert "`" not in reply
 
 
 def test_build_top_products_tool_result_marks_low_sample_tie() -> None:
@@ -1355,216 +905,3 @@ def test_build_order_list_tool_result_labels_fulfillment_risk_order() -> None:
     assert "尾号 200101｜待收货" in result.summary
     assert "暂无物流" in result.summary
     assert "已过约送时间" in result.next_action
-
-
-def test_preserve_tool_facts_rejects_private_marker_introduced_by_polish() -> None:
-    deterministic_reply = "当前有 2 单未发货，均只展示尾号。"
-    polished_reply = "当前有 2 单未发货，请提供完整订单号排查。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_missing_logistics_marker() -> None:
-    deterministic_reply = (
-        "还没物流的订单有哪些：找到 1 单。\n"
-        "1. 尾号 000001｜待发货｜巧克力樱桃炸弹｜暂无物流"
-    )
-    polished_reply = "当前有1单未发货，请优先处理尾号000001。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_missing_logistics_exclusion_distortion() -> None:
-    deterministic_reply = (
-        "哪些单子还没出物流：找到 5 单。\n"
-        "1. 尾号 000077｜已关闭｜售后退款蛋糕｜暂无物流｜有退款/售后"
-    )
-    polished_reply = "以下为未出物流的订单，共5单，已剔除已关闭/退款单。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_missing_action_insight_marker() -> None:
-    deterministic_reply = (
-        "今天 1 单，合计 206.50 元；发货压力：偏高。\n"
-        "优先级 1：先处理快到约送时间的履约风险单"
-    )
-    polished_reply = "今天需重点处理1单：优先处理尾号000001。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_relative_delivery_date_distortion() -> None:
-    deterministic_reply = (
-        "哪些单快超时了：找到 2 单。\n"
-        "1. 尾号 200101｜待收货｜约送 2026-06-06 11:00｜暂无物流\n"
-        "2. 尾号 200023｜待收货｜约送 2026-06-07 11:00｜暂无物流"
-    )
-    polished_reply = "以下2单即将超时，其余需在明天11点前安排发货或更新物流。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_overdue_delivery_detour() -> None:
-    deterministic_reply = (
-        "哪些单快超时了：\n"
-        "1. 尾号 200101｜约送 2026-06-06 11:00（已过约送时间）｜暂无物流"
-    )
-    polished_reply = "尾号200101需在6月7日11:00前完成发货。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_fulfillment_order_list_compression() -> None:
-    deterministic_reply = (
-        "哪些单快超时了：找到 2 单，按约送时间从早到晚展示：\n"
-        "1. 尾号 200101｜待收货｜水果盛宴 x 1｜313.00 元｜"
-        "2026-06-06 10:00｜约送 2026-06-06 11:00（已过约送时间）｜暂无物流\n"
-        "2. 尾号 200023｜待收货｜焦糖杏仁糯米船 x 1｜198.00 元｜"
-        "2026-06-07 10:00｜约送 2026-06-07 11:00（已过约送时间）｜暂无物流"
-    )
-    polished_reply = (
-        "发货压力偏高，2单已过约送时间且暂无物流，建议优先处理尾号200101、200023。"
-    )
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_order_list_status_compression() -> None:
-    deterministic_reply = (
-        "还有哪些没发货：找到 2 单，按最新订单展示：\n"
-        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
-        "2026-07-04 13:52:38｜未约送｜暂无物流\n"
-        "2. 尾号 700059｜待发货｜杏好有你 x 1｜302.50 元｜"
-        "2026-07-04 13:24:39｜约送 2026-07-06 11:00:00｜暂无物流"
-    )
-    polished_reply = "当前有2单待发货：尾号300061、700059，其中一单约送7月6日11点。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_order_list_logistics_compression() -> None:
-    deterministic_reply = (
-        "还没物流的订单有哪些：找到 2 单，按最新订单展示：\n"
-        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
-        "2026-07-04 13:52:38｜未约送｜暂无物流\n"
-        "2. 尾号 500031｜待收货｜送你快乐星球 x 1｜376.00 元｜"
-        "2026-07-04 12:28:15｜约送 2026-07-04 16:00:00｜暂无物流"
-    )
-    polished_reply = "未出物流共2单：尾号300061待发货未约送，尾号500031待收货约送16点。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_missing_logistics_heading_only() -> None:
-    deterministic_reply = (
-        "还没物流的订单有哪些：找到 2 单，按最新订单展示：\n"
-        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00 元｜"
-        "2026-07-04 13:52:38｜未约送｜暂无物流\n"
-        "2. 尾号 500031｜待收货｜送你快乐星球 x 1｜376.00 元｜"
-        "2026-07-04 12:28:15｜约送 2026-07-04 16:00:00｜暂无物流"
-    )
-    polished_reply = (
-        "收到，共2单暂无物流，按最新订单排列如下：\n"
-        "1. 尾号 300061｜待发货｜雾蓝奥利奥 x 1｜158.00元｜未约送\n"
-        "2. 尾号 500031｜待收货｜送你快乐星球 x 1｜376.00元｜约送16:00"
-    )
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_missing_pressure_label() -> None:
-    deterministic_reply = (
-        "今天发货压力大不大：找到 5 单，按最新订单展示：\n"
-        "发货压力：偏高。待处理 5 单，履约风险 5 单。"
-    )
-    polished_reply = "今天发货压力不大，目前仅5单待处理。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_empty_order_detour() -> None:
-    deterministic_reply = (
-        "晚上还有哪些待处理订单：没有查到约送日期 2026-07-04、"
-        "约送时间 18:00-23:59、待处理的订单。\n"
-        "下一步：这表示当前约送口径下暂无待处理订单；可继续问其他日期或查看今日待办。"
-    )
-    polished_reply = "没有查到待处理订单。建议换商品名、状态或时间范围再查。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_product_miss_guardrail_loss() -> None:
-    deterministic_reply = (
-        "未找到匹配商品\n"
-        "下一步：请换商品名、品类或关键词再查；不要把未命中结果当作缺货结论。"
-    )
-    polished_reply = "未找到“月球蛋糕”商品。请换其他名称或关键词再查。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_no_stock_replacement_hallucination() -> None:
-    deterministic_reply = (
-        "招牌牛奶吐司｜15.00元｜库存 0｜甜品和面包\n"
-        "下一步：当前命中商品暂无可售库存，先不要承诺有货；"
-        "可推荐同品类或相近价位替代款。"
-    )
-    polished_reply = "招牌牛奶吐司库存为0，暂时无货。建议推荐同价位替代款，如北海道吐司或原味手撕包。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_top_products_tie_distortion() -> None:
-    deterministic_reply = (
-        "今天卖爆的是哪个：按销量粗略排行如下：\n"
-        "1. 巧克力樱桃炸弹：1 件，1 单，206.50 元\n"
-        "2. 绿野仙踪蝴蝶款：1 件，1 单，273.50 元\n"
-        "提示：当前销量并列且样本很少，还不能判断单一爆款。"
-    )
-    polished_reply = "今日销量第一是巧克力樱桃炸弹，可优先备货。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply
-
-
-def test_preserve_tool_facts_rejects_top_products_stocking_advice() -> None:
-    deterministic_reply = (
-        "本周哪个商品卖得多：按销量粗略排行如下：\n"
-        "1. 红豆碱水包、椰蓉碱水包：18 件，2 单，188.00 元\n"
-        "下一步：如需备货判断，建议继续结合库存和履约压力。"
-    )
-    polished_reply = "本周销量第一是红豆碱水包、椰蓉碱水包，建议优先备货这几款。"
-
-    reply = preserve_tool_facts(polished_reply, deterministic_reply)
-
-    assert reply == deterministic_reply

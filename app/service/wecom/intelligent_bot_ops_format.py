@@ -126,8 +126,9 @@ def group_campaign_missing_next_action() -> str:
 
 def transfer_line(item: dict[str, Any]) -> str:
     line = f"工单尾号 {short_identifier(item['id'])}｜{item['reason'] or '未填写原因'}"
-    if item["summaryPreview"]:
-        line += f"｜摘要：{item['summaryPreview']}"
+    summary_preview = str(item.get("summaryPreview", "") or "")
+    if summary_preview:
+        line += f"｜摘要：{summary_preview}"
     return line
 
 

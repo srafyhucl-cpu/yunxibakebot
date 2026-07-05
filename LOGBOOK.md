@@ -1,4 +1,39 @@
 ﻿
+## [2026-07-05] - refactor(wecom): 员工助手回复链路改为确定性直出
+- **操作人**: AI (Codex)
+- **trace_id**: 20260704-wecom-employee-agent-deterministic-reply
+- **背景**: 企微员工助手连续出现“确定性工具结果正确、回复期 LLM 润色篡改事实”的问题，已累计通过 `employee_agent_reply_guard.py` 和 `employee_agent_order_list_guard.py` 堆叠多类事后回退守卫。按确定性回复设计和收口计划，本轮把员工可见回复从“确定性结果 + LLM 润色 + guard 回退”改为确定性直出，消除回复期事实篡改来源。
+- **决策**:
+  - 不改企微 API 回调入口，不改 planner 的结构化规划能力，不改订单、商品、知识库、运营状态等工具数据来源。
+  - `EmployeeAgentPlanner` 的 LLM 仅保留在结构化 plan 兜底阶段；员工可见文本统一由工具结果和模板生成后经 `clean_plain_text_reply()` 返回。
+  - 删除只服务于旧润色链路的两个 guard 文件，测试从验证“润色后回退”改为验证“确定性结果直接保留关键事实”。
+  - `transfer_line()` 对缺失 `summaryPreview` 做缺省兜底，避免待人工工具结果缺字段时报错。
+- **改动**:
+  - `app/service/wecom/employee_agent_service.py` - 删除回复期 `llm_chat`、`_polish_reply` 和 `enable_llm_reply` 分支，所有意图返回确定性回复。
+  - `app/service/wecom/employee_agent_reply_guard.py` - 删除旧回复事实保真守卫。
+  - `app/service/wecom/employee_agent_order_list_guard.py` - 删除旧订单列表润色压缩守卫。
+  - `app/service/wecom/intelligent_bot_ops_format.py` - `transfer_line()` 支持缺省 `summaryPreview`。
+  - `tests/service/test_wecom_employee_agent.py` - 删除 `test_employee_agent_polish_*` 与 `test_preserve_tool_facts_*`，补确定性直出断言。
+  - `tests/service/test_wecom_employee_privacy_format.py` - 覆盖缺省 `summaryPreview`，并同步已过约送时间优先级文案。
+  - `docs/architecture/wecom-intelligent-bot-tools.md`、`docs/architecture/wecom-employee-agent-development-plan.md`、`docs/architecture/wecom-employee-agent-closure-plan.md`、`docs/superpowers/specs/2026-07-04-wecom-employee-agent-deterministic-reply-design.md`、`项目进度与配置清单.md` - 同步确定性直出口径和收口计划。
+  - `VERSION` - 固定为 `0.74.32`。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_privacy_format.py -q --no-cov` 通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py -o addopts="" --no-cov` 通过，91 条。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，45/45。
+  - `python -m pytest tests/ -q` 通过，覆盖率 79.08%，高于 70% 门槛。
+  - `python -m ruff check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_privacy_format.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_service.py app/service/wecom/intelligent_bot_ops_format.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_privacy_format.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python scripts/check_text_encoding.py` 通过。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过。
+  - `pre-commit run --all-files` 通过。
+- **后续**:
+  - 阶段 4 仍需在生产同步窗口补 `/health`、`/ready` 和 45/45 加密回调探针 JSON 证据，更新 spec `residual_risks`。
+
 ## [2026-07-04] - fix(wecom): 守住商品无库存与未命中回复口径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-product-stockout-miss
