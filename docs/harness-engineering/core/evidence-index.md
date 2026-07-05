@@ -3,15 +3,15 @@
 
 - trace_id: 20260704-wecom-employee-agent-deterministic-reply
 - generated_at: 2026-07-05
-- evidence_type: local/wecom-employee-agent-deterministic-reply
+- evidence_type: local-and-production/wecom-employee-agent-deterministic-reply
 - file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_service.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_reply_guard.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_list_guard.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_ops_format.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_privacy_format.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
 - command: `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_privacy_format.py -q --no-cov`; `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_callback.py tests/api/test_wecom_intelligent_bot_plugin_api.py -o addopts="" --no-cov`; `python scripts/check_wecom_employee_agent_plans.py --json`; `python -m pytest tests/ -q`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; architecture scans `rg "from app\.repository" app/api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`, `rg "from app\.(service|repository|api)" app/models -g "*.py"`; `python scripts/check_text_encoding.py`; `python scripts/check_mistake_ledger.py`; `git diff --check`; `pre-commit run --all-files`
 - result: pass
 - related_logbook: 2026-07-05 - refactor(wecom): 员工助手回复链路改为确定性直出
 - related_adr: none
 - contains_sensitive_data: no
-- retention_note: 仅登记本地验证命令和重构文件清单，不包含企微 Token、AES key、密文、客户数据或订单明细。
-- summary: 员工助手员工可见回复移除回复期 LLM 润色和两个旧 guard 文件，统一由确定性工具结果和模板生成后经过 `clean_plain_text_reply()` 返回；LLM 仅保留在结构化规划兜底阶段。本地员工助手相关 91 条测试、45/45 规划探针和全量测试通过，覆盖率 79.08%；生产 `/health`、`/ready` 和 45/45 加密回调探针证据待生产窗口补齐。
+- retention_note: 仅登记本地验证命令、重构文件清单和生产报告路径；回调报告由脚本脱敏，不记录企微 Token、AES key 或密文。
+- summary: 员工助手员工可见回复移除回复期 LLM 润色和两个旧 guard 文件，统一由确定性工具结果和模板生成后经过 `clean_plain_text_reply()` 返回；LLM 仅保留在结构化规划兜底阶段。本地员工助手相关 91 条测试、45/45 规划探针和全量测试通过，覆盖率 79.08%。生产已同步到 `0.74.32`，`/health` 返回 `status=ok`，`/ready` 返回 `status=ready` 且企微智能机器人回调配置检查通过；45 问加密回调探针报告 `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\callback-20260705-151936.json` 显示 `status=passed,total=45,failed=0,app_version=0.74.32`。
 
 ## E-20260704-041：企微员工助手商品无库存和未命中回复口径
 

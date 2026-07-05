@@ -33,8 +33,11 @@
   - `git diff --check`
 - evidence:
   - `LOGBOOK.md` 顶部条目
+  - 生产 `/health`：`status=ok,version=0.74.32`
+  - 生产 `/ready`：`status=ready,version=0.74.32`，企微智能机器人回调配置检查通过
+  - 45 问加密回调探针报告：`reports/wecom-employee-agent/callback-20260705-151936.json`，`status=passed,total=45,failed=0,app_version=0.74.32`
 - residual_risks:
-  - 生产 `/health`、`/ready` 和 45 问回调探针需在同步后补最终证据
+  - 已收口：生产 `/health`、`/ready` 和 45 问回调探针均已在 `0.74.32` 同步后补证据
 
 ## 设计
 

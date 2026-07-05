@@ -31,8 +31,11 @@
   - `python scripts/check_mistake_ledger.py` 通过。
   - `git diff --check` 通过。
   - `pre-commit run --all-files` 通过。
+  - 生产同步后 `https://yunxifood.cn/health` 返回 `status=ok, version=0.74.32`。
+  - 生产同步后 `https://yunxifood.cn/ready` 返回 `status=ready, version=0.74.32`，企微回调、智能机器人回调、handoff staff、后台前端等 readiness 检查均为 true，`offline_review=true`。
+  - `python scripts/check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json --output "reports/wecom-employee-agent/callback-{timestamp}.json"` 通过，报告 `reports/wecom-employee-agent/callback-20260705-151936.json` 显示 `status=passed,total=45,failed=0,app_version=0.74.32`。
 - **后续**:
-  - 阶段 4 仍需在生产同步窗口补 `/health`、`/ready` 和 45/45 加密回调探针 JSON 证据，更新 spec `residual_risks`。
+  - 企微员工助手确定性直出重构已补齐生产 `/health`、`/ready` 和 45/45 加密回调探针证据；后续只保留常规生产观察。
 
 ## [2026-07-04] - fix(wecom): 守住商品无库存与未命中回复口径
 - **操作人**: AI (Codex)
