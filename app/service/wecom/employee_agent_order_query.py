@@ -7,21 +7,19 @@ from datetime import date
 
 from app.models.employee_agent import AnswerStyle, OrderQueryKind, OrderQueryPlan
 from app.service.wecom.employee_agent_order_date import (
-    remove_order_time_expressions,
     resolve_order_date_field,
     resolve_order_date_range,
 )
 from app.service.wecom.employee_agent_order_delivery_time import (
-    remove_delivery_time_expressions,
     resolve_delivery_time_window,
 )
 from app.service.wecom.employee_agent_order_constants import (
     DEFAULT_RESULT_LIMIT,
     MAX_RESULT_LIMIT,
     ORDER_NO_PATTERN,
-    ORDER_PENDING_STATUSES,
-    ORDER_QUERY_PUNCTUATION_PATTERN,
-    ORDER_STATUS_KEYWORDS,
+)
+from app.service.wecom.employee_agent_order_keyword_extract import (
+    extract_order_keyword,
 )
 from app.service.wecom.employee_agent_order_keywords import (
     ORDER_QUERY_KEYWORDS,
@@ -31,12 +29,13 @@ from app.service.wecom.employee_agent_order_predicates import (
     looks_like_order_policy_query,
     looks_like_knowledge_followup_query,
     needs_action_items,
+    has_customer_history_intent,
     needs_fulfillment_risk,
     needs_missing_logistics,
     needs_refund,
     resolve_sort_by,
 )
-from app.service.wecom.employee_agent_order_stop_words import ORDER_QUERY_STOP_WORDS
+from app.service.wecom.employee_agent_order_status import resolve_order_statuses
 
 
 def has_exact_order_no(query: str) -> bool:
@@ -50,15 +49,16 @@ def build_order_query_plan(
 ) -> OrderQueryPlan:
     date_from, date_to = resolve_order_date_range(query, today)
     delivery_time_window = resolve_delivery_time_window(query)
+    has_date_range = bool(date_from or date_to)
     return OrderQueryPlan(
         kind=kind,
         date_from=date_from,
         date_to=date_to,
         date_field=resolve_order_date_field(query),
-        statuses=_resolve_order_statuses(query),
+        statuses=resolve_order_statuses(query, has_date_range=has_date_range),
         keyword=""
-        if kind == OrderQueryKind.ACTION_ITEMS
-        else _extract_order_keyword(query),
+        if kind == OrderQueryKind.ACTION_ITEMS or has_customer_history_intent(query)
+        else extract_order_keyword(query),
         needs_missing_logistics=needs_missing_logistics(query),
         needs_refund=needs_refund(query),
         needs_fulfillment_risk=needs_fulfillment_risk(query),
@@ -117,29 +117,6 @@ def looks_like_inventory_query(query: str) -> bool:
 
 def looks_like_order_knowledge_query(query: str) -> bool:
     return looks_like_knowledge_followup_query(query)
-
-
-def _resolve_order_statuses(query: str) -> tuple[str, ...]:
-    if needs_fulfillment_risk(query):
-        return ORDER_PENDING_STATUSES
-    if "待处理" in query:
-        return ORDER_PENDING_STATUSES
-    statuses = [
-        status
-        for status, keywords in ORDER_STATUS_KEYWORDS.items()
-        if any(keyword in query for keyword in keywords)
-    ]
-    return tuple(dict.fromkeys(statuses))
-
-
-def _extract_order_keyword(query: str) -> str:
-    keyword = remove_order_time_expressions(query.strip())
-    keyword = remove_delivery_time_expressions(keyword)
-    for stop_word in sorted(ORDER_QUERY_STOP_WORDS, key=len, reverse=True):
-        keyword = keyword.replace(stop_word, " ")
-    keyword = re.sub(r"E\d{12,}", " ", keyword, flags=re.IGNORECASE)
-    keyword = ORDER_QUERY_PUNCTUATION_PATTERN.sub(" ", keyword)
-    return " ".join(keyword.split())
 
 
 def _extract_limit(query: str) -> int:

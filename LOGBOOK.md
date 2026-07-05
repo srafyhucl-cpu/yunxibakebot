@@ -1,4 +1,35 @@
 ﻿
+## [2026-07-05] - fix(wecom): 收口订单成交口径、预定送达语义与按客户查路 A
+- **操作人**: AI (Codex)
+- **trace_id**: 20260705-wecom-order-query-closure
+- **背景**: 生产只读复现确认两类真实员工问法存在规划偏差：`昨天已完成多少订单` 会把“已完成”同时当成 `TRADE_SUCCESS` 状态词和关键词残留；`有没有明天的预定订单` 会被误解成“下单日期 + 商品关键词‘没 预定’”。同时，阶段 3 已确认按客户查只收口路 A：员工带 E 开头有赞交易号，系统反查 `buyer_id` 后列该客户历史单，不做手机号/昵称查单。
+- **决策**:
+  - 弱完成词 `已完成 / 完成` 在带日期的订单统计问法中默认按“有效订单口径”理解，返回 `WAIT_SELLER_SEND_GOODS`、`WAIT_BUYER_CONFIRM_GOODS`、`TRADE_SUCCESS`；只有明确说 `交易成功` 时才继续走严格 `TRADE_SUCCESS`。
+  - `预定 / 预订 / 要送 / 待送` 统一映射到 `delivery_time`，且若未显式给状态则默认补待处理状态集，避免再把“明天的预定订单”误查成明天下单订单。
+  - 阶段 3 只支持 “E 号 + 客户历史单意图” 的路 A，不新增普通数字解析，不改现有“单独 E 号查订单详情”行为。
+  - 订单工具编排文件已超体量阈值，本轮把纯工具函数拆到 `intelligent_bot_order_lookup_helpers.py`，避免继续把职责堆回大文件。
+- **改动**:
+  - `docs/architecture/wecom-employee-agent-order-query-plan.md` - 收口为最终执行版，仅保留 Bug 1、Bug 2 和按客户查路 A。
+  - `app/models/employee_agent.py` - `OrderQueryPlan` 新增 `buyer_id`。
+  - `app/service/wecom/employee_agent_order_constants.py`、`employee_agent_order_keywords.py`、`employee_agent_order_predicates.py`、`employee_agent_order_date.py`、`employee_agent_order_stop_words.py` - 补有效订单状态、预定送达语义、客户历史单意图和停用词。
+  - `app/service/wecom/employee_agent_order_status.py`、`employee_agent_order_keyword_extract.py` - 拆出状态语义和关键词提取 helper，控制 `employee_agent_order_query.py` 体量。
+  - `app/service/wecom/employee_agent_order_query.py`、`employee_agent_order_plan.py` - 接入弱完成词成交口径、预定送达口径，以及 “E 号详情 / E 号客户历史单” 分流。
+  - `app/service/wecom/employee_agent_customer_history.py`、`app/service/wecom/intelligent_bot_order_lookup.py`、`app/service/wecom/intelligent_bot_order_lookup_helpers.py` - 实现 `E号 -> buyer_id -> 历史单` 查询链路，并在回复中统一使用“该客户历史订单”口径。
+  - `app/repository/youzan_order_repo.py` - `_build_order_where()` 新增 `buyer_id = ?` 过滤。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 新增 `昨天已完成多少订单` 与 `有没有明天的预定订单` 两条真实口语探针，规划验收从 45 条扩到 47 条。
+  - `tests/service/test_wecom_employee_agent_order_query_closure.py`、`tests/service/test_wecom_order_customer_history.py`、`tests/repository/test_youzan_order_repo_buyer_id.py` - 新增三组回归测试，分别覆盖规划口径、客户历史单 service 链路和仓库 `buyer_id` 过滤。
+- **验证结果**:
+  - `python -m ruff check app/models/employee_agent.py app/repository/youzan_order_repo.py app/service/wecom/employee_agent_customer_history.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_date.py app/service/wecom/employee_agent_order_keyword_extract.py app/service/wecom/employee_agent_order_keywords.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_predicates.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_order_status.py app/service/wecom/employee_agent_order_stop_words.py app/service/wecom/intelligent_bot_order_lookup.py app/service/wecom/intelligent_bot_order_lookup_helpers.py tests/service/test_wecom_employee_agent_order_query_closure.py tests/service/test_wecom_order_customer_history.py tests/repository/test_youzan_order_repo_buyer_id.py scripts/wecom_employee_agent_probe_cases.py` 通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/test_wecom_intelligent_bot_order_lookup.py tests/service/test_wecom_employee_agent_order_query_closure.py tests/service/test_wecom_order_customer_history.py tests/repository/test_youzan_repo.py tests/repository/test_youzan_order_repo_buyer_id.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，`47/47`。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线 WARN；`app/service/wecom/intelligent_bot_order_lookup.py` 已从 296 行降到 236 行。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - 架构扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python -m ruff format --check app/models/employee_agent.py app/repository/youzan_order_repo.py app/service/wecom/employee_agent_customer_history.py app/service/wecom/employee_agent_order_constants.py app/service/wecom/employee_agent_order_date.py app/service/wecom/employee_agent_order_keyword_extract.py app/service/wecom/employee_agent_order_keywords.py app/service/wecom/employee_agent_order_plan.py app/service/wecom/employee_agent_order_predicates.py app/service/wecom/employee_agent_order_query.py app/service/wecom/employee_agent_order_status.py app/service/wecom/employee_agent_order_stop_words.py app/service/wecom/intelligent_bot_order_lookup.py app/service/wecom/intelligent_bot_order_lookup_helpers.py tests/service/test_wecom_employee_agent_order_query_closure.py tests/service/test_wecom_order_customer_history.py tests/repository/test_youzan_order_repo_buyer_id.py scripts/wecom_employee_agent_probe_cases.py` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 本轮仍未做生产写操作；如需上线，下一步是把新增两条真实口语问法带到生产回调探针与人工抽查里，确认 `昨天已完成多少订单` 和 `有没有明天的预定订单` 已按新口径返回。
+
 ## [2026-07-05] - refactor(wecom): 员工助手回复链路改为确定性直出
 - **操作人**: AI (Codex)
 - **trace_id**: 20260704-wecom-employee-agent-deterministic-reply

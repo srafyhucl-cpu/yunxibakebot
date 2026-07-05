@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 from app.logger import setup_logger
 from app.models.employee_agent import OrderQueryKind, OrderQueryPlan, ToolResult
 from app.service.llm.function_tool_order import get_logistics_info, get_order_info
+from app.service.wecom.employee_agent_customer_history import (
+    resolve_customer_history_plan,
+)
 from app.service.wecom.intelligent_bot_order_action_items import (
     answer_order_action_items,
 )
@@ -19,24 +21,19 @@ from app.service.wecom.intelligent_bot_order_format import (
     youzan_order_detail_line,
     youzan_order_line,
 )
+from app.service.wecom.intelligent_bot_order_lookup_helpers import (
+    compact_live_order,
+    compact_youzan_order,
+    extract_youzan_order_no,
+    is_logistics_query,
+    is_recent_order_query,
+    normalize_search_keyword,
+)
 from app.service.wecom.intelligent_bot_tool_response import ok_response
 
 logger = setup_logger()
 
 ORDER_LOOKUP_TOOL = "order_lookup"
-YOUZAN_ORDER_NO_PATTERN = re.compile(r"\bE\d{12,}\b", re.IGNORECASE)
-LOGISTICS_KEYWORDS = ("物流", "配送", "发货", "送到", "快递", "轨迹")
-RECENT_ORDER_KEYWORDS = ("最近", "最新", "近几单", "这几单")
-ORDER_QUERY_STOP_WORDS = (
-    "帮我",
-    "查一下",
-    "查询",
-    "查",
-    "订单号",
-    "订单",
-    "下单记录",
-    "下单",
-)
 
 
 class WeComOrderLookupService:
@@ -57,10 +54,10 @@ class WeComOrderLookupService:
 
     async def lookup_orders(self, query: str, limit: int) -> dict[str, Any]:
         """执行订单查询并返回企微工具响应。"""
-        order_no = _extract_youzan_order_no(query)
+        order_no = extract_youzan_order_no(query)
         if order_no:
             return await self._lookup_exact_youzan_order(query, order_no)
-        search_keyword = _normalize_search_keyword(query)
+        search_keyword = normalize_search_keyword(query)
         youzan_orders = await self._search_youzan_orders(query, search_keyword, limit)
         if youzan_orders:
             return _build_youzan_search_response(query, youzan_orders)
@@ -78,20 +75,47 @@ class WeComOrderLookupService:
                 summary="订单数据源暂不可用。",
                 next_action="请到后台订单页人工核对。",
             )
-        if plan.kind == OrderQueryKind.TOP_PRODUCTS:
-            top_products = await self._youzan_order_repo.list_top_products(plan)
+        resolved_plan = plan
+        display_query = query
+        if plan.kind != OrderQueryKind.TOP_PRODUCTS:
+            (
+                resolved_plan,
+                early_result,
+                display_query,
+            ) = await resolve_customer_history_plan(
+                query,
+                plan,
+                self._youzan_order_repo,
+            )
+            if early_result is not None:
+                return early_result
+        if resolved_plan is None:
+            return ToolResult(
+                ok=False,
+                summary="订单查询计划无效。",
+                next_action="请换个问法继续追问。",
+            )
+        if resolved_plan.kind == OrderQueryKind.TOP_PRODUCTS:
+            top_products = await self._youzan_order_repo.list_top_products(
+                resolved_plan
+            )
             return build_top_products_tool_result(query, top_products)
-        if plan.kind == OrderQueryKind.ACTION_ITEMS:
+        if resolved_plan.kind == OrderQueryKind.ACTION_ITEMS:
             return await answer_order_action_items(
                 self._youzan_order_repo,
                 query,
-                plan,
+                resolved_plan,
             )
-        summary = await self._youzan_order_repo.summarize_orders(plan)
-        orders = await self._youzan_order_repo.query_orders(plan)
-        if plan.kind == OrderQueryKind.SUMMARY:
-            return build_order_summary_tool_result(query, summary, orders)
-        return build_order_list_tool_result(query, summary, orders, plan)
+        summary = await self._youzan_order_repo.summarize_orders(resolved_plan)
+        orders = await self._youzan_order_repo.query_orders(resolved_plan)
+        if resolved_plan.kind == OrderQueryKind.SUMMARY:
+            return build_order_summary_tool_result(display_query, summary, orders)
+        return build_order_list_tool_result(
+            display_query,
+            summary,
+            orders,
+            resolved_plan,
+        )
 
     async def _lookup_exact_youzan_order(
         self, query: str, order_no: str
@@ -100,7 +124,7 @@ class WeComOrderLookupService:
             return await self._lookup_exact_order_from_repo(query, order_no)
         raw_result = await self._call_youzan_order_tool(query, order_no)
         parsed_result = _parse_tool_json(raw_result)
-        compact_order = _compact_live_order(parsed_result, order_no)
+        compact_order = compact_live_order(parsed_result, order_no)
         orders_text = youzan_order_detail_line(compact_order)
         return ok_response(
             ORDER_LOOKUP_TOOL,
@@ -112,7 +136,7 @@ class WeComOrderLookupService:
         )
 
     async def _call_youzan_order_tool(self, query: str, order_no: str) -> str:
-        if _is_logistics_query(query):
+        if is_logistics_query(query):
             return await get_logistics_info(
                 self._knowledge_retriever,
                 order_no,
@@ -139,7 +163,7 @@ class WeComOrderLookupService:
     ) -> list[dict[str, Any]]:
         if self._youzan_order_repo is None:
             return []
-        if _is_recent_order_query(query):
+        if is_recent_order_query(query):
             return await self._youzan_order_repo.list_recent_orders(limit=limit)
         return await self._youzan_order_repo.search_orders(search_keyword, limit=limit)
 
@@ -167,27 +191,6 @@ class WeComOrderLookupService:
         )
 
 
-def _extract_youzan_order_no(query: str) -> str:
-    match = YOUZAN_ORDER_NO_PATTERN.search(query)
-    return match.group(0).upper() if match else ""
-
-
-def _is_logistics_query(query: str) -> bool:
-    return any(keyword in query for keyword in LOGISTICS_KEYWORDS)
-
-
-def _is_recent_order_query(query: str) -> bool:
-    return any(keyword in query for keyword in RECENT_ORDER_KEYWORDS)
-
-
-def _normalize_search_keyword(query: str) -> str:
-    keyword = query.strip()
-    for stop_word in ORDER_QUERY_STOP_WORDS:
-        keyword = keyword.replace(stop_word, " ")
-    compact_keyword = " ".join(keyword.split())
-    return compact_keyword or query.strip()
-
-
 def _parse_tool_json(raw_result: str) -> dict[str, Any]:
     try:
         parsed = json.loads(raw_result)
@@ -200,7 +203,7 @@ def _parse_tool_json(raw_result: str) -> dict[str, Any]:
 def _build_youzan_search_response(
     query: str, orders: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    compact_orders = [_compact_youzan_order(order) for order in orders]
+    compact_orders = [compact_youzan_order(order) for order in orders]
     orders_text = "\n".join(youzan_order_line(order) for order in compact_orders)
     return ok_response(
         ORDER_LOOKUP_TOOL,
@@ -223,47 +226,6 @@ def _empty_order_response(query: str) -> dict[str, Any]:
     )
 
 
-def _compact_live_order(order: dict[str, Any], order_no: str) -> dict[str, Any]:
-    return {
-        "source": str(order.get("source", "youzan_live")),
-        "orderNo": str(order.get("order_no") or order_no),
-        "status": str(order.get("status") or order.get("status_str") or ""),
-        "amountFen": _yuan_to_fen(order.get("amount_yuan")),
-        "productTitles": str(order.get("product_titles", "")),
-        "payTime": str(order.get("pay_time", "")),
-        "deliveryArea": _join_area(
-            order.get("delivery_province"),
-            order.get("delivery_city"),
-            order.get("delivery_district"),
-        ),
-        "deliveryTime": str(order.get("delivery_time", "")),
-        "logisticsNo": str(order.get("logistics_no") or order.get("express_id") or ""),
-        "logisticsStatus": _latest_logistics_status(order),
-        "message": str(order.get("message", "")),
-    }
-
-
-def _compact_youzan_order(order: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "source": "youzan_orders",
-        "orderNo": str(order.get("order_no", "")),
-        "status": str(order.get("status", "")),
-        "amountFen": int(order.get("amount_fen", 0) or 0),
-        "productTitles": str(order.get("product_titles", "")),
-        "totalQuantity": int(order.get("total_quantity", 0) or 0),
-        "payTime": str(order.get("pay_time", "")),
-        "deliveryArea": _join_area(
-            order.get("delivery_province"),
-            order.get("delivery_city"),
-            order.get("delivery_district"),
-        ),
-        "deliveryTime": str(order.get("delivery_time", "")),
-        "logisticsNo": str(order.get("logistics_no", "")),
-        "logisticsStatus": str(order.get("logistics_status", "")),
-        "refundState": int(order.get("refund_state", 0) or 0),
-    }
-
-
 def _compact_platform_order(order: dict[str, Any]) -> dict[str, Any]:
     from app.service.wecom.intelligent_bot_tool_format import compact_order
 
@@ -276,21 +238,3 @@ def _platform_order_line(order: dict[str, Any]) -> str:
     from app.service.wecom.intelligent_bot_tool_format import order_line
 
     return order_line(order)
-
-
-def _join_area(*parts: object) -> str:
-    return "".join(str(part) for part in parts if part)
-
-
-def _yuan_to_fen(value: Any) -> int:
-    try:
-        return int(round(float(value or 0) * 100))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _latest_logistics_status(order: dict[str, Any]) -> str:
-    steps = order.get("steps")
-    if isinstance(steps, list) and steps:
-        return str(steps[0])
-    return str(order.get("logistics_status", ""))

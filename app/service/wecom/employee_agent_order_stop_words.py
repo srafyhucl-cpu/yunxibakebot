@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from app.service.wecom.employee_agent_order_keywords import (
     ORDER_ACTION_ITEMS_KEYWORDS,
+    ORDER_CUSTOMER_HISTORY_KEYWORDS,
     ORDER_FULFILLMENT_RISK_KEYWORDS,
     ORDER_POLICY_KEYWORDS,
+    ORDER_PREORDER_DELIVERY_KEYWORDS,
     ORDER_REFUND_KEYWORDS,
     ORDER_REVENUE_KEYWORDS,
 )
@@ -85,7 +87,10 @@ ORDER_GENERIC_STOP_WORDS = (
     "哪些",
     "有哪些",
     "还有",
+    "有没有",
     "有",
+    "没有",
+    "没",
     "多少",
     "多少钱",
     "几单",
@@ -103,6 +108,9 @@ ORDER_GENERIC_STOP_WORDS = (
     "还",
     "待发货",
     "待处理",
+    "交易成功",
+    "已完成",
+    "完成",
     "哪个",
     "是",
     "商品",
@@ -123,6 +131,8 @@ ORDER_GENERIC_STOP_WORDS = (
     "的",
     "吗",
     "了",
+    *ORDER_PREORDER_DELIVERY_KEYWORDS,
+    *ORDER_CUSTOMER_HISTORY_KEYWORDS,
 )
 
 ORDER_QUERY_STOP_WORDS = (

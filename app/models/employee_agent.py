@@ -36,6 +36,7 @@ class OrderQueryPlan:
     """订单动态查询计划，由 Agent 生成、仓库层白名单执行。"""
 
     kind: OrderQueryKind = OrderQueryKind.LIST
+    buyer_id: str = ""
     date_from: str = ""
     date_to: str = ""
     date_field: str = "order_time"

@@ -115,6 +115,22 @@ def _order_summary_probe_cases(
             forbidden_terms=("完整订单号",),
         ),
         EmployeeAgentProbeCase(
+            "yesterday-completed-summary",
+            "昨天已完成多少订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "summary",
+            date.fromordinal(
+                date.fromisoformat(today_text).toordinal() - 1
+            ).isoformat(),
+            date.fromordinal(
+                date.fromisoformat(today_text).toordinal() - 1
+            ).isoformat(),
+            expected_keyword="",
+            required_any_terms=("单",),
+            forbidden_terms=("商品关键词“已完成”", "完整订单号"),
+        ),
+        EmployeeAgentProbeCase(
             "today-revenue-summary",
             "今天营业额多少",
             "order_query",
@@ -286,6 +302,26 @@ def _order_list_probe_cases(
             expected_keyword="",
             required_any_terms=("待处理", "约送", "明天", "待发货", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
+            "tomorrow-preorder-orders",
+            "有没有明天的预定订单",
+            "order_query",
+            ("order_dynamic_query",),
+            "list",
+            tomorrow_text,
+            tomorrow_text,
+            "delivery_time",
+            expected_statuses=("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_CONFIRM_GOODS"),
+            expected_keyword="",
+            required_any_terms=("待处理", "约送", "明天", "待发货", "待收货"),
+            forbidden_terms=(
+                "完整订单号",
+                "手机号",
+                "完整地址",
+                "商品关键词",
+                "下单日期",
+            ),
         ),
         EmployeeAgentProbeCase(
             "after-tomorrow-pending-orders",

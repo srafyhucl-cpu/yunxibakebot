@@ -51,6 +51,23 @@ ORDER_POLICY_KEYWORDS = (
     "政策",
     "说明",
 )
+ORDER_PREORDER_DELIVERY_KEYWORDS = (
+    "预定",
+    "预订",
+    "要送",
+    "待送",
+)
+ORDER_CUSTOMER_HISTORY_KEYWORDS = (
+    "这个客户",
+    "该客户",
+    "客户历史单",
+    "客户历史订单",
+    "历史单",
+    "历史订单",
+    "还买过",
+    "买过什么",
+    "还下过",
+)
 ORDER_QUERY_KEYWORDS = (
     "订单",
     "单子",
@@ -64,6 +81,7 @@ ORDER_QUERY_KEYWORDS = (
     "卖得多",
     "卖爆",
     "销量",
+    *ORDER_PREORDER_DELIVERY_KEYWORDS,
     *ORDER_REFUND_KEYWORDS,
     *ORDER_FULFILLMENT_RISK_KEYWORDS,
     *ORDER_ACTION_ITEMS_KEYWORDS,

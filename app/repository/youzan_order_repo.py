@@ -223,6 +223,9 @@ def _build_order_where(plan: OrderQueryPlan) -> tuple[str, list[object]]:
         placeholders = ",".join("?" for _ in effective_statuses)
         clauses.append("status IN (" + placeholders + ")")
         params.extend(effective_statuses)
+    if plan.buyer_id:
+        clauses.append("buyer_id = ?")
+        params.append(plan.buyer_id)
     if plan.keyword:
         like_keyword = f"%{plan.keyword}%"
         clauses.append(

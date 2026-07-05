@@ -25,6 +25,9 @@ from app.service.wecom.employee_agent_order_query import (
     looks_like_order_policy_query,
     resolve_order_kind,
 )
+from app.service.wecom.employee_agent_order_predicates import (
+    has_customer_history_intent,
+)
 from app.service.wecom.employee_agent_ops_plan import build_ops_rule_plan
 
 
@@ -96,6 +99,13 @@ def _capability_names_for_rule_plan(
 
 
 def _build_exact_order_plan(query: str, today: date) -> AgentPlan:
+    if has_customer_history_intent(query):
+        return AgentPlan(
+            intent=AgentIntent.ORDER_QUERY,
+            tools=("order_dynamic_query",),
+            query_plan=build_order_query_plan(query, today, OrderQueryKind.LIST),
+            answer_style=AnswerStyle.LIST,
+        )
     return AgentPlan(
         intent=AgentIntent.ORDER_QUERY,
         tools=("order_dynamic_query",),

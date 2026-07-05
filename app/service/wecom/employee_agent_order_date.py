@@ -9,6 +9,9 @@ from app.service.wecom.employee_agent_order_constants import (
     CHINESE_DAY_NUMBERS,
     MAX_RESULT_LIMIT,
 )
+from app.service.wecom.employee_agent_order_keywords import (
+    ORDER_PREORDER_DELIVERY_KEYWORDS,
+)
 from app.service.wecom.employee_agent_order_date_calendar import (
     extract_specific_month_day,
     extract_weekday,
@@ -91,6 +94,7 @@ def resolve_order_date_field(query: str) -> str:
             "配送",
             "送达",
             "送到",
+            *ORDER_PREORDER_DELIVERY_KEYWORDS,
             "履约",
             "发货压力",
             "快超时",
