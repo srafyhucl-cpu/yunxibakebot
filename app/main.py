@@ -30,6 +30,7 @@ from app.readiness import (
 from app.service.alerting import AlertLevel, alert_service
 from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.config_repo import ConfigRepo
+from app.repository.conversation_summary_repo import ConversationSummaryRepo
 from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.customer_profile_repo import CustomerProfileRepo
@@ -54,9 +55,6 @@ from app.static_routes import (
     serve_favicon as _serve_favicon,
     serve_verify_txt as _serve_verify_txt,
 )
-
-# 以下5个服务类由lifespan_services模块内部按需导入，避免顶层循环依赖
-# （顶层仅做类型标注用）：ChatService、KnowledgeRetriever、YouzanClient、YouzanEventHandler、ProductReconcileService
 
 logger = setup_logger()
 
@@ -178,6 +176,7 @@ def _init_repositories() -> dict[str, object]:
         "webhook_event_repo": YouzanWebhookEventRepo(None),
         "analytics_repo": AnalyticsRepo(None),
         "customer_profile_repo": CustomerProfileRepo(None),
+        "conversation_summary_repo": ConversationSummaryRepo(None),
         "conversation_review_repo": ConversationReviewRepo(None),
         "knowledge_gap_repo": KnowledgeGapRepo(None),
         "offline_session_repo": OfflineSessionRepo(None),

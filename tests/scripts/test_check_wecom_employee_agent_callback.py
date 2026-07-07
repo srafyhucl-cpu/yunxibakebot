@@ -691,6 +691,8 @@ def _fake_reply_text(content: str) -> str:
         return (
             "发货压力：偏高。\n1. 尾号 000001｜待发货｜约送 2026-07-04 16:00｜暂无物流"
         )
+    if "明天" in content and "预定" in content:
+        return "明天待处理预定订单已汇总，包含约送时间和待发货状态。"
     if "晚上" in content and "待处理" in content:
         return "晚上待处理订单已汇总，包含约送时间和待发货状态。"
     if "明天" in content and "待处理" in content:
@@ -717,6 +719,8 @@ def _fake_reply_text(content: str) -> str:
         return "商品库存已汇总。"
     if "配送" in content:
         return "配送规则请按后台知识库确认。"
+    if "同步失败" in content:
+        return "Webhook 同步失败已汇总，请先看观察台失败明细。"
     if "异常" in content or "稳不稳" in content:
         return "系统状态已汇总。"
     if "待人工" in content or "人接" in content:

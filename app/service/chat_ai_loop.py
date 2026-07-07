@@ -9,6 +9,10 @@ from app.repository.session_repo import SessionRepo
 from app.service.chat_context import prepare_ai_conversation_messages
 from app.service.chat_llm import LlmToolLoopContext, complete_llm_tool_conversation
 from app.service.chat_tools import ToolExecutionContext
+from app.service.conversation_summary_memory import (
+    ConversationSummaryReader,
+    load_active_conversation_summary_text,
+)
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.intent import IntentType
 from app.service.session_manager import SessionManager
@@ -26,6 +30,7 @@ class AiConversationLoopDependencies:
     fallback_reply: str
     timeout_reply: str
     failure_alerter: Callable[[str], Awaitable[None]]
+    conversation_summary_repo: ConversationSummaryReader | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,10 @@ async def run_ai_conversation_loop(
     dependencies: AiConversationLoopDependencies,
     request: AiConversationLoopRequest,
 ) -> str | None:
+    conversation_summary_text = await load_active_conversation_summary_text(
+        dependencies.conversation_summary_repo,
+        request.session.id,
+    )
     messages, history_text = await prepare_ai_conversation_messages(
         session_mgr=dependencies.session_mgr,
         knowledge=dependencies.knowledge,
@@ -55,6 +64,7 @@ async def run_ai_conversation_loop(
         history_text=request.history_text,
         image_base64=request.image_base64,
         customer_profile=request.customer_profile,
+        conversation_summary_text=conversation_summary_text,
     )
 
     reply = await complete_llm_tool_conversation(

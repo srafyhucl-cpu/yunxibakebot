@@ -19,6 +19,7 @@ from scripts.preflight_production import (  # noqa: E402
     OUTPUT_TIMESTAMP_FORMAT,
     OUTPUT_TIMESTAMP_PLACEHOLDER,
     UTF8_BOM,
+    get_missing_database_columns,
     get_missing_database_tables,
     is_readable_sqlite_database,
     resolve_project_path,
@@ -92,7 +93,7 @@ async def run_migration(
     allow_create: bool = False,
 ) -> MigrationReport:
     database_path = resolve_project_path(db_path_value)
-    missing_before = get_missing_database_tables(database_path)
+    missing_before = get_missing_database_schema_items(database_path)
     missing_after = missing_before
     refused_missing_database = False
     refused_unreadable_database = (
@@ -108,7 +109,7 @@ async def run_migration(
             database_path.parent.mkdir(parents=True, exist_ok=True)
             conn = await init_db(str(database_path))
             try:
-                missing_after = get_missing_database_tables(database_path)
+                missing_after = get_missing_database_schema_items(database_path)
             finally:
                 await close_db(conn)
 
@@ -121,6 +122,13 @@ async def run_migration(
         missing_before=missing_before,
         missing_after=missing_after,
     )
+
+
+def get_missing_database_schema_items(database_path: Path) -> list[str]:
+    return [
+        *get_missing_database_tables(database_path),
+        *get_missing_database_columns(database_path),
+    ]
 
 
 def print_report(report: MigrationReport) -> None:

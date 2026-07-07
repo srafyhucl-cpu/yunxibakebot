@@ -26,6 +26,12 @@ def build_ops_rule_plan(
             tools=("group_campaign_summary",),
             answer_style=AnswerStyle.SUMMARY,
         )
+    if _looks_like_integration_status_query(query, capability_names):
+        return AgentPlan(
+            intent=AgentIntent.OPS_QUERY,
+            tools=("integration_status",),
+            answer_style=AnswerStyle.SUMMARY,
+        )
     if _looks_like_offline_review_query(query, capability_names):
         return AgentPlan(
             intent=AgentIntent.OPS_QUERY,
@@ -53,6 +59,23 @@ def _looks_like_group_campaign_query(
 ) -> bool:
     return "group_campaign_summary" in capability_names and bool(
         extract_campaign_id(query)
+    )
+
+
+def _looks_like_integration_status_query(
+    query: str,
+    capability_names: set[str],
+) -> bool:
+    return "integration_status" in capability_names and any(
+        word in query
+        for word in (
+            "同步失败",
+            "webhook",
+            "Webhook",
+            "回调失败",
+            "回调异常",
+            "失败记录",
+        )
     )
 
 

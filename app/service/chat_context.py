@@ -7,6 +7,10 @@ from app.logger import setup_logger
 from app.models.customer_profile import CustomerProfile
 from app.models.knowledge import KnowledgeEntry
 from app.models.session import Session
+from app.service.chat_context_budget import (
+    ChatContextBudgetSnapshot,
+    build_chat_context_budget_snapshot,
+)
 from app.service.chat_intent import build_history_text
 from app.service.chat_multimodal import apply_multimodal_image_message
 from app.service.knowledge_retriever import KnowledgeRetriever
@@ -19,6 +23,7 @@ logger = setup_logger()
 
 DEFAULT_SEARCH_QUERY = "芸熙烘焙 产品 价格"
 KNOWLEDGE_SEARCH_LIMIT = 8
+SESSION_SUMMARY_SECTION_TITLE = "【本会话早期摘要】"
 
 
 @dataclass(frozen=True)
@@ -27,6 +32,7 @@ class ChatContext:
     rag_ms: int
     product_titles: tuple[str, ...] = ()
     guard_source_text: str = ""
+    context_budget: ChatContextBudgetSnapshot | None = None
 
 
 async def prepare_ai_conversation_messages(
@@ -40,6 +46,7 @@ async def prepare_ai_conversation_messages(
     history_text: str,
     image_base64: str | None,
     customer_profile: CustomerProfile | None = None,
+    conversation_summary_text: str = "",
 ) -> tuple[list[dict], str]:
     if history is None:
         history = await session_mgr.build_context(session.id)
@@ -51,11 +58,14 @@ async def prepare_ai_conversation_messages(
         intent=intent,
         history=history,
         customer_profile=customer_profile,
+        conversation_summary_text=conversation_summary_text,
     )
     if timing is not None:
         timing["rag_ms"] = chat_context.rag_ms
         timing["guard_product_titles"] = list(chat_context.product_titles)
         timing["guard_source_text"] = chat_context.guard_source_text
+        if chat_context.context_budget is not None:
+            timing["context_budget"] = chat_context.context_budget.to_dict()
     messages = chat_context.messages
 
     if image_base64:
@@ -71,6 +81,7 @@ async def prepare_chat_context(
     intent: IntentType,
     history: list[dict],
     customer_profile: CustomerProfile | None = None,
+    conversation_summary_text: str = "",
 ) -> ChatContext:
     started_at = time.monotonic()
     knowledge_entries = await load_knowledge_entries(
@@ -79,10 +90,14 @@ async def prepare_chat_context(
         history_text=history_text,
         intent=intent,
     )
+    system_prompt = _append_conversation_summary(
+        build_system_prompt(knowledge_entries, customer_profile),
+        conversation_summary_text,
+    )
     messages: list[dict] = [
         {
             "role": "system",
-            "content": build_system_prompt(knowledge_entries, customer_profile),
+            "content": system_prompt,
         },
     ]
     messages.extend(history)
@@ -91,6 +106,14 @@ async def prepare_chat_context(
         rag_ms=round((time.monotonic() - started_at) * 1000),
         product_titles=_extract_product_titles(knowledge_entries),
         guard_source_text=_build_guard_source_text(knowledge_entries),
+        context_budget=build_chat_context_budget_snapshot(
+            system_prompt=system_prompt,
+            history=history,
+            knowledge_entries=knowledge_entries,
+            knowledge_entry_limit=KNOWLEDGE_SEARCH_LIMIT,
+            customer_profile=customer_profile,
+            conversation_summary_text=conversation_summary_text,
+        ),
     )
 
 
@@ -120,3 +143,14 @@ def _extract_product_titles(entries: list[KnowledgeEntry]) -> tuple[str, ...]:
 
 def _build_guard_source_text(entries: list[KnowledgeEntry]) -> str:
     return "\n".join(f"{entry.title}\n{entry.content}" for entry in entries)
+
+
+def _append_conversation_summary(system_prompt: str, summary_text: str) -> str:
+    summary = summary_text.strip()
+    if not summary:
+        return system_prompt
+    return (
+        f"{system_prompt}\n\n{SESSION_SUMMARY_SECTION_TITLE}\n"
+        f"{summary}\n"
+        "以上摘要只用于理解本会话早期上下文；订单、库存、配送、价格仍以工具和知识库为准。"
+    )

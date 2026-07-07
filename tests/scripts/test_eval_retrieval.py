@@ -61,6 +61,34 @@ def test_load_corpus_builds_stable_keys(tmp_path: Path) -> None:
     ]
 
 
+def test_load_eval_set_accepts_custom_fixture(tmp_path: Path) -> None:
+    eval_retrieval = load_eval_module()
+    fixture_path = tmp_path / "customer_cases.json"
+    fixture_path.write_text(
+        """
+{
+  "cases": [
+    {
+      "id": "customer-delivery",
+      "group": "delivery",
+      "query": "你们送货吗",
+      "relevant": [["配送"]]
+    },
+    {
+      "id": "placeholder"
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    cases = eval_retrieval.load_eval_set(fixture_path)
+
+    assert [case["id"] for case in cases] == ["customer-delivery"]
+    assert cases[0]["group"] == "delivery"
+
+
 def test_evaluate_calculates_recall_mrr_and_no_gold() -> None:
     eval_retrieval = load_eval_module()
 
@@ -86,3 +114,47 @@ def test_evaluate_calculates_recall_mrr_and_no_gold() -> None:
     assert summary["no_gold"] == 1
     assert summary["recall_at_k"] == 0.5
     assert summary["mrr"] == 0.25
+
+
+def test_evaluate_reports_group_metrics() -> None:
+    eval_retrieval = load_eval_module()
+
+    class StubSearcher:
+        def search(self, query: str, limit: int) -> list[tuple[str, float]]:
+            results = {
+                "送货": [("delivery-hit", 0.9)],
+                "退款": [("miss", 0.9)],
+                "人工": [("delivery-hit", 0.9)],
+            }
+            return results[query][:limit]
+
+    cases = [
+        {
+            "id": "delivery-hit",
+            "group": "delivery",
+            "query": "送货",
+            "relevant": [["配送"]],
+        },
+        {
+            "id": "refund-miss",
+            "group": "refund_after_sales",
+            "query": "退款",
+            "relevant": [["售后"]],
+        },
+        {
+            "id": "transfer-no-gold",
+            "group": "human_transfer",
+            "query": "人工",
+            "relevant": [["人工"]],
+        },
+    ]
+    corpus = [
+        ("delivery-hit", "配送规则", "同城配送"),
+        ("refund-hit", "售后规则", "售后处理"),
+    ]
+
+    summary = eval_retrieval.evaluate(cases, corpus, StubSearcher(), k=2)
+
+    assert summary["group_metrics"]["delivery"]["recall_at_k"] == 1.0
+    assert summary["group_metrics"]["refund_after_sales"]["recall_at_k"] == 0.0
+    assert summary["group_metrics"]["human_transfer"]["no_gold"] == 1

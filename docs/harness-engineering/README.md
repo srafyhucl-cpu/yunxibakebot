@@ -50,6 +50,7 @@ ______________________________________________________________________
 
 - `scripts/harness_snapshot.py`：生成交接快照。
 - `scripts/check_mistake_ledger.py`：检查防重犯账本结构。
+- `scripts/check_evidence_index.py`：检查证据索引结构和关键证据引用。
 
 ______________________________________________________________________
 
@@ -116,6 +117,7 @@ ______________________________________________________________________
 | `python scripts/harness_snapshot.py --json` | 输出机器可读快照，适合归档到 reports |
 | `python scripts/harness_snapshot.py --output reports/harness/handoff-{timestamp}.md` | 写入带 UTF-8 BOM 的快照文件，拒绝覆盖已有文件 |
 | `python scripts/check_mistake_ledger.py` | 检查 [core/mistake-ledger.md](core/mistake-ledger.md) 是否有合法空账本标记，或每条 mistake 是否字段完整、枚举合法 |
+| `python scripts/check_evidence_index.py` | 检查 [core/evidence-index.md](core/evidence-index.md) 的证据条目必填字段、结果枚举、重复 ID 和预检业务合约证据引用 |
 | `.\scripts\enable_utf8_console.ps1` | 修复当前 Windows PowerShell 会话的中文输入输出乱码 |
 
 推荐在长任务交接、上下文重置、上线收口前执行：
@@ -123,8 +125,9 @@ ______________________________________________________________________
 ```powershell
 python scripts/harness_snapshot.py --trace-id 20260611-example --goal "说明当前任务" --status in_progress
 python scripts/check_mistake_ledger.py
+python scripts/check_evidence_index.py --summary
 ```
 
 生成需要归档的快照或生产报告后，在 [core/evidence-index.md](core/evidence-index.md) 追加索引条目；影响长期演进的决策写入 [adr/](adr/)。
 
-`check_mistake_ledger.py` 已接入 `.pre-commit-config.yaml`，每次提交前都会自动检查防重犯账本结构。若账本条目不完整，提交会被阻断，直到补齐字段或恢复合法空账本标记。
+`check_mistake_ledger.py` 和 `check_evidence_index.py` 已接入 `.pre-commit-config.yaml`，每次提交前都会自动检查防重犯账本和证据索引结构。若账本条目不完整、证据字段缺失或证据 ID 重复，提交会被阻断，直到补齐字段或恢复合法结构。

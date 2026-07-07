@@ -85,7 +85,9 @@ async def test_admin_knowledge_api_create_and_detail() -> None:
         method="POST",
         body=(
             '{"title":"配送说明","content":"主城区当日配送","content_type":"faq",'
-            '"keywords":"配送","priority":50,"is_active":true}'
+            '"keywords":"配送","priority":50,"is_active":true,'
+            '"audience":"customer","review_status":"published",'
+            '"valid_from":"2026-07-06 09:00:00","valid_until":"2026-07-31 23:59:59"}'
         ).encode("utf-8"),
     )
     created = await create_endpoint(
@@ -95,6 +97,12 @@ async def test_admin_knowledge_api_create_and_detail() -> None:
 
     assert created["code"] == 0
     assert created["data"]["vector_sync_status"] == "success"
+    assert created["data"]["audience"] == "customer"
+    assert created["data"]["review_status"] == "published"
+    assert created["data"]["valid_from"] == "2026-07-06 09:00:00"
+    assert created["data"]["valid_until"] == "2026-07-31 23:59:59"
+    assert created["data"]["reviewed_by"] == "admin"
+    assert created["data"]["reviewed_at"]
 
     detail = await detail_endpoint(
         entry_id=created["data"]["id"],
@@ -102,5 +110,7 @@ async def test_admin_knowledge_api_create_and_detail() -> None:
     )
     assert detail["code"] == 0
     assert detail["data"]["entry"]["title"] == "配送说明"
+    assert detail["data"]["entry"]["audience"] == "customer"
+    assert detail["data"]["entry"]["review_status"] == "published"
     assert len(detail["data"]["history"]) == 1
     await close_db(db)

@@ -13,6 +13,7 @@ from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
 from app.repository.transfer_repo import TransferRepo
 from app.repository.analytics_repo import AnalyticsRepo
+from app.repository.conversation_summary_repo import ConversationSummaryRepo
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.chat_ai_loop import (
@@ -25,6 +26,9 @@ from app.service.chat_message_flow import (
 )
 from app.service.chat_reply import (
     save_assistant_reply,
+)
+from app.service.conversation_summary_scheduler import (
+    schedule_conversation_summary_after_reply,
 )
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.session_manager import SessionManager
@@ -71,6 +75,7 @@ class ChatService:
         youzan_event_handler: YouzanEventHandler,
         analytics_repo: AnalyticsRepo,
         customer_profile_repo: CustomerProfileRepo | None = None,
+        conversation_summary_repo: ConversationSummaryRepo | None = None,
     ) -> None:
         self._session_mgr = SessionManager(session_repo, message_repo)
         self._session_repo = session_repo
@@ -83,6 +88,7 @@ class ChatService:
         self._youzan_events = youzan_event_handler
         self._analytics_repo = analytics_repo
         self._customer_profile_repo = customer_profile_repo
+        self._conversation_summary_repo = conversation_summary_repo
         self._ai_loop_dependencies = AiConversationLoopDependencies(
             session_mgr=self._session_mgr,
             knowledge=self._knowledge,
@@ -92,6 +98,7 @@ class ChatService:
             fallback_reply=FALLBACK_REPLY,
             timeout_reply=QUERY_TIMEOUT_REPLY,
             failure_alerter=_llm_failure_alerter,
+            conversation_summary_repo=self._conversation_summary_repo,
         )
         self._message_flow_dependencies = ChatMessageFlowDependencies(
             session_mgr=self._session_mgr,
@@ -104,6 +111,7 @@ class ChatService:
             fallback_reply=FALLBACK_REPLY,
             transfer_reply=TRANSFER_REPLY,
             auto_transfer_reply=AI_FAILURE_AUTO_TRANSFER_REPLY,
+            schedule_conversation_summary=schedule_conversation_summary_after_reply,
         )
 
     async def create_youzan_webhook_audit(self, event: YouzanWebhookEventCreate) -> int:

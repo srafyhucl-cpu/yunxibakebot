@@ -20,6 +20,7 @@
 用法：
     python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db
     python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --mode vector --k 5
+    python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --fixture tests/fixtures/customer_rag_golden_cases.json
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ from app.service.embedding_search import EmbeddingSearcher  # noqa: E402
 from app.service.bm25_search import BM25Searcher  # noqa: E402
 from app.service.retrieval_fusion import DEFAULT_RRF_K, fuse_ranked_results  # noqa: E402
 
-FIXTURE_PATH = (
+DEFAULT_FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent
     / "tests"
     / "fixtures"
@@ -50,9 +51,9 @@ DEFAULT_EVALUATION_DB = Path("data/prod_snapshot/eval.db")
 LOCAL_RAW_SNAPSHOT_DB = Path("data/prod_snapshot/bot_raw.db")
 
 
-def load_eval_set() -> list[dict]:
+def load_eval_set(fixture_path: str | Path = DEFAULT_FIXTURE_PATH) -> list[dict]:
     """加载金标准标注集，过滤占位项。"""
-    with open(FIXTURE_PATH, "r", encoding="utf-8") as f:
+    with open(fixture_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return [c for c in data["cases"] if "query" in c]
 
@@ -147,14 +148,18 @@ def evaluate(
     mrr_sum = 0.0
     no_gold = 0  # 标注集里有、但当前语料无对应文档的用例（无法评测）
     details: list[dict] = []
+    group_counters: dict[str, dict[str, float | int]] = {}
 
     for case in cases:
+        group = str(case.get("group", "ungrouped") or "ungrouped")
         gold_keys = build_key_relevance(corpus, case["relevant"])
         if not gold_keys:
             no_gold += 1
+            _count_no_gold(group_counters, group)
             details.append(
                 {
                     "id": case["id"],
+                    "group": group,
                     "query": case["query"],
                     "status": "NO_GOLD",
                     "note": "当前语料中无匹配的目标文档，跳过",
@@ -178,10 +183,12 @@ def evaluate(
                 first_rank = rank
                 break
         mrr_sum += rr
+        _count_evaluable_case(group_counters, group, hit=hit, rr=rr)
 
         details.append(
             {
                 "id": case["id"],
+                "group": group,
                 "query": case["query"],
                 "status": "HIT" if hit else "MISS",
                 "first_rank": first_rank,
@@ -197,8 +204,63 @@ def evaluate(
         "no_gold": no_gold,
         "recall_at_k": round(recall_hits / evaluable, 4) if evaluable else 0.0,
         "mrr": round(mrr_sum / evaluable, 4) if evaluable else 0.0,
+        "group_metrics": _build_group_metrics(group_counters),
         "details": details,
     }
+
+
+def _count_no_gold(counters: dict[str, dict[str, float | int]], group: str) -> None:
+    counter = _group_counter(counters, group)
+    counter["total_cases"] += 1
+    counter["no_gold"] += 1
+
+
+def _count_evaluable_case(
+    counters: dict[str, dict[str, float | int]],
+    group: str,
+    *,
+    hit: bool,
+    rr: float,
+) -> None:
+    counter = _group_counter(counters, group)
+    counter["total_cases"] += 1
+    counter["evaluable"] += 1
+    counter["hits"] += 1 if hit else 0
+    counter["mrr_sum"] += rr
+
+
+def _group_counter(
+    counters: dict[str, dict[str, float | int]], group: str
+) -> dict[str, float | int]:
+    if group not in counters:
+        counters[group] = {
+            "total_cases": 0,
+            "evaluable": 0,
+            "no_gold": 0,
+            "hits": 0,
+            "mrr_sum": 0.0,
+        }
+    return counters[group]
+
+
+def _build_group_metrics(
+    counters: dict[str, dict[str, float | int]],
+) -> dict[str, dict[str, float | int]]:
+    metrics: dict[str, dict[str, float | int]] = {}
+    for group, counter in sorted(counters.items()):
+        evaluable = int(counter["evaluable"])
+        metrics[group] = {
+            "total_cases": int(counter["total_cases"]),
+            "evaluable": evaluable,
+            "no_gold": int(counter["no_gold"]),
+            "recall_at_k": round(int(counter["hits"]) / evaluable, 4)
+            if evaluable
+            else 0.0,
+            "mrr": round(float(counter["mrr_sum"]) / evaluable, 4)
+            if evaluable
+            else 0.0,
+        }
+    return metrics
 
 
 def print_report(mode: str, db_path: str, corpus_size: int, summary: dict) -> None:
@@ -213,6 +275,15 @@ def print_report(mode: str, db_path: str, corpus_size: int, summary: dict) -> No
     )
     print(f"  Recall@{summary['k']}:     {summary['recall_at_k']}")
     print(f"  MRR:           {summary['mrr']}")
+    if summary.get("group_metrics"):
+        print("  分组指标:")
+        for group, metrics in summary["group_metrics"].items():
+            print(
+                f"    {group}: Recall={metrics['recall_at_k']} "
+                f"MRR={metrics['mrr']} "
+                f"evaluable={metrics['evaluable']} "
+                f"NO_GOLD={metrics['no_gold']}"
+            )
     print("-" * 60)
     miss = [d for d in summary["details"] if d["status"] == "MISS"]
     if miss:
@@ -247,6 +318,11 @@ async def main() -> int:
     parser.add_argument(
         "--json-out", default="", help="可选：将汇总指标写入该 JSON 路径"
     )
+    parser.add_argument(
+        "--fixture",
+        default=str(DEFAULT_FIXTURE_PATH),
+        help="评测标注集路径，默认 tests/fixtures/retrieval_eval_set.json",
+    )
     args = parser.parse_args()
 
     db_path = resolve_db_path(args.db)
@@ -260,7 +336,7 @@ async def main() -> int:
         print(f"[ERROR] {db_path} 中无启用知识，无法评测", file=sys.stderr)
         return 1
 
-    cases = load_eval_set()
+    cases = load_eval_set(args.fixture)
 
     # 构建向量索引（与生产同源：title + content）
     searcher = EmbeddingSearcher()
@@ -276,6 +352,7 @@ async def main() -> int:
     if args.json_out:
         slim = {key: val for key, val in summary.items() if key != "details"}
         slim["mode"] = args.mode
+        slim["fixture"] = args.fixture
         with open(args.json_out, "w", encoding="utf-8") as f:
             json.dump(slim, f, ensure_ascii=False, indent=2)
         print(f"[INFO] 汇总指标已写入 {args.json_out}")

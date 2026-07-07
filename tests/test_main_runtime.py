@@ -146,6 +146,12 @@ def test_build_runtime_feature_flags_includes_offline_runtime_state() -> None:
     assert flags["offline_review_running"] is True
 
 
+def test_init_repositories_includes_conversation_summary_repo() -> None:
+    repos = main._init_repositories()  # noqa: SLF001
+
+    assert "conversation_summary_repo" in repos
+
+
 async def test_static_file_helpers_return_or_404(monkeypatch, tmp_path) -> None:
     app_dir = tmp_path / "app"
     static_dir = app_dir / "static"

@@ -1,4 +1,116 @@
 ﻿
+## E-20260707-004：GitHub 参考计划双仓执行交接快照
+
+- trace_id: 20260707-github-reference-execution-handoff
+- generated_at: 2026-07-07
+- evidence_type: local/harness-handoff
+- file: `D:\Project\YunxiBakeBot\reports\harness\handoff-github-reference-execution-20260706-175041.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\evidence-index.md`
+- command: `python scripts\harness_snapshot.py --trace-id 20260707-github-reference-execution-handoff --goal "GitHub 参考计划双仓执行收口，保持客户热路径/员工助手/MiniApp 边界" --status blocked_external --output "reports\harness\handoff-github-reference-execution-{timestamp}.md"`; Platform `python scripts\check_project.py --skip-tests`; Platform `git diff --check`; MiniApp `npm run check:page-api-coverage`; MiniApp `npm run check:observability-contract`; MiniApp `npm run check:miniprogram-ci-readiness`; MiniApp `git diff --check`
+- result: pass
+- related_logbook: 2026-07-07 - chore(harness): 归档 GitHub 参考计划双仓执行交接快照
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记双仓文件状态、命令结论、报告路径和外部阻塞说明；不包含客户原文、订单明细、密钥、上传私钥或个人敏感信息。
+- summary: 归档 GitHub 参考计划阶段 0-6 双仓执行状态。Platform 侧七类业务合约通过，MiniApp 页面 API 覆盖、可观测和 miniprogram-ci 准备合约通过命令门槛；当前剩余不是代码边界问题，而是微信开发者工具 `islogin=false` / `需要重新登录 (code 10)` 导致按钮触达扫描和预览二维码无法刷新，以及真实 miniprogram-ci 上传所需仓库外私钥、依赖、机器人号、版本号、说明、体验版二维码和真机/支付/审核证据缺失。交接快照明确不引入 LangChain / LangGraph，不改客户热路径、不改员工助手主链路、不让 MiniApp 沉淀业务真相。
+
+## E-20260707-003：GitHub 参考计划全量回归缺口修复
+
+- trace_id: 20260707-github-reference-full-suite-regression
+- generated_at: 2026-07-07
+- evidence_type: local/full-suite-regression
+- file: `D:\Project\YunxiBakeBot\scripts\rebuild_embeddings.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_rebuild_embeddings.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_rebuild_embeddings.py tests\scripts\test_check_wecom_employee_agent_callback.py::test_run_callback_checks_covers_employee_queries -q --no-cov`; `python -m ruff check scripts\rebuild_embeddings.py tests\scripts\test_rebuild_embeddings.py tests\scripts\test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check scripts\rebuild_embeddings.py tests\scripts\test_rebuild_embeddings.py tests\scripts\test_check_wecom_employee_agent_callback.py`; `python -m pytest tests/ -q`; `python scripts\check_project.py --skip-tests`; `cd web/admin; npm run typecheck`; `cd web/admin; npm run build:production`; architecture scans `rg "from app\.repository" app\api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`, `rg "from app\.(service|repository|api)" app\models -g "*.py"`; `python scripts\check_mistake_ledger.py`; `python scripts\check_evidence_index.py --summary`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-07 - fix(verification): 修复 GitHub 参考计划执行后的全量回归缺口
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记本地测试、脚本和静态扫描命令结论；不包含客户原文、订单数据、密钥或个人敏感信息。
+- summary: 全量后端测试暴露向量重建旧表夹具缺 v015 知识治理字段、企微员工助手 callback 假客户端未覆盖新增探针语义两类缺口。已让 `scripts/rebuild_embeddings.py` 在读取知识前同时检查必需表和必需字段，旧库缺字段时按 schema not ready 处理；测试夹具补齐当前治理字段并新增旧表缺字段回归；callback 假客户端补齐“明天预定订单”和“同步失败有哪些”回复。聚焦回归、Ruff、全量 `python -m pytest tests/ -q`、统一质量门禁、后台 `npm run typecheck`、后台 `npm run build:production`、架构扫描、mistake ledger、evidence index 和 diff 空白检查均通过。
+
+## E-20260707-002：GitHub 参考实施计划静态门禁
+
+- trace_id: 20260707-github-reference-plan-contract
+- generated_at: 2026-07-07
+- evidence_type: local/github-reference-plan-contract
+- file: `D:\Project\YunxiBakeBot\docs\architecture\github-reference-benchmark-and-implementation-plan.md`; `D:\Project\YunxiBakeBot\scripts\check_github_reference_implementation_plan.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_github_reference_implementation_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\check_preflight_business_contracts.py`; `D:\Project\YunxiBakeBot\docs\README.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\verification-matrix.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\reports\preflight-github-reference-plan-contract-20260707-012412.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\check_github_reference_implementation_plan.py --summary`; `python -m pytest tests\scripts\test_check_github_reference_implementation_plan.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov`; `python -m ruff check scripts\check_github_reference_implementation_plan.py tests\scripts\test_check_github_reference_implementation_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python -m ruff format --check scripts\check_github_reference_implementation_plan.py tests\scripts\test_check_github_reference_implementation_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python scripts\check_project.py --skip-tests`; `python scripts\preflight_production.py --json --output "reports\preflight-github-reference-plan-contract-{timestamp}.json"`; `python scripts\check_preflight_business_contracts.py "reports\preflight-github-reference-plan-contract-20260707-012412.json" --summary`; `python scripts\check_evidence_index.py --summary`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-07 - chore(architecture): 新增 GitHub 参考实施计划静态门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记主计划、静态检查脚本、测试、本地命令结论和 gitignored preflight 报告路径；不记录客户原文、订单数据、密钥或个人敏感信息。
+- summary: 新增 GitHub 参考实施计划静态门禁，冻结阶段状态、客户热路径和员工事实回复不迁移、MiniApp 不沉淀业务真相、LangGraph 仅限可选离线固定流程等边界。新增 `scripts/check_github_reference_implementation_plan.py --summary`，并作为第七类业务合约接入统一质量门禁、生产预检和预检证据复核；本片未引入 LangChain / LangGraph，未改客户机器人热路径，未改员工助手 planner、工具调用或确定性回复。实际预检报告 `reports\preflight-github-reference-plan-contract-20260707-012412.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=8 failed=0`。
+
+## E-20260707-001：MiniApp 页面 API 覆盖合约静态门禁
+
+- trace_id: 20260707-miniapp-page-api-coverage-contract
+- generated_at: 2026-07-07
+- evidence_type: local/miniapp-page-api-contract
+- file: `D:\Project\YunxiBakeBot\docs\architecture\miniapp-page-api-coverage-contract.md`; `D:\Project\YunxiBakeBot\scripts\check_miniapp_page_api_contract.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_miniapp_page_api_contract.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\check_preflight_business_contracts.py`; `D:\Project\YunxiBakeBot\reports\preflight-miniapp-contract-20260707-001659.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\check_miniapp_page_api_contract.py --summary`; `python -m pytest tests\scripts\test_check_miniapp_page_api_contract.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov`; `python -m ruff check scripts\check_miniapp_page_api_contract.py tests\scripts\test_check_miniapp_page_api_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python -m ruff format --check scripts\check_miniapp_page_api_contract.py tests\scripts\test_check_miniapp_page_api_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python scripts\check_project.py --skip-tests`; `python scripts\preflight_production.py --json --output "reports\preflight-miniapp-contract-{timestamp}.json"`; `python scripts\check_preflight_business_contracts.py "reports\preflight-miniapp-contract-20260707-001659.json" --summary`
+- result: pass
+- related_logbook: 2026-07-07 - chore(miniapp): 新增页面 API 覆盖合约静态门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记 MiniApp 页面 API 覆盖合约、静态检查脚本、测试和命令结论；预检 JSON 位于 gitignored reports 目录，不在索引中记录客户数据、订单数据、密钥或个人敏感信息。
+- summary: 新增 MiniApp 页面 API 覆盖合约，冻结首页、商品、详情、购物车、结算、政策、地址、订单、客户群登记、客服和会员中心等页面依赖的 Platform API，并明确会员权益、积分、储值余额、优惠券、配送费、满减和活动价必须先回 Platform 补 API 契约。新增 `scripts/check_miniapp_page_api_contract.py --summary`，并作为第六类业务合约接入统一质量门禁和生产预检。实际预检报告 `reports\preflight-miniapp-contract-20260707-001659.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=7 failed=0`。
+
+## E-20260706-004：客户机器人可观测合约静态门禁
+
+- trace_id: 20260706-customer-observability-contract
+- generated_at: 2026-07-06
+- evidence_type: local/customer-observability-contract
+- file: `D:\Project\YunxiBakeBot\docs\architecture\customer-observability-contract.md`; `D:\Project\YunxiBakeBot\scripts\check_customer_observability_contract.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_customer_observability_contract.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\check_preflight_business_contracts.py`; `D:\Project\YunxiBakeBot\reports\preflight-observability-contract-20260707-000652.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\check_customer_observability_contract.py --summary`; `python -m pytest tests\scripts\test_check_customer_observability_contract.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov`; `python -m ruff check scripts\check_customer_observability_contract.py tests\scripts\test_check_customer_observability_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python -m ruff format --check scripts\check_customer_observability_contract.py tests\scripts\test_check_customer_observability_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python scripts\check_project.py --skip-tests`; `python scripts\preflight_production.py --json --output "reports\preflight-observability-contract-{timestamp}.json"`; `python scripts\check_preflight_business_contracts.py "reports\preflight-observability-contract-20260707-000652.json" --summary`
+- result: pass
+- related_logbook: 2026-07-06 - chore(observability): 新增客户机器人可观测合约静态门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记客户机器人可观测合约、静态检查脚本、测试和命令结论；预检 JSON 位于 gitignored reports 目录，不在索引中记录客户原文、订单数据、密钥或个人敏感信息。
+- summary: 新增客户机器人可观测合约，冻结知识命中、无资料兜底、转人工、工具成功、上下文压力等指标，以及 trace、渠道、机器人类型、意图、转人工原因、兜底原因等事件字段。新增 `scripts/check_customer_observability_contract.py --summary`，并作为第五类业务合约接入统一质量门禁和生产预检。实际预检报告 `reports\preflight-observability-contract-20260707-000652.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=6 failed=0`。
+
+## E-20260706-003：客户长期记忆治理计划静态门禁
+
+- trace_id: 20260706-customer-memory-governance-plan
+- generated_at: 2026-07-06
+- evidence_type: local/customer-memory-governance-contract
+- file: `D:\Project\YunxiBakeBot\docs\architecture\customer-memory-governance-plan.md`; `D:\Project\YunxiBakeBot\scripts\check_customer_memory_governance_plan.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_customer_memory_governance_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\check_preflight_business_contracts.py`; `D:\Project\YunxiBakeBot\reports\preflight-memory-contract-20260706-235559.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\check_customer_memory_governance_plan.py --summary`; `python -m pytest tests\scripts\test_check_customer_memory_governance_plan.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov`; `python -m ruff check scripts\check_customer_memory_governance_plan.py tests\scripts\test_check_customer_memory_governance_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python -m ruff format --check scripts\check_customer_memory_governance_plan.py tests\scripts\test_check_customer_memory_governance_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py`; `python scripts\check_project.py --skip-tests`; `python scripts\preflight_production.py --json --output "reports\preflight-memory-contract-{timestamp}.json"`; `python scripts\check_preflight_business_contracts.py "reports\preflight-memory-contract-20260706-235559.json" --summary`; `python scripts\check_evidence_index.py --summary`; architecture scans `rg "from app\.repository" app\api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`, `rg "from app\.(service|repository|api)" app\models -g "*.py"`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-06 - chore(memory): 新增客户长期记忆治理静态门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记长期记忆治理计划、静态检查脚本、测试和命令结论；不包含客户画像内容、会话原文、订单数据或敏感个人信息。
+- summary: 新增客户长期记忆治理计划，冻结 `customer_profiles` 与 `conversation_summaries` 边界，要求长期画像只作为可审计服务提示，必须具备来源证据、置信度、状态、撤销、过期和会话摘要隔离边界。新增 `scripts/check_customer_memory_governance_plan.py --summary`，并接入统一质量门禁和生产预检业务合约明细；本片不改热路径、不改 `MemoryAgent` 写入策略、不改 `customer_profiles` 表结构。实际预检报告 `reports\preflight-memory-contract-20260706-235559.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=5 failed=0`。
+
+## E-20260706-002：Harness 证据索引结构门禁
+
+- trace_id: 20260706-evidence-index-guard
+- generated_at: 2026-07-06
+- evidence_type: local/harness-evidence-index-guard
+- file: `D:\Project\YunxiBakeBot\scripts\check_evidence_index.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_evidence_index.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\evidence-index.md`; `D:\Project\YunxiBakeBot\.pre-commit-config.yaml`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\check_evidence_index.py --summary`; `python -m pytest tests\scripts\test_check_evidence_index.py tests\scripts\test_check_mistake_ledger.py tests\scripts\test_harness_snapshot.py -q --no-cov`; `python -m ruff check scripts\check_evidence_index.py tests\scripts\test_check_evidence_index.py`; `python -m ruff format --check scripts\check_evidence_index.py tests\scripts\test_check_evidence_index.py`; `python scripts\check_mistake_ledger.py`; `python scripts\check_file_sizes.py`; `python scripts\check_project.py --skip-tests`; `pre-commit run check-evidence-index --all-files`; architecture scans `rg "from app\.repository" app\api -g "*.py"`, `rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`, `rg "from app\.(service|repository|api)" app\models -g "*.py"`; `python scripts\check_text_encoding.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-06 - chore(harness): 新增证据索引结构门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅登记本地结构校验命令、脚本、测试和文档路径；不读取或记录 reports 下的敏感业务内容。
+- summary: 新增只读脚本校验 Harness evidence index 的必填字段、结果枚举、敏感数据标记、重复 ID 和预检业务合约证据引用；历史重复证据 ID 已重编号为未占用编号，避免后续按 evidence id 追溯时歧义。脚本已接入 pre-commit `check-evidence-index`。
+
+## E-20260706-001：预检业务合约证据复核
+
+- trace_id: 20260706-preflight-contract-evidence-check
+- generated_at: 2026-07-06
+- evidence_type: local/preflight-business-contract-evidence
+- file: `D:\Project\YunxiBakeBot\scripts\check_preflight_business_contracts.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_preflight_business_contracts.py`; `D:\Project\YunxiBakeBot\reports\preflight-contract-check-20260706-232901.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_preflight_business_contracts.py -q --no-cov`; `python -m ruff check scripts\check_preflight_business_contracts.py tests\scripts\test_check_preflight_business_contracts.py`; `python -m ruff format --check scripts\check_preflight_business_contracts.py tests\scripts\test_check_preflight_business_contracts.py`; `python scripts\preflight_production.py --json --output "reports\preflight-contract-check-{timestamp}.json"`; `python scripts\check_preflight_business_contracts.py "reports\preflight-contract-check-20260706-232901.json" --summary`
+- result: pass
+- related_logbook: 2026-07-06 - chore(preflight): 新增预检业务合约证据复核脚本
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 预检报告位于 gitignored `reports/`，索引只记录路径和业务合约校验结果，不记录密钥、客户数据或订单明细。
+- summary: 新增只读脚本校验已保存的 preflight JSON 是否包含 `business_contracts.static_checks`，且员工助手能力合约、客户 RAG golden cases、知识治理计划三类状态均为 passed。实际本地预检报告因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约证据复核通过，`preflight_business_contracts status=passed total=4 failed=0`。
+
 ## E-20260705-001：企微员工助手确定性直出重构
 
 - trace_id: 20260704-wecom-employee-agent-deterministic-reply
@@ -902,7 +1014,7 @@ ______________________________________________________________________
 - retention_note: 仅保留文档收口命令与结果，不含业务数据
 - summary: 四份客户迁移相关文档的结尾口径已收口为当前入口，不再保留未来态“下一步”措辞。
 
-## E-20260620-009：产品角色名与仓库路径名澄清
+## E-20260620-033：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
 - generated_at: 2026-06-20
@@ -2022,7 +2134,7 @@ ______________________________________________________________________
 - retention_note: 保留浏览器截图；临时本地服务已停止；店铺名称已恢复原值
 - summary: 后台订单详情抽屉可打开，待确认订单可通过页面操作更新为已确认；店铺配置可通过页面保存，并已通过 API 恢复原店名“芸熙烘焙”。
 
-## E-20260616-006：后台设置摘要 MiMo 字段与本地路由收口验证
+## E-20260616-018：后台设置摘要 MiMo 字段与本地路由收口验证
 
 - trace_id: 20260616-admin-overview-mvp
 - generated_at: 2026-06-16
@@ -2058,7 +2170,7 @@ ______________________________________________________________________
 
 ## 当前证据
 
-## E-20260617-010：后台店铺配置保存到小程序公开配置 smoke
+## E-20260617-047：后台店铺配置保存到小程序公开配置 smoke
 
 - trace_id: 20260617-admin-shop-settings-smoke
 - generated_at: 2026-06-17
@@ -2086,7 +2198,7 @@ ______________________________________________________________________
 - retention_note: 仅保留命令结论，不保留临时脚本文件
 - summary: 后台概览重构后通过类型检查，订单列表 query 深链联动可用。
 
-## E-20260617-001：小程序客服主动转人工接口验证
+## E-20260617-048：小程序客服主动转人工接口验证
 
 - trace_id: 20260617-miniapp-chat-transfer
 - generated_at: 2026-06-17
@@ -2268,7 +2380,7 @@ ______________________________________________________________________
 - retention_note: 仅登记架构收口与本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: 订单域、前台认证服务和 MiniApp API 内部默认用户已切到 storefront 常量；服务测试与商品测试 helper 已迁到 canonical 领域语义；旧 MiniApp API 契约、请求头、历史表名、迁移文件和微信平台配置保持不变。
 
-## E-20260621-001：前台渠道 API 目录切换 P4
+## E-20260621-006：前台渠道 API 目录切换 P4
 
 - trace_id: 20260621-storefront-api-directory
 - generated_at: 2026-06-21
@@ -2282,7 +2394,7 @@ ______________________________________________________________________
 - retention_note: 仅登记 API 目录切换和本地验证命令结论，不包含客户数据或导出 CSV。
 - summary: `app/api/channels/storefront/*` 承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出，`lifespan` 装配优先使用 canonical router；新增红线防止 MiniApp API 兼容文件重新承载真实 FastAPI router。外部 `/api/v1/miniapp/*` 和 `x-miniapp-user-id` 保持不变。
 
-## E-20260703-004：企微智能机器人 URL 回调改为 stream 回复
+## E-20260703-009：企微智能机器人 URL 回调改为 stream 回复
 
 - trace_id: 20260703-wecom-aibot-stream-reply
 - generated_at: 2026-07-03

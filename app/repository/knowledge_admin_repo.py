@@ -3,16 +3,36 @@
 职责：FAQ/规则/话术类知识条目的 CRUD 操作（管理后台专用）。
 """
 
-import aiosqlite
-
 from app.models.content_change_history import WriteResult
-from app.models.knowledge import KnowledgeEntry, VectorSyncStatus
+from app.models.knowledge import (
+    KnowledgeAudience,
+    KnowledgeEntry,
+    KnowledgeReviewStatus,
+    VectorSyncStatus,
+)
+from app.repository.base import BaseRepository
 from app.repository.knowledge_repo import ENTRY_SELECT_SQL
 
 ADMIN_LIST_CONTENT_TYPES = ("faq", "rule", "script")
-
-
-from app.repository.base import BaseRepository
+ADMIN_ENTRY_INSERT_SQL = (
+    "INSERT INTO knowledge_base ("
+    "category, content_type, title, content, keywords, priority, is_active, "
+    "last_sync_source, last_sync_ref, content_origin, created_by, updated_by, "
+    "suggested_category, suggest_reason, vector_sync_status, vector_sync_error, "
+    "vector_synced_at, vector_sync_retry_count, audience, review_status, "
+    "valid_from, valid_until, reviewed_by, reviewed_at"
+    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', 0, ?, ?, ?, ?, ?, ?)"
+)
+ADMIN_ENTRY_UPDATE_SQL = (
+    "UPDATE knowledge_base SET "
+    "category = ?, content_type = ?, title = ?, content = ?, keywords = ?, priority = ?, "
+    "is_active = ?, updated_by = ?, suggested_category = ?, suggest_reason = ?, "
+    "last_sync_source = ?, last_sync_ref = ?, vector_sync_status = ?, "
+    "audience = ?, review_status = ?, valid_from = ?, valid_until = ?, "
+    "reviewed_by = ?, reviewed_at = ?, "
+    "vector_sync_error = '', vector_synced_at = '', updated_at = datetime('now') "
+    "WHERE id = ?"
+)
 
 
 class KnowledgeAdminRepo(BaseRepository):
@@ -105,32 +125,17 @@ class KnowledgeAdminRepo(BaseRepository):
         sync_source: str,
         sync_ref: str = "",
         vector_sync_status: str = VectorSyncStatus.PENDING,
+        audience: str = KnowledgeAudience.ALL.value,
+        review_status: str = KnowledgeReviewStatus.PUBLISHED.value,
+        valid_from: str = "",
+        valid_until: str = "",
+        reviewed_by: str = "",
+        reviewed_at: str = "",
     ) -> int:
         """插入一条后台知识配置记录。"""
         cursor = await self._db.execute(
-            "INSERT INTO knowledge_base ("
-            "category, content_type, title, content, keywords, priority, is_active, "
-            "last_sync_source, last_sync_ref, content_origin, created_by, updated_by, "
-            "suggested_category, suggest_reason, vector_sync_status, vector_sync_error, "
-            "vector_synced_at, vector_sync_retry_count"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', 0)",
-            (
-                category,
-                content_type,
-                title,
-                content,
-                keywords,
-                priority,
-                1 if is_active else 0,
-                sync_source,
-                sync_ref,
-                content_origin,
-                created_by,
-                updated_by,
-                suggested_category,
-                suggest_reason,
-                vector_sync_status,
-            ),
+            ADMIN_ENTRY_INSERT_SQL,
+            _build_create_admin_entry_params(locals()),
         )
         await self._db.commit()
         return int(cursor.lastrowid)
@@ -152,31 +157,17 @@ class KnowledgeAdminRepo(BaseRepository):
         sync_source: str,
         sync_ref: str = "",
         vector_sync_status: str = VectorSyncStatus.PENDING,
+        audience: str = KnowledgeAudience.ALL.value,
+        review_status: str = KnowledgeReviewStatus.PUBLISHED.value,
+        valid_from: str = "",
+        valid_until: str = "",
+        reviewed_by: str = "",
+        reviewed_at: str = "",
     ) -> str:
         """更新后台知识配置记录。"""
         cursor = await self._db.execute(
-            "UPDATE knowledge_base SET "
-            "category = ?, content_type = ?, title = ?, content = ?, keywords = ?, priority = ?, "
-            "is_active = ?, updated_by = ?, suggested_category = ?, suggest_reason = ?, "
-            "last_sync_source = ?, last_sync_ref = ?, vector_sync_status = ?, "
-            "vector_sync_error = '', vector_synced_at = '', updated_at = datetime('now') "
-            "WHERE id = ?",
-            (
-                category,
-                content_type,
-                title,
-                content,
-                keywords,
-                priority,
-                1 if is_active else 0,
-                updated_by,
-                suggested_category,
-                suggest_reason,
-                sync_source,
-                sync_ref,
-                vector_sync_status,
-                entry_id,
-            ),
+            ADMIN_ENTRY_UPDATE_SQL,
+            _build_update_admin_entry_params(locals()),
         )
         await self._db.commit()
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
@@ -206,3 +197,54 @@ class KnowledgeAdminRepo(BaseRepository):
         )
         await self._db.commit()
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
+
+
+def _build_create_admin_entry_params(values: dict[str, object]) -> tuple[object, ...]:
+    return (
+        values["category"],
+        values["content_type"],
+        values["title"],
+        values["content"],
+        values["keywords"],
+        values["priority"],
+        1 if values["is_active"] else 0,
+        values["sync_source"],
+        values["sync_ref"],
+        values["content_origin"],
+        values["created_by"],
+        values["updated_by"],
+        values["suggested_category"],
+        values["suggest_reason"],
+        values["vector_sync_status"],
+        values["audience"],
+        values["review_status"],
+        values["valid_from"],
+        values["valid_until"],
+        values["reviewed_by"],
+        values["reviewed_at"],
+    )
+
+
+def _build_update_admin_entry_params(values: dict[str, object]) -> tuple[object, ...]:
+    return (
+        values["category"],
+        values["content_type"],
+        values["title"],
+        values["content"],
+        values["keywords"],
+        values["priority"],
+        1 if values["is_active"] else 0,
+        values["updated_by"],
+        values["suggested_category"],
+        values["suggest_reason"],
+        values["sync_source"],
+        values["sync_ref"],
+        values["vector_sync_status"],
+        values["audience"],
+        values["review_status"],
+        values["valid_from"],
+        values["valid_until"],
+        values["reviewed_by"],
+        values["reviewed_at"],
+        values["entry_id"],
+    )

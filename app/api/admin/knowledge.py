@@ -32,6 +32,10 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
             keywords=str(body.get("keywords", "")),
             priority=priority,
             is_active=bool(body.get("is_active", True)),
+            audience=str(body.get("audience", "all")),
+            review_status=str(body.get("review_status", "published")),
+            valid_from=str(body.get("valid_from", "")),
+            valid_until=str(body.get("valid_until", "")),
         )
 
     def _serialize_entry(entry) -> dict:
@@ -55,6 +59,12 @@ def create_admin_knowledge_router(service: KnowledgeAdminService) -> APIRouter:
             "vector_synced_at": entry.vector_synced_at,
             "vector_sync_error": entry.vector_sync_error,
             "vector_sync_retry_count": entry.vector_sync_retry_count,
+            "audience": entry.audience,
+            "review_status": entry.review_status,
+            "valid_from": entry.valid_from,
+            "valid_until": entry.valid_until,
+            "reviewed_by": entry.reviewed_by,
+            "reviewed_at": entry.reviewed_at,
             "created_at": entry.created_at,
             "updated_at": entry.updated_at,
         }

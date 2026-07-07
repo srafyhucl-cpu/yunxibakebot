@@ -114,7 +114,7 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
     AgentCapabilityCard(
         name="ops_summary",
         intent="ops_query",
-        description="查询系统状态、观察台、同步失败、Webhook 异常和离线复盘。",
+        description="查询系统状态、观察台和经营观察摘要。",
         examples=("系统今天有没有异常", "同步失败有哪些", "昨晚复盘怎么样"),
         keywords=(
             "系统",
@@ -122,9 +122,23 @@ CAPABILITY_CARDS: tuple[AgentCapabilityCard, ...] = (
             "稳不稳",
             "异常",
             "观察台",
+        ),
+    ),
+    AgentCapabilityCard(
+        name="integration_status",
+        intent="ops_query",
+        description="查询同步失败、Webhook 异常、回调失败和第三方集成排障线索。",
+        examples=("同步失败有哪些", "Webhook 失败有哪些", "今天有回调失败吗"),
+        keywords=(
             "同步失败",
             "webhook",
-            "复盘",
+            "Webhook",
+            "回调失败",
+            "回调异常",
+            "第三方",
+            "集成",
+            "排障",
+            "失败记录",
         ),
     ),
     AgentCapabilityCard(

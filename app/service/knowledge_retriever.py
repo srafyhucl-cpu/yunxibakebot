@@ -10,25 +10,28 @@
 """
 
 import asyncio
-import urllib.parse
-
 from app.logger import setup_logger
 from app.models.config import FEATURED_PRODUCTS_KEY
-from app.models.knowledge import KnowledgeEntry
+from app.models.knowledge import KnowledgeAudience, KnowledgeEntry
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.service.bm25_search import BM25Searcher
 from app.service.embedding_search import EmbeddingSearcher
+from app.service.knowledge_live_data import (
+    filter_recommendable_featured_products,
+    prepend_live_data,
+)
+from app.service.knowledge_retrieval_logger import (
+    RETRIEVAL_MODE_HYBRID,
+    RETRIEVAL_MODE_KEYWORD_ONLY,
+    RETRIEVAL_MODE_VECTOR_KEYWORD,
+    bot_type_from_audience,
+    record_knowledge_retrieval_log,
+)
 from app.service.retrieval_fusion import DEFAULT_RRF_K, fuse_ranked_results
-from app.service.youzan.client import YOUZAN_GOODS_H5_BASE_URL
 from app.config import settings
 
 logger = setup_logger()
-
-RECOMMENDABLE_PRODUCT_ACTIVE = 1
-MIN_RECOMMENDABLE_STOCK = 1
-# 虚拟高库存阈值（生日/定制蛋糕类设置为 >= 此值表示常态化可下单）
-VIRTUAL_HIGH_STOCK_THRESHOLD = 200
 
 
 class KnowledgeRetriever:
@@ -42,11 +45,15 @@ class KnowledgeRetriever:
         bm25: BM25Searcher | None = None,
         enable_hybrid_retrieval: bool | None = None,
         rrf_k: int | None = None,
+        audience: str = KnowledgeAudience.ALL.value,
+        bot_type: str = "",
     ) -> None:
         self._repo = repo
         self._vs = vs
         self._config_repo = config_repo
         self._bm25 = bm25
+        self._audience = audience
+        self._bot_type = bot_type or bot_type_from_audience(audience)
         self._enable_hybrid_retrieval = (
             settings.ENABLE_HYBRID_RETRIEVAL
             if enable_hybrid_retrieval is None
@@ -71,21 +78,33 @@ class KnowledgeRetriever:
             hybrid_results = await self._search_hybrid(query, limit)
             if hybrid_results:
                 results = await self._inject_featured(hybrid_results, limit)
-                return await self._prepend_live_data(results)
+                final_results = await self._prepend_live_data(results)
+                await self._record_retrieval_log(
+                    query, RETRIEVAL_MODE_HYBRID, final_results
+                )
+                return final_results
 
         entries: list[KnowledgeEntry] = []
         if self._vs and self._vs.doc_count > 0:
             vs_results = await asyncio.to_thread(self._vs.search, query, limit)
             if vs_results:
                 keys = [k for k, _ in vs_results]
-                entries = await self._repo.get_by_youzan_item_ids(keys, limit=len(keys))
+                entries = await self._repo.get_by_youzan_item_ids(
+                    keys, limit=len(keys), audience=self._audience
+                )
                 logger.debug("向量检索 '%s' → %d 条", query[:30], len(entries))
 
-        keyword_results = await self._repo.search(query, limit=limit)
+        keyword_results = await self._repo.search(
+            query, limit=limit, audience=self._audience
+        )
         logger.debug("关键词检索 '%s' → %d 条", query[:30], len(keyword_results))
         merged = self._merge_entries(keyword_results, entries, limit)
         results = await self._inject_featured(merged, limit)
-        return await self._prepend_live_data(results)
+        final_results = await self._prepend_live_data(results)
+        await self._record_retrieval_log(
+            query, RETRIEVAL_MODE_VECTOR_KEYWORD, final_results
+        )
+        return final_results
 
     async def _search_hybrid(self, query: str, limit: int) -> list[KnowledgeEntry]:
         candidate_limit = max(limit * 3, limit)
@@ -110,7 +129,7 @@ class KnowledgeRetriever:
             return []
 
         entries = await self._repo.get_by_youzan_item_ids(
-            fused_keys, limit=len(fused_keys)
+            fused_keys, limit=len(fused_keys), audience=self._audience
         )
         entries_by_key = {self._entry_key(entry): entry for entry in entries}
         ordered_entries = [
@@ -130,73 +149,34 @@ class KnowledgeRetriever:
     ) -> list[KnowledgeEntry]:
         if not query.strip():
             return []
-        results = await self._repo.search(query, limit=limit)
+        results = await self._repo.search(query, limit=limit, audience=self._audience)
         logger.debug("精确关键词检索 '%s' → %d 条", query[:30], len(results))
         featured_results = await self._inject_featured(results, limit)
-        return await self._prepend_live_data(featured_results)
+        final_results = await self._prepend_live_data(featured_results)
+        await self._record_retrieval_log(
+            query, RETRIEVAL_MODE_KEYWORD_ONLY, final_results
+        )
+        return final_results
+
+    async def _record_retrieval_log(
+        self,
+        query: str,
+        retrieval_mode: str,
+        entries: list[KnowledgeEntry],
+    ) -> None:
+        await record_knowledge_retrieval_log(
+            self._repo,
+            bot_type=self._bot_type,
+            audience=self._audience,
+            query=query,
+            retrieval_mode=retrieval_mode,
+            entries=entries,
+        )
 
     async def _prepend_live_data(
         self, entries: list[KnowledgeEntry]
     ) -> list[KnowledgeEntry]:
-        """对于含有 youzan_item_id 的知识条目，现场秒级反查 products 物理表并动态拼接最新库存与售价。"""
-        if not entries:
-            return entries
-
-        from app.repository.youzan_repo import YouzanProductRepo
-
-        product_repo = YouzanProductRepo(self._repo._db)
-
-        for entry in entries:
-            if entry.youzan_item_id:
-                try:
-                    product = await product_repo.get_by_id(int(entry.youzan_item_id))
-                    if product:
-                        price_yuan = product["price_fen"] / 100.0
-                        stock = product["stock"]
-                        is_active = product["is_active"]
-
-                        # 构造富提示前置前缀，死锁 AI 回复幻觉风险
-                        if is_active == 0:
-                            live_prefix = "【芸熙烘焙小程序实时官方数据 — ⚠️商品当前已下架或暂停预定】\n\n"
-                        elif stock <= 0:
-                            live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | ⚠️商品当前在售但库存已为0，暂无现货，需要提前预约】\n\n"
-                        elif stock >= VIRTUAL_HIGH_STOCK_THRESHOLD:
-                            # 🎂 生日/选配蛋糕类（虚拟高库存 >= 200）
-                            live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：充足（常态化现做预定制商品，只要买家下单即可新鲜现做，请告知买家随时可放心下单，无需向其透露具体数字）】\n\n"
-                        else:
-                            # 🥖 现烤面包/西点类（实体日限量 < 200）
-                            live_prefix = f"【芸熙烘焙小程序实时官方数据 — 当前售价：{price_yuan:.2f}元 | 实时可用库存：仅剩 {stock} 件（属于每日限量现烤面包西点，售罄即止，若库存偏低请温和提示买家抢购）】\n\n"
-
-                        entry.content = live_prefix + entry.content
-
-                        # 当商品处于在售状态（is_active == 1）时，向 RAG 召回内容尾部增量组装统一媒体协议（UMP）线性标记
-                        if is_active == 1:
-                            alias = product["alias"] or ""
-                            img_params = urllib.parse.urlencode(
-                                {"type": "image", "src": product["image"] or ""},
-                                quote_via=urllib.parse.quote,
-                            )
-                            card_params = urllib.parse.urlencode(
-                                {
-                                    "type": "card",
-                                    "id": entry.youzan_item_id,
-                                    "title": entry.title,
-                                    "price": f"{price_yuan:.2f}",
-                                    "src": product["image"] or "",
-                                    "url": f"{YOUZAN_GOODS_H5_BASE_URL}?alias={alias}",
-                                },
-                                quote_via=urllib.parse.quote,
-                            )
-                            entry.content += f"\n[UMP: {img_params}]"
-                            entry.content += f"\n[UMP: {card_params}]"
-                except Exception as exc:
-                    logger.warning(
-                        "现场反查商品库存（ID: %s）发生非致命异常: %s",
-                        entry.youzan_item_id,
-                        exc,
-                    )
-
-        return entries
+        return await prepend_live_data(self._repo, entries)
 
     def _merge_entries(
         self,
@@ -231,13 +211,16 @@ class KnowledgeRetriever:
         if not products:
             return results
 
-        featured_entries = await self._repo.get_by_titles(products, limit=len(products))
+        featured_entries = await self._repo.get_by_titles(
+            products, limit=len(products), audience=self._audience
+        )
         featured_by_title = {entry.title: entry for entry in featured_entries}
         matched_featured_entries = [
             featured_by_title[title] for title in products if title in featured_by_title
         ]
-        ordered_featured = await self._filter_recommendable_featured_products(
-            matched_featured_entries
+        ordered_featured = await filter_recommendable_featured_products(
+            self._repo,
+            matched_featured_entries,
         )
         missing_titles = [title for title in products if title not in featured_by_title]
         if missing_titles:
@@ -252,59 +235,3 @@ class KnowledgeRetriever:
         seen_titles = {entry.title for entry in ordered_featured}
         deduped_results = [entry for entry in results if entry.title not in seen_titles]
         return [*ordered_featured, *deduped_results][:limit]
-
-    async def _filter_recommendable_featured_products(
-        self,
-        entries: list[KnowledgeEntry],
-    ) -> list[KnowledgeEntry]:
-        """Keep featured products that are active and in stock in youzan_products."""
-        if not entries:
-            return []
-
-        from app.repository.youzan_repo import YouzanProductRepo
-
-        product_repo = YouzanProductRepo(self._repo._db)
-
-        recommendable_entries: list[KnowledgeEntry] = []
-        for entry in entries:
-            if not entry.youzan_item_id:
-                logger.warning(
-                    "后台主推款缺少有赞商品ID，已跳过: %s",
-                    entry.title,
-                )
-                continue
-            try:
-                product = await product_repo.get_by_id(int(entry.youzan_item_id))
-            except (TypeError, ValueError) as exc:
-                logger.warning(
-                    "后台主推款有赞商品ID无效，已跳过: title=%s id=%s err=%s",
-                    entry.title,
-                    entry.youzan_item_id,
-                    exc,
-                )
-                continue
-            if not product:
-                logger.warning(
-                    "后台主推款未找到有赞商品物理数据，已跳过: title=%s id=%s",
-                    entry.title,
-                    entry.youzan_item_id,
-                )
-                continue
-            if product["is_active"] != RECOMMENDABLE_PRODUCT_ACTIVE:
-                logger.warning(
-                    "后台主推款商品未上架，已跳过: title=%s id=%s",
-                    entry.title,
-                    entry.youzan_item_id,
-                )
-                continue
-            if product["stock"] < MIN_RECOMMENDABLE_STOCK:
-                logger.warning(
-                    "后台主推款商品库存不足，已跳过: title=%s id=%s stock=%s",
-                    entry.title,
-                    entry.youzan_item_id,
-                    product["stock"],
-                )
-                continue
-            recommendable_entries.append(entry)
-
-        return recommendable_entries

@@ -19,6 +19,18 @@ class KnowledgeContentType(str, Enum):
     SCRIPT = "script"
 
 
+class KnowledgeAudience(str, Enum):
+    ALL = "all"
+    CUSTOMER = "customer"
+    EMPLOYEE = "employee"
+
+
+class KnowledgeReviewStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+
 class VectorSyncStatus(str, Enum):
     PENDING = "pending"
     SYNCING = "syncing"
@@ -48,5 +60,11 @@ class KnowledgeEntry:
     vector_synced_at: str = ""
     vector_sync_error: str = ""
     vector_sync_retry_count: int = 0
+    audience: str = KnowledgeAudience.ALL.value
+    review_status: str = KnowledgeReviewStatus.PUBLISHED.value
+    valid_from: str = ""
+    valid_until: str = ""
+    reviewed_by: str = ""
+    reviewed_at: str = ""
     created_at: str = ""
     updated_at: str = ""

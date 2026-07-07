@@ -529,6 +529,7 @@ async def test_planner_routes_knowledge_and_ops() -> None:
     knowledge_plan = await _planner().plan("配送范围怎么说")
     casual_delivery_plan = await _planner().plan("明天能配送吗")
     ops_plan = await _planner().plan("系统今天有没有异常")
+    integration_plan = await _planner().plan("同步失败有哪些")
     customer_plan = await _planner().plan("查一下张三地址线索")
     campaign_plan = await _planner().plan("汇总 campaignId:abc123")
     offline_review_plan = await _planner().plan("昨晚离线复盘结果")
@@ -536,6 +537,7 @@ async def test_planner_routes_knowledge_and_ops() -> None:
     assert knowledge_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
     assert casual_delivery_plan.intent == AgentIntent.KNOWLEDGE_ANSWER
     assert ops_plan.intent == AgentIntent.OPS_QUERY
+    assert integration_plan.tools == ("integration_status",)
     assert customer_plan.tools == ("customer_lookup",)
     assert campaign_plan.tools == ("group_campaign_summary",)
     assert offline_review_plan.tools == ("offline_review_summary",)

@@ -11,13 +11,46 @@ from app import readiness
 
 
 SAFE_TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+KNOWLEDGE_BASE_GOVERNANCE_COLUMNS_SQL = (
+    "audience TEXT DEFAULT 'all', "
+    "review_status TEXT DEFAULT 'published', "
+    "valid_from TEXT DEFAULT '', "
+    "valid_until TEXT DEFAULT '', "
+    "reviewed_by TEXT DEFAULT '', "
+    "reviewed_at TEXT DEFAULT ''"
+)
+
+KNOWLEDGE_RETRIEVAL_LOGS_COLUMNS_SQL = (
+    "bot_type TEXT DEFAULT '', "
+    "audience TEXT DEFAULT 'all', "
+    "query TEXT DEFAULT '', "
+    "retrieval_mode TEXT DEFAULT '', "
+    "matched_entry_ids_json TEXT DEFAULT '[]', "
+    "matched_titles_json TEXT DEFAULT '[]', "
+    "result_count INTEGER DEFAULT 0, "
+    "fallback_reason TEXT DEFAULT '', "
+    "created_at TEXT DEFAULT ''"
+)
 
 
 def _create_required_tables(db_path) -> None:
     with closing(sqlite3.connect(db_path)) as conn, conn:
         for table_name in readiness.REQUIRED_DATABASE_TABLES:
             assert SAFE_TABLE_NAME_PATTERN.fullmatch(table_name)
-            conn.execute("CREATE TABLE " + table_name + " (id TEXT PRIMARY KEY)")
+            if table_name == "knowledge_base":
+                conn.execute(
+                    "CREATE TABLE knowledge_base ("
+                    "id TEXT PRIMARY KEY, "
+                    + KNOWLEDGE_BASE_GOVERNANCE_COLUMNS_SQL
+                    + ")"
+                )
+            elif table_name == "knowledge_retrieval_logs":
+                conn.execute(
+                    "CREATE TABLE knowledge_retrieval_logs ("
+                    "id TEXT PRIMARY KEY, " + KNOWLEDGE_RETRIEVAL_LOGS_COLUMNS_SQL + ")"
+                )
+            else:
+                conn.execute("CREATE TABLE " + table_name + " (id TEXT PRIMARY KEY)")
 
 
 def _create_embedding_cache(index_path) -> None:

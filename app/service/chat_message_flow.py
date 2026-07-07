@@ -1,5 +1,6 @@
 """用户消息处理主流程边界。"""
 
+from collections.abc import Callable
 import time
 from dataclasses import dataclass
 
@@ -26,6 +27,9 @@ from app.service.chat_reply import (
     save_assistant_reply,
 )
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
+from app.service.conversation_summary_scheduler import (
+    ConversationSummaryAfterReplyRequest,
+)
 from app.service.customer_memory import load_customer_profile
 from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent_types import is_transfer_intent
@@ -50,6 +54,9 @@ class ChatMessageFlowDependencies:
     transfer_reply: str
     auto_transfer_reply: str
     customer_profile_repo: CustomerProfileRepo | None = None
+    schedule_conversation_summary: (
+        Callable[[ConversationSummaryAfterReplyRequest], bool] | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -172,7 +179,6 @@ async def complete_ai_reply(
     finished_at = time.monotonic()
     loop_ms = round((finished_at - intent_result.finished_at) * 1000)
     total_ms = round((finished_at - intent_result.started_at) * 1000)
-
     failure_reason = get_ai_failure_reason(timing)
     if failure_reason:
         reply = await handle_ai_failure_auto_transfer(
@@ -195,13 +201,16 @@ async def complete_ai_reply(
             reply,
         )
         return reply
-
     reply = await postprocess_and_guard_reply(
         dependencies, request, session, timing, reply
     )
     await save_reply_and_latency(
         dependencies, request, session, intent_result, timing, loop_ms, total_ms, reply
     )
+    context_budget = timing.get("context_budget")
+    if dependencies.schedule_conversation_summary and isinstance(context_budget, dict):
+        summary_request = ConversationSummaryAfterReplyRequest(session, context_budget)
+        dependencies.schedule_conversation_summary(summary_request)
     return reply
 
 

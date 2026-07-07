@@ -20,7 +20,9 @@ from app.readiness import (  # noqa: E402
     REQUIRED_DATABASE_TABLES,
     build_readiness_checks,
     embedding_index_files_exist,
+    get_missing_database_columns,
 )
+from scripts import check_project  # noqa: E402
 
 MIN_ACTIVE_KNOWLEDGE_ROWS = 1
 UTF8_BOM = b"\xef\xbb\xbf"
@@ -48,7 +50,12 @@ RECOVERY_PLAN_CONFIG_KEYS = frozenset(
     }
 )
 DATABASE_PLAN_KEYS = frozenset(
-    {"database_path_exists", "database_schema_ready", "database.required_tables"}
+    {
+        "database_path_exists",
+        "database_schema_ready",
+        "database.required_tables",
+        "database.required_columns",
+    }
 )
 KNOWLEDGE_PLAN_KEYS = frozenset({"knowledge.active_rows"})
 EMBEDDING_PLAN_KEYS = frozenset(
@@ -61,12 +68,38 @@ FRONTEND_PLAN_KEYS = frozenset(
         "admin_frontend_observability_summary_built",
     }
 )
+BUSINESS_CONTRACT_PLAN_KEYS = frozenset({"business_contracts.static_checks"})
+BUSINESS_CONTRACT_LABELS: tuple[tuple[str, str], ...] = (
+    (
+        "check_employee_agent_capability_contracts.py",
+        "employee_agent_capability_contracts",
+    ),
+    ("check_customer_rag_golden_cases.py", "customer_rag_golden_cases"),
+    ("check_knowledge_governance_plan.py", "knowledge_governance_plan"),
+    (
+        "check_customer_memory_governance_plan.py",
+        "customer_memory_governance_plan",
+    ),
+    (
+        "check_customer_observability_contract.py",
+        "customer_observability_contract",
+    ),
+    (
+        "check_miniapp_page_api_contract.py",
+        "miniapp_page_api_contract",
+    ),
+    (
+        "check_github_reference_implementation_plan.py",
+        "github_reference_implementation_plan",
+    ),
+)
 
 READINESS_ACTIONS = {
     "admin_token_configured": "设置非默认 ADMIN_API_TOKEN。",
     "mimo_api_key_configured": "设置 MIMO_API_KEY。",
     "database_path_exists": "确认 DB_PATH 指向生产数据库文件。",
     "database_schema_ready": "先查看 recovery_plan 或运行 scripts/apply_migrations.py dry-run；确认目标库路径后再 --apply。",
+    "database.required_columns": "先运行 scripts/apply_migrations.py dry-run 核对目标库；确认无误后再 --apply 补齐缺失字段。",
     "embedding_index_path_exists": (
         "先查看 recovery_plan；知识库确认有有效数据后运行 scripts/rebuild_embeddings.py "
         "dry-run，确认目标路径后再 --apply，或同步 embeddings.npy/json。"
@@ -231,6 +264,30 @@ def build_database_detail_check(db_path_value: str | None = None) -> PreflightCh
     )
 
 
+def build_database_columns_detail_check(
+    db_path_value: str | None = None,
+) -> PreflightCheck:
+    database_path = resolve_project_path(db_path_value or settings.DB_PATH)
+    if database_path.exists() and not is_readable_sqlite_database(database_path):
+        return PreflightCheck(
+            key="database.readable",
+            title="数据库文件可读性",
+            passed=False,
+            detail="database_not_readable",
+            action="目标文件不是可读 SQLite 数据库；先核对 DB 路径或恢复数据库文件，不要直接执行 --apply。",
+        )
+    missing_columns = get_missing_database_columns(database_path)
+    return PreflightCheck(
+        key="database.required_columns",
+        title="数据库关键字段明细",
+        passed=not missing_columns,
+        detail="missing=" + ", ".join(missing_columns) if missing_columns else "ready",
+        action=""
+        if not missing_columns
+        else "先运行 scripts/apply_migrations.py dry-run 核对目标库；确认无误后再 --apply 补齐缺失字段。",
+    )
+
+
 def build_knowledge_detail_check(db_path_value: str | None = None) -> PreflightCheck:
     database_path = resolve_project_path(db_path_value or settings.DB_PATH)
     if database_path.exists() and not is_readable_sqlite_database(database_path):
@@ -311,6 +368,51 @@ def build_embedding_detail_check(index_path_value: str | None = None) -> Preflig
     )
 
 
+def build_business_contract_check() -> PreflightCheck:
+    contract_results = check_project.run_contract_checks()
+    failed_results = [result for result in contract_results if not result.passed]
+    detail_parts = [
+        f"total={len(contract_results)}",
+        f"failed={len(failed_results)}",
+        "checks=" + _format_business_contract_results(contract_results),
+    ]
+    if failed_results:
+        failed_names = ", ".join(
+            _business_contract_label(result.name) for result in failed_results
+        )
+        detail_parts.append(f"failed_names={failed_names}")
+    return PreflightCheck(
+        key="business_contracts.static_checks",
+        title="业务合约静态检查",
+        passed=not failed_results,
+        detail=" ".join(detail_parts),
+        action=""
+        if not failed_results
+        else (
+            "运行 python scripts/check_project.py --skip-tests；修复员工助手能力合约、"
+            "客户 RAG golden cases、知识治理计划、客户长期记忆治理计划或"
+            "客户机器人可观测合约、MiniApp 页面 API 覆盖合约或"
+            "GitHub 参考实施计划后再预检。"
+        ),
+    )
+
+
+def _format_business_contract_results(
+    contract_results: list[check_project.CheckResult],
+) -> str:
+    return ", ".join(
+        f"{_business_contract_label(result.name)}:{'passed' if result.passed else 'failed'}"
+        for result in contract_results
+    )
+
+
+def _business_contract_label(result_name: str) -> str:
+    for script_name, label in BUSINESS_CONTRACT_LABELS:
+        if script_name in result_name:
+            return label
+    return result_name
+
+
 def build_preflight_checks(
     db_path_value: str | None = None,
     index_path_value: str | None = None,
@@ -323,8 +425,10 @@ def build_preflight_checks(
             index_path=index_path,
         ),
         build_database_detail_check(db_path_value),
+        build_database_columns_detail_check(db_path_value),
         build_knowledge_detail_check(db_path_value),
         build_embedding_detail_check(index_path_value),
+        build_business_contract_check(),
     ]
 
 
@@ -544,6 +648,26 @@ def build_recovery_plan(
                 verify_command=verify_command,
                 related_keys=frontend_keys,
                 apply_mutates_state=True,
+            )
+        )
+
+    business_contract_keys = _matching_failed_keys(
+        failed_keys,
+        BUSINESS_CONTRACT_PLAN_KEYS,
+    )
+    if business_contract_keys:
+        steps.append(
+            PreflightPlanStep(
+                order=len(steps) + 1,
+                key="business_contracts",
+                severity="critical",
+                title="修复业务合约门禁",
+                reason="客户 RAG、知识治理、长期记忆治理、客户机器人可观测、MiniApp 页面 API 覆盖或员工助手能力合约静态检查失败，发布会绕过已冻结边界。",
+                command="python scripts/check_project.py --skip-tests",
+                apply_command="修复失败合约对应的 fixture、治理计划或能力合约后，重新运行统一质量门禁。",
+                verify_command=verify_command,
+                related_keys=business_contract_keys,
+                apply_mutates_state=False,
             )
         )
 

@@ -1,6 +1,9 @@
+import json
+
 import aiosqlite
 
 from app.models.config import FEATURED_PRODUCTS_KEY
+from app.models.knowledge import KnowledgeAudience
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
@@ -145,3 +148,110 @@ async def test_search_uses_rrf_order_when_hybrid_enabled(
     assert [entry.title for entry in results[:2]] == ["shared-hit", "vector-only"]
     assert vector_searcher.calls == [("shared", 6)]
     assert bm25_searcher.calls == [("shared", 6)]
+
+
+async def test_search_filters_entries_by_retriever_audience(
+    db: aiosqlite.Connection,
+) -> None:
+    knowledge_repo = KnowledgeRepo(db)
+    all_id = await knowledge_repo.insert_entry(
+        category="faq",
+        title="audience-shared",
+        content="audience sentinel shared",
+        keywords="audience sentinel",
+        priority=30,
+        sync_source="test",
+        audience=KnowledgeAudience.ALL.value,
+    )
+    customer_id = await knowledge_repo.insert_entry(
+        category="faq",
+        title="audience-customer",
+        content="audience sentinel customer",
+        keywords="audience sentinel",
+        priority=20,
+        sync_source="test",
+        audience=KnowledgeAudience.CUSTOMER.value,
+    )
+    employee_id = await knowledge_repo.insert_entry(
+        category="faq",
+        title="audience-employee",
+        content="audience sentinel employee",
+        keywords="audience sentinel",
+        priority=10,
+        sync_source="test",
+        audience=KnowledgeAudience.EMPLOYEE.value,
+    )
+    vector_searcher = _FakeRankSearcher(
+        [(f"kb_{employee_id}", 0.95), (f"kb_{customer_id}", 0.9), (f"kb_{all_id}", 0.8)]
+    )
+    customer_retriever = KnowledgeRetriever(
+        knowledge_repo,
+        vector_searcher,
+        enable_hybrid_retrieval=False,
+        audience=KnowledgeAudience.CUSTOMER.value,
+    )
+    employee_retriever = KnowledgeRetriever(
+        knowledge_repo,
+        audience=KnowledgeAudience.EMPLOYEE.value,
+    )
+
+    customer_results = await customer_retriever.search("audience sentinel", limit=5)
+    employee_results = await employee_retriever.search_keyword_only(
+        "audience sentinel", limit=5
+    )
+
+    assert {entry.title for entry in customer_results} == {
+        "audience-shared",
+        "audience-customer",
+    }
+    assert {entry.title for entry in employee_results} == {
+        "audience-shared",
+        "audience-employee",
+    }
+
+
+async def test_search_writes_knowledge_retrieval_log(
+    db: aiosqlite.Connection,
+) -> None:
+    knowledge_repo = KnowledgeRepo(db)
+    await knowledge_repo.insert_entry(
+        category="faq",
+        title="log-target",
+        content="knowledge log sentinel",
+        keywords="knowledge log sentinel",
+        priority=10,
+        sync_source="test",
+        audience=KnowledgeAudience.CUSTOMER.value,
+    )
+    retriever = KnowledgeRetriever(
+        knowledge_repo,
+        audience=KnowledgeAudience.CUSTOMER.value,
+    )
+
+    await retriever.search_keyword_only("knowledge log sentinel", limit=5)
+
+    logs = await knowledge_repo.list_recent_retrieval_logs(limit=1)
+    assert len(logs) == 1
+    assert logs[0].bot_type == "customer"
+    assert logs[0].audience == "customer"
+    assert logs[0].query == "knowledge log sentinel"
+    assert logs[0].retrieval_mode == "keyword_only"
+    assert logs[0].result_count == 1
+    assert logs[0].fallback_reason == ""
+    assert json.loads(logs[0].matched_titles_json) == ["log-target"]
+
+
+async def test_search_writes_no_match_fallback_log(
+    db: aiosqlite.Connection,
+) -> None:
+    knowledge_repo = KnowledgeRepo(db)
+    retriever = KnowledgeRetriever(knowledge_repo)
+
+    results = await retriever.search_keyword_only("missing knowledge", limit=5)
+
+    logs = await knowledge_repo.list_recent_retrieval_logs(limit=1)
+    assert results == []
+    assert logs[0].bot_type == "shared"
+    assert logs[0].result_count == 0
+    assert logs[0].fallback_reason == "no_match"
+    assert json.loads(logs[0].matched_entry_ids_json) == []

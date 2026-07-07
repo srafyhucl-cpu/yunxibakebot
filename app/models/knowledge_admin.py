@@ -15,6 +15,10 @@ class KnowledgeAdminDraft:
     keywords: str = ""
     priority: int = 50
     is_active: bool = True
+    audience: str = "all"
+    review_status: str = "published"
+    valid_from: str = ""
+    valid_until: str = ""
 
 
 @dataclass

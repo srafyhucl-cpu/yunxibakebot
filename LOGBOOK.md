@@ -1,4 +1,1042 @@
 ﻿
+## [2026-07-07] - chore(harness): 归档 GitHub 参考计划双仓执行交接快照
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-github-reference-execution-handoff
+- **背景**: GitHub 参考计划阶段 0-6 已完成 Platform 侧门禁与 MiniApp 侧本地合约首版执行；当前剩余项集中在微信开发者工具登录/自动化端口、miniprogram-ci 上传私钥、体验版/真机、真实支付和审核材料等外部验收条件。为避免后续上下文切换时误判为仍需 LangChain/LangGraph 运行时改造或重复越界实现，需要归档当前双仓状态。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 不改 MiniApp 页面运行时代码，不绕过微信开发者工具登录、上传私钥、体验版、真机或支付验收。
+  - 用 Harness snapshot 和证据索引记录当前已验证项与外部阻塞项。
+- **改动**:
+  - `reports/harness/handoff-github-reference-execution-20260706-175041.md` - 新增 GitHub 参考计划双仓执行交接快照，记录 Platform / MiniApp 已验证命令、未验证范围、风险和下一步。
+  - `docs/harness-engineering/core/evidence-index.md` - 登记本次 handoff 证据。
+  - `LOGBOOK.md` - 追加本轮收口记录。
+- **验证结果**:
+  - `python scripts\harness_snapshot.py --trace-id 20260707-github-reference-execution-handoff --goal "GitHub 参考计划双仓执行收口，保持客户热路径/员工助手/MiniApp 边界" --status blocked_external --output "reports\harness\handoff-github-reference-execution-{timestamp}.md"` 通过。
+  - Platform 主仓 `python scripts\check_project.py --skip-tests` 通过，七类业务合约均 PASS；仅保留既有 52 处函数长度 WARN。
+  - Platform 主仓 `git diff --check` 通过，仅有既有 CRLF 提示。
+  - MiniApp 仓 `npm run check:page-api-coverage`、`npm run check:observability-contract`、`npm run check:miniprogram-ci-readiness` 和 `git diff --check` 均通过命令门槛；`miniprogram-ci` 当前仍为 `needs_configuration`。
+- **后续**:
+  - 用户在微信开发者工具前台重新登录并确认自动化端口后，复跑 MiniApp `npm run scan:button-touch-targets`、`npm run devtools:preview-check` 和 `npm run release:readiness`。
+  - 配置仓库外上传私钥、机器人号、版本号和说明后，才能补真实 miniprogram-ci 体验版上传和二维码/真机证据。
+
+## [2026-07-07] - fix(verification): 修复 GitHub 参考计划执行后的全量回归缺口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-github-reference-full-suite-regression
+- **背景**: GitHub 参考计划阶段 0-6 已陆续落地并接入七类业务合约门禁；继续做当前态全量验证时，`python -m pytest tests/ -q` 暴露 5 个失败：向量重建脚本仍只按 `knowledge_base` 表存在判断 schema ready，遇到缺少 v015 知识治理字段的旧表会在 `KnowledgeRepo` 查询时抛 `no such column: review_status`；企微员工助手 callback 假客户端还没有覆盖新增的“明天预定订单”和“同步失败有哪些”探针语义。
+- **决策**:
+  - 不改变线上知识检索语义，不放宽知识治理过滤，不绕过 `audience / review_status / valid_from / valid_until` 字段要求。
+  - 不改真实企微回调逻辑，只补测试假客户端回复，保持新增探针继续覆盖真实问法。
+  - 向量重建在读取知识前同时检查必需表和必需字段；旧库缺字段时按 schema not ready 处理，引导先跑迁移，不再抛异常。
+- **改动**:
+  - `scripts/rebuild_embeddings.py` - `schema_ready` 增加 `get_missing_database_columns()` 检查，避免旧版 `knowledge_base` 缺治理字段时直接读取失败。
+  - `tests/scripts/test_rebuild_embeddings.py` - 测试知识表夹具补齐当前治理字段，并新增旧版知识表缺字段时不写向量缓存的回归测试。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 假客户端补齐“有没有明天的预定订单”和“同步失败有哪些”的语义回复。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_rebuild_embeddings.py tests\scripts\test_check_wecom_employee_agent_callback.py::test_run_callback_checks_covers_employee_queries -q --no-cov` 通过，10 个测试通过。
+  - `python -m ruff check scripts\rebuild_embeddings.py tests\scripts\test_rebuild_embeddings.py tests\scripts\test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m ruff format --check scripts\rebuild_embeddings.py tests\scripts\test_rebuild_embeddings.py tests\scripts\test_check_wecom_employee_agent_callback.py` 通过。
+  - `python -m pytest tests/ -q` 通过，覆盖率 80.28%。
+  - `python scripts\check_project.py --skip-tests` 通过，七类业务合约均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `web/admin` 下 `npm run typecheck` 通过。
+  - `web/admin` 下 `npm run build:production` 通过；仅保留既有 Vite 大 chunk 和第三方 PURE 注释警告，`web/admin/dist` 为 gitignored 构建产物。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `python scripts\check_mistake_ledger.py` 通过。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `git diff --check` 通过，仅有既有 CRLF 提示。
+- **后续**:
+  - 后续凡是测试自行创建 `knowledge_base`，必须同步当前治理字段；如果目标库缺字段，应先走迁移 dry-run / apply，而不是让检索或向量重建脚本直接读取旧表。
+
+## [2026-07-07] - chore(architecture): 新增 GitHub 参考实施计划静态门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-github-reference-plan-contract
+- **背景**: GitHub / LangChain / LangGraph 借鉴计划已经对客户机器人、员工助手和 MiniApp 双仓边界形成结论，但如果只停留在文档，后续容易把“局部借鉴”误读成“全量迁移 LangChain / Agent 化”。需要把主计划本身纳入统一业务合约门禁。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 不改 MiniApp 页面运行时代码，不执行真实 miniprogram-ci 上传，不替代真机验收。
+  - 只新增主计划静态验收，并作为第七类业务合约接入统一质量门禁、生产预检和预检证据复核。
+- **改动**:
+  - `scripts/check_github_reference_implementation_plan.py` - 新增 GitHub 参考实施计划静态验收，检查阶段状态、核心边界、已落地资产、LangGraph 试点限制和禁止性指令。
+  - `tests/scripts/test_check_github_reference_implementation_plan.py` - 覆盖计划通过、缺边界、禁用指令、JSON 输出和 summary 输出。
+  - `scripts/check_project.py`、`scripts/preflight_production.py`、`scripts/check_preflight_business_contracts.py` - 业务合约从六类扩展为七类，新增 GitHub 参考实施计划。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/README.md`、`docs/harness-engineering/core/verification-matrix.md`、`项目进度与配置清单.md` - 同步七类业务合约口径和主计划门禁入口。
+  - `docs/harness-engineering/core/evidence-index.md` - 登记本次计划门禁证据。
+- **验证结果**:
+  - `python scripts\check_github_reference_implementation_plan.py --summary` 通过，`status=passed total=36 failed=0`。
+  - `python -m pytest tests\scripts\test_check_github_reference_implementation_plan.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov` 通过，42 个测试通过。
+  - `python -m ruff check scripts\check_github_reference_implementation_plan.py tests\scripts\test_check_github_reference_implementation_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_github_reference_implementation_plan.py tests\scripts\test_check_github_reference_implementation_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查七项均 PASS；仅保留既有函数长度 WARN。
+  - `python scripts\preflight_production.py --json --output "reports\preflight-github-reference-plan-contract-{timestamp}.json"` 已生成 `reports\preflight-github-reference-plan-contract-20260707-012412.json`；命令返回 1 是因为当前本地仍缺既有 `handoff_staff_userid_ready` 配置。
+  - `python scripts\check_preflight_business_contracts.py "reports\preflight-github-reference-plan-contract-20260707-012412.json" --summary` 通过，`status=passed total=8 failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `git diff --check` 通过。
+- **后续**:
+  - 如果未来要真正试点 LangGraph，只允许从离线 QA review / knowledge gap / memory extraction 固定节点流程开始，并保留旧 offline agent 回滚路径；客户实时回复和员工事实回复主链路仍不迁移。
+
+## [2026-07-07] - chore(miniapp): 同步 miniprogram-ci 发布准备合约状态
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-miniapp-miniprogram-ci-readiness
+- **背景**: GitHub 参考计划阶段 6 提到 MiniApp 发布自动化需要补 `miniprogram-ci` 预览 / 上传能力；当前 MiniApp 仓先落地只读发布准备合约和探针，需同步 Platform 主计划状态，避免误判为完全未处理。
+- **决策**:
+  - 只同步主计划状态和 LOGBOOK，不改 Platform 运行时代码、不改客户机器人或员工助手链路、不新增依赖。
+  - 真实体验版上传仍需要微信平台上传私钥、`miniprogram-ci` 依赖、机器人号、版本号、说明和真机证据。
+- **改动**:
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md` - 阶段 6 同步 MiniApp 仓 `docs/release/miniprogram-ci-readiness.md` 与 `scripts/check-miniprogram-ci-readiness.mjs` 已落地，说明当前只是准备合约，不执行真实上传。
+- **验证结果**:
+  - `YunxiBakeMiniApp` 仓 `npm run check:miniprogram-ci-readiness` 生成只读报告；当前无上传私钥和未安装 `miniprogram-ci` 时报告 `needs_configuration`。
+- **后续**:
+  - 后续如要真实上传体验版，必须先在仓库外或 CI 临时目录配置上传私钥，再补真实预览 / 上传脚本和二维码 / 真机证据。
+
+## [2026-07-07] - chore(miniapp): 同步 MiniApp 本地合约执行状态
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-miniapp-local-contracts-sync
+- **背景**: GitHub 参考计划阶段 5/6 已在 Platform 主仓形成 MiniApp 页面 API 覆盖合约和客户机器人可观测合约；随后 `YunxiBakeMiniApp` 仓补了本地页面 API 覆盖合约与 MiniApp 可观测合约，需要同步主计划状态，避免后续误以为 MiniApp 仓清单仍未处理。
+- **决策**:
+  - 只同步总计划状态和 LOGBOOK，不改 Platform 运行时代码，不改 MiniApp 页面运行时代码，不新增数据库迁移。
+  - 继续保持 Platform 为业务真相源，MiniApp 只负责页面、服务调用、微信能力和本地体验状态。
+- **改动**:
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md` - 同步阶段 5/6 状态，记录 `YunxiBakeMiniApp` 仓 `docs/page-api-coverage.md`、`scripts/check-page-api-coverage.mjs`、`docs/observability-contract.md`、`scripts/check-observability-contract.mjs` 已落地。
+- **验证结果**:
+  - `python scripts\check_miniapp_page_api_contract.py --summary` 通过，`status=passed total=43 failed=0`。
+  - `python scripts\check_customer_observability_contract.py --summary` 通过，`status=passed total=41 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，六类业务合约均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `YunxiBakeMiniApp` 仓 `npm run check:observability-contract` 通过，10 metrics / 12 fields / 7 privacy boundaries。
+  - `YunxiBakeMiniApp` 仓 `npm run check:page-api-coverage` 通过，12 pages / 24 API terms / 8 boundaries。
+- **后续**:
+  - 真机/体验版、真实微信登录、真实微信支付和 Platform 写路径联调仍需单独补证；本轮只同步静态合约状态。
+
+## [2026-07-07] - chore(miniapp): 新增页面 API 覆盖合约静态门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-miniapp-page-api-coverage-contract
+- **背景**: GitHub 参考计划阶段 5 要求补 MiniApp 商城体验对照，但当前 `YunxiBakeMiniApp` 已有首页、商品、详情、购物车、结算、政策、地址、订单、客户群登记、客服和会员中心等页面；真正缺口是每个页面依赖的 Platform API、待补会员/营销 API 和前端不得持有的业务真相还没有形成静态门禁。
+- **决策**:
+  - 不改 MiniApp 运行时代码，不改 Platform API 行为，不新增数据库迁移。
+  - 先在 Platform 主仓冻结页面/API 覆盖合约，作为后续 MiniApp roadmap、真机验收和 miniprogram-ci 的输入。
+  - 将 MiniApp 页面 API 覆盖合约作为第六类业务合约接入 `scripts/check_project.py --skip-tests` 和生产预检 `business_contracts.static_checks`。
+- **改动**:
+  - `docs/architecture/miniapp-page-api-coverage-contract.md` - 新增 MiniApp 页面 API 覆盖合约，明确 `pages/home/index`、`pages/products/index`、`pages/product-detail/index`、`pages/cart/index`、`pages/checkout/index`、`pages/policy/index`、`pages/address/index`、`pages/orders/index`、`pages/order-detail/index`、`pages/group-registration/index`、`pages/chat/index`、`pages/profile/index` 对应的 Platform API。
+  - `scripts/check_miniapp_page_api_contract.py` - 新增页面 API 覆盖合约静态验收，支持默认明细、`--summary` 和 `--json`。
+  - `tests/scripts/test_check_miniapp_page_api_contract.py` - 覆盖合约通过、缺少页面/API/待补能力、危险指令阻断、JSON 输出和 summary 输出。
+  - `scripts/check_project.py`、`scripts/preflight_production.py`、`scripts/check_preflight_business_contracts.py` - 业务合约从五类扩展为六类，新增 MiniApp 页面 API 覆盖合约。
+  - `docs/README.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/harness-engineering/core/verification-matrix.md`、`项目进度与配置清单.md` - 同步阶段 5 首版执行状态和六类业务合约口径。
+- **验证结果**:
+  - `python scripts\check_miniapp_page_api_contract.py --summary` 通过，`status=passed total=43 failed=0`。
+  - `python -m pytest tests\scripts\test_check_miniapp_page_api_contract.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov` 通过，42 个测试通过。
+  - `python -m ruff check scripts\check_miniapp_page_api_contract.py tests\scripts\test_check_miniapp_page_api_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_miniapp_page_api_contract.py tests\scripts\test_check_miniapp_page_api_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查六项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\preflight_production.py --json --output "reports\preflight-miniapp-contract-{timestamp}.json"` 已生成 `reports\preflight-miniapp-contract-20260707-001659.json`；命令返回 1 是因为当前本地仍缺既有 `handoff_staff_userid_ready` 配置。
+  - `python scripts\check_preflight_business_contracts.py "reports\preflight-miniapp-contract-20260707-001659.json" --summary` 通过，`status=passed total=7 failed=0`。
+- **后续**:
+  - 后续 MiniApp 仓补 roadmap、真机验收或 miniprogram-ci 时，应以该页面 API 覆盖合约为输入；会员权益、积分、储值余额、优惠券、配送费 / 满减 / 活动价必须先回 Platform 定义 API 契约，不能在 MiniApp 本地实现业务真相。
+
+## [2026-07-06] - chore(observability): 新增客户机器人可观测合约静态门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-customer-observability-contract
+- **背景**: GitHub 参考计划阶段 6 要求把客户机器人质量从主观聊天体验转成可检查指标；当前已有 RAG golden cases、知识命中日志、会话摘要和长期记忆治理，但还缺一份统一的客户机器人观测合约来冻结知识命中、兜底、转人工、工具成功和上下文压力等指标边界。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不新增数据库迁移。
+  - 不改员工助手 planner、工具调用或确定性回复。
+  - 首版只冻结客户机器人观测指标、事件字段、隐私边界和静态验收，并作为第五类业务合约接入统一质量门禁和生产预检。
+- **改动**:
+  - `docs/architecture/customer-observability-contract.md` - 新增客户机器人可观测合约，明确 `knowledge_hit_rate`、`no_data_fallback_rate`、`handoff_rate`、`tool_success_rate`、`context_pressure_rate` 等指标，以及 `trace_id`、`channel_type`、`bot_type`、`intent`、`handoff_reason`、`fallback_reason` 等事件字段和隐私边界。
+  - `scripts/check_customer_observability_contract.py` - 新增可观测合约静态验收，支持默认明细、`--summary` 和 `--json`。
+  - `tests/scripts/test_check_customer_observability_contract.py` - 覆盖合约通过、缺少指标/字段/边界、危险指令阻断、JSON 输出和 summary 输出。
+  - `scripts/check_project.py`、`scripts/preflight_production.py`、`scripts/check_preflight_business_contracts.py` - 业务合约从四类扩展为五类，新增客户机器人可观测合约。
+  - `docs/README.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/harness-engineering/core/verification-matrix.md`、`项目进度与配置清单.md` - 同步第五类业务合约和阶段 6 首版执行状态。
+- **验证结果**:
+  - `python scripts\check_customer_observability_contract.py --summary` 通过，`status=passed total=41 failed=0`。
+  - `python -m pytest tests\scripts\test_check_customer_observability_contract.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov` 通过，42 个测试通过。
+  - `python -m ruff check scripts\check_customer_observability_contract.py tests\scripts\test_check_customer_observability_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_customer_observability_contract.py tests\scripts\test_check_customer_observability_contract.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查五项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\preflight_production.py --json --output "reports\preflight-observability-contract-{timestamp}.json"` 已生成 `reports\preflight-observability-contract-20260707-000652.json`；命令返回 1 是因为当前本地仍缺既有 `handoff_staff_userid_ready` 配置。
+  - `python scripts\check_preflight_business_contracts.py "reports\preflight-observability-contract-20260707-000652.json" --summary` 通过，`status=passed total=6 failed=0`。
+- **后续**:
+  - 后续实现运行时观测或后台仪表盘时，必须继续通过客户机器人可观测合约；观测日志不得记录完整手机号、完整地址、完整订单号、完整交易号、密钥、Token 或 Cookie，且观测失败不得阻断客服回复。
+
+## [2026-07-06] - chore(memory): 新增客户长期记忆治理静态门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-customer-memory-governance-plan
+- **背景**: 客户会话摘要已经完成短期上下文治理，但长期客户画像仍只在文档中提示“需要证据、置信度、撤销和过期规则”；如果后续继续扩展记忆能力，缺少静态门禁会让会话摘要直接提升为长期画像、热路径写画像或长期记忆被误用为事实来源。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 首版只冻结长期记忆治理文档和静态验收，不改 `customer_profiles` schema，不改 `MemoryAgent` 写入策略。
+  - 将客户长期记忆治理计划纳入 `scripts/check_project.py --skip-tests` 的业务合约检查，并同步进入生产预检 `business_contracts.static_checks`。
+- **改动**:
+  - `docs/architecture/customer-memory-governance-plan.md` - 新增客户长期记忆治理计划，明确 `customer_profiles` 与 `conversation_summaries` 边界、证据、置信度、状态、撤销、过期和读取降级规则。
+  - `scripts/check_customer_memory_governance_plan.py` - 新增长期记忆治理计划静态验收，支持默认明细、`--summary` 和 `--json`。
+  - `tests/scripts/test_check_customer_memory_governance_plan.py` - 覆盖计划通过、缺少必填边界、禁止指令、JSON 输出和 summary 输出。
+  - `scripts/check_project.py`、`scripts/preflight_production.py`、`scripts/check_preflight_business_contracts.py` - 业务合约从三类扩展为四类，新增客户长期记忆治理计划。
+  - `docs/README.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`docs/architecture/customer-session-summary-design.md`、`docs/harness-engineering/core/verification-matrix.md`、`项目进度与配置清单.md` - 同步长期记忆治理计划和四类业务合约口径。
+- **验证结果**:
+  - `python scripts\check_customer_memory_governance_plan.py --summary` 通过，`status=passed total=30 failed=0`。
+  - `python -m pytest tests\scripts\test_check_customer_memory_governance_plan.py tests\scripts\test_check_project.py tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov` 通过，42 个测试通过。
+  - `python -m ruff check scripts\check_customer_memory_governance_plan.py tests\scripts\test_check_customer_memory_governance_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_customer_memory_governance_plan.py tests\scripts\test_check_customer_memory_governance_plan.py scripts\check_project.py scripts\preflight_production.py scripts\check_preflight_business_contracts.py tests\scripts\test_check_project.py tests\scripts\test_preflight_production.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查四项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\preflight_production.py --json --output "reports\preflight-memory-contract-{timestamp}.json"` 已生成 `reports\preflight-memory-contract-20260706-235559.json`；命令返回 1 是因为当前本地仍缺既有 `handoff_staff_userid_ready` 配置。
+  - `python scripts\check_preflight_business_contracts.py "reports\preflight-memory-contract-20260706-235559.json" --summary` 通过，`status=passed total=5 failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过，`status=passed total=164 failed=0`。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `python scripts\check_text_encoding.py` 通过，`checked 65 files`。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续实现记忆撤销、过期、置信度字段或后台操作时，必须继续通过客户长期记忆治理计划静态门禁；会话摘要仍不得直接提升为长期画像。
+
+## [2026-07-06] - chore(harness): 新增证据索引结构门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-evidence-index-guard
+- **背景**: 预检业务合约证据已经能归档和二次复核，但 `docs/harness-engineering/core/evidence-index.md` 本身仍缺少机器检查入口，历史内容中也存在重复 evidence id，后续按证据编号追溯时可能出现歧义。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 新增只读 Harness 检查脚本，只解析 evidence index Markdown，不读取 `reports/` 内容、不访问数据库、不依赖运行时配置。
+  - 将重复历史 evidence id 重编号为同日期未占用编号，只改索引标题编号，不改证据语义。
+- **改动**:
+  - `scripts/check_evidence_index.py` - 新增证据索引结构检查，覆盖必填字段、结果枚举、敏感数据标记、重复 ID 和预检业务合约证据引用。
+  - `tests/scripts/test_check_evidence_index.py` - 覆盖完整条目、缺字段、非法枚举、预检合约证据缺引用、重复 ID 和 CLI 输出。
+  - `.pre-commit-config.yaml` - 新增 `check-evidence-index` hook。
+  - `docs/harness-engineering/core/evidence-index.md` - 追加本轮证据条目，并修复历史重复 evidence id。
+  - `docs/harness-engineering/README.md`、`docs/harness-engineering/core/verification-matrix.md`、`项目进度与配置清单.md` - 同步证据索引门禁入口。
+- **验证结果**:
+  - `python scripts\check_evidence_index.py --summary` 通过，`status=passed total=163 failed=0`。
+  - `python -m pytest tests\scripts\test_check_evidence_index.py tests\scripts\test_check_mistake_ledger.py tests\scripts\test_harness_snapshot.py -q --no-cov` 通过，15 个测试通过。
+  - `python -m ruff check scripts\check_evidence_index.py tests\scripts\test_check_evidence_index.py` 通过。
+  - `python -m ruff format --check scripts\check_evidence_index.py tests\scripts\test_check_evidence_index.py` 通过。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查三项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `pre-commit run check-evidence-index --all-files` 通过。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `python scripts\check_text_encoding.py` 通过，`checked 64 files`。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续新增或修改证据索引时，pre-commit 会阻断缺字段、非法枚举、重复 ID 和预检业务合约证据引用缺失。
+
+## [2026-07-06] - test(preflight): 覆盖 BOM 预检报告复核
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-preflight-contract-bom-coverage
+- **背景**: `preflight_production.py --json --output` 写出的报告带 UTF-8 BOM，`check_preflight_business_contracts.py` 已使用 `utf-8-sig` 读取，但测试尚未覆盖真实输出格式；进度清单中还有旧的预检失败数量示例，容易误导发布操作。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 只补报告读取兼容测试和文档口径，不新增运行时逻辑。
+  - 发布留档说明统一为：保存 preflight JSON 后，再运行业务合约证据复核脚本。
+- **改动**:
+  - `tests/scripts/test_check_preflight_business_contracts.py` - 新增 BOM preflight JSON 样例，验证 `--summary` 能正常读取并通过。
+  - `项目进度与配置清单.md` - 移除旧的 `total=22 failed=6` 示例，改为保存 JSON 后运行 `scripts/check_preflight_business_contracts.py "<报告路径>" --summary`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_preflight_business_contracts.py -q --no-cov` 通过，7 个测试通过。
+  - `python -m ruff check scripts\check_preflight_business_contracts.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_preflight_business_contracts.py tests\scripts\test_check_preflight_business_contracts.py` 通过。
+  - `python scripts\check_preflight_business_contracts.py "reports\preflight-contract-check-20260706-232901.json" --summary` 通过，`status=passed total=4 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查三项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 发布证据脚本化读取 preflight JSON 时，可直接使用复核脚本处理带 BOM 的报告文件。
+
+## [2026-07-06] - chore(preflight): 新增预检业务合约证据复核脚本
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-preflight-contract-evidence-check
+- **背景**: `preflight_production.py --json` 已能输出业务合约状态明细，但发布归档后仍缺少一个只读校验入口来证明已保存的 preflight JSON 确实包含三类业务合约通过状态。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 新增独立报告校验脚本，只读取 preflight JSON，不调用数据库、不读取密钥、不依赖当前运行环境。
+  - 校验范围只锁定 `business_contracts.static_checks` 存在、通过，并包含员工助手能力合约、客户 RAG golden cases、知识治理计划三类 `:passed` 状态。
+- **改动**:
+  - `scripts/check_preflight_business_contracts.py` - 新增预检报告业务合约证据复核脚本，支持默认明细、`--summary` 和 `--json`。
+  - `tests/scripts/test_check_preflight_business_contracts.py` - 覆盖通过、缺失合约检查、缺失合约标签、合约检查失败、JSON/summary 输出和报告不可读。
+  - `docs/harness-engineering/core/verification-matrix.md` - 生产预检加强验证补充保存 preflight JSON 后运行业务合约证据复核脚本。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`项目进度与配置清单.md` - 同步报告复核入口。
+  - `docs/harness-engineering/core/evidence-index.md` - 登记本次预检业务合约证据复核报告。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_preflight_business_contracts.py tests\scripts\test_preflight_production.py -q --no-cov` 通过，34 个测试通过。
+  - `python -m ruff check scripts\check_preflight_business_contracts.py tests\scripts\test_check_preflight_business_contracts.py scripts\preflight_production.py tests\scripts\test_preflight_production.py` 通过。
+  - `python -m ruff format --check scripts\check_preflight_business_contracts.py tests\scripts\test_check_preflight_business_contracts.py scripts\preflight_production.py tests\scripts\test_preflight_production.py` 通过。
+  - `python scripts\preflight_production.py --json --output "reports\preflight-contract-check-{timestamp}.json"` 已生成 `reports\preflight-contract-check-20260706-232901.json`；命令返回 1 是因为当前本地仍缺既有 `handoff_staff_userid_ready` 配置。
+  - `python scripts\check_preflight_business_contracts.py "reports\preflight-contract-check-20260706-232901.json" --summary` 通过，`status=passed total=4 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查三项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续发布证据保存 preflight JSON 后，应运行 `scripts/check_preflight_business_contracts.py <report> --summary` 作为二次确认。
+
+## [2026-07-06] - chore(preflight): 增强业务合约预检证据明细
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-preflight-business-contract-details
+- **背景**: 生产预检已包含 `business_contracts.static_checks`，但 detail 只显示 `total=3 failed=0`，发布复盘时无法直接看出员工助手能力合约、客户 RAG golden cases、知识治理计划分别是否通过。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 保持 `PreflightCheck` JSON schema 不变，只增强 `detail` 文本，避免影响现有报告消费方。
+  - 将脚本命令名归一化为稳定合约标签，输出 `employee_agent_capability_contracts`、`customer_rag_golden_cases`、`knowledge_governance_plan` 三类状态。
+- **改动**:
+  - `scripts/preflight_production.py` - 新增业务合约标签映射、结果格式化和失败名称归一化；`business_contracts.static_checks.detail` 现在包含三类合约状态明细。
+  - `tests/scripts/test_preflight_production.py` - 覆盖真实通过场景会列出三类 `:passed` 状态，失败场景会列出具体失败标签。
+  - `docs/harness-engineering/core/verification-matrix.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步生产预检需要包含三类业务合约状态明细。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_preflight_production.py -q --no-cov` 通过，28 个测试通过。
+  - `python -m ruff check scripts\preflight_production.py tests\scripts\test_preflight_production.py` 通过。
+  - `python -m ruff format --check scripts\preflight_production.py tests\scripts\test_preflight_production.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查三项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+  - `python scripts\preflight_production.py --json` 已输出 `business_contracts.static_checks passed=true detail="total=3 failed=0 checks=employee_agent_capability_contracts:passed, customer_rag_golden_cases:passed, knowledge_governance_plan:passed"`；当前本地整体预检仍因既有 `handoff_staff_userid_ready` 配置缺失返回失败。
+- **后续**:
+  - 发布证据归档时可直接从 preflight JSON 的 `business_contracts.static_checks.detail` 判断三类业务合约状态。
+
+## [2026-07-06] - chore(preflight): 将业务合约门禁纳入生产预检
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-preflight-business-contracts
+- **背景**: 员工助手能力合约、客户 RAG golden cases 和知识治理计划已经接入 `check_project.py --skip-tests`，但生产预检报告还不能直接证明这些业务合约是否通过。发布时如果只看 preflight JSON，仍可能漏掉已冻结边界。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 在 `scripts/preflight_production.py` 中新增只读检查 `business_contracts.static_checks`，复用 `check_project.run_contract_checks()`。
+  - 合约失败时 recovery plan 只提示运行统一质量门禁并修对应 fixture、治理计划或能力合约，不自动改库、不改配置。
+- **改动**:
+  - `scripts/preflight_production.py` - 新增 `build_business_contract_check()`，将三类业务合约纳入 `build_preflight_checks()`，并在 recovery plan 中增加只读 `business_contracts` 步骤。
+  - `tests/scripts/test_preflight_production.py` - 覆盖合约检查成功出现在预检列表、失败时 action 指向统一质量门禁、recovery plan 不标记为写入型修复。
+  - `docs/harness-engineering/core/verification-matrix.md` - 生产预检加强验证要求报告包含 `business_contracts.static_checks`。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步业务合约已进入生产预检。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_preflight_production.py -q --no-cov` 通过，28 个测试通过。
+  - `python -m ruff check scripts\preflight_production.py tests\scripts\test_preflight_production.py` 通过。
+  - `python -m ruff format --check scripts\preflight_production.py tests\scripts\test_preflight_production.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查三项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+  - `python scripts\preflight_production.py --json` 已输出 `business_contracts.static_checks passed=true detail="total=3 failed=0"`；当前本地整体预检仍因既有 `handoff_staff_userid_ready` 配置缺失返回失败。
+- **后续**:
+  - 后续发布前保存 preflight JSON 时，应确认 `business_contracts.static_checks` 为通过；如果失败，先修对应业务合约，不要绕过发布。
+
+## [2026-07-06] - chore(quality): 将客户 RAG 与知识治理纳入业务合约门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-contract-gates-customer-knowledge
+- **背景**: 员工助手能力合约已经接入统一质量门禁，但客户 RAG golden cases 和知识治理计划仍主要依赖独立脚本，后续删改客服核心场景或调整知识治理边界时可能绕过 `check_project.py`。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户机器人热路径，不改员工助手 planner、工具调用或确定性回复。
+  - 继续用 `check_project.py --skip-tests` 作为轻量统一入口，把员工助手能力合约、客户 RAG golden cases、知识治理计划统一归入“业务合约检查”。
+  - 只补静态治理门禁和文档追溯，不扩大到在线检索评分或运行时编排。
+- **改动**:
+  - `scripts/check_project.py` - “业务合约检查”已覆盖 `check_employee_agent_capability_contracts.py --summary`、`check_customer_rag_golden_cases.py --summary`、`check_knowledge_governance_plan.py --summary`。
+  - `scripts/check_customer_rag_golden_cases.py`、`scripts/check_knowledge_governance_plan.py` - 提供 `--summary` 输出，适配统一门禁。
+  - `tests/scripts/test_check_project.py` - 将注册测试命名调整为业务合约门禁，并验证三类检查均已注册且通过。
+  - `docs/architecture/bot-capability-matrix.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`项目进度与配置清单.md` - 同步三类业务合约已纳入统一质量门禁。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_project.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_check_knowledge_governance_plan.py -q --no-cov` 通过，10 个测试通过。
+  - `python -m ruff check scripts\check_project.py scripts\check_customer_rag_golden_cases.py scripts\check_knowledge_governance_plan.py tests\scripts\test_check_project.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_check_knowledge_governance_plan.py scripts\check_employee_agent_capability_contracts.py tests\scripts\test_check_employee_agent_capability_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_project.py scripts\check_customer_rag_golden_cases.py scripts\check_knowledge_governance_plan.py tests\scripts\test_check_project.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_check_knowledge_governance_plan.py scripts\check_employee_agent_capability_contracts.py tests\scripts\test_check_employee_agent_capability_contracts.py` 通过。
+  - `python scripts\check_employee_agent_capability_contracts.py --summary` 通过，`total=66 failed=0`。
+  - `python scripts\check_customer_rag_golden_cases.py --summary` 通过，`total=13 failed=0`。
+  - `python scripts\check_knowledge_governance_plan.py --summary` 通过，`total=20 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查三项均 PASS；仅保留既有 52 处函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留已知存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app\api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app\service -g "*.py"`、`rg "from app\.(service|repository|api)" app\models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续新增员工助手工具、删改客户 RAG golden cases 或调整知识治理迁移计划时，必须同步通过 `check_project.py --skip-tests`。
+
+## [2026-07-06] - chore(quality): 将员工助手能力合约接入统一质量门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-employee-agent-contract-quality-gate
+- **背景**: 员工助手能力合约已有独立脚本，但如果不接入 `check_project.py`，后续新增工具仍可能绕过合约和探针一致性检查。
+- **决策**:
+  - 不改客户机器人热路径、不改员工助手 planner、不改工具调用、不恢复 LLM 润色。
+  - 复用 `check_project.py` 作为统一门禁入口，新增“业务合约检查”分组。
+  - 为合约脚本新增 `--summary`，让统一门禁只输出摘要，单独运行脚本仍可输出完整明细或 JSON。
+- **改动**:
+  - `scripts/check_project.py` - 新增 `CONTRACT_COMMANDS` 和 `run_contract_checks()`，`--skip-tests` 仍会执行员工助手能力合约检查。
+  - `scripts/check_employee_agent_capability_contracts.py` - 新增 `--summary` 输出模式。
+  - `tests/scripts/test_check_project.py` - 覆盖合约检查已注册并可通过。
+  - `tests/scripts/test_check_employee_agent_capability_contracts.py` - 覆盖 `--summary` 输出。
+  - `docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步统一质量门禁已覆盖能力合约。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_project.py tests\scripts\test_check_employee_agent_capability_contracts.py -q --no-cov` 通过，6 个测试通过。
+  - `python -m pytest tests\scripts\test_check_project.py tests\scripts\test_check_employee_agent_capability_contracts.py tests\service\test_employee_agent_capability_contracts.py -q --no-cov` 通过，8 个测试通过。
+  - `python scripts\check_employee_agent_capability_contracts.py --json` 通过，`total=66 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查显示 `total=66 failed=0`，仅保留既有函数长度 WARN。
+  - `python -m ruff check scripts\check_project.py scripts\check_employee_agent_capability_contracts.py tests\scripts\test_check_project.py tests\scripts\test_check_employee_agent_capability_contracts.py` 通过。
+  - `python -m ruff format --check scripts\check_project.py scripts\check_employee_agent_capability_contracts.py tests\scripts\test_check_project.py tests\scripts\test_check_employee_agent_capability_contracts.py` 通过。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续新增员工助手工具时，`check_project.py --skip-tests` 会同步检查能力卡、能力合约和探针是否一致。
+
+## [2026-07-06] - feat(wecom): 增加员工助手能力合约静态验收
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-employee-agent-capability-contracts
+- **背景**: 阶段 4 要求员工助手每个工具补齐参数提取规则、缺参数追问、空结果回复、异常回复和对应探针。当前已有能力卡和探针，但缺少机器可检查的合约清单。
+- **决策**:
+  - 不改客户机器人热路径、不改员工助手 planner、不改工具调用、不恢复 LLM 润色。
+  - 不继续把大段治理说明塞进 `employee_agent_capabilities.py`；新增独立能力合约模块。
+  - 合约只作为治理和验证资产，员工可见回复仍由现有确定性链路生成。
+- **改动**:
+  - `app/service/wecom/employee_agent_capability_contracts.py` - 新增 9 个员工助手能力的参数规则、缺参数口径、空结果口径、异常口径和探针名。
+  - `scripts/check_employee_agent_capability_contracts.py` - 新增静态检查，校验能力卡、合约和探针三者一致。
+  - `tests/service/test_employee_agent_capability_contracts.py`、`tests/scripts/test_check_employee_agent_capability_contracts.py` - 覆盖合约完整性和脚本 JSON 输出。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步阶段 4 首版能力合约已完成。
+- **验证结果**:
+  - `python -m pytest tests\service\test_employee_agent_capability_contracts.py tests\scripts\test_check_employee_agent_capability_contracts.py -q --no-cov` 通过，5 个测试通过。
+  - `python scripts\check_employee_agent_capability_contracts.py --json` 通过，`total=66 failed=0`。
+  - `python scripts\check_wecom_employee_agent_plans.py --json` 通过，`total=48 failed=0`。
+  - `python -m pytest tests\service\test_employee_agent_capability_contracts.py tests\scripts\test_check_employee_agent_capability_contracts.py tests\service\test_wecom_employee_agent.py -q --no-cov` 通过，50 个测试通过。
+  - `python -m ruff check app\service\wecom\employee_agent_capability_contracts.py scripts\check_employee_agent_capability_contracts.py tests\service\test_employee_agent_capability_contracts.py tests\scripts\test_check_employee_agent_capability_contracts.py` 通过。
+  - `python -m ruff format --check app\service\wecom\employee_agent_capability_contracts.py scripts\check_employee_agent_capability_contracts.py tests\service\test_employee_agent_capability_contracts.py tests\scripts\test_check_employee_agent_capability_contracts.py` 通过。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续新增员工助手工具时，必须同步能力卡、能力合约和探针，避免只加工具不加验收。
+
+## [2026-07-06] - feat(knowledge): 接入知识检索日志后台只读页面
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-retrieval-report-frontend
+- **背景**: 后端已提供知识检索日志只读 API，但后台仍缺运营可见入口。为避免知识配置编辑页继续膨胀，本片新增独立只读页面，只消费已有 API。
+- **决策**:
+  - 不改客户机器人热路径、不改员工助手回复链路、不引入 LangChain / LangGraph。
+  - 不把报表塞入知识配置编辑表单；新增独立 `/knowledge-retrieval-report` 页面和导航入口。
+  - 前端只做只读展示，数据口径继续由 `KnowledgeRetrievalReportService` 提供。
+- **改动**:
+  - `web/admin/src/types/knowledgeRetrievalReport.ts` - 新增知识检索报表前端类型。
+  - `web/admin/src/services/knowledgeRetrievalReport.ts` - 新增后台只读 API client 和 snake_case 到 camelCase 归一化。
+  - `web/admin/src/pages/knowledge/KnowledgeRetrievalReportPage.vue` - 新增只读页面，展示命中率、no_match 趋势、高频未命中、分布和最近日志。
+  - `web/admin/src/router/routes.ts`、`web/admin/src/constants/adminNavigation.ts` - 新增页面路由和后台导航入口。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步前端页面已完成。
+- **验证结果**:
+  - `npm run typecheck` 通过。
+  - `npm run build` 通过；仅保留 Vite 对第三方注释和大 chunk 的非阻断提示。
+  - `python -m pytest tests\service\test_knowledge_retrieval_report.py tests\api\test_admin_knowledge_retrieval_report.py tests\scripts\test_report_knowledge_retrieval_logs.py tests\test_lifespan_routes_services.py -q --no-cov` 通过，11 个测试通过。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - 本地启动前端 `npm run dev -- --host 127.0.0.1` 后，`http://127.0.0.1:5173/admin/knowledge-retrieval-report` 返回 200。
+  - 本地启动后端 `python -m uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload` 后，`/health` 返回 `status=ok, version=0.74.33`；报表 API 未授权返回 401，携带本地后台 token 后返回 `code=0, limit=5`。
+- **后续**:
+  - 可基于真实 top no_match query 继续补知识库或调整问法归一化；不应直接把检索过滤放宽。
+
+## [2026-07-06] - feat(knowledge): 增加知识检索日志后台只读 API
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-retrieval-report-api
+- **背景**: 知识检索命中日志已有 smoke、脚本报表和按天趋势，但后台尚无可调用的只读 API。为后续前端展示和运营排查做准备，需要先把聚合规则收口到 service，并通过 admin API 暴露。
+- **决策**:
+  - 不改客户机器人热路径、不改员工助手回复链路、不引入 LangChain / LangGraph。
+  - 不往已超线的 `knowledge_admin.py` 或 `knowledge_repo.py` 追加报表职责；新增独立 `KnowledgeRetrievalReportService` 和独立 admin router。
+  - 脚本和后台 API 共用同一个 service 聚合函数，避免命中率、no_match 率和按天趋势出现两套口径。
+- **改动**:
+  - `app/service/knowledge_retrieval_report.py` - 新增知识检索日志只读报表服务，负责 summary、breakdown、按天 trend、top no_match query 和最近日志序列化，并限制查询上限。
+  - `app/api/admin/knowledge_retrieval_report.py` - 新增 `/api/v1/admin/knowledge-retrieval-report/summary` 后台只读 API。
+  - `scripts/report_knowledge_retrieval_logs.py` - 改为复用 service 层报表构造逻辑，保留只读 SQLite 读取和 JSON/文本输出。
+  - `app/lifespan_services.py`、`app/lifespan_routes.py` - 接入独立 report service 和后台 router。
+  - `tests/service/test_knowledge_retrieval_report.py`、`tests/api/test_admin_knowledge_retrieval_report.py`、`tests/test_lifespan_routes_services.py`、`tests/scripts/test_report_knowledge_retrieval_logs.py` - 覆盖聚合口径、limit 上限、后台 API、脚本复用和生命周期装配。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步后端只读 API 已完成，前端后台页面仍待后续切片。
+- **验证结果**:
+  - `python -m pytest tests\service\test_knowledge_retrieval_report.py tests\api\test_admin_knowledge_retrieval_report.py tests\scripts\test_report_knowledge_retrieval_logs.py tests\test_lifespan_routes_services.py -q --no-cov` 通过，11 个测试通过。
+  - `python -m ruff check app\service\knowledge_retrieval_report.py app\api\admin\knowledge_retrieval_report.py app\lifespan_services.py app\lifespan_routes.py scripts\report_knowledge_retrieval_logs.py tests\service\test_knowledge_retrieval_report.py tests\api\test_admin_knowledge_retrieval_report.py tests\scripts\test_report_knowledge_retrieval_logs.py tests\test_lifespan_routes_services.py` 通过。
+  - `python -m ruff format --check app\service\knowledge_retrieval_report.py app\api\admin\knowledge_retrieval_report.py app\lifespan_services.py app\lifespan_routes.py scripts\report_knowledge_retrieval_logs.py tests\service\test_knowledge_retrieval_report.py tests\api\test_admin_knowledge_retrieval_report.py tests\scripts\test_report_knowledge_retrieval_logs.py tests\test_lifespan_routes_services.py` 通过。
+  - `python scripts\check_knowledge_retrieval_logs_smoke.py --json` 通过，`total=4 failed=0`。
+  - `python -m pytest tests\service\test_knowledge_retrieval_report.py tests\api\test_admin_knowledge_retrieval_report.py tests\scripts\test_report_knowledge_retrieval_logs.py tests\scripts\test_check_knowledge_retrieval_logs_smoke.py tests\scripts\test_check_knowledge_governance_plan.py tests\test_lifespan_routes_services.py -q --no-cov` 通过，17 个测试通过。
+  - `python scripts\check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN；本片拆出 `_register_admin_shell_routes()` / `_register_admin_operations_routes()` 后，`register_routes()` 已不再出现在函数长度 WARN 中。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 前端后台页面仍未接入该 API；如继续推进，应新增独立页面/区块，不把报表逻辑塞进知识配置编辑表单。
+
+## [2026-07-06] - feat(knowledge): 补知识检索日志按天趋势统计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-retrieval-log-trend
+- **背景**: 首版知识检索日志只读报表已能输出命中和 no_match 聚合，但运营判断更需要看一段时间内 no_match 是否集中上升，而不是只看最近列表。
+- **决策**:
+  - 本片继续只增强只读脚本，不新增后台 API、不改 service 装配、不改数据库 schema、不触碰客户或员工回复链路。
+  - 暂不进入后台页面，避免为了展示入口改动现有长函数装配；后续如做后台展示，应先评估 `lifespan_services` 和 admin route 的拆分边界。
+- **改动**:
+  - `scripts/report_knowledge_retrieval_logs.py` - JSON 和文本报表新增 `trend.by_date`，按创建日期输出 total、hit_count、no_match_count 和 no_match_rate。
+  - `tests/scripts/test_report_knowledge_retrieval_logs.py` - 增加跨日期趋势聚合测试，并覆盖真实报表中的当天聚合。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步只读报表已具备按天趋势。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_knowledge_retrieval_logs.py -q --no-cov` 通过，4 个测试通过。
+  - `python -m ruff check scripts\report_knowledge_retrieval_logs.py tests\scripts\test_report_knowledge_retrieval_logs.py` 通过。
+  - `python -m ruff format --check scripts\report_knowledge_retrieval_logs.py tests\scripts\test_report_knowledge_retrieval_logs.py` 通过。
+  - `python -m pytest tests\scripts\test_report_knowledge_retrieval_logs.py tests\scripts\test_check_knowledge_retrieval_logs_smoke.py tests\scripts\test_check_knowledge_governance_plan.py -q --no-cov` 通过，10 个测试通过。
+  - `python scripts\check_knowledge_retrieval_logs_smoke.py --json` 通过，`total=4 failed=0`。
+  - `python scripts\check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+- **后续**:
+  - 如果继续做后台展示，应优先新增独立 admin report router 和 report service，并避免往 `knowledge_admin.py`、`knowledge_repo.py` 追加职责。
+
+## [2026-07-06] - feat(knowledge): 增加知识检索日志只读报表
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-retrieval-log-report
+- **背景**: `knowledge_retrieval_logs` 已能记录客户/员工知识命中和 no_match fallback，但仍缺少一个不进入后台 UI 的轻量观测入口，用于本地或上线后快速查看兜底率、机器人分布和最近命中。
+- **决策**:
+  - 不新增后台页面、不改客户或员工回复链路、不引入 LangChain / LangGraph。
+  - 不继续往已超线的 `KnowledgeRepo` 追加查询，复用现有 `list_recent_retrieval_logs()`。
+  - 报表脚本默认只读打开 SQLite；若目标库尚未应用 v016，会明确失败，不在报表命令里自动迁移数据库。
+- **改动**:
+  - `scripts/report_knowledge_retrieval_logs.py` - 新增只读报表，输出总数、命中数、no_match 数、no_match rate、bot_type/audience/retrieval_mode/fallback 聚合、top no_match query 和最近日志明细，支持 `--json`。
+  - `tests/scripts/test_report_knowledge_retrieval_logs.py` - 覆盖命中/no_match 聚合、坏 JSON 降级和 CLI JSON 输出。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步知识命中观测已有只读报表入口，后续再做后台页面或趋势图。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_knowledge_retrieval_logs.py tests\scripts\test_check_knowledge_retrieval_logs_smoke.py -q --no-cov` 通过，6 个测试通过。
+  - `python -m ruff check scripts\report_knowledge_retrieval_logs.py tests\scripts\test_report_knowledge_retrieval_logs.py` 通过。
+  - `python -m ruff format --check scripts\report_knowledge_retrieval_logs.py tests\scripts\test_report_knowledge_retrieval_logs.py` 通过。
+  - `python scripts\check_knowledge_retrieval_logs_smoke.py --json` 通过，`total=4 failed=0`。
+  - `python scripts\check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，仅保留既有函数长度 WARN。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+  - `python scripts\report_knowledge_retrieval_logs.py --db data\bot.db --limit 5 --json` 未通过：当前本地 `data\bot.db` 尚未应用 v016，缺少 `knowledge_retrieval_logs` 表；脚本按只读策略返回明确错误，未自动改库。
+- **后续**:
+  - 生产或本地库应用 v016 后，可用 `python scripts\report_knowledge_retrieval_logs.py --db <db> --limit 100 --json` 做首版观测。
+  - 后续如需要可再做后台只读页面和按天趋势统计。
+
+## [2026-07-06] - feat(knowledge): 增加知识检索命中日志
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-retrieval-hit-logs
+- **背景**: audience / 有效期治理和后台配置已完成，下一步需要把客户/员工知识命中变成可审计数据，避免后续只能靠聊天记录肉眼判断 RAG 是否命中、是否 no_match。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改变客户机器人热路径、不改变员工助手确定性回复策略。
+  - 新增独立 `knowledge_retrieval_logs` 表，记录 bot_type、audience、query、retrieval_mode、命中知识 ID/标题、结果数和 fallback。
+  - 检索日志写入失败只记录 warning，不阻断知识检索和在线回复。
+  - 本片只做数据层和 smoke 证明，不做后台页面、统计图或完整报表。
+- **改动**:
+  - `app/migrations/v016_knowledge_retrieval_logs.sql`、`app/migrations/schema.py` - 新增知识检索命中日志表和索引。
+  - `app/models/knowledge_retrieval_log.py` - 新增检索日志写入和读取模型。
+  - `app/repository/knowledge_repo.py` - 新增 `insert_retrieval_log()` 和 `list_recent_retrieval_logs()`。
+  - `app/service/knowledge_retriever.py` - 在 hybrid、vector+keyword、keyword-only 检索后写入命中日志；无命中时记录 `fallback_reason='no_match'`。
+  - `app/service/knowledge_retrieval_logger.py` - 抽出命中日志构造和降级写入，避免检索器继续膨胀。
+  - `app/service/knowledge_live_data.py` - 抽出商品实时库存/售价增强和主推款可推荐过滤，恢复 `knowledge_retriever.py` 文件体量门禁。
+  - `app/readiness.py`、`tests/scripts/test_apply_migrations.py`、`tests/scripts/test_preflight_production.py`、`tests/test_health_ready.py` - 将 `knowledge_retrieval_logs` 纳入必需表和迁移/预检验证。
+  - `scripts/check_knowledge_retrieval_logs_smoke.py`、`tests/scripts/test_check_knowledge_retrieval_logs_smoke.py` - 新增离线 smoke，证明客户命中、员工命中和 no_match fallback 均写入日志。
+  - `tests/service/test_knowledge_retriever.py`、`tests/migrations/test_knowledge_governance_fields.py` - 覆盖检索器写日志、no_match 日志和 v016 表/索引。
+  - `docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步首版命中日志已完成，后续保留后台展示和统计分析。
+- **验证结果**:
+  - `python scripts\check_knowledge_retrieval_logs_smoke.py --json` 通过，`total=4 failed=0`。
+  - `python -m pytest tests\scripts\test_check_knowledge_retrieval_logs_smoke.py tests\service\test_knowledge_retriever.py tests\migrations\test_knowledge_governance_fields.py -q --no-cov` 通过，14 个测试通过。
+  - `python -m pytest tests\scripts\test_apply_migrations.py tests\scripts\test_preflight_production.py tests\test_health_ready.py -q --no-cov` 通过。
+  - `python -m ruff check app\models\knowledge_retrieval_log.py app\repository\knowledge_repo.py app\service\knowledge_retriever.py app\migrations\schema.py app\readiness.py tests\service\test_knowledge_retriever.py tests\migrations\test_knowledge_governance_fields.py tests\scripts\test_apply_migrations.py tests\scripts\test_preflight_production.py tests\test_health_ready.py` 通过。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+- **后续**:
+  - 后台展示最近知识命中和 no_match 趋势。
+  - 将真实客户问法和员工知识问法继续沉淀到 golden cases / 探针。
+
+## [2026-07-06] - test(knowledge): 增加 audience 和有效期治理 smoke 证明
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-audience-governance-smoke
+- **背景**: 知识库 v015 字段、客户/员工入口 audience 分流和后台治理字段编辑已完成，但仍需要一条不依赖生产库的脚本级证据，证明默认、客户、员工三种视角不会混入草稿、归档、过期或未生效知识。
+- **决策**:
+  - 不引入 LangChain / LangGraph，不改客户热路径，不依赖真实 `data/bot.db`。
+  - 使用内存 SQLite、现有迁移、`KnowledgeRepo.insert_entry` 和真实 `KnowledgeRetriever.search_keyword_only()` 做最小闭环。
+  - smoke 只证明治理过滤边界，知识命中日志仍留到后续切片。
+- **改动**:
+  - `scripts/check_knowledge_audience_governance_smoke.py` - 新增 audience / 有效期治理 smoke，种入共同可见、客户可见、员工可见、草稿、归档、过期、未来生效和有效窗口知识，输出 JSON 报告。
+  - `tests/scripts/test_check_knowledge_audience_governance_smoke.py` - 覆盖 smoke 成功、失败报告聚合和 `--json` 输出。
+  - `docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步 audience fixture 已以脚本级 smoke 收口，后续保留知识命中观测。
+- **验证结果**:
+  - `python scripts\check_knowledge_audience_governance_smoke.py --json` 通过，`total=5 failed=0`。
+  - `python -m pytest tests\scripts\test_check_knowledge_audience_governance_smoke.py -q --no-cov` 通过，3 个测试通过。
+- **后续**:
+  - 增加客户/员工知识命中日志。
+  - 将真实客户问法和员工知识问法继续沉淀到 golden cases / 探针。
+
+## [2026-07-06] - feat(knowledge): 后台知识配置接入治理字段展示和编辑
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-admin-governance-fields
+- **背景**: 知识库 v015 字段、默认过滤和客户/员工入口 audience 分流已完成，下一片需要让后台可运营这些治理字段，避免只能通过数据库手工维护。
+- **决策**:
+  - 后台知识配置只接入字段展示和保存，不做完整审核流、不新增 LangChain 入库、不改变客户热路径。
+  - 新增知识默认 `audience='all'`、`review_status='published'`、长期有效，保持老后台操作语义兼容。
+  - 服务层校验 audience、review_status 和有效期顺序；列表展示可见范围、发布状态和有效期。
+- **改动**:
+  - `app/models/knowledge_admin.py` - 后台草稿模型增加 audience、review_status、valid_from、valid_until。
+  - `app/api/admin/knowledge.py` - API 入参和序列化响应增加治理字段。
+  - `app/repository/knowledge_admin_repo.py` - 后台创建和更新 SQL 写入治理字段。
+  - `app/service/knowledge_admin.py` - 增加治理字段归一化、枚举校验、有效期顺序校验和审核信息写入。
+  - `web/admin/src/types/knowledge.ts`、`web/admin/src/services/knowledge.ts`、`web/admin/src/pages/knowledge/useKnowledgePage.ts`、`web/admin/src/pages/knowledge/KnowledgePage.vue` - 前端类型、HTTP client、列表和抽屉表单接入可见范围、发布状态和有效期。
+  - `tests/repository/test_knowledge_admin_repo.py`、`tests/service/test_knowledge_admin.py`、`tests/api/test_admin_knowledge.py` - 覆盖治理字段创建、更新、API 序列化和反向有效期拦截。
+  - `docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步后台展示/编辑已完成，后续保留命中观测和 audience fixture。
+- **验证结果**:
+  - `python -m pytest tests\repository\test_knowledge_admin_repo.py tests\service\test_knowledge_admin.py tests\api\test_admin_knowledge.py -q --no-cov` 通过，7 个测试通过。
+  - `python -m pytest tests\repository\test_knowledge_admin_repo.py tests\service\test_knowledge_admin.py tests\api\test_admin_knowledge.py tests\scripts\test_apply_migrations.py tests\scripts\test_preflight_production.py tests\test_health_ready.py tests\migrations\test_knowledge_governance_fields.py tests\repository\test_knowledge_repo.py tests\service\test_knowledge_retriever.py tests\test_lifespan_routes_services.py tests\scripts\test_check_knowledge_governance_plan.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_eval_retrieval.py -q --no-cov` 通过。
+  - `python -m ruff check app\models\knowledge_admin.py app\api\admin\knowledge.py app\repository\knowledge_admin_repo.py app\service\knowledge_admin.py tests\repository\test_knowledge_admin_repo.py tests\service\test_knowledge_admin.py tests\api\test_admin_knowledge.py` 通过。
+  - `python -m ruff format --check app\models\knowledge_admin.py app\api\admin\knowledge.py app\repository\knowledge_admin_repo.py app\service\knowledge_admin.py tests\repository\test_knowledge_admin_repo.py tests\service\test_knowledge_admin.py tests\api\test_admin_knowledge.py` 通过。
+  - `npm run typecheck`（`web/admin`）通过。
+  - `python scripts\check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python scripts\check_customer_rag_golden_cases.py --json` 通过，`total=13 failed=0`。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 增加客户/员工知识命中日志。
+  - 增加 audience 和有效期 fixture，用检索评估证明客户/员工隔离持续有效。
+
+## [2026-07-06] - feat(knowledge): 接入客户和员工知识库 audience 分流
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-audience-wiring
+- **背景**: v015 知识库发布治理字段和 repository 默认过滤已落地，下一片需要让客户机器人与员工助手显式使用各自 audience，避免后续员工内部话术或客户专用资料混线。
+- **决策**:
+  - `KnowledgeRetriever` 增加固定 audience 参数，默认保持 `all`，并把该 audience 传入关键词、向量、混合检索和主推款注入查询。
+  - 生命周期装配拆出客户和员工两个检索器：`knowledge_retriever` 继续作为客户侧兼容 key，新增 `employee_knowledge_retriever` 供企微员工助手使用。
+  - 客户聊天和有赞客服事件处理使用 `audience='customer'`；企微员工助手订单/知识工具使用 `audience='employee'`。
+- **改动**:
+  - `app/service/knowledge_retriever.py` - 增加 audience 成员并透传到 repository 查询。
+  - `app/lifespan_services.py` - 装配客户/员工双检索器，并将员工工具改用员工视角。
+  - `tests/service/test_knowledge_retriever.py`、`tests/test_lifespan_routes_services.py` - 覆盖 audience 过滤和服务装配边界。
+  - `docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步入口 audience 已完成，后台展示、命中观测和 fixture 仍待做。
+- **验证结果**:
+  - `python -m pytest tests\service\test_knowledge_retriever.py tests\test_lifespan_routes_services.py -q --no-cov` 通过，7 个测试通过。
+  - `python -m pytest tests\service\test_knowledge_retriever.py tests\test_lifespan_routes_services.py tests\scripts\test_check_knowledge_governance_plan.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_eval_retrieval.py tests\scripts\test_check_customer_long_context_summary_smoke.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\api\test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，46 个测试通过。
+  - `python -m ruff check app\service\knowledge_retriever.py app\lifespan_services.py tests\service\test_knowledge_retriever.py tests\test_lifespan_routes_services.py` 通过。
+  - `python -m ruff format --check app\service\knowledge_retriever.py app\lifespan_services.py tests\service\test_knowledge_retriever.py tests\test_lifespan_routes_services.py` 通过。
+  - `python scripts\check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python scripts\check_customer_rag_golden_cases.py --json` 通过，`total=13 failed=0`。
+  - `python scripts\check_customer_long_context_summary_smoke.py --json` 通过，`total=11 failed=0`。
+  - `python scripts\eval_retrieval.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json` 通过，本地 400 条启用知识，8 个可评测用例，Recall@5=1.0，MRR=0.9167。
+  - `python scripts\check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts\check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts\check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后台知识配置展示和编辑 audience、review_status、valid_from、valid_until。
+  - 增加客户/员工知识命中日志与 audience fixture。
+
+## [2026-07-06] - feat(knowledge): 增加知识库发布治理字段和默认过滤
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-governance-v015
+- **背景**: 知识库治理兼容迁移计划已冻结，下一步需要在不重构 `knowledge_base`、不引入 LangChain 发布链路、不破坏老数据召回的前提下，落地 audience、有效期和审核状态字段。
+- **决策**:
+  - 新增 `v015_knowledge_governance_fields.sql`，只追加字段和索引，老数据默认 `audience='all'`、`review_status='published'`。
+  - `KnowledgeRepo` 检索类方法默认只返回已发布、有效期内、共同可见的知识；传入 `audience='customer'/'employee'` 时返回 `all + 目标 audience`。
+  - `/ready`、preflight 和 `apply_migrations.py` 增加 `knowledge_base` 字段级门禁，避免旧库缺列时等到运行时才报 SQL 错。
+  - 当前不改客户/员工入口的显式 audience，也不改后台知识配置 UI；这些留给下一片。
+- **改动**:
+  - `app/migrations/v015_knowledge_governance_fields.sql` - 新增知识库发布治理字段和检索索引。
+  - `app/models/knowledge.py` - 新增 `KnowledgeAudience`、`KnowledgeReviewStatus` 和 `KnowledgeEntry` 治理字段。
+  - `app/repository/knowledge_repo.py` - 为 search、分类、标题、向量 key、全量标题入口增加发布状态、有效期和 audience 过滤。
+  - `app/migrations/schema.py` - 新库 schema 同步治理字段和索引。
+  - `app/readiness.py`、`scripts/preflight_production.py`、`scripts/apply_migrations.py` - 增加字段级 schema 检查和显式迁移 dry-run 缺字段报告。
+  - `tests/migrations/test_knowledge_governance_fields.py`、`tests/repository/test_knowledge_repo.py`、`tests/scripts/test_apply_migrations.py`、`tests/scripts/test_preflight_production.py`、`tests/test_health_ready.py` - 覆盖 v015 字段、索引、幂等迁移、默认过滤、audience 过滤和字段级门禁。
+  - `docs/architecture/knowledge-governance-migration-plan.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步 v015 已实现，后续入口显式 audience、后台展示和命中观测仍待做。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py tests/test_health_ready.py tests/migrations/test_knowledge_governance_fields.py tests/repository/test_knowledge_repo.py -q --no-cov` 通过，73 个测试通过。
+  - `python -m pytest tests/scripts/test_check_knowledge_governance_plan.py tests/scripts/test_check_customer_rag_golden_cases.py tests/scripts/test_eval_retrieval.py tests/scripts/test_check_customer_long_context_summary_smoke.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py tests/test_health_ready.py tests/migrations/test_knowledge_governance_fields.py tests/repository/test_knowledge_repo.py -q --no-cov` 通过，88 个测试通过。
+  - `python scripts/check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python scripts/check_customer_rag_golden_cases.py --json` 通过，`total=13 failed=0`。
+  - `python scripts/check_customer_long_context_summary_smoke.py --json` 通过，`total=11 failed=0`。
+  - `python scripts/eval_retrieval.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json` 通过，本地 400 条启用知识，8 个可评测用例，Recall@5=1.0，MRR=0.9167；默认 `data\prod_snapshot\eval.db` 不存在，未跑生产快照评估。
+  - `python -m ruff check app/readiness.py scripts/preflight_production.py scripts/apply_migrations.py app/models/knowledge.py app/repository/knowledge_repo.py app/migrations/schema.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_apply_migrations.py tests/migrations/test_knowledge_governance_fields.py tests/repository/test_knowledge_repo.py` 通过。
+  - `python -m ruff format --check app/readiness.py scripts/preflight_production.py scripts/apply_migrations.py app/models/knowledge.py app/repository/knowledge_repo.py app/migrations/schema.py tests/test_health_ready.py tests/scripts/test_preflight_production.py tests/scripts/test_apply_migrations.py tests/migrations/test_knowledge_governance_fields.py tests/repository/test_knowledge_repo.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 客户机器人和员工助手应在各自知识入口显式传入 `audience='customer' / 'employee'`。
+  - 后台知识配置需展示和编辑 audience、review_status、valid_from、valid_until。
+  - RAG golden cases 后续可补 audience 和有效期 fixture。
+
+## [2026-07-06] - docs(knowledge): 冻结知识库治理兼容迁移计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-knowledge-governance-migration-plan
+- **背景**: GitHub 借鉴计划的阶段 3 要把知识库从“能搜”升级为“可运营、可追溯、可评估”，但 `knowledge_base` 已有后台管理和向量同步字段，不能直接改表或重构主表。下一步必须先冻结 audience、有效期和审核状态的兼容迁移边界。
+- **决策**:
+  - 继续复用 `knowledge_base`，不新建独立内容主表，不引入 LangChain loader 直接发布知识。
+  - 首批治理字段规划为 `audience / review_status / valid_from / valid_until / reviewed_by / reviewed_at`。
+  - 老数据默认 `audience='all'`、`review_status='published'`，保证迁移后线上检索结果不突然消失。
+  - 新增静态验收脚本，防止后续迁移绕过 audience、有效期、审核状态、兼容默认值和禁止拆主表的边界。
+- **改动**:
+  - `docs/architecture/knowledge-governance-migration-plan.md` - 新增知识库治理兼容迁移计划，明确字段、枚举、实施顺序、验收标准和残余风险。
+  - `scripts/check_knowledge_governance_plan.py` - 新增计划静态验收脚本，支持 `--json` 输出。
+  - `tests/scripts/test_check_knowledge_governance_plan.py` - 覆盖静态检查成功、缺字段失败和 JSON 输出。
+  - `docs/README.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步知识库治理计划已冻结，下一片才允许做 v015 schema 和过滤实现。
+- **验证结果**:
+  - `python scripts/check_knowledge_governance_plan.py --json` 通过，`total=20 failed=0`。
+  - `python -m pytest tests/scripts/test_check_knowledge_governance_plan.py -q --no-cov` 通过，3 个测试通过。
+  - `python scripts/check_customer_rag_golden_cases.py --json` 通过，`total=13 failed=0`。
+  - `python scripts/check_customer_long_context_summary_smoke.py --json` 通过，`total=11 failed=0`，成功项 detail 已为空。
+  - `python -m pytest tests/scripts/test_check_knowledge_governance_plan.py tests/scripts/test_check_customer_rag_golden_cases.py tests/scripts/test_check_customer_long_context_summary_smoke.py -q --no-cov` 通过，9 个测试通过。
+  - `python -m ruff check scripts/check_knowledge_governance_plan.py tests/scripts/test_check_knowledge_governance_plan.py` 通过。
+  - `python -m ruff format --check scripts/check_knowledge_governance_plan.py tests/scripts/test_check_knowledge_governance_plan.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 下一片可以按计划新增 `v015_knowledge_governance_fields.sql`、schema、model 和 repository audience/有效期过滤。
+  - 仍不允许跳过 RAG golden cases 和兼容默认值验证直接发布过滤逻辑。
+
+## [2026-07-06] - test(chat): 增加客户长上下文摘要离线 smoke
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-conversation-summary-long-context-smoke
+- **背景**: active 会话摘要已经能只读注入客户 prompt，但还缺一个无需 LLM、无需数据库的长上下文回归入口，证明摘要不会替代最近消息、不会影响 RAG 检索 query，也不会把工具结果压力误判成摘要候选。
+- **决策**:
+  - 新增 `scripts/check_customer_long_context_summary_smoke.py`，直接调用真实 `prepare_chat_context()` 构造长历史、active 摘要和工具结果压力样本。
+  - smoke 只验证上下文拼装和预算观测，不调用 LLM、不读写数据库、不改变客户热路径行为。
+  - 将工具结果压力和历史压力分开验收：长历史可以触发摘要候选，工具结果过大只能标记压力，不应触发会话摘要候选。
+- **改动**:
+  - `scripts/check_customer_long_context_summary_smoke.py` - 新增长上下文摘要离线 smoke，支持 `--json` 输出。
+  - `tests/scripts/test_check_customer_long_context_summary_smoke.py` - 覆盖脚本成功、JSON 输出和失败退出路径。
+  - `docs/architecture/customer-session-summary-design.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步离线长上下文 smoke 已完成，生产观察仍待做。
+- **验证结果**:
+  - `python scripts/check_customer_long_context_summary_smoke.py --json` 通过，`total=11 failed=0`。
+  - `python -m pytest tests/scripts/test_check_customer_long_context_summary_smoke.py -q --no-cov` 通过，3 个测试通过。
+  - `python -m pytest tests/scripts/test_check_customer_long_context_summary_smoke.py tests/service/test_chat_refactor.py tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/test_lifespan_routes_services.py tests/test_main_runtime.py -q --no-cov` 通过。
+  - `python -m ruff check scripts/check_customer_long_context_summary_smoke.py tests/scripts/test_check_customer_long_context_summary_smoke.py` 通过。
+  - `python -m ruff format --check scripts/check_customer_long_context_summary_smoke.py tests/scripts/test_check_customer_long_context_summary_smoke.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 生产观察仍需关注真实 token 压力、摘要质量、事实边界和摘要生成失败降级。
+
+## [2026-07-06] - feat(chat): 将 active 会话摘要只读注入客户 prompt
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-conversation-summary-prompt-read
+- **背景**: 会话摘要已经能回复后异步生成并保存为 active 草稿，但下一轮回复仍未读取它。继续推进时必须保持开发边界：不在当前轮同步生成摘要、不替换最近消息、不压缩工具结果、不写长期客户画像、不引入 LangChain / LangGraph。
+- **决策**:
+  - 新增 `conversation_summary_memory.py`，热路径只读加载 active 摘要；repo 不存在或读取失败时空摘要降级。
+  - 在 `chat_ai_loop` 中读取 active 摘要并传给 `chat_context`，避免让 `chat_context` 直接依赖 repository。
+  - `chat_context` 把摘要作为 system prompt 的“本会话早期摘要”片段注入，并明确订单、库存、配送、价格仍以工具和知识库为准。
+  - `context_budget` 增加会话摘要存在、token 估算和只读短期上下文策略字段，便于后续观察成本。
+- **改动**:
+  - `app/service/conversation_summary_memory.py` - 新增 active 摘要只读 loader。
+  - `app/service/chat_ai_loop.py`、`app/service/chat_context.py`、`app/service/chat_context_budget.py` - 接入 active 摘要文本、追加 prompt 片段并记录预算观测字段。
+  - `app/service/chat.py`、`app/main.py`、`app/lifespan_services.py` - 注入 `ConversationSummaryRepo` 到客户 AI loop。
+  - `tests/service/test_chat_refactor.py`、`tests/test_lifespan_routes_services.py`、`tests/test_main_runtime.py` - 覆盖摘要 prompt 注入、最近消息保留、AI loop 只读加载、repo 装配。
+  - `docs/architecture/customer-session-summary-design.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步 active 摘要只读注入已完成，真实长对话 smoke 和生产观察仍待做。
+- **验证结果**:
+  - `python -m pytest tests/service/test_chat_refactor.py tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py tests/test_health_ready.py tests/test_lifespan_routes_services.py tests/test_main_runtime.py tests/service/youzan/test_hosting_connectivity.py tests/service/youzan/test_product_name_change.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/conversation_summary_memory.py app/service/conversation_summary_scheduler.py app/service/conversation_summary_service.py app/service/chat_context.py app/service/chat_context_budget.py app/service/chat_ai_loop.py app/service/chat_message_flow.py app/service/chat.py app/main.py app/lifespan_services.py app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/service/test_chat_refactor.py tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/test_lifespan_routes_services.py tests/test_main_runtime.py` 通过。
+  - `python -m ruff format --check app/service/conversation_summary_memory.py app/service/conversation_summary_scheduler.py app/service/conversation_summary_service.py app/service/chat_context.py app/service/chat_context_budget.py app/service/chat_ai_loop.py app/service/chat_message_flow.py app/service/chat.py app/main.py app/lifespan_services.py app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/service/test_chat_refactor.py tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/test_lifespan_routes_services.py tests/test_main_runtime.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 下一步如继续推进，应做真实长对话 smoke，观察 token 压力、回复质量和摘要事实边界。
+
+## [2026-07-06] - feat(chat): 增加客户会话摘要回复后异步触发
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-conversation-summary-scheduler
+- **背景**: 会话摘要独立数据层和摘要生成 service 已完成，但预算压力候选还没有实际触发草稿生成和 active 摘要保存。继续推进时必须保持客户当前回复路径稳定：不让本轮回复等待摘要、不读取摘要进 prompt、不压缩工具结果、不写长期客户画像。
+- **决策**:
+  - 新增 `conversation_summary_scheduler.py`，只在正常 AI 回复保存和 `reply_latency` 埋点完成后，根据 `context_budget.needs_session_summary_candidate` 排队生成并保存 active 摘要。
+  - 调度任务使用新的 `db_session_scope()` 和 repository，不复用请求期连接；仓库、LLM 或解析失败只记录 warning 并返回 False，不阻断当前客服回复。
+  - 同一会话已有 active 摘要且覆盖范围仍新鲜时跳过重写；人工服务状态、非候选预算、空草稿均不落库。
+  - 本轮仍不把 active 摘要读入 `SessionManager.build_context()` 或 `prepare_ai_conversation_messages()`，热路径读取留给长对话回归测试后的下一片。
+- **改动**:
+  - `app/service/conversation_summary_scheduler.py` - 新增回复后调度、后台任务跟踪、active 摘要新鲜度判断、生成并保存编排。
+  - `app/service/chat_message_flow.py`、`app/service/chat.py` - 在正常 AI 回复保存和延迟埋点后接入可注入调度函数；失败自动转人工和显式转人工路径不触发。
+  - `tests/service/test_conversation_summary_scheduler.py`、`tests/service/test_chat_refactor.py` - 覆盖非候选跳过、人工服务跳过、新鲜摘要跳过、空草稿丢弃、仓库异常吞掉、回复保存和埋点后才调度。
+  - `docs/architecture/customer-session-summary-design.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步异步触发和 active 草稿保存已完成，热路径读取仍未实现。
+- **验证结果**:
+  - `python -m pytest tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/service/test_chat_refactor.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py tests/test_health_ready.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/conversation_summary_scheduler.py app/service/conversation_summary_service.py app/service/chat_message_flow.py app/service/chat.py app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/service/test_chat_refactor.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py` 通过。
+  - `python -m ruff format --check app/service/conversation_summary_scheduler.py app/service/conversation_summary_service.py app/service/chat_message_flow.py app/service/chat.py app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/service/test_conversation_summary_scheduler.py tests/service/test_conversation_summary_service.py tests/service/test_chat_refactor.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过，仅保留既有 55 处函数长度 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 下一片如要读取 active 摘要进 prompt，必须先补长对话回归，证明最近消息仍保留、工具结果压力不会误触发摘要、摘要不会引入订单/库存/配送承诺幻觉。
+  - 仍不引入 LangChain Memory 或 LangGraph；短期摘要继续保持项目内轻量实现。
+
+## [2026-07-06] - feat(chat): 增加客户会话摘要生成服务
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-conversation-summary-generator
+- **背景**: `conversation_summaries` 独立数据层已落地，但还没有生成摘要草稿的独立 service。下一步应先实现“可测试、可丢弃、无副作用”的摘要生成器，再考虑异步触发和热路径读取。
+- **决策**:
+  - 新增 `conversation_summary_service.py`，只负责从用户/助手消息生成 `ConversationSummaryCreate` 草稿，不访问 repository、不写库、不接在线 prompt。
+  - 摘要生成复用现有 `llm_chat`、`parse_json_object` 和 `estimate_tokens`；LLM 失败、JSON 解析失败、摘要超长或出现完整手机号/地址/订单号时返回 `None`。
+  - 工具消息不参与摘要，避免用会话摘要压缩工具结果膨胀或把工具结果当作事实来源。
+- **改动**:
+  - `app/service/conversation_summary_service.py` - 新增摘要生成 request、LLM prompt、JSON 渲染、来源消息记录、长度限制和敏感信息丢弃规则。
+  - `tests/service/test_conversation_summary_service.py` - 覆盖安全 JSON 解析、工具消息排除、无效 JSON、LLM 异常、完整手机号/地址/订单号丢弃、超长摘要丢弃和纯工具消息跳过。
+  - `docs/architecture/customer-session-summary-design.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`项目进度与配置清单.md` - 同步摘要生成 service 已完成，异步触发、草稿保存和热路径读取仍未实现。
+- **验证结果**:
+  - `python -m pytest tests/service/test_conversation_summary_service.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py tests/test_health_ready.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/conversation_summary_service.py tests/service/test_conversation_summary_service.py app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py` 通过。
+  - `python -m ruff format --check app/service/conversation_summary_service.py tests/service/test_conversation_summary_service.py app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - 热路径接入扫描 `rg -n "conversation_summary_service|generate_conversation_summary_draft|conversation_summaries|ConversationSummaryRepo" app/api app/service/chat_context.py app/service/chat_message_flow.py app/service/chat_llm.py app/service/chat_ai_loop.py app/service/session_manager.py -g "*.py"` 零输出，确认未接入在线回复链路。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 下一片可以做异步触发编排，但仍应只在回复完成后触发，失败不阻断客服回复。
+  - 热路径读取 active 摘要前，必须补长对话回归并证明最近消息仍保留。
+
+## [2026-07-06] - feat(chat): 落地客户会话摘要独立数据层
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-conversation-summary-data-layer
+- **背景**: 客户会话摘要设计已冻结，下一步应先做独立表、model、repository 和 migration dry-run，而不是直接改 `SessionManager.build_context()` 或把摘要塞进热路径。
+- **决策**:
+  - 新增 `conversation_summaries` 独立表，只服务短期会话上下文，不直接写入长期客户画像。
+  - 每个会话最多保留一条 `active` 摘要；新的 active 摘要写入前，旧 active 摘要标记为 `superseded`，保留历史记录。
+  - 本轮只落地数据层和迁移门禁，不实现摘要生成服务、不触发异步任务、不让在线回复读取摘要。
+- **改动**:
+  - `app/models/conversation_summary.py` - 新增会话短期摘要模型、创建参数和状态枚举。
+  - `app/repository/conversation_summary_repo.py` - 新增 `get_active`、`upsert_active`、`discard_active`、`list_by_session` 原子仓库操作。
+  - `app/migrations/schema.py`、`app/migrations/v014_conversation_summaries.sql` - 新增 `conversation_summaries` 表、状态约束、普通索引和 active 摘要唯一部分索引。
+  - `app/readiness.py`、`tests/scripts/test_apply_migrations.py` - 将 `conversation_summaries` 纳入 readiness / apply_migrations 必需表门禁和 dry-run 报告断言。
+  - `tests/migrations/test_conversation_summary_tables.py`、`tests/repository/test_conversation_summary_repo.py` - 覆盖表结构、索引、v014 幂等、active upsert、supersede 和 discard 行为。
+  - `docs/architecture/customer-session-summary-design.md`、`docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`docs/README.md`、`项目进度与配置清单.md` - 同步客户会话摘要数据层已完成、热路径未实现。
+- **验证结果**:
+  - `python -m pytest tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py tests/scripts/test_preflight_production.py tests/test_health_ready.py -q --no-cov` 通过。
+  - `python -m ruff check app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py` 通过。
+  - `python -m ruff format --check app/models/conversation_summary.py app/repository/conversation_summary_repo.py app/migrations/schema.py app/readiness.py tests/migrations/test_conversation_summary_tables.py tests/repository/test_conversation_summary_repo.py tests/scripts/test_apply_migrations.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 下一片应先做摘要生成 service 和敏感信息丢弃测试；仍不要直接改在线 prompt 构造。
+  - 热路径读取 active 摘要前，必须补长对话回归，证明最近消息仍保留、工具结果压力不会误触发摘要。
+
+## [2026-07-06] - docs(chat): 冻结客户会话摘要设计边界
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-customer-session-summary-design
+- **背景**: 客户上下文预算已能标记会话摘要候选，但直接把摘要实现放进在线回复链路会带来延迟、成本、长期画像污染和回归风险。进入实现前需要先明确写入位置、触发阈值、与长期画像隔离规则和回滚方式。
+- **决策**:
+  - 推荐采用“观测触发、异步生成、下轮使用”的会话摘要方案。
+  - 会话摘要只作为短期上下文，不直接写入 `customer_profiles`，长期画像仍由离线 `MemoryAgent` 审核。
+  - 首版实现不得引入 LangChain Memory 或 LangGraph，不得把摘要生成放进本轮同步回复前，不得用摘要压缩工具结果膨胀。
+- **改动**:
+  - `docs/architecture/customer-session-summary-design.md` - 新增客户会话摘要设计，覆盖方案比较、职责边界、数据落点、触发规则、摘要格式、实现边界和验证计划。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md` - 同步阶段 2 状态为会话摘要设计已冻结、热路径未实现。
+  - `docs/README.md`、`项目进度与配置清单.md` - 增加会话摘要设计入口和当前进度记录。
+- **验证结果**:
+  - 路径检查通过：`customer-session-summary-design.md`、GitHub 借鉴计划、双机器人能力目录、`docs/README.md`、`项目进度与配置清单.md`、`LOGBOOK.md` 均存在。
+  - `rg -n "待定|FIXME|xxx" docs/architecture/customer-session-summary-design.md docs/architecture/github-reference-benchmark-and-implementation-plan.md docs/architecture/bot-capability-matrix.md docs/README.md 项目进度与配置清单.md` 零输出。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 若进入实现，应先做 `conversation_summaries` 独立表、model、repository 和 migration dry-run；不要直接改 `SessionManager.build_context()`。
+  - 热路径读取摘要前，需要先有长对话回归测试，证明最近消息仍保留，工具结果压力不会误触发摘要。
+
+## [2026-07-06] - feat(chat): 增加客户上下文预算压力观测
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-chat-context-pressure
+- **背景**: 上下文预算已能记录最近消息、RAG、客户画像、system prompt 和工具结果，但只能看到原始 token 估算，无法直接判断什么时候进入上下文爆炸风险区，也无法区分“需要会话摘要”与“工具结果过大”两类问题。
+- **决策**:
+  - 继续保持观测优先，不改变 system prompt、历史裁剪、RAG 检索、客户画像注入、工具调用顺序或回复策略。
+  - 在 `context_budget` 中增加预算占比、压力等级和会话摘要候选标记，作为后续设计会话摘要机制的依据。
+  - 会话摘要候选只由历史上下文压力触发；工具结果导致的 prompt 压力只标记为预算压力，不误判为摘要需求。
+- **改动**:
+  - `app/service/chat_context_budget.py` - 增加 `history_budget_ratio`、`prompt_budget_ratio`、`budget_pressure_level`、`needs_session_summary_candidate`、`summary_candidate_policy`，并在工具轮次后刷新 prompt 压力。
+  - `tests/service/test_chat_refactor.py` - 覆盖低压默认值、历史压力触发摘要候选、工具结果压力不触发摘要候选。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md` - 同步阶段 2 第三片执行状态。
+- **验证结果**:
+  - `python -m pytest tests/service/test_chat_refactor.py -q --no-cov` 通过，`23 passed`。
+  - `python -m ruff check app/service/chat_context_budget.py app/service/chat_llm.py tests/service/test_chat_refactor.py` 通过。
+  - `python -m ruff format --check app/service/chat_context_budget.py app/service/chat_llm.py tests/service/test_chat_refactor.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `python -m pytest tests/scripts/test_eval_retrieval.py tests/scripts/test_check_customer_rag_golden_cases.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，`54 passed`。
+  - `python scripts/check_customer_rag_golden_cases.py --json` 通过，`total=13`、`failed=0`。
+  - `git diff --check` 通过，仅提示部分工作区文件后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 会话摘要仍未进入热路径；下一步应先写设计文档，明确摘要写入位置、触发阈值、与长期画像的隔离规则和回滚方式。
+  - 若压力主要来自工具结果，应优先治理工具返回内容裁剪、分页和引用摘要，而不是压缩客户对话历史。
+
+## [2026-07-06] - feat(chat): 将工具结果纳入客户上下文预算观测
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-chat-tool-context-budget
+- **背景**: 客户机器人上下文预算第一片已记录最近消息、RAG、客户画像和 system prompt，但工具调用轮次追加的 assistant/tool 消息尚未进入预算观测。长对话中如果工具结果过大，下一轮 LLM prompt 仍会膨胀，需在不改变热路径行为的前提下补齐观测。
+- **决策**:
+  - 只记录运行时工具上下文增量，不改变工具调用顺序、工具返回内容、LLM 消息内容或回复策略。
+  - 在 `complete_llm_tool_conversation()` 每次 `process_tool_calls()` 后统计本轮新增消息，合并到 `timing.context_budget`。
+  - 新增字段只作为埋点和排查信息：`tool_context_message_count`、`tool_context_token_estimate`、`tool_result_message_count`、`tool_result_token_estimate`、`tool_context_policy`。
+- **改动**:
+  - `app/service/chat_context_budget.py` - 增加工具上下文预算增量合并函数，并在初始快照中提供工具观测字段默认值。
+  - `app/service/chat_llm.py` - 工具调用完成后记录新增 assistant/tool 消息的预算增量。
+  - `tests/service/test_chat_refactor.py` - 覆盖初始工具预算默认值、工具轮次预算写入和工具轮次上限路径。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md` - 同步阶段 2 上下文预算已覆盖运行时工具结果。
+- **验证结果**:
+  - `python -m pytest tests/service/test_chat_refactor.py -q --no-cov` 通过，`21 passed`。
+  - `python -m ruff check app/service/chat_context_budget.py app/service/chat_llm.py tests/service/test_chat_refactor.py` 通过。
+  - `python -m ruff format --check app/service/chat_context_budget.py app/service/chat_llm.py tests/service/test_chat_refactor.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示 `LOGBOOK.md`、`app/service/chat_context.py`、`app/service/chat_llm.py`、`docs/README.md`、`scripts/eval_retrieval.py`、`tests/scripts/test_eval_retrieval.py` 后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 会话摘要仍未实现；下一步应先写清触发阈值、写入位置和与长期画像隔离规则，再决定是否进入热路径。
+  - 若后续发现工具结果 token 膨胀，应优先从工具返回内容裁剪和分页策略入手，而不是让 LLM 自行压缩事实结果。
+
+## [2026-07-06] - test(rag): 将客户 RAG golden cases 接入离线检索评估
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-customer-rag-eval-fixture
+- **背景**: 上一片已建立 `customer_rag_golden_cases.json` 和结构校验脚本，但还只能证明 case 清单完整，不能直接产出检索质量指标。为让客户侧商品咨询、配送、退款售后、转人工样本进入后续知识库治理，需要把它接入现有 `scripts/eval_retrieval.py`。
+- **决策**:
+  - 只扩展离线评估脚本，不改变线上检索算法、知识库 schema、prompt 或客户热路径。
+  - `eval_retrieval.py` 新增 `--fixture` 参数，默认仍使用原 `tests/fixtures/retrieval_eval_set.json`，避免破坏既有调用。
+  - `evaluate()` 增加 `group_metrics`，按 customer golden case 的 `group` 输出每类 Recall@K / MRR，便于后续定位是配送、售后、商品还是转人工样本退化。
+- **改动**:
+  - `scripts/eval_retrieval.py` - 支持自定义 fixture，并在报告和 JSON 汇总中输出 `group_metrics`。
+  - `tests/scripts/test_eval_retrieval.py` - 覆盖自定义 fixture 加载和分组指标计算。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`docs/README.md` - 同步客户 golden cases 的离线评估入口。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_eval_retrieval.py -q --no-cov` 通过，`6 passed`。
+  - `python -m ruff check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过。
+  - `python -m ruff format --check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过。
+  - `python scripts/check_customer_rag_golden_cases.py --json` 通过，`total=13`、`failed=0`。
+  - `python -m pytest tests/scripts/test_eval_retrieval.py tests/scripts/test_check_customer_rag_golden_cases.py tests/service/test_knowledge_retriever.py tests/service/test_retrieval_fusion.py -q --no-cov` 通过，`15 passed`。
+  - `python -m ruff check scripts/eval_retrieval.py scripts/check_customer_rag_golden_cases.py tests/scripts/test_eval_retrieval.py tests/scripts/test_check_customer_rag_golden_cases.py` 通过。
+  - `python -m ruff format --check scripts/eval_retrieval.py scripts/check_customer_rag_golden_cases.py tests/scripts/test_eval_retrieval.py tests/scripts/test_check_customer_rag_golden_cases.py` 通过。
+  - 使用临时 SQLite 评测库和 `YUNXI_USE_FAKE_EMBEDDING=1` 运行 `python scripts/eval_retrieval.py --db data/eval_retrieval_customer_fixture_smoke.db --fixture tests/fixtures/customer_rag_golden_cases.json --mode vector --k 3` 通过，报告输出四个 group 的 Recall / MRR；临时 DB 已按明确路径删除，并用 `Test-Path` 确认不存在。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示 `LOGBOOK.md`、`app/service/chat_context.py`、`docs/README.md`、`scripts/eval_retrieval.py`、`tests/scripts/test_eval_retrieval.py` 后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续可用生产脱敏评测库跑 `--fixture tests/fixtures/customer_rag_golden_cases.json`，形成客户侧 RAG 基线报告。
+  - 若要把结果作为发布门禁，需要先确定每类 group 的最低 Recall@K 阈值，避免临时样本过少导致误判。
+
+## [2026-07-06] - test(rag): 建立客户机器人首批 RAG golden cases
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-customer-rag-golden-cases
+- **背景**: GitHub 借鉴实施计划的 P0 要求为客户机器人建立第一批 RAG golden cases，覆盖配送、退款、商品咨询、转人工。当前已有 `retrieval_eval_set.json` 偏检索质量评估，但缺少明确面向客户客服场景的覆盖清单，也缺少结构化校验入口。
+- **决策**:
+  - 本轮只补离线评测夹具和结构校验脚本，不改变知识库字段、检索算法、线上 prompt 或客户热路径。
+  - golden cases 先覆盖四类必须场景：`product_consultation`、`delivery`、`refund_after_sales`、`human_transfer`。
+  - 每条 case 同时记录 `relevant` 关键词匹配器和 `guardrails`，后续可逐步接入检索评估、回复守卫和知识库治理。
+- **改动**:
+  - `tests/fixtures/customer_rag_golden_cases.json` - 新增客户机器人首批 RAG golden cases，共 8 条，覆盖商品咨询、配送、退款售后和转人工。
+  - `scripts/check_customer_rag_golden_cases.py` - 新增结构校验脚本，检查 meta、case 字段、ID 唯一性、关键词匹配器、守卫规则和必需 group 覆盖。
+  - `tests/scripts/test_check_customer_rag_golden_cases.py` - 新增脚本单测，覆盖当前 fixture 通过、缺 group 失败和 JSON 输出。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md`、`docs/README.md` - 同步 golden cases 执行状态和脚本入口。
+- **验证结果**:
+  - `python scripts/check_customer_rag_golden_cases.py --json` 通过，`total=13`、`failed=0`。
+  - `python -m pytest tests/scripts/test_check_customer_rag_golden_cases.py tests/scripts/test_eval_retrieval.py tests/service/test_knowledge_retriever.py tests/service/test_retrieval_fusion.py -q --no-cov` 通过，`13 passed`。
+  - `python -m ruff check scripts/check_customer_rag_golden_cases.py tests/scripts/test_check_customer_rag_golden_cases.py` 通过。
+  - `python -m ruff format --check scripts/check_customer_rag_golden_cases.py tests/scripts/test_check_customer_rag_golden_cases.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `git diff --check` 通过，仅提示 `LOGBOOK.md`、`app/service/chat_context.py`、`docs/README.md` 后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 后续阶段可把 `customer_rag_golden_cases.json` 接入真实检索评估，输出每类场景的 Recall@K / MRR。
+  - 转人工类 case 目前只固定 RAG/守卫输入，不代表已对完整对话流做自动验收；完整流仍需后续客服链路回归。
+
+## [2026-07-06] - feat(chat): 增加客户机器人上下文预算观测快照
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-customer-context-budget-observability
+- **背景**: 阶段 2 进入客户机器人上下文治理。当前项目已有 `SessionManager.build_context` 的历史 token budget、RAG 检索和客户画像提示，但缺少每轮回复的上下文组成观测，无法判断“上下文爆炸”主要来自历史、知识、画像还是 system prompt。
+- **决策**:
+  - 本轮只落地低风险观测切片，不引入 LangChain / LangGraph，不改数据库 schema，不改变 prompt 内容、RAG 检索策略、历史裁剪逻辑或工具调用行为。
+  - 新增上下文预算快照，记录最近消息、RAG、客户画像和 system prompt 的估算 token，并通过 `timing.context_budget` 透传到 `reply_latency.meta_data`。
+  - 长期记忆继续保持只读提示策略，快照中显式标记 `long_term_memory_policy=read_only_prompt_hints`；会话摘要、证据规则、撤销/过期机制仍保持后续设计项。
+- **改动**:
+  - `app/service/chat_context_budget.py` - 新增 `ChatContextBudgetSnapshot` 和构建函数，复用现有 `estimate_tokens` 与客户画像渲染逻辑。
+  - `app/service/chat_context.py` - 在构造 system prompt 后生成上下文预算快照，并写入 `timing["context_budget"]`。
+  - `app/service/chat_reply.py` - 将 `context_budget` 纳入回复延迟埋点元数据。
+  - `tests/service/test_chat_refactor.py` - 覆盖预算快照生成、timing 透传和 analytics meta 透传。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md`、`docs/architecture/bot-capability-matrix.md` - 标记阶段 2 第一片已完成，并说明其为观测能力。
+- **验证结果**:
+  - `python -m ruff check app/service/chat_context_budget.py app/service/chat_context.py app/service/chat_reply.py tests/service/test_chat_refactor.py` 通过。
+  - `python -m ruff format --check app/service/chat_context_budget.py app/service/chat_context.py app/service/chat_reply.py tests/service/test_chat_refactor.py` 通过。
+  - `python -m pytest tests/service/test_chat_refactor.py -q --no-cov` 通过，`21 passed`。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，`48/48`，确认阶段 1 探针仍通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过，`entries=0`。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+  - `rg -n "TBD|TODO|FIXME|待定|xxx" docs/architecture/bot-capability-matrix.md docs/architecture/github-reference-benchmark-and-implementation-plan.md LOGBOOK.md` 未发现本轮新增占位符；命中均为 LOGBOOK 历史记录。
+  - `git diff --check` 通过，仅提示 `LOGBOOK.md`、`app/service/chat_context.py`、`docs/README.md` 后续可能被 Git 转换为 CRLF。
+- **后续**:
+  - 阶段 2 下一片可补客户会话摘要设计：先明确写入位置、触发阈值、摘要与长期画像隔离规则，再决定是否实现。
+  - 工具结果预算尚未纳入本片，需要在工具循环观测或后续 tracing 中单独补齐。
+
+## [2026-07-06] - docs(architecture): review GitHub 借鉴计划并落地双机器人能力目录
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-plan-review-capability-matrix
+- **背景**: 用户确认 GitHub 借鉴计划有意义后，要求基于当前项目 review 是否存在无法实现项；若无硬阻塞，则直接开始执行。当前项目实际上有客户机器人和员工助手两条对话线，不能混成一个 Agent。
+- **决策**:
+  - 计划整体可实施，没有发现需要推翻的硬阻塞。
+  - 阶段 1 可直接执行：先固化客户机器人 / 员工助手能力目录，作为后续上下文治理、知识库治理和工具扩展的索引。
+  - `integration_status` 工具已存在于 endpoint、dispatcher 和 service，本轮补入员工助手 capability registry，并新增规划探针锁定“同步失败有哪些”问法。
+  - 知识库治理字段、客户会话摘要、MiniApp 发布自动化、LangGraph 离线试点都需要前置设计或单独试点，不应混进阶段 1。
+- **改动**:
+  - `docs/architecture/bot-capability-matrix.md` - 新增双机器人能力目录，逐项映射客户机器人、员工助手、共享 service、回复策略、验证入口和当前缺口。
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md` - 更新状态为“阶段 0 已冻结；阶段 1 首版能力目录已执行”，并补充阶段 1 可实施性复核。
+  - `docs/README.md` - 将双机器人能力目录加入当前权威口径。
+  - `app/service/wecom/employee_agent_capabilities.py`、`app/service/wecom/employee_agent_ops_plan.py`、`app/service/wecom/employee_agent_non_order_plan.py` - 补 `integration_status` 能力卡和规则规划入口。
+  - `scripts/wecom_employee_agent_probe_cases.py`、`tests/service/test_wecom_employee_agent.py` - 增加“同步失败有哪些”规划探针和单测断言。
+- **验证结果**:
+  - `git diff --check` 通过，仅提示 `LOGBOOK.md`、`docs/README.md` 后续可能被 Git 转换为 CRLF。
+  - `rg -n "TBD|TODO|FIXME|待定|xxx" docs/architecture/bot-capability-matrix.md docs/architecture/github-reference-benchmark-and-implementation-plan.md docs/README.md LOGBOOK.md` 未发现本轮新增占位符；命中均为 LOGBOOK 历史记录。
+  - 文档路径检查通过：新增能力目录、GitHub 借鉴计划、员工助手计划、企微工具清单、项目边界、Platform / MiniApp API 契约、MiniApp roadmap 和 MiniApp chat service 均存在。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，`48/48`，新增 `integration-status` 用例命中 `integration_status`。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/scripts/test_check_wecom_employee_agent_plans.py -q --no-cov` 通过，`49 passed`。
+  - `python -m ruff check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_ops_plan.py app/service/wecom/employee_agent_non_order_plan.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m ruff format --check app/service/wecom/employee_agent_capabilities.py app/service/wecom/employee_agent_ops_plan.py app/service/wecom/employee_agent_non_order_plan.py scripts/wecom_employee_agent_probe_cases.py tests/service/test_wecom_employee_agent.py` 通过。
+  - `python scripts/check_file_sizes.py` 通过，仅保留既有存量超线文件 WARN。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+  - 架构守卫扫描 `rg "from app\.repository" app/api -g "*.py"`、`rg "import aiosqlite|\.execute\(|\.fetchone\(|\.fetchall\(" app/service -g "*.py"`、`rg "from app\.(service|repository|api)" app/models -g "*.py"` 均零输出。
+- **后续**:
+  - 继续阶段 2：客户机器人上下文预算、会话摘要和长期记忆边界设计。
+
+## [2026-07-06] - docs(architecture): 补 GitHub 借鉴与双机器人实施计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260706-github-reference-benchmark
+- **背景**: 需要基于 GitHub 相关项目做可借鉴分析，并结合当前 `Platform` 主仓、`Storefront MiniApp` 渠道仓、客户机器人和员工助手两条对话线，形成可执行计划，而不是只停留在聊天建议。
+- **决策**:
+  - 外部项目只借鉴模块边界、知识库治理、通道适配、MiniApp 商城路径、会员/发布流程和观测方式，不复制代码、不照搬全功能 Agent 平台。
+  - 客户机器人继续保持 RAG + 受控工具调用 + 转人工；员工助手继续保持确定性回复，LLM 只用于结构化规划兜底。
+  - LangChain / LangGraph 不进入客户热路径和员工助手事实回复主链路，仅作为离线复盘、知识库评估或固定节点流程的可选试点。
+- **改动**:
+  - `docs/architecture/github-reference-benchmark-and-implementation-plan.md` - 新增 GitHub 项目参考、双仓/双机器人拆解、LangChain 取舍、七阶段实施计划和 review 结论。
+  - `docs/README.md` - 在当前权威口径中挂载新增架构计划文档。
+- **验证结果**:
+  - `git diff --check` 通过，仅提示 `LOGBOOK.md`、`docs/README.md` 后续可能被 Git 转换为 CRLF。
+  - `rg -n "TBD|TODO|待补|待定|xxx|FIXME" docs/architecture/github-reference-benchmark-and-implementation-plan.md docs/README.md LOGBOOK.md` 未发现本轮新增占位符；新增文档中的“待补 API”为正常计划描述，LOGBOOK 命中均为历史记录。
+  - 内部关联文档路径检查通过：`project-boundaries.md`、`wecom-employee-agent-development-plan.md`、`wecom-intelligent-bot-tools.md`、`platform-miniapp-api-contract-v1.md` 均存在。
+  - GitHub API 核验外部参考项目描述、更新时间、star 和 license；`wechat-miniprogram/miniprogram-ci` GitHub 地址返回 404 后改为 npm 包 `miniprogram-ci`，并通过 npm registry 确认 latest `2.1.31`、MIT。
+  - `python scripts/check_mistake_ledger.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过；仅保留既有 55 处函数长度 WARN，质量门禁通过。
+- **后续**:
+  - 可按文档阶段 1 先落地 `bot-capability-matrix.md`，把客户机器人和员工助手能力目录固化。
+
 ## [2026-07-05] - fix(wecom): 收口订单成交口径、预定送达语义与按客户查路 A
 - **操作人**: AI (Codex)
 - **trace_id**: 20260705-wecom-order-query-closure

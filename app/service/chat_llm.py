@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from app.service.chat_context_budget import record_tool_context_budget_delta
 from app.service.chat_tools import ToolExecutionContext, process_tool_calls
 from app.service.chat_llm_request import (
     LLM_FAILURE_REASON_KEY,
@@ -67,10 +68,15 @@ async def complete_llm_tool_conversation(context: LlmToolLoopContext) -> str:
             return msg.content or ""
 
         if finish_reason == "tool_calls" and tool_round < MAX_TOOL_ROUNDS:
+            message_count_before_tools = len(context.messages)
             await process_tool_calls(
                 msg.tool_calls or [],
                 context.messages,
                 context.tool_context,
+            )
+            record_tool_context_budget_delta(
+                context.timing,
+                context.messages[message_count_before_tools:],
             )
             tool_round += 1
             continue

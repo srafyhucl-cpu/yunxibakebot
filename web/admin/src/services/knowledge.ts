@@ -27,6 +27,12 @@ interface KnowledgeEntryResponse {
   vector_synced_at: string;
   vector_sync_error: string;
   vector_sync_retry_count: number;
+  audience: string;
+  review_status: string;
+  valid_from: string;
+  valid_until: string;
+  reviewed_by: string;
+  reviewed_at: string;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +92,12 @@ function normalizeEntry(item: KnowledgeEntryResponse): KnowledgeEntry {
     vectorSyncedAt: item.vector_synced_at || "",
     vectorSyncError: item.vector_sync_error || "",
     vectorSyncRetryCount: item.vector_sync_retry_count || 0,
+    audience: item.audience || "all",
+    reviewStatus: item.review_status || "published",
+    validFrom: item.valid_from || "",
+    validUntil: item.valid_until || "",
+    reviewedBy: item.reviewed_by || "",
+    reviewedAt: item.reviewed_at || "",
     createdAt: item.created_at || "",
     updatedAt: item.updated_at || "",
   };
@@ -99,6 +111,10 @@ function toRequestBody(draft: KnowledgeDraft) {
     keywords: draft.keywords,
     priority: draft.priority,
     is_active: draft.isActive,
+    audience: draft.audience,
+    review_status: draft.reviewStatus,
+    valid_from: draft.validFrom,
+    valid_until: draft.validUntil,
   };
 }
 

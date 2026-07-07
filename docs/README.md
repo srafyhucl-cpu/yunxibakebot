@@ -16,6 +16,26 @@
   - 当前 `Platform` 内部从历史 `miniapp_*` 命名继续迁到 canonical 领域的盘点、风险分级和建议执行批次。
 - `docs/architecture/customer-group-operations-phase1.md`
   - 当前客户群运营一期说明，覆盖客户群触达、小程序结构化登记、后台汇总和微信客服单聊承接的最小闭环。
+- `docs/architecture/github-reference-benchmark-and-implementation-plan.md`
+  - GitHub 参考项目借鉴、客户机器人 / 员工助手双线边界、LangChain / LangGraph 取舍和分阶段实施计划。
+- `docs/architecture/bot-capability-matrix.md`
+  - 客户机器人和员工助手的能力目录，覆盖入口、底层 service、回复策略、验证入口和当前缺口。
+- `docs/architecture/customer-session-summary-design.md`
+  - 客户机器人会话摘要设计，明确短期摘要、长期画像、触发阈值、独立数据层、异步生成和热路径读取边界。
+- `docs/architecture/customer-memory-governance-plan.md`
+  - 客户长期记忆治理计划，明确 `customer_profiles` 证据、置信度、撤销、过期和会话摘要隔离边界。
+- `docs/architecture/customer-observability-contract.md`
+  - 客户机器人可观测合约，明确知识命中、无资料兜底、转人工、工具成功、上下文压力等指标和隐私边界。
+- `docs/architecture/miniapp-page-api-coverage-contract.md`
+  - MiniApp 页面 API 覆盖合约，明确各前台页面依赖的 Platform API、待补会员/营销 API 和前端不得持有的业务真相。
+- `docs/architecture/knowledge-governance-migration-plan.md`
+  - 知识库治理兼容迁移计划，明确 audience、有效期、审核状态、默认值、过滤边界和静态验收入口。
+- `scripts/check_github_reference_implementation_plan.py`
+  - GitHub 参考实施计划静态验收入口，防止计划边界被误改成全量 LangChain / LangGraph 迁移。
+- `scripts/check_customer_rag_golden_cases.py`
+  - 客户机器人首批 RAG golden cases 的结构验收入口，覆盖商品咨询、配送、退款售后和转人工。
+- `scripts/eval_retrieval.py --fixture tests/fixtures/customer_rag_golden_cases.json`
+  - 客户机器人 golden cases 的离线检索评估入口，输出整体和分组 Recall@K / MRR。
 - `docs/architecture/customer-master-v1.md`
   - 当前客户主档 v1 设计基线，明确主档、身份链接、来源快照三层结构，以及有赞迁移审计落点。
 - `docs/architecture/customer-master-v1-schema-draft.md`

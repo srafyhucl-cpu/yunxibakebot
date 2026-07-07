@@ -18,6 +18,12 @@ export interface KnowledgeEntry {
   vectorSyncedAt: string;
   vectorSyncError: string;
   vectorSyncRetryCount: number;
+  audience: string;
+  reviewStatus: string;
+  validFrom: string;
+  validUntil: string;
+  reviewedBy: string;
+  reviewedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,6 +35,10 @@ export interface KnowledgeDraft {
   keywords: string;
   priority: number;
   isActive: boolean;
+  audience: string;
+  reviewStatus: string;
+  validFrom: string;
+  validUntil: string;
 }
 
 export interface KnowledgeListPayload {

@@ -12,6 +12,15 @@ from types import ModuleType
 
 import numpy as np
 
+KNOWLEDGE_BASE_GOVERNANCE_COLUMNS_SQL = (
+    "audience TEXT DEFAULT 'all', "
+    "review_status TEXT DEFAULT 'published', "
+    "valid_from TEXT DEFAULT '', "
+    "valid_until TEXT DEFAULT '', "
+    "reviewed_by TEXT DEFAULT '', "
+    "reviewed_at TEXT DEFAULT ''"
+)
+
 
 def load_preflight_module() -> ModuleType:
     script_path = (
@@ -40,7 +49,9 @@ def _create_required_tables(module: ModuleType, db_path: Path) -> None:
                 conn.execute(
                     "CREATE TABLE knowledge_base ("
                     "id INTEGER PRIMARY KEY, "
-                    "is_active INTEGER DEFAULT 1)"
+                    "is_active INTEGER DEFAULT 1, "
+                    + KNOWLEDGE_BASE_GOVERNANCE_COLUMNS_SQL
+                    + ")"
                 )
             else:
                 conn.execute("CREATE TABLE " + table_name + " (id TEXT PRIMARY KEY)")
@@ -77,6 +88,7 @@ def test_get_missing_database_tables_reports_only_missing_tables(
     assert "sessions" not in missing_tables
     assert "messages" not in missing_tables
     assert "knowledge_base" in missing_tables
+    assert "knowledge_retrieval_logs" in missing_tables
     assert "wecom_kf_message_ledger" in missing_tables
 
 
@@ -170,6 +182,7 @@ def test_build_preflight_checks_includes_actionable_readiness_failures(
     )
     assert checks_by_key["handoff_staff_userid_ready"].passed is False
     assert "WECOM_STAFF_ID" in checks_by_key["handoff_staff_userid_ready"].action
+    assert checks_by_key["business_contracts.static_checks"].passed is True
 
 
 def test_build_preflight_checks_uses_path_overrides(
@@ -202,9 +215,62 @@ def test_build_preflight_checks_uses_path_overrides(
     assert checks_by_key["database_path_exists"].passed is True
     assert checks_by_key["database_schema_ready"].passed is True
     assert checks_by_key["database.required_tables"].passed is True
+    assert checks_by_key["database.required_columns"].passed is True
     assert checks_by_key["knowledge.active_rows"].detail == "active_rows=1"
     assert checks_by_key["embedding_index_path_exists"].passed is True
     assert checks_by_key["embedding.cache_files"].passed is True
+    assert checks_by_key["business_contracts.static_checks"].passed is True
+    assert (
+        "employee_agent_capability_contracts:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+    assert (
+        "customer_rag_golden_cases:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+    assert (
+        "knowledge_governance_plan:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+    assert (
+        "customer_memory_governance_plan:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+    assert (
+        "customer_observability_contract:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+    assert (
+        "miniapp_page_api_contract:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+    assert (
+        "github_reference_implementation_plan:passed"
+        in checks_by_key["business_contracts.static_checks"].detail
+    )
+
+
+def test_build_business_contract_check_reports_failures(monkeypatch) -> None:
+    preflight = load_preflight_module()
+
+    monkeypatch.setattr(
+        preflight.check_project,
+        "run_contract_checks",
+        lambda: [
+            preflight.check_project.CheckResult("customer-rag", True, []),
+            preflight.check_project.CheckResult("knowledge-plan", False, []),
+        ],
+    )
+
+    check = preflight.build_business_contract_check()
+
+    assert check.key == "business_contracts.static_checks"
+    assert check.passed is False
+    assert "total=2" in check.detail
+    assert "failed=1" in check.detail
+    assert "checks=customer-rag:passed, knowledge-plan:failed" in check.detail
+    assert "knowledge-plan" in check.detail
+    assert "check_project.py --skip-tests" in check.action
 
 
 def test_main_returns_failure_when_any_preflight_check_fails(
@@ -509,6 +575,29 @@ def test_build_database_detail_check_reports_unreadable_database(
     assert "不要直接执行" in check.action
 
 
+def test_build_database_columns_detail_check_reports_missing_columns(
+    tmp_path: Path,
+) -> None:
+    preflight = load_preflight_module()
+    db_path = tmp_path / "bot.db"
+    _create_required_tables(preflight, db_path)
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("ALTER TABLE knowledge_base RENAME TO old_knowledge_base")
+        conn.execute(
+            "CREATE TABLE knowledge_base ("
+            "id INTEGER PRIMARY KEY, "
+            "is_active INTEGER DEFAULT 1)"
+        )
+        conn.execute("DROP TABLE old_knowledge_base")
+
+    check = preflight.build_database_columns_detail_check(str(db_path))
+
+    assert check.key == "database.required_columns"
+    assert check.passed is False
+    assert "knowledge_base.audience" in check.detail
+    assert "apply_migrations.py" in check.action
+
+
 def test_build_knowledge_detail_check_reports_unreadable_database(
     tmp_path: Path,
 ) -> None:
@@ -596,6 +685,32 @@ def test_build_recovery_plan_includes_admin_frontend_build_step(
     assert plan[0].command == "cd web/admin; npm run build:production"
     assert "web/admin/dist" in plan[0].apply_command
     assert plan[0].related_keys == ("admin_frontend_observability_summary_built",)
+
+
+def test_build_recovery_plan_includes_business_contract_step(
+    tmp_path: Path,
+) -> None:
+    preflight = load_preflight_module()
+    db_path = tmp_path / "prod" / "bot.db"
+    index_path = tmp_path / "prod" / "embeddings"
+    checks = [
+        preflight.PreflightCheck(
+            "business_contracts.static_checks",
+            "business contracts",
+            False,
+            "failed=1",
+            "run contract checks",
+        )
+    ]
+
+    plan = preflight.build_recovery_plan(checks, str(db_path), str(index_path))
+
+    assert [step.title for step in plan] == ["修复业务合约门禁", "最终上线验证"]
+    assert plan[0].key == "business_contracts"
+    assert plan[0].severity == "critical"
+    assert plan[0].command == "python scripts/check_project.py --skip-tests"
+    assert plan[0].apply_mutates_state is False
+    assert plan[0].related_keys == ("business_contracts.static_checks",)
 
 
 def test_build_json_report_includes_recovery_plan_with_overrides(

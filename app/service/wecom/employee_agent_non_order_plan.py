@@ -44,7 +44,7 @@ def build_non_order_agent_plan(
             tools=("product_lookup",),
             answer_style=AnswerStyle.SUMMARY,
         )
-    if capability_names & {"ops_summary", "handoff_pending"}:
+    if capability_names & {"ops_summary", "handoff_pending", "integration_status"}:
         return AgentPlan(
             intent=AgentIntent.OPS_QUERY,
             tools=tuple(sorted(capability_names)) or ("ops_summary",),

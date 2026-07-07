@@ -61,6 +61,14 @@ repos:
         always_run: true
         description: 检查 docs/harness-engineering/core/mistake-ledger.md 的空账本标记、必填字段和枚举值，避免防重犯记忆失效
 
+      - id: check-evidence-index
+        name: Harness 证据索引结构检查
+        entry: python scripts/check_evidence_index.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 检查 docs/harness-engineering/core/evidence-index.md 的证据条目必填字段、结果枚举、敏感标记、重复 ID 和预检业务合约证据引用
+
       - id: check-text-encoding
         name: 中文文本编码健康检查
         entry: python scripts/check_text_encoding.py

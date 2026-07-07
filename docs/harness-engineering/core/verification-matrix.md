@@ -27,7 +27,7 @@ ______________________________________________________________________
 | `app/models/` 模型 | 相关 service/repository 测试 | `python scripts/check_project.py` |
 | 数据库迁移 | `python -m pytest tests/migrations tests/scripts/test_apply_migrations.py -q --no-cov` | dry-run + JSON 报告 |
 | 客户正式迁移 | `python -m pytest tests/scripts/test_import_youzan_customers.py tests/scripts/test_audit_youzan_customer_migration.py tests/scripts/test_verify_youzan_customer_import.py -q --no-cov` | 审计报告 + dry-run 报告 + apply 后报告 + 核对报告 |
-| 生产预检 | `python -m pytest tests/scripts/test_preflight_production.py -q --no-cov` | `python scripts/preflight_production.py --json` |
+| 生产预检 | `python -m pytest tests/scripts/test_preflight_production.py tests/scripts/test_check_preflight_business_contracts.py -q --no-cov` | `python scripts/preflight_production.py --json --output "reports/preflight-before-{timestamp}.json"` 后运行 `python scripts/check_preflight_business_contracts.py "<报告路径>" --summary`，报告需包含 `business_contracts.static_checks` 和七类业务合约状态明细 |
 | 冒烟脚本 | `python -m pytest tests/scripts/test_smoke_test.py -q --no-cov` | 本地服务启动后跑 smoke |
 | 知识种子 | `python -m pytest tests/scripts/test_seed_baseline_knowledge.py -q --no-cov` | dry-run + apply 后报告 |
 | 向量重建 | `python -m pytest tests/scripts/test_rebuild_embeddings.py -q --no-cov` | dry-run + apply 后报告 |
@@ -37,8 +37,8 @@ ______________________________________________________________________
 | 后台前端 | 对应前端 lint/build/test | `/ready` 和 smoke 校验 dist |
 | 文档 | `Test-Path` + `Select-String` 链接/关键词检查 | LOGBOOK 和进度清单同步检查 |
 | Harness 文档 | `Test-Path docs/harness-engineering/...` | 检查无未完成占位 |
-| Harness 脚本 | `python -m pytest tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py -q --no-cov` | `python scripts/harness_snapshot.py --json` + `python scripts/check_mistake_ledger.py` + `pre-commit run check-mistake-ledger --all-files` |
-| ADR / 证据索引 | `Test-Path docs/harness-engineering/adr/README.md docs/harness-engineering/core/evidence-index.md` | 搜索 `trace_id`、`related_adr`、`evidence_type` 关键字段 |
+| Harness 脚本 | `python -m pytest tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py tests/scripts/test_check_evidence_index.py -q --no-cov` | `python scripts/harness_snapshot.py --json` + `python scripts/check_mistake_ledger.py` + `python scripts/check_evidence_index.py --summary` + `pre-commit run check-mistake-ledger --all-files` + `pre-commit run check-evidence-index --all-files` |
+| ADR / 证据索引 | `python scripts/check_evidence_index.py --summary` | 搜索 `trace_id`、`related_adr`、`evidence_type` 关键字段；证据条目不得缺必填字段、不得重复 ID |
 
 ______________________________________________________________________
 

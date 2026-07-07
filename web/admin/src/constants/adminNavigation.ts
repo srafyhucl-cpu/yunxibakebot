@@ -32,6 +32,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: "客户群运营", shortLabel: "群", to: "/customer-groups", key: "customer-groups", icon: UserFilled, mobilePrimary: false },
   { label: "知识配置", shortLabel: "知识", to: "/knowledge", key: "knowledge", icon: Document, mobilePrimary: false },
   {
+    label: "知识报表",
+    shortLabel: "报表",
+    to: "/knowledge-retrieval-report",
+    key: "knowledge-report",
+    icon: DataAnalysis,
+    mobilePrimary: false,
+  },
+  {
     label: "数据观察台",
     shortLabel: "观察",
     to: "/observability/sessions",

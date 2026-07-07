@@ -130,3 +130,122 @@ async def test_count_all_increments(repo: KnowledgeRepo) -> None:
     await _seed(repo, "yz-009", "数量测试蛋糕", "内容")
     after = await repo.count_all()
     assert after == before + 1
+
+
+async def test_search_hides_draft_archived_and_expired_entries(
+    repo: KnowledgeRepo,
+) -> None:
+    """search 应只返回已发布且当前有效的知识。"""
+    visible_id = await repo.insert_entry(
+        category="faq",
+        title="治理可见知识",
+        content="这条知识已发布且有效",
+        keywords="治理",
+        priority=10,
+        sync_source="test",
+    )
+    draft_id = await repo.insert_entry(
+        category="faq",
+        title="治理草稿知识",
+        content="这条知识不应进入检索",
+        keywords="治理",
+        priority=10,
+        sync_source="test",
+        review_status="draft",
+    )
+    archived_id = await repo.insert_entry(
+        category="faq",
+        title="治理归档知识",
+        content="这条知识不应进入检索",
+        keywords="治理",
+        priority=10,
+        sync_source="test",
+        review_status="archived",
+    )
+    expired_id = await repo.insert_entry(
+        category="faq",
+        title="治理过期知识",
+        content="这条知识不应进入检索",
+        keywords="治理",
+        priority=10,
+        sync_source="test",
+        valid_until="2000-01-01 00:00:00",
+    )
+
+    results = await repo.search("治理", limit=10)
+    result_ids = {entry.id for entry in results}
+
+    assert visible_id in result_ids
+    assert draft_id not in result_ids
+    assert archived_id not in result_ids
+    assert expired_id not in result_ids
+
+
+async def test_search_filters_by_audience(repo: KnowledgeRepo) -> None:
+    """指定 audience 时应同时返回 all 和目标 audience。"""
+    shared_id = await repo.insert_entry(
+        category="faq",
+        title="共同可见知识",
+        content="客户和员工都能看到",
+        keywords="受众",
+        priority=10,
+        sync_source="test",
+    )
+    customer_id = await repo.insert_entry(
+        category="faq",
+        title="客户可见知识",
+        content="只有客户机器人能看到",
+        keywords="受众",
+        priority=10,
+        sync_source="test",
+        audience="customer",
+    )
+    employee_id = await repo.insert_entry(
+        category="faq",
+        title="员工可见知识",
+        content="只有员工助手能看到",
+        keywords="受众",
+        priority=10,
+        sync_source="test",
+        audience="employee",
+    )
+
+    default_ids = {entry.id for entry in await repo.search("受众", limit=10)}
+    customer_ids = {
+        entry.id for entry in await repo.search("受众", limit=10, audience="customer")
+    }
+    employee_ids = {
+        entry.id for entry in await repo.search("受众", limit=10, audience="employee")
+    }
+
+    assert default_ids == {shared_id}
+    assert customer_ids == {shared_id, customer_id}
+    assert employee_ids == {shared_id, employee_id}
+
+
+async def test_get_all_titles_with_keys_applies_governance_filter(
+    repo: KnowledgeRepo,
+) -> None:
+    """向量索引构建入口应排除草稿知识。"""
+    await repo.insert_entry(
+        category="faq",
+        title="向量可见知识",
+        content="可以进入向量索引",
+        keywords="向量治理",
+        priority=10,
+        sync_source="test",
+    )
+    await repo.insert_entry(
+        category="faq",
+        title="向量草稿知识",
+        content="不应进入向量索引",
+        keywords="向量治理",
+        priority=10,
+        sync_source="test",
+        review_status="draft",
+    )
+
+    titles = {title for _, title, _ in await repo.get_all_titles_with_keys()}
+
+    assert "向量可见知识" in titles
+    assert "向量草稿知识" not in titles

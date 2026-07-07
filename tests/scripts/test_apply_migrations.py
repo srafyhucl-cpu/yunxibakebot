@@ -31,6 +31,8 @@ def _remove_late_migration_state(db_path: Path) -> None:
             "customer_source_snapshots",
             "customer_merge_reviews",
             "customer_profiles",
+            "conversation_summaries",
+            "knowledge_retrieval_logs",
             "customer_groups",
             "group_campaigns",
             "group_registrations",
@@ -40,7 +42,10 @@ def _remove_late_migration_state(db_path: Path) -> None:
             "wecom_kf_message_ledger",
         ):
             conn.execute("DROP TABLE IF EXISTS " + table_name)
-        conn.execute("DELETE FROM _schema_version WHERE version IN (?, ?)", (4, 5))
+        conn.execute(
+            "DELETE FROM _schema_version WHERE version IN (?, ?, ?, ?, ?)",
+            (4, 5, 14, 15, 16),
+        )
 
 
 class _FrozenDateTime(datetime):
@@ -59,6 +64,8 @@ async def test_run_migration_dry_run_does_not_create_database(tmp_path: Path) ->
     assert db_path.exists() is False
     assert "customer_master" in report.missing_before
     assert "customer_profiles" in report.missing_before
+    assert "conversation_summaries" in report.missing_before
+    assert "knowledge_retrieval_logs" in report.missing_before
     assert "customer_groups" in report.missing_before
     assert report.missing_after == report.missing_before
 
@@ -79,8 +86,53 @@ async def test_run_migration_apply_creates_required_tables(tmp_path: Path) -> No
     assert report.applied is True
     assert "customer_master" in report.missing_before
     assert "customer_profiles" in report.missing_before
+    assert "conversation_summaries" in report.missing_before
     assert "customer_groups" in report.missing_before
     assert report.missing_after == []
+
+
+async def test_run_migration_apply_adds_missing_knowledge_governance_columns(
+    tmp_path: Path,
+) -> None:
+    apply_migrations = load_apply_migrations_module()
+    db_path = tmp_path / "bot.db"
+    first_report = await apply_migrations.run_migration(
+        str(db_path),
+        should_apply=True,
+        allow_create=True,
+    )
+    assert first_report.missing_after == []
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("ALTER TABLE knowledge_base RENAME TO knowledge_base_full")
+        conn.execute(
+            "CREATE TABLE knowledge_base (id INTEGER PRIMARY KEY, is_active INTEGER DEFAULT 1)"
+        )
+        conn.execute("DROP TABLE knowledge_base_full")
+        conn.execute("DELETE FROM _schema_version WHERE version = ?", (15,))
+
+    dry_run_report = await apply_migrations.run_migration(
+        str(db_path),
+        should_apply=False,
+    )
+
+    assert "knowledge_base.audience" in dry_run_report.missing_before
+
+    apply_report = await apply_migrations.run_migration(
+        str(db_path),
+        should_apply=True,
+    )
+
+    assert apply_report.missing_after == []
+    with closing(sqlite3.connect(db_path)) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(knowledge_base)")}
+    assert {
+        "audience",
+        "review_status",
+        "valid_from",
+        "valid_until",
+        "reviewed_by",
+        "reviewed_at",
+    }.issubset(columns)
 
 
 async def test_init_db_applies_late_product_category_columns_to_old_database(
@@ -244,6 +296,7 @@ async def test_async_main_json_output_is_machine_readable(
     assert payload["report"]["applied"] is False
     assert payload["report"]["schema_ready"] is False
     assert "customer_profiles" in payload["report"]["missing_before"]
+    assert "conversation_summaries" in payload["report"]["missing_before"]
     assert "customer_groups" in payload["report"]["missing_before"]
 
 

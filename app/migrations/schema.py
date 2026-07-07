@@ -56,10 +56,32 @@ SCHEMA_STATEMENTS: list[str] = [
         vector_synced_at TEXT DEFAULT '',
         vector_sync_error TEXT DEFAULT '',
         vector_sync_retry_count INTEGER DEFAULT 0,
+        audience TEXT DEFAULT 'all',
+        review_status TEXT DEFAULT 'published',
+        valid_from TEXT DEFAULT '',
+        valid_until TEXT DEFAULT '',
+        reviewed_by TEXT DEFAULT '',
+        reviewed_at TEXT DEFAULT '',
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
     )""",
     "CREATE INDEX IF NOT EXISTS idx_kb_category ON knowledge_base(category)",
+    "CREATE INDEX IF NOT EXISTS idx_kb_governance_lookup ON knowledge_base(is_active, review_status, audience, valid_from, valid_until)",
+    # 知识检索命中日志：用于客户/员工知识命中观测
+    """CREATE TABLE IF NOT EXISTS knowledge_retrieval_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bot_type TEXT NOT NULL DEFAULT '',
+        audience TEXT NOT NULL DEFAULT 'all',
+        query TEXT NOT NULL DEFAULT '',
+        retrieval_mode TEXT NOT NULL DEFAULT '',
+        matched_entry_ids_json TEXT NOT NULL DEFAULT '[]',
+        matched_titles_json TEXT NOT NULL DEFAULT '[]',
+        result_count INTEGER NOT NULL DEFAULT 0,
+        fallback_reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_krl_created_at ON knowledge_retrieval_logs(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_krl_bot_audience_created ON knowledge_retrieval_logs(bot_type, audience, created_at)",
     # 人工转接表
     """CREATE TABLE IF NOT EXISTS human_transfers (
         id TEXT PRIMARY KEY,
@@ -411,6 +433,25 @@ SCHEMA_STATEMENTS: list[str] = [
         UNIQUE(channel, user_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_cp_channel_user ON customer_profiles(channel, user_id)",
+    # 客户会话短期摘要：只服务当前会话上下文，不直接进入长期画像
+    """CREATE TABLE IF NOT EXISTS conversation_summaries (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        channel TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        summary_text TEXT NOT NULL,
+        state_json TEXT NOT NULL DEFAULT '{}',
+        source_message_ids_json TEXT NOT NULL DEFAULT '[]',
+        source_until_message_id TEXT DEFAULT '',
+        token_estimate INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active'
+            CHECK(status IN ('active','superseded','discarded')),
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cs_session_status ON conversation_summaries(session_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_cs_channel_user ON conversation_summaries(channel, user_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_cs_active_session ON conversation_summaries(session_id) WHERE status = 'active'",
     # 企业微信客户群绑定：承接 opengid/chat_id 归因与运营批次
     """CREATE TABLE IF NOT EXISTS customer_groups (
         id TEXT PRIMARY KEY,

@@ -23,6 +23,7 @@ REQUIRED_DATABASE_TABLES = (
     "sessions",
     "messages",
     "knowledge_base",
+    "knowledge_retrieval_logs",
     "human_transfers",
     "orders",
     "shop_config",
@@ -35,6 +36,7 @@ REQUIRED_DATABASE_TABLES = (
     "customer_source_snapshots",
     "customer_merge_reviews",
     "customer_profiles",
+    "conversation_summaries",
     "customer_groups",
     "group_campaigns",
     "group_registrations",
@@ -43,6 +45,16 @@ REQUIRED_DATABASE_TABLES = (
     "wecom_kf_sync_states",
     "wecom_kf_message_ledger",
 )
+REQUIRED_DATABASE_COLUMNS = {
+    "knowledge_base": (
+        "audience",
+        "review_status",
+        "valid_from",
+        "valid_until",
+        "reviewed_by",
+        "reviewed_at",
+    ),
+}
 
 
 def build_readiness_checks() -> dict[str, bool]:
@@ -148,9 +160,42 @@ def _database_schema_ready(database_path: Path) -> bool:
                 ("table", *REQUIRED_DATABASE_TABLES),
             )
             existing_tables = {str(row[0]) for row in cursor.fetchall()}
+            if not set(REQUIRED_DATABASE_TABLES).issubset(existing_tables):
+                return False
+            return not _get_missing_database_columns(conn)
     except sqlite3.Error:
         return False
-    return set(REQUIRED_DATABASE_TABLES).issubset(existing_tables)
+
+
+def get_missing_database_columns(database_path: Path) -> list[str]:
+    if not database_path.exists():
+        return [
+            f"{table_name}.{column_name}"
+            for table_name, columns in REQUIRED_DATABASE_COLUMNS.items()
+            for column_name in columns
+        ]
+    try:
+        with closing(sqlite3.connect(database_path)) as conn:
+            return _get_missing_database_columns(conn)
+    except sqlite3.Error:
+        return [
+            f"{table_name}.{column_name}"
+            for table_name, columns in REQUIRED_DATABASE_COLUMNS.items()
+            for column_name in columns
+        ]
+
+
+def _get_missing_database_columns(conn: sqlite3.Connection) -> list[str]:
+    missing_columns: list[str] = []
+    for table_name, required_columns in REQUIRED_DATABASE_COLUMNS.items():
+        cursor = conn.execute("PRAGMA table_info(" + table_name + ")")
+        existing_columns = {str(row[1]) for row in cursor.fetchall()}
+        missing_columns.extend(
+            f"{table_name}.{column_name}"
+            for column_name in required_columns
+            if column_name not in existing_columns
+        )
+    return sorted(missing_columns)
 
 
 def build_admin_frontend_readiness_checks() -> dict[str, bool]:

@@ -9,6 +9,15 @@ from types import ModuleType
 
 import numpy as np
 
+KNOWLEDGE_GOVERNANCE_COLUMNS_SQL = (
+    "audience TEXT DEFAULT 'all', "
+    "review_status TEXT DEFAULT 'published', "
+    "valid_from TEXT DEFAULT '', "
+    "valid_until TEXT DEFAULT '', "
+    "reviewed_by TEXT DEFAULT '', "
+    "reviewed_at TEXT DEFAULT ''"
+)
+
 
 def load_rebuild_embeddings_module() -> ModuleType:
     script_path = (
@@ -24,6 +33,22 @@ def load_rebuild_embeddings_module() -> ModuleType:
 
 
 def _create_knowledge_table(db_path: Path) -> None:
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute(
+            "CREATE TABLE knowledge_base ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "youzan_item_id TEXT DEFAULT '', "
+            "title TEXT NOT NULL, "
+            "content TEXT NOT NULL, "
+            "is_active INTEGER DEFAULT 1, " + KNOWLEDGE_GOVERNANCE_COLUMNS_SQL + ")"
+        )
+        conn.execute(
+            "INSERT INTO knowledge_base (title, content, is_active) VALUES (?, ?, ?)",
+            ("配送规则", "同城配送提前一天预约", 1),
+        )
+
+
+def _create_legacy_knowledge_table(db_path: Path) -> None:
     with closing(sqlite3.connect(db_path)) as conn, conn:
         conn.execute(
             "CREATE TABLE knowledge_base ("
@@ -107,6 +132,27 @@ async def test_rebuild_embeddings_requires_knowledge_schema(tmp_path: Path) -> N
     index_path = tmp_path / "embeddings"
     with closing(sqlite3.connect(db_path)) as conn, conn:
         conn.execute("CREATE TABLE sessions (id TEXT PRIMARY KEY)")
+
+    report = await rebuild_embeddings.rebuild_embeddings(
+        str(db_path),
+        str(index_path),
+        should_apply=True,
+    )
+
+    assert report.schema_ready is False
+    assert report.active_docs == 0
+    assert report.files_ready_after is False
+    assert index_path.with_suffix(".npy").exists() is False
+    assert index_path.with_suffix(".json").exists() is False
+
+
+async def test_rebuild_embeddings_requires_governance_columns(
+    tmp_path: Path,
+) -> None:
+    rebuild_embeddings = load_rebuild_embeddings_module()
+    db_path = tmp_path / "bot.db"
+    index_path = tmp_path / "embeddings"
+    _create_legacy_knowledge_table(db_path)
 
     report = await rebuild_embeddings.rebuild_embeddings(
         str(db_path),

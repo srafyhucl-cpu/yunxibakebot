@@ -54,11 +54,21 @@ async def test_create_entry_syncs_vector_and_writes_history(db) -> None:
             keywords="配送 到达",
             priority=60,
             is_active=True,
+            audience="customer",
+            review_status="published",
+            valid_from="2026-07-06 09:00:00",
+            valid_until="2026-07-31 23:59:59",
         ),
         operator="admin",
     )
 
     assert entry.vector_sync_status == "success"
+    assert entry.audience == "customer"
+    assert entry.review_status == "published"
+    assert entry.valid_from == "2026-07-06 09:00:00"
+    assert entry.valid_until == "2026-07-31 23:59:59"
+    assert entry.reviewed_by == "admin"
+    assert entry.reviewed_at
     assert embedding.upserted == [f"kb_{entry.id}"]
     history = await history_repo.list_for_entity(
         entity_type="knowledge", entity_key=f"kb_{entry.id}"
@@ -98,3 +108,27 @@ async def test_create_entry_marks_failed_when_vector_sync_errors(db) -> None:
     )
     assert len(history) == 1
     assert history[0].status == ChangeStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_create_entry_rejects_invalid_governance_window(db) -> None:
+    repo = KnowledgeRepo(db)
+    history_repo = ContentChangeHistoryRepo(db)
+    service = KnowledgeAdminService(
+        knowledge_repo=repo,
+        admin_repo=KnowledgeAdminRepo(db),
+        history_repo=history_repo,
+        sync_service=KnowledgeSyncService(repo, history_repo, _FakeEmbeddingSearcher()),
+    )
+
+    with pytest.raises(ValueError, match="生效开始时间不能晚于截止时间"):
+        await service.create_entry(
+            KnowledgeAdminDraft(
+                title="反向有效期",
+                content="这个配置不应被保存。",
+                content_type="faq",
+                valid_from="2026-07-08 00:00:00",
+                valid_until="2026-07-07 00:00:00",
+            ),
+            operator="admin",
+        )

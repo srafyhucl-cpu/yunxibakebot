@@ -97,6 +97,15 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/knowledge-retrieval-report",
+    name: "knowledge-retrieval-report",
+    component: () => import("@/pages/knowledge/KnowledgeRetrievalReportPage.vue"),
+    meta: {
+      title: "知识检索报表",
+      navKey: "knowledge-report",
+    },
+  },
+  {
     path: "/observability",
     redirect: "/observability/sessions",
   },

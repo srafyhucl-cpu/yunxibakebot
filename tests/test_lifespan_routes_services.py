@@ -5,6 +5,7 @@ import types
 from typing import Any
 
 from app import lifespan_routes, lifespan_services, main
+from app.models.knowledge import KnowledgeAudience
 
 
 class FakeApp:
@@ -93,6 +94,14 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         monkeypatch,
         "app.api.admin.knowledge",
         create_admin_knowledge_router=lambda service: ("knowledge", service),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.admin.knowledge_retrieval_report",
+        create_admin_knowledge_retrieval_report_router=lambda service: (
+            "knowledge-retrieval-report",
+            service,
+        ),
     )
     _install_module(
         monkeypatch,
@@ -207,6 +216,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "admin_service": "admin-service",
         "transfer_mgr": "transfer",
         "knowledge_admin_service": "knowledge-admin",
+        "knowledge_retrieval_report_service": "knowledge-retrieval-report-service",
         "observability_service": "observability",
         "reconcile_service": "reconcile",
         "knowledge_sync_service": "knowledge-sync",
@@ -228,7 +238,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
 
     assert wecom_queue.started_with == ["chat"]
     assert kf_queue.started_with == ["chat"]
-    assert len(app.included_routers) == 21
+    assert len(app.included_routers) == 22
     assert app.included_routers[0] == ("webhook", "chat")
     wecom_router = app.included_routers[-2]
     assert wecom_router[0] == "wecom-intelligent-bot-router"
@@ -244,8 +254,10 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     created: dict[str, Any] = {}
 
     class FakeKnowledgeRetriever:
-        def __init__(self, knowledge_repo, vs, *, config_repo, bm25) -> None:
-            created["knowledge_retriever"] = (knowledge_repo, vs, config_repo, bm25)
+        def __init__(self, knowledge_repo, vs, *, config_repo, bm25, audience) -> None:
+            created.setdefault("knowledge_retrievers", []).append(
+                (knowledge_repo, vs, config_repo, bm25, audience, self)
+            )
 
     class FakeYouzanClient:
         def __init__(self, *, config_repo) -> None:
@@ -274,6 +286,10 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     class FakeKnowledgeAdminService:
         def __init__(self, **kwargs: Any) -> None:
             created["knowledge_admin_service"] = kwargs
+
+    class FakeKnowledgeRetrievalReportService:
+        def __init__(self, repo: Any) -> None:
+            created["knowledge_retrieval_report_service"] = repo
 
     class FakeTransferManager:
         def __init__(self, repo: Any) -> None:
@@ -337,6 +353,11 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         monkeypatch,
         "app.service.knowledge_admin",
         KnowledgeAdminService=FakeKnowledgeAdminService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.knowledge_retrieval_report",
+        KnowledgeRetrievalReportService=FakeKnowledgeRetrievalReportService,
     )
     _install_module(
         monkeypatch,
@@ -417,6 +438,7 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "webhook_event_repo": "webhook-event-repo",
         "analytics_repo": "analytics-repo",
         "customer_profile_repo": "customer-profile-repo",
+        "conversation_summary_repo": "conversation-summary-repo",
     }
 
     services = lifespan_services.init_services(repos, vs="vector", bm25="bm25")
@@ -424,9 +446,11 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     assert set(services) == {
         "admin_service",
         "knowledge_retriever",
+        "employee_knowledge_retriever",
         "observability_service",
         "knowledge_sync_service",
         "knowledge_admin_service",
+        "knowledge_retrieval_report_service",
         "storefront_auth_service",
         "customer_address_service",
         "customer_group_service",
@@ -452,21 +476,46 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "miniapp_chat_service",
         "shop_page_config_service",
     }
-    assert created["knowledge_retriever"] == (
-        "knowledge-repo",
-        "vector",
-        "config-repo",
-        "bm25",
-    )
+    created_retrievers = created["knowledge_retrievers"]
+    assert [item[:5] for item in created_retrievers] == [
+        (
+            "knowledge-repo",
+            "vector",
+            "config-repo",
+            "bm25",
+            KnowledgeAudience.CUSTOMER.value,
+        ),
+        (
+            "knowledge-repo",
+            "vector",
+            "config-repo",
+            "bm25",
+            KnowledgeAudience.EMPLOYEE.value,
+        ),
+    ]
+    assert services["knowledge_retriever"] is created_retrievers[0][5]
+    assert services["employee_knowledge_retriever"] is created_retrievers[1][5]
     assert services["knowledge_retriever"] is not None
     assert created["transfer_mgr"] == "transfer-repo"
     assert created["chat_service"]["youzan_client"] is services["youzan_client"]
+    assert (
+        created["chat_service"]["knowledge_retriever"]
+        is services["knowledge_retriever"]
+    )
+    assert (
+        created["youzan_event_handler"]["knowledge_retriever"]
+        is services["knowledge_retriever"]
+    )
     assert created["chat_service"]["customer_profile_repo"] == "customer-profile-repo"
+    assert (
+        created["chat_service"]["conversation_summary_repo"]
+        == "conversation-summary-repo"
+    )
     assert created["order_service"]["order_repo"] == "order-repo"
     assert created["wecom_order_lookup_service"] == {
         "order_service": services["order_service"],
         "youzan_order_repo": "youzan-order-repo",
-        "knowledge_retriever": services["knowledge_retriever"],
+        "knowledge_retriever": services["employee_knowledge_retriever"],
         "youzan_client": services["youzan_client"],
     }
     assert created["employee_agent_service"] == {
@@ -508,6 +557,7 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         created["reconcile_service"]["knowledge_product_repo"]
         == "knowledge-product-repo"
     )
+    assert created["knowledge_retrieval_report_service"] == "knowledge-repo"
 
 
 def test_legacy_repository_aliases_point_to_canonical_repositories() -> None:

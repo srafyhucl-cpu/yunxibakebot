@@ -18,6 +18,7 @@ from app.readiness import embedding_index_files_exist  # noqa: E402
 from app.repository.knowledge_repo import KnowledgeRepo  # noqa: E402
 from app.service.embedding_search import EmbeddingSearcher  # noqa: E402
 from scripts.preflight_production import (  # noqa: E402
+    get_missing_database_columns,
     get_missing_database_tables,
     resolve_project_path,
 )
@@ -82,6 +83,7 @@ async def rebuild_embeddings(
     schema_ready = (
         database_path.exists()
         and "knowledge_base" not in get_missing_database_tables(database_path)
+        and not get_missing_database_columns(database_path)
     )
     docs = await load_active_docs(database_path) if schema_ready else []
     files_ready_after = files_ready_before

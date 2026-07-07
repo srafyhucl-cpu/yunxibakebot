@@ -6,6 +6,7 @@
 
 from typing import Any
 
+from app.models.knowledge import KnowledgeAudience
 from app.service.chat import ChatService
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.youzan.client import YouzanClient
@@ -29,6 +30,14 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         vs,
         config_repo=repos["config_repo"],
         bm25=bm25,
+        audience=KnowledgeAudience.CUSTOMER.value,
+    )
+    employee_knowledge_retriever = KnowledgeRetriever(
+        repos["knowledge_repo"],
+        vs,
+        config_repo=repos["config_repo"],
+        bm25=bm25,
+        audience=KnowledgeAudience.EMPLOYEE.value,
     )
 
     from app.service.admin import AdminService
@@ -37,8 +46,6 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     from app.service.conversation import StorefrontConversationService
     from app.service.customer import CustomerAddressService
     from app.service.customer import CustomerGroupOperationsService
-    from app.service.knowledge_admin import KnowledgeAdminService
-    from app.service.knowledge_sync import KnowledgeSyncService
     from app.service.observability import ObservabilityService
     from app.service.ops import (
         ShopConfigurationService,
@@ -66,17 +73,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         history_repo=repos["history_repo"],
         webhook_repo=repos["webhook_event_repo"],
     )
-    knowledge_sync_service = KnowledgeSyncService(
-        knowledge_repo=repos["knowledge_repo"],
-        history_repo=repos["history_repo"],
-        embedding_searcher=vs,
-    )
-    knowledge_admin_service = KnowledgeAdminService(
-        knowledge_repo=repos["knowledge_repo"],
-        admin_repo=repos["knowledge_admin_repo"],
-        history_repo=repos["history_repo"],
-        sync_service=knowledge_sync_service,
-    )
+    knowledge_services = _init_knowledge_management_services(repos, vs)
     catalog_service = CatalogApplicationService(
         product_repo=repos["knowledge_product_repo"],
         knowledge_repo=repos["knowledge_repo"],
@@ -127,6 +124,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         youzan_event_handler=youzan_event_handler,
         analytics_repo=repos["analytics_repo"],
         customer_profile_repo=repos.get("customer_profile_repo"),
+        conversation_summary_repo=repos.get("conversation_summary_repo"),
     )
     storefront_conversation_service = StorefrontConversationService(
         chat_service=chat_service,
@@ -137,14 +135,14 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     wecom_order_lookup_service = WeComOrderLookupService(
         order_service=order_service,
         youzan_order_repo=repos.get("youzan_order_repo"),
-        knowledge_retriever=knowledge_retriever,
+        knowledge_retriever=employee_knowledge_retriever,
         youzan_client=youzan_client,
     )
     wecom_bot_business_tool_service = WeComBotBusinessToolService(
         order_service=order_service,
         order_lookup_service=wecom_order_lookup_service,
         catalog_service=catalog_service,
-        knowledge_retriever=knowledge_retriever,
+        knowledge_retriever=employee_knowledge_retriever,
     )
     wecom_bot_ops_tool_service = WeComBotOpsToolService(
         customer_address_service=customer_address_service,
@@ -164,9 +162,9 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     services = {
         "admin_service": admin_service,
         "knowledge_retriever": knowledge_retriever,
+        "employee_knowledge_retriever": employee_knowledge_retriever,
         "observability_service": observability_service,
-        "knowledge_sync_service": knowledge_sync_service,
-        "knowledge_admin_service": knowledge_admin_service,
+        **knowledge_services,
         "storefront_auth_service": storefront_auth_service,
         "catalog_service": catalog_service,
         "order_service": order_service,
@@ -187,6 +185,34 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "employee_agent_service": employee_agent_service,
     }
     return _with_legacy_service_aliases(services)
+
+
+def _init_knowledge_management_services(
+    repos: dict[str, Any],
+    vs: Any,
+) -> dict[str, Any]:
+    """初始化后台知识治理和观测相关服务。"""
+    from app.service.knowledge_admin import KnowledgeAdminService
+    from app.service.knowledge_retrieval_report import KnowledgeRetrievalReportService
+    from app.service.knowledge_sync import KnowledgeSyncService
+
+    knowledge_sync_service = KnowledgeSyncService(
+        knowledge_repo=repos["knowledge_repo"],
+        history_repo=repos["history_repo"],
+        embedding_searcher=vs,
+    )
+    return {
+        "knowledge_sync_service": knowledge_sync_service,
+        "knowledge_admin_service": KnowledgeAdminService(
+            knowledge_repo=repos["knowledge_repo"],
+            admin_repo=repos["knowledge_admin_repo"],
+            history_repo=repos["history_repo"],
+            sync_service=knowledge_sync_service,
+        ),
+        "knowledge_retrieval_report_service": KnowledgeRetrievalReportService(
+            repos["knowledge_repo"]
+        ),
+    }
 
 
 def _with_legacy_service_aliases(services: dict[str, Any]) -> dict[str, Any]:

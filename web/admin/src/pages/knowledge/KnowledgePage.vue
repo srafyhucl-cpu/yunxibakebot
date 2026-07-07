@@ -158,6 +158,13 @@ onUnmounted(() => {
             </template>
           </el-table-column>
           <el-table-column prop="typeLabel" label="类型" width="120" align="center" />
+          <el-table-column prop="audienceLabel" label="可见范围" width="110" align="center" />
+          <el-table-column prop="reviewLabel" label="发布状态" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.reviewType" effect="light">{{ row.reviewLabel }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="validityLabel" label="有效期" min-width="180" align="center" />
           <el-table-column prop="activeLabel" label="状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="row.isActive ? 'success' : 'info'" effect="light">{{ row.activeLabel }}</el-tag>
@@ -210,7 +217,7 @@ onUnmounted(() => {
             <strong>{{ row.title }}</strong>
             <el-tag size="small" :type="row.syncType">{{ row.syncLabel }}</el-tag>
           </div>
-          <span>{{ row.typeLabel }} · {{ row.activeLabel }} · {{ row.updatedAtLabel }}</span>
+          <span>{{ row.typeLabel }} · {{ row.audienceLabel }} · {{ row.reviewLabel }} · {{ row.validityLabel }}</span>
         </button>
       </div>
 
@@ -251,6 +258,40 @@ onUnmounted(() => {
         <el-form-item label="关键词">
           <el-input v-model="form.keywords" placeholder="用逗号分隔，便于检索" />
         </el-form-item>
+        <div class="knowledge-page__drawer-row">
+          <el-form-item label="可见范围">
+            <el-select v-model="form.audience">
+              <el-option label="共同可见" value="all" />
+              <el-option label="客户机器人" value="customer" />
+              <el-option label="员工助手" value="employee" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="发布状态">
+            <el-select v-model="form.reviewStatus">
+              <el-option label="草稿" value="draft" />
+              <el-option label="已发布" value="published" />
+              <el-option label="已归档" value="archived" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <div class="knowledge-page__drawer-row">
+          <el-form-item label="生效开始">
+            <el-date-picker
+              v-model="form.validFrom"
+              type="datetime"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="长期有效"
+            />
+          </el-form-item>
+          <el-form-item label="生效截止">
+            <el-date-picker
+              v-model="form.validUntil"
+              type="datetime"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="长期有效"
+            />
+          </el-form-item>
+        </div>
         <el-form-item label="内容" required>
           <el-input
             v-model="form.content"
@@ -556,6 +597,10 @@ onUnmounted(() => {
 
 .knowledge-page__drawer-row > * {
   flex: 1;
+}
+
+.knowledge-page__drawer-row :deep(.el-date-editor) {
+  width: 100%;
 }
 
 .knowledge-page__inline-field {

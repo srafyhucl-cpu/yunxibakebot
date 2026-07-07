@@ -96,6 +96,36 @@ TEST_COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "-m", "pytest", "-q", "--tb=short"),
 )
 
+CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
+    (
+        sys.executable,
+        "scripts/check_employee_agent_capability_contracts.py",
+        "--summary",
+    ),
+    (sys.executable, "scripts/check_customer_rag_golden_cases.py", "--summary"),
+    (sys.executable, "scripts/check_knowledge_governance_plan.py", "--summary"),
+    (
+        sys.executable,
+        "scripts/check_customer_memory_governance_plan.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
+        "scripts/check_customer_observability_contract.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
+        "scripts/check_miniapp_page_api_contract.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
+        "scripts/check_github_reference_implementation_plan.py",
+        "--summary",
+    ),
+)
+
 # ── 洁净代码检查常量 ────────────────────────────────────────────────────────
 # 函数体行数上限（超出此值记录警告，暂不阻断；待存量修复后升级为 BLOCK）
 FUNC_MAX_LINES = 50
@@ -260,6 +290,11 @@ def run_tests() -> list[CheckResult]:
     return [run_command(command) for command in TEST_COMMANDS]
 
 
+def run_contract_checks() -> list[CheckResult]:
+    """运行业务合约静态检查。"""
+    return [run_command(command) for command in CONTRACT_COMMANDS]
+
+
 def print_results(title: str, results: list[CheckResult]) -> None:
     print(f"\n[{title}]")
     for result in results:
@@ -283,6 +318,9 @@ def main() -> int:
     clean_code_results = run_clean_code_checks()
     print_results("洁净代码检查", clean_code_results)
 
+    contract_results = run_contract_checks()
+    print_results("业务合约检查", contract_results)
+
     func_length_warnings = check_function_lengths(APP_DIR)
     if func_length_warnings:
         print(f"\n[函数行数警告（{len(func_length_warnings)} 处，暂不阻断）]")
@@ -294,7 +332,9 @@ def main() -> int:
         test_results = run_tests()
         print_results("测试验证", test_results)
 
-    all_results = red_line_results + clean_code_results + test_results
+    all_results = (
+        red_line_results + clean_code_results + contract_results + test_results
+    )
     failed_results = [result for result in all_results if not result.passed]
     if failed_results:
         print(f"\n质量门禁失败: {len(failed_results)} 项")

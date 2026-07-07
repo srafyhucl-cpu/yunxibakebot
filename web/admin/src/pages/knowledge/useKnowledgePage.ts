@@ -14,6 +14,10 @@ const emptyDraft = (): KnowledgeDraft => ({
   keywords: "",
   priority: 50,
   isActive: true,
+  audience: "all",
+  reviewStatus: "published",
+  validFrom: "",
+  validUntil: "",
 });
 
 function parsePage(rawValue: unknown): number {
@@ -71,9 +75,13 @@ export function useKnowledgePage() {
       ...item,
       activeLabel: item.isActive ? "启用" : "停用",
       typeLabel: formatContentType(item.contentType),
+      audienceLabel: formatAudience(item.audience),
+      reviewLabel: formatReviewStatus(item.reviewStatus),
+      reviewType: formatReviewType(item.reviewStatus),
       syncLabel: formatSyncStatus(item.vectorSyncStatus),
       syncType: formatSyncType(item.vectorSyncStatus),
       updatedAtLabel: formatTime(item.updatedAt),
+      validityLabel: formatValidity(item.validFrom, item.validUntil),
     })),
   );
 
@@ -267,6 +275,10 @@ function toDraft(entry: KnowledgeEntry): KnowledgeDraft {
     keywords: entry.keywords,
     priority: entry.priority,
     isActive: entry.isActive,
+    audience: entry.audience || "all",
+    reviewStatus: entry.reviewStatus || "published",
+    validFrom: entry.validFrom || "",
+    validUntil: entry.validUntil || "",
   };
 }
 
@@ -301,4 +313,45 @@ function formatSyncType(value: string): "success" | "warning" | "danger" | "info
     return "warning";
   }
   return "info";
+}
+
+function formatAudience(value: string): string {
+  const map: Record<string, string> = {
+    all: "共同",
+    customer: "客户",
+    employee: "员工",
+  };
+  return map[value] || "共同";
+}
+
+function formatReviewStatus(value: string): string {
+  const map: Record<string, string> = {
+    draft: "草稿",
+    published: "已发布",
+    archived: "已归档",
+  };
+  return map[value] || "已发布";
+}
+
+function formatReviewType(value: string): "success" | "warning" | "danger" | "info" {
+  if (value === "published") {
+    return "success";
+  }
+  if (value === "archived") {
+    return "info";
+  }
+  return "warning";
+}
+
+function formatValidity(validFrom: string, validUntil: string): string {
+  if (validFrom && validUntil) {
+    return `${validFrom} 至 ${validUntil}`;
+  }
+  if (validFrom) {
+    return `${validFrom} 起`;
+  }
+  if (validUntil) {
+    return `至 ${validUntil}`;
+  }
+  return "长期有效";
 }

@@ -19,7 +19,17 @@ from app.service.chat_ai_loop import (
     AiConversationLoopRequest,
     run_ai_conversation_loop,
 )
-from app.service.chat_context import prepare_chat_context
+from app.service.chat_context import (
+    prepare_ai_conversation_messages,
+    prepare_chat_context,
+)
+from app.service.chat_context_budget import (
+    BUDGET_PRESSURE_LEVEL_CRITICAL,
+    BUDGET_PRESSURE_LEVEL_NORMAL,
+    BUDGET_PRESSURE_LEVEL_WATCH,
+    build_chat_context_budget_snapshot,
+    record_tool_context_budget_delta,
+)
 from app.service.chat_intent import IntentDetectionResult, build_history_text
 from app.service.chat_message_flow import (
     ChatMessageRequest,
@@ -27,6 +37,9 @@ from app.service.chat_message_flow import (
     complete_ai_reply,
     handle_transfer_intent,
     run_ai_reply_loop,
+)
+from app.service.conversation_summary_scheduler import (
+    ConversationSummaryAfterReplyRequest,
 )
 from app.service.chat_llm import (
     LlmChoiceResult,
@@ -144,6 +157,18 @@ class _FakeKnowledgeRetriever:
         return []
 
 
+class _FakeConversationSummaryRepo:
+    def __init__(self, summary_text: str = "") -> None:
+        self.summary_text = summary_text
+        self.calls: list[str] = []
+
+    async def get_active(self, session_id: str) -> object | None:
+        self.calls.append(session_id)
+        if not self.summary_text:
+            return None
+        return SimpleNamespace(summary_text=self.summary_text)
+
+
 async def _fake_alerter(message: str) -> None:
     raise AssertionError(message)
 
@@ -153,6 +178,7 @@ def _build_flow_dependencies(
     message_repo: object,
     transfer_mgr: object,
     analytics_repo: object | None = None,
+    schedule_conversation_summary: object | None = None,
 ) -> ChatMessageFlowDependencies:
     analytics = analytics_repo or _FakeAnalyticsRepo()
     return ChatMessageFlowDependencies(
@@ -174,6 +200,7 @@ def _build_flow_dependencies(
         fallback_reply="fallback",
         transfer_reply=TRANSFER_REPLY,
         auto_transfer_reply="auto transfer reply",
+        schedule_conversation_summary=schedule_conversation_summary,
     )
 
 
@@ -297,6 +324,71 @@ async def test_complete_ai_reply_auto_transfers_on_llm_failure(
 
 
 @pytest.mark.asyncio
+async def test_complete_ai_reply_schedules_summary_after_reply_saved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transfer_mgr = _FakeTransferManager()
+    session_repo = _FakeSessionRepo()
+    message_repo = _FakeMessageRepo()
+    analytics_repo = _FakeAnalyticsRepo()
+    scheduled_requests: list[ConversationSummaryAfterReplyRequest] = []
+
+    def fake_schedule(request: ConversationSummaryAfterReplyRequest) -> bool:
+        assert message_repo.saved[0].content == "guarded reply"
+        assert analytics_repo.events[0]["event_type"] == "reply_latency"
+        scheduled_requests.append(request)
+        return True
+
+    dependencies = _build_flow_dependencies(
+        session_repo=session_repo,
+        message_repo=message_repo,
+        transfer_mgr=transfer_mgr,
+        analytics_repo=analytics_repo,
+        schedule_conversation_summary=fake_schedule,
+    )
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+
+    async def fake_run_ai_conversation_loop(
+        dependencies: object,
+        request: AiConversationLoopRequest,
+    ) -> str:
+        assert request.timing is not None
+        request.timing["context_budget"] = {"needs_session_summary_candidate": True}
+        return "guarded reply"
+
+    monkeypatch.setattr(
+        chat_message_flow_module,
+        "run_ai_conversation_loop",
+        fake_run_ai_conversation_loop,
+    )
+
+    reply = await complete_ai_reply(
+        dependencies=dependencies,
+        request=ChatMessageRequest(
+            channel="youzan",
+            user_id="buyer-1",
+            content="我想继续确认配送",
+        ),
+        session=session,
+        intent_result=IntentDetectionResult(
+            intent=IntentType.PRODUCT_CONSULTATION,
+            history=[],
+            history_text="用户：我想继续确认配送",
+            started_at=1.0,
+            finished_at=1.1,
+            intent_ms=100,
+        ),
+    )
+
+    assert reply == "guarded reply"
+    assert len(scheduled_requests) == 1
+    assert scheduled_requests[0].session is session
+    assert scheduled_requests[0].context_budget == {
+        "needs_session_summary_candidate": True
+    }
+
+
+@pytest.mark.asyncio
 async def test_record_reply_latency_keeps_expected_meta() -> None:
     analytics_repo = _FakeAnalyticsRepo()
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
@@ -308,7 +400,12 @@ async def test_record_reply_latency_keeps_expected_meta() -> None:
         channel="youzan",
         intent=IntentType.PRODUCT_CONSULTATION,
         intent_ms=12,
-        timing={"rag_ms": 34, "llm_ms": 56, "tool_rounds": 1},
+        timing={
+            "rag_ms": 34,
+            "llm_ms": 56,
+            "tool_rounds": 1,
+            "context_budget": {"history_message_count": 2},
+        },
         loop_ms=78,
         total_ms=90,
     )
@@ -320,6 +417,7 @@ async def test_record_reply_latency_keeps_expected_meta() -> None:
     assert event["event_type"] == "reply_latency"
     assert '"intent": "PRODUCT_CONSULTATION"' in str(event["meta_data"])
     assert '"tool_rounds": 1' in str(event["meta_data"])
+    assert '"context_budget": {"history_message_count": 2}' in str(event["meta_data"])
 
 
 @pytest.mark.asyncio
@@ -349,6 +447,147 @@ async def test_prepare_chat_context_builds_system_message_and_preserves_history(
     assert chat_context.messages[0]["role"] == "system"
     assert chat_context.messages[1:] == history
     assert isinstance(chat_context.rag_ms, int)
+    assert chat_context.context_budget is not None
+    assert chat_context.context_budget.history_message_count == 1
+    assert chat_context.context_budget.knowledge_entry_limit == 8
+    assert chat_context.context_budget.customer_profile_present is False
+    assert chat_context.context_budget.tool_result_message_count == 0
+    assert chat_context.context_budget.budget_pressure_level == (
+        BUDGET_PRESSURE_LEVEL_NORMAL
+    )
+    assert chat_context.context_budget.needs_session_summary_candidate is False
+
+
+@pytest.mark.asyncio
+async def test_prepare_chat_context_injects_summary_without_replacing_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    knowledge = _FakeKnowledgeRetriever()
+    history = [
+        {"role": "user", "content": "最近一句客户追问配送"},
+        {"role": "assistant", "content": "最近一句客服回复"},
+    ]
+
+    async def fake_rewrite_query(user_query: str, history: str = "") -> str:
+        return user_query
+
+    monkeypatch.setattr(
+        "app.service.chat_context.rewrite_query",
+        fake_rewrite_query,
+    )
+
+    chat_context = await prepare_chat_context(
+        knowledge=knowledge,
+        user_query="配送还来得及吗",
+        history_text="用户：配送还来得及吗",
+        intent=IntentType.PRODUCT_CONSULTATION,
+        history=history,
+        conversation_summary_text="客户早前说明想要低糖生日蛋糕，配送时间待确认。",
+    )
+
+    system_prompt = chat_context.messages[0]["content"]
+    assert "【本会话早期摘要】" in system_prompt
+    assert "低糖生日蛋糕" in system_prompt
+    assert "订单、库存、配送、价格仍以工具和知识库为准" in system_prompt
+    assert chat_context.messages[1:] == history
+    assert chat_context.context_budget is not None
+    assert chat_context.context_budget.conversation_summary_present is True
+    assert chat_context.context_budget.conversation_summary_token_estimate > 0
+    assert (
+        chat_context.context_budget.conversation_summary_policy
+        == "read_only_short_term_context"
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_ai_conversation_messages_records_context_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    knowledge = _FakeKnowledgeRetriever()
+    history = [{"role": "user", "content": "hello"}]
+    timing: dict[str, object] = {}
+    profile = CustomerProfile(
+        id="profile-1",
+        channel="youzan",
+        user_id="buyer-1",
+        display_name="小云",
+    )
+    session = Session(id="session-1", channel="youzan", user_id="buyer-1")
+
+    async def fake_rewrite_query(user_query: str, history: str = "") -> str:
+        return f"rewritten:{user_query}:{history}"
+
+    monkeypatch.setattr(
+        "app.service.chat_context.rewrite_query",
+        fake_rewrite_query,
+    )
+
+    await prepare_ai_conversation_messages(
+        session_mgr=object(),
+        knowledge=knowledge,
+        session=session,
+        user_query="cake",
+        intent=IntentType.PRODUCT_CONSULTATION,
+        timing=timing,
+        history=history,
+        history_text="old",
+        image_base64=None,
+        customer_profile=profile,
+    )
+
+    context_budget = timing["context_budget"]
+    assert isinstance(context_budget, dict)
+    assert context_budget["history_message_count"] == 1
+    assert context_budget["customer_profile_present"] is True
+    assert context_budget["long_term_memory_policy"] == "read_only_prompt_hints"
+    assert context_budget["budget_pressure_level"] == BUDGET_PRESSURE_LEVEL_NORMAL
+    assert context_budget["needs_session_summary_candidate"] is False
+    assert context_budget["summary_candidate_policy"] == (
+        "observe_only_no_summary_write"
+    )
+    assert context_budget["conversation_summary_present"] is False
+
+
+def test_chat_context_budget_marks_summary_candidate_by_history_pressure() -> None:
+    snapshot = build_chat_context_budget_snapshot(
+        system_prompt="system",
+        history=[{"role": "user", "content": "长" * 6000}],
+        knowledge_entries=[],
+        knowledge_entry_limit=8,
+        customer_profile=None,
+    )
+
+    assert snapshot.history_budget_ratio >= 0.7
+    assert snapshot.prompt_budget_ratio >= snapshot.history_budget_ratio
+    assert snapshot.budget_pressure_level in {
+        BUDGET_PRESSURE_LEVEL_WATCH,
+        BUDGET_PRESSURE_LEVEL_CRITICAL,
+    }
+    assert snapshot.needs_session_summary_candidate is True
+    assert snapshot.summary_candidate_policy == "observe_only_no_summary_write"
+
+
+def test_record_tool_context_budget_delta_refreshes_prompt_pressure() -> None:
+    timing: dict[str, object] = {
+        "context_budget": {
+            "history_token_estimate": 12,
+            "total_prompt_token_estimate": 100,
+        }
+    }
+
+    record_tool_context_budget_delta(
+        timing,
+        [{"role": "tool", "content": "长" * 8000}],
+    )
+
+    context_budget = timing["context_budget"]
+    assert isinstance(context_budget, dict)
+    assert context_budget["prompt_budget_ratio"] >= 0.9
+    assert context_budget["budget_pressure_level"] == BUDGET_PRESSURE_LEVEL_CRITICAL
+    assert context_budget["needs_session_summary_candidate"] is False
+    assert context_budget["summary_candidate_policy"] == (
+        "observe_only_no_summary_write"
+    )
 
 
 def test_normalize_image_data_uri_detects_png() -> None:
@@ -442,6 +681,9 @@ async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
             fallback_reply="fallback",
             timeout_reply="timeout",
             failure_alerter=fake_alerter,
+            conversation_summary_repo=_FakeConversationSummaryRepo(
+                "客户早前想要低糖蛋糕。"
+            ),
         ),
         AiConversationLoopRequest(
             session=session,
@@ -456,6 +698,9 @@ async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
 
     assert reply == "reply"
     assert captured["prepare_kwargs"]["session"] is session
+    assert captured["prepare_kwargs"]["conversation_summary_text"] == (
+        "客户早前想要低糖蛋糕。"
+    )
     llm_context = captured["llm_context"]
     assert isinstance(llm_context, LlmToolLoopContext)
     assert llm_context.messages == messages
@@ -685,6 +930,11 @@ async def test_complete_llm_tool_conversation_runs_tool_round_then_returns_text(
     assert processed_tool_calls == [[tool_call]]
     assert messages[-1] == {"role": "tool", "content": "tool result"}
     assert timing["tool_rounds"] == 1
+    context_budget = timing["context_budget"]
+    assert context_budget["tool_context_message_count"] == 1
+    assert context_budget["tool_result_message_count"] == 1
+    assert context_budget["tool_result_token_estimate"] > 0
+    assert context_budget["tool_context_policy"] == "observed_runtime_tool_messages"
 
 
 @pytest.mark.asyncio
@@ -740,6 +990,7 @@ async def test_complete_llm_tool_conversation_marks_tool_round_limit(
     assert reply == "timeout"
     assert timing[LLM_FAILURE_REASON_KEY] == "tool_round_limit"
     assert timing["tool_rounds"] >= 1
+    assert timing["context_budget"]["tool_result_message_count"] >= 1
 
 
 def test_parse_tool_arguments_rejects_invalid_json() -> None:

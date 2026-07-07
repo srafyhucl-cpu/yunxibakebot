@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
 
 from app.models.content_change_history import (
     ChangeAction,
@@ -11,7 +12,12 @@ from app.models.content_change_history import (
     SyncSource,
     WriteResult,
 )
-from app.models.knowledge import KnowledgeContentType, KnowledgeEntry
+from app.models.knowledge import (
+    KnowledgeAudience,
+    KnowledgeContentType,
+    KnowledgeEntry,
+    KnowledgeReviewStatus,
+)
 from app.models.knowledge_admin import KnowledgeAdminDraft, KnowledgeCategorySuggestion
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
@@ -157,6 +163,12 @@ class KnowledgeAdminService:
             suggest_reason=suggestion.reason,
             sync_source=SyncSource.ADMIN_MANUAL,
             vector_sync_status="pending",
+            audience=normalized.audience,
+            review_status=normalized.review_status,
+            valid_from=normalized.valid_from,
+            valid_until=normalized.valid_until,
+            reviewed_by=self._reviewed_by(normalized, operator),
+            reviewed_at=self._reviewed_at(normalized),
         )
         entry = await self._require_entry(entry_id)
         return await self._sync_service.sync_admin_entry(
@@ -192,6 +204,12 @@ class KnowledgeAdminService:
             sync_source=SyncSource.ADMIN_MANUAL,
             sync_ref=str(existing.id),
             vector_sync_status="pending",
+            audience=normalized.audience,
+            review_status=normalized.review_status,
+            valid_from=normalized.valid_from,
+            valid_until=normalized.valid_until,
+            reviewed_by=self._reviewed_by(normalized, operator, existing.reviewed_by),
+            reviewed_at=self._reviewed_at(normalized, existing.reviewed_at),
         )
         if result == WriteResult.SKIPPED:
             return await self._require_entry(entry_id)
@@ -266,6 +284,12 @@ class KnowledgeAdminService:
         content = draft.content.strip()
         keywords = self._normalize_keywords(draft.keywords, title, content)
         content_type = (draft.content_type or "").strip()
+        audience = (draft.audience or KnowledgeAudience.ALL.value).strip()
+        review_status = (
+            draft.review_status or KnowledgeReviewStatus.PUBLISHED.value
+        ).strip()
+        valid_from = draft.valid_from.strip()
+        valid_until = draft.valid_until.strip()
         if not title:
             raise ValueError("标题不能为空")
         if not content:
@@ -276,6 +300,20 @@ class KnowledgeAdminService:
             KnowledgeContentType.SCRIPT,
         }:
             raise ValueError("分类不能为空")
+        if audience not in {
+            KnowledgeAudience.ALL.value,
+            KnowledgeAudience.CUSTOMER.value,
+            KnowledgeAudience.EMPLOYEE.value,
+        }:
+            raise ValueError("可见范围不合法")
+        if review_status not in {
+            KnowledgeReviewStatus.DRAFT.value,
+            KnowledgeReviewStatus.PUBLISHED.value,
+            KnowledgeReviewStatus.ARCHIVED.value,
+        }:
+            raise ValueError("审核状态不合法")
+        if valid_from and valid_until and valid_from > valid_until:
+            raise ValueError("生效开始时间不能晚于截止时间")
         if len(keywords) > MAX_KEYWORDS_LENGTH:
             raise ValueError("关键词过长，请控制在 200 字以内")
         if draft.priority < MIN_PRIORITY or draft.priority > MAX_PRIORITY:
@@ -287,6 +325,10 @@ class KnowledgeAdminService:
             keywords=keywords,
             priority=draft.priority if draft.priority is not None else DEFAULT_PRIORITY,
             is_active=draft.is_active,
+            audience=audience,
+            review_status=review_status,
+            valid_from=valid_from,
+            valid_until=valid_until,
         )
 
     @staticmethod
@@ -311,6 +353,20 @@ class KnowledgeAdminService:
         if content_type == KnowledgeContentType.SCRIPT:
             return "store_info"
         return "faq"
+
+    @staticmethod
+    def _reviewed_by(
+        draft: KnowledgeAdminDraft, operator: str, fallback: str = ""
+    ) -> str:
+        if draft.review_status == KnowledgeReviewStatus.PUBLISHED.value:
+            return operator
+        return fallback
+
+    @staticmethod
+    def _reviewed_at(draft: KnowledgeAdminDraft, fallback: str = "") -> str:
+        if draft.review_status == KnowledgeReviewStatus.PUBLISHED.value:
+            return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        return fallback
 
     @staticmethod
     def _matches_any(text: str, keywords: tuple[str, ...]) -> bool:

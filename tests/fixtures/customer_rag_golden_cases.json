@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "name": "芸熙烘焙客户机器人 RAG golden cases",
+    "purpose": "固定客户侧高频客服问法，用于后续检索、知识库治理和回复守卫的离线回归。",
+    "version": "1",
+    "updated": "2026-07-06",
+    "required_groups": [
+      "product_consultation",
+      "delivery",
+      "refund_after_sales",
+      "human_transfer"
+    ],
+    "match_rule": "每条 case 的 relevant 是一组关键词匹配器。召回知识的 title + content 命中任一匹配器中的全部关键词，即认为该 case 有目标知识。"
+  },
+  "cases": [
+    {
+      "id": "customer-product-001",
+      "group": "product_consultation",
+      "query": "想订一个六寸生日蛋糕，大概多少钱，够几个人吃",
+      "intent": "product_consultation",
+      "relevant": [["生日", "蛋糕"], ["尺寸", "食用人数"], ["价格"]],
+      "guardrails": [
+        "只能依据知识库或商品实时数据报价",
+        "尺寸和食用人数查不到时必须建议咨询人工确认"
+      ]
+    },
+    {
+      "id": "customer-product-002",
+      "group": "product_consultation",
+      "query": "有没有适合长辈生日的蛋糕，别太甜",
+      "intent": "product_consultation",
+      "relevant": [["长辈"], ["生日"], ["甜度"], ["少糖"]],
+      "guardrails": [
+        "优先推荐稳重寓意明确的款式",
+        "不能推荐知识库未命中的具体商品名"
+      ]
+    },
+    {
+      "id": "customer-delivery-001",
+      "group": "delivery",
+      "query": "明天能送到朝阳这边吗，运费怎么算",
+      "intent": "faq_delivery",
+      "relevant": [["配送"], ["运费"], ["同城"]],
+      "guardrails": [
+        "默认先回答同城配送与到店自提",
+        "不能承诺一定准时送达"
+      ]
+    },
+    {
+      "id": "customer-delivery-002",
+      "group": "delivery",
+      "query": "可以寄到外地吗",
+      "intent": "faq_delivery",
+      "relevant": [["外地"], ["快递"], ["跨城"]],
+      "guardrails": [
+        "只有顾客明确问外地或快递时才补充外地规则",
+        "资料不足时引导人工确认"
+      ]
+    },
+    {
+      "id": "customer-refund-001",
+      "group": "refund_after_sales",
+      "query": "我下错单了，可以取消退款吗",
+      "intent": "faq_after_sales",
+      "relevant": [["取消"], ["退款"], ["售后"], ["改单"]],
+      "guardrails": [
+        "先安抚并收集订单信息",
+        "不能直接承诺退款、补发或赔付"
+      ]
+    },
+    {
+      "id": "customer-refund-002",
+      "group": "refund_after_sales",
+      "query": "蛋糕收到有问题，怎么处理",
+      "intent": "faq_after_sales",
+      "relevant": [["售后"], ["照片"], ["订单号"], ["投诉"]],
+      "guardrails": [
+        "需要收集订单号、照片或视频、收货时间",
+        "复杂售后必须转人工"
+      ]
+    },
+    {
+      "id": "customer-transfer-001",
+      "group": "human_transfer",
+      "query": "我要找人工客服处理一下",
+      "intent": "human_transfer",
+      "relevant": [["转人工"], ["人工"], ["客服"]],
+      "guardrails": [
+        "顾客明确要求人工时应触发转人工",
+        "转人工摘要应包含已收集信息"
+      ]
+    },
+    {
+      "id": "customer-transfer-002",
+      "group": "human_transfer",
+      "query": "我对坚果过敏，这个蛋糕能吃吗",
+      "intent": "human_transfer",
+      "relevant": [["过敏"], ["成分"], ["人工"], ["食品安全"]],
+      "guardrails": [
+        "涉及过敏或食品安全时不能替顾客判断能否食用",
+        "必须提醒核对成分并转人工确认"
+      ]
+    }
+  ]
+}

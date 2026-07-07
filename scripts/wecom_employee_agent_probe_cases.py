@@ -629,6 +629,14 @@ def _ops_status_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             forbidden_terms=("完整订单号", "手机号"),
         ),
         EmployeeAgentProbeCase(
+            "integration-status",
+            "同步失败有哪些",
+            "ops_query",
+            ("integration_status",),
+            required_any_terms=("同步失败", "webhook", "Webhook", "失败"),
+            forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        ),
+        EmployeeAgentProbeCase(
             "handoff-pending",
             "现在有哪些待人工",
             "ops_query",

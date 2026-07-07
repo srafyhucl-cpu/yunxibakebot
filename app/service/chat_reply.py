@@ -84,6 +84,7 @@ async def record_reply_latency(
                     "rag_ms": timing.get("rag_ms"),
                     "llm_ms": timing.get("llm_ms"),
                     "tool_rounds": timing.get("tool_rounds", 0),
+                    "context_budget": timing.get("context_budget", {}),
                     "loop_ms": loop_ms,
                     "total_ms": total_ms,
                     "channel": channel,
