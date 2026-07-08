@@ -764,6 +764,33 @@ async def test_employee_agent_service_has_no_reply_llm_entrypoint() -> None:
     )
 
 
+async def test_employee_agent_service_delegates_to_langgraph(monkeypatch) -> None:
+    from app.service.wecom import employee_agent_service
+
+    class FakeGraphService:
+        def __init__(self, dependencies: Any) -> None:
+            self.dependencies = dependencies
+
+        async def answer(self, query: str) -> str:
+            return f"**graph** {query}"
+
+    monkeypatch.setattr(
+        employee_agent_service,
+        "EmployeeAgentGraphService",
+        FakeGraphService,
+    )
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+    )
+
+    reply = await service.answer("草莓蛋糕还有吗")
+
+    assert reply == "graph 草莓蛋糕还有吗"
+
+
 async def test_employee_agent_product_reply_returns_deterministic_stock() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolServiceWithKnowledgeMiss(),

@@ -1,4 +1,104 @@
 ﻿
+## [2026-07-08] - feat(agent): 完成员工助手 LangGraph 阶段 3
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 阶段 2 已完成客户和员工双范围 LangChain tool registry；本轮按迁移计划进入阶段 3，先把企微员工助手从旧服务内手写计划执行循环迁到 LangGraph。
+- **决策**:
+  - `EmployeeAgentService.answer()` 作为生产入口改为调用 `EmployeeAgentGraphService`，不再在旧服务内直接执行 plan/tool/final reply 流程。
+  - employee graph 使用 `load_employee_context -> plan_intent -> select_tools -> execute_tools -> validate_tool_facts -> deterministic_finalizer -> record_trace` 固定节点链路。
+  - `plan_intent` 继续复用 `EmployeeAgentPlanner`，订单动态查询继续保留 `order_lookup_service + query_plan` 精细路径，避免退化到通用 `lookup_orders`。
+  - 非订单工具通过阶段 2 的 LangChain `StructuredTool` 注册表执行；最终回复仍由 deterministic finalizer 生成，不恢复 LLM 润色。
+  - LangGraph 构建继续懒加载，FastAPI / `app.main` 导入路径不得加载 `langchain_core.tools`、`langchain_openai` 或 `langgraph`。
+- **改动**:
+  - `app/service/agents/employee/state.py` - 新增员工助手 LangGraph 状态模型。
+  - `app/service/agents/employee/nodes.py` - 新增 planner、tool execution、fact validation、deterministic finalizer 和 trace 节点。
+  - `app/service/agents/employee/graph.py` - 新增 employee `StateGraph` 构建入口。
+  - `app/service/agents/employee/service.py` - 新增 `EmployeeAgentGraphService` application adapter。
+  - `app/service/wecom/employee_agent_service.py` - 收缩为 graph adapter 调用入口，并保留 `clean_plain_text_reply`。
+  - `tests/service/agents/test_employee_graph.py` - 覆盖 employee graph 确定性工具回复和导入阶段不加载 LangGraph。
+  - `tests/service/test_wecom_employee_agent.py` - 覆盖旧服务入口已委托 LangGraph adapter。
+  - `docs/architecture/langchain-langgraph-migration-plan.md` - 记录阶段 3 落地范围、验收结果和后续约束。
+- **验证结果**:
+  - `python -m ruff check app/service/agents app/service/wecom/employee_agent_service.py tests/service/agents tests/service/test_wecom_employee_agent.py` 通过。
+  - `python -m pytest tests/service/agents -q --no-cov` 通过。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py -q --no-cov` 通过。
+  - `python -m pytest tests/service/test_wecom_intelligent_bot_order_lookup.py -q --no-cov` 通过。
+  - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py -q --no-cov` 通过，保留 1 条既有 `StarletteDeprecationWarning`。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，48 项失败 0。
+  - `python scripts/check_employee_agent_capability_contracts.py --summary` 通过，66 项失败 0。
+  - `python scripts/probe_langchain_capacity.py --include-app-import` 通过；`langchain_openai` 冷导入本地 RSS 增量约 330MB，最小 graph 增量约 0.34MB。
+  - 干净进程导入 `app.main` 后 `langchain_core.tools=False`、`langchain_openai=False`、`langgraph=False`。
+  - `python scripts/check_project.py --skip-tests` 通过，函数长度 WARN 仍为既有 52 处。
+- **后续**:
+  - 阶段 4 可迁客户机器人 LangGraph，但必须继续执行容量探针，并保留客户 RAG golden cases、知识 audience、转人工和工具轮次限制验收。
+
+## [2026-07-08] - feat(agent): 完成 LangChain 工具注册表阶段 2
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 阶段 1 已验证 LangChain / LangGraph 可安装且必须懒加载；本轮继续执行阶段 2，把当前客户机器人 Function Calling 工具和员工助手能力合约工具平移为 LangChain `StructuredTool`，但不接管热路径。
+- **决策**:
+  - 客户机器人先注册现有 5 个 Function Calling 工具，底层暂时复用旧 `dispatch_tool`，为后续 LangGraph 接管做等价层。
+  - 员工助手按 9 个 `CAPABILITY_CONTRACTS` 名称注册工具，全部 `return_direct=True`，保持经营事实和订单/库存/客户线索输出不被模型二次润色。
+  - 新工具注册表必须继续懒加载 `langchain_core.tools`，不能被 `app.main` 启动路径提前加载。
+- **改动**:
+  - `app/service/agents/tools/customer.py` - 新增客户侧 LangChain 工具上下文、参数 schema 和 5 个工具构造函数。
+  - `app/service/agents/tools/employee.py` - 新增员工侧工具上下文、参数 schema 和 9 个能力工具构造函数。
+  - `app/service/agents/tools/registry.py` - 新增 `customer` / `employee` 双范围工具注册入口。
+  - `tests/service/agents/test_customer_tool_registry.py` - 覆盖客户工具名、懒加载和旧分发兜底等价。
+  - `tests/service/agents/test_employee_tool_registry.py` - 覆盖员工工具名与能力合约一致、服务调用 payload 和 unavailable 兜底。
+  - `docs/architecture/langchain-langgraph-migration-plan.md` - 记录阶段 2 落地范围、验收和后续退场约束。
+- **验证结果**:
+  - `python -m pytest tests/service/agents -q --no-cov` 通过。
+  - `python -m ruff check app/service/agents tests/service/agents` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过，函数长度 WARN 仍为既有 52 处，没有新增函数长度债。
+  - 单独导入 `app.main` 时 `langchain_core.tools`、`langchain_openai`、`langgraph` 均未加载。
+- **后续**:
+  - 阶段 3 应优先迁员工助手 graph：planner node -> LangChain tools -> deterministic finalizer，并继续使用员工探针和能力合约作为验收基线。
+
+## [2026-07-08] - feat(agent): 启动 LangChain/LangGraph 迁移阶段 1 与容量探针
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 用户决定将客户机器人和员工助手中属于 LLM 应用编排、检索、工具、记忆和状态流转的部分迁移到 LangChain / LangGraph，并要求先测试生产服务器是否能支撑 LangChain。
+- **决策**:
+  - 本轮只落地阶段 1 基础设施，不接管客户机器人或员工助手热路径。
+  - 固定 `langchain==1.3.11`、`langgraph==1.2.8`、`langchain-openai==1.3.3`，避免依赖漂移。
+  - 生产服务器内存较紧：总内存约 1608MB，可用约 417MB；因此 LangChain 重依赖必须懒加载，FastAPI 启动阶段禁止导入 `langchain_openai` / `langgraph`。
+- **改动**:
+  - `requirements.in` / `requirements.txt` / `requirements-dev.txt` - 增加并锁定 LangChain / LangGraph 相关依赖，`websockets` 由 16.0 解析为 15.0.1。
+  - `app/service/agents/` - 新增 Agent 编排适配层入口、运行时模型和 LangChain chat model 懒加载工厂。
+  - `scripts/probe_langchain_capacity.py` - 新增 LangChain / LangGraph 导入、最小 StateGraph 和应用导入容量探针。
+  - `tests/service/agents/test_llm_factory.py` - 覆盖懒加载约束和 MiMo 兼容 OpenAI 模型工厂。
+  - `docs/architecture/langchain-langgraph-migration-plan.md` - 补充阶段 1 容量探针结论和后续阶段硬约束。
+- **验证结果**:
+  - `python -m pip check` 通过。
+  - `python -m pytest tests/service/agents/test_llm_factory.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/agents scripts/probe_langchain_capacity.py tests/service/agents` 通过。
+  - `python scripts/probe_langchain_capacity.py --include-app-import` 通过：`langchain_openai` 冷导入 RSS 增量约 330MB，最小 `StateGraph` 编译/调用增量约 0.34MB。
+  - 单独导入 `app.main` 约 30MB RSS 增量，且未加载 `langchain_openai` / `langgraph`。
+- **后续**:
+  - 阶段 2 开始前必须继续保留懒加载约束，并在每个 graph 接入阶段运行容量探针；若首次 Agent 调用后生产可用内存低于 250MB，不继续扩大迁移范围。
+
+## [2026-07-07] - docs(project): 按当前代码同步项目入口文档
+- **操作人**: AI (Codex)
+- **trace_id**: 20260707-project-docs-sync
+- **背景**: 用户要求查看目前代码并更新项目文档；当前本地代码版本为 `0.74.34`，路由和服务已明显从历史根层 `miniapp_*` / `admin_*` 口径迁到 canonical 目录，需要把 README、文档导航和项目进度顶部口径同步到当前代码事实，避免后续 Agent 按旧入口理解。
+- **决策**:
+  - 本轮只更新文档，不修改业务代码、不新增依赖、不执行文件删除。
+  - 以 `app/lifespan_routes.py`、`app/lifespan_services.py`、`web/admin/src/router/routes.ts`、`VERSION` 和脚本清单作为当前代码事实来源。
+  - 保留 `/api/v1/miniapp/*` 等外部兼容路径口径，同时明确内部 canonical 实现边界。
+- **改动**:
+  - `README.md` - 补充 `0.74.34` 当前代码事实、canonical 服务目录、当前 API 入口和文档入口；更新目录结构和最后更新时间。
+  - `docs/README.md` - 在当前权威口径中补充路由装配、服务装配、兼容 facade 和质量门禁事实。
+  - `项目进度与配置清单.md` - 更新顶部最后更新时间，并新增 2026-07-07 当前代码文档同步记录。
+- **验证结果**:
+  - `git diff --check` 通过；仅提示既有 CRLF 工作区换行警告。
+  - `python scripts/check_logbook.py` 通过。
+  - `python scripts/check_text_encoding.py README.md docs/README.md "项目进度与配置清单.md" LOGBOOK.md` 通过。
+  - `rg -n "POST /api/v1/youzan/webhook|POST /api/v1/chat|GET /api/v1/admin/dialog|GET /api/v1/admin/transfer|GET /api/v1/admin/knowledge|GET /api/v1/admin/observability|最后更新\\*\\*：2026-06-04" README.md docs/README.md "项目进度与配置清单.md" LOGBOOK.md` 无命中。
+  - `python scripts/check_project.py --skip-tests` 通过，七类业务合约均 PASS；保留既有 52 处函数长度 WARN。
+- **后续**:
+  - 生产真实版本、企微群内人工验收、微信开发者工具体验版和真实支付验收仍需外部证据，不能由本轮文档同步视为完成。
+
 ## [2026-07-07] - chore(harness): 归档 GitHub 参考计划双仓执行交接快照
 - **操作人**: AI (Codex)
 - **trace_id**: 20260707-github-reference-execution-handoff

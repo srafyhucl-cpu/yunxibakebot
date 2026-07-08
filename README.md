@@ -280,7 +280,7 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 ### 分层架构
 
-项目采用经典的三层架构：
+项目采用 `api -> service -> repository -> models` 的单向分层架构：
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -313,6 +313,30 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 2. ❌ **禁止反向依赖**：Models 不能依赖上层，Repository 不能直接被 API 调用
 3. ✅ **依赖注入**：通过构造函数注入依赖，便于测试和复用
 4. ✅ **单一职责**：每层只负责自己的职责
+
+### 当前代码事实快照（2026-07-07）
+
+当前版本：`0.74.34`。
+
+当前外部路径仍保留 `/api/v1/miniapp/*`、`/api/v1/admin/*`、`/api/v1/wecom/*`、`/api/v1/webhook/*` 等兼容入口；内部实现已按 Platform canonical 领域装配：
+
+- `app/api/channels/storefront/`：消费者前台渠道 API 工厂，继续暴露 MiniApp 兼容路径。
+- `app/service/channels/storefront/`、`app/service/conversation/`：前台登录与客服会话入口。
+- `app/service/order/`：订单创建、支付准备、mock 支付、支付通知、取消、状态流转、超时关闭。
+- `app/service/catalog/`：商品列表、详情、分类和前台商品投影。
+- `app/service/customer/`：地址、客户主档导入、客户群运营和登记汇总。
+- `app/service/ops/`：店铺配置、装修配置、会话关闭等运营能力。
+- `app/service/wecom/`：企微客服、企微智能机器人插件和员工助手确定性工具链。
+- `app/service/youzan/`、`app/service/integrations/`：有赞事件、商品对账和微信支付等第三方适配。
+
+新增或当前优先使用的文档入口：
+
+- [项目边界](docs/architecture/project-boundaries.md)
+- [双机器人能力目录](docs/architecture/bot-capability-matrix.md)
+- [MiniApp 页面 API 覆盖合约](docs/architecture/miniapp-page-api-coverage-contract.md)
+- [知识库治理迁移计划](docs/architecture/knowledge-governance-migration-plan.md)
+- [客户主档 v1](docs/architecture/customer-master-v1.md)
+- [Harness Engineering 总入口](docs/harness-engineering/README.md)
 
 ---
 
@@ -615,23 +639,26 @@ python scripts/sync_real_products_from_youzan.py
 Platform (repo: YunxiBakeBot)/
 ├── app/                          # 后端应用目录
 │   ├── api/                      # API 路由层
-│   │   ├── wecom.py              # 企微回调 API
-│   │   ├── admin.py              # 管理后台页面路由
-│   │   ├── admin_dialog.py       # AI 对话调试 API
-│   │   ├── admin_transfer.py     # 转人工管理 API
-│   │   ├── admin_knowledge.py   # 知识配置 API
-│   │   ├── admin_observability.py # 数据观察台 API
-│   │   └── webhook.py           # 有赞 Webhook API
+│   │   ├── admin/                # 管理后台 canonical API
+│   │   ├── channels/storefront/  # 前台渠道 API，外部保留 /api/v1/miniapp/*
+│   │   ├── integrations/         # 有赞、企微等集成入口
+│   │   └── miniapp_*.py          # 兼容 facade，不承载真实 Router 逻辑
 │   ├── service/                  # 业务服务层
 │   │   ├── chat.py               # 核心对话服务
+│   │   ├── catalog/              # 商品与分类 canonical 服务
+│   │   ├── channels/storefront/  # 前台渠道服务
+│   │   ├── conversation/         # 前台客服会话服务
+│   │   ├── customer/             # 客户、地址、客户群、导入服务
+│   │   ├── order/                # 订单、支付、履约、状态流转服务
+│   │   ├── ops/                  # 店铺配置、装修配置、运营调度
 │   │   ├── knowledge_retriever.py # 知识检索服务
 │   │   ├── embedding_search.py   # 向量搜索服务
 │   │   ├── session_manager.py    # 会话管理服务
 │   │   ├── transfer_manager.py   # 转人工管理服务
-│   │   ├── youzan/               # 有赞服务
-│   │   │   ├── client.py         # 有赞 API 客户端
-│   │   │   └── event_handler.py  # 有赞事件处理器
-│   │   ├── wecom/                # 企微服务（开发中）
+│   │   ├── youzan/               # 有赞服务与事件处理
+│   │   ├── wecom/                # 企微客服、智能机器人和员工助手
+│   │   ├── integrations/         # 微信支付等第三方适配
+│   │   ├── offline/              # 离线质检、知识缺口和记忆沉淀
 │   │   └── llm/                  # LLM 服务
 │   │       ├── client.py         # DeepSeek API 客户端
 │   │       ├── functions.py      # Function Calling 分发器
@@ -642,13 +669,17 @@ Platform (repo: YunxiBakeBot)/
 │   │   ├── session_repo.py       # 会话仓库
 │   │   ├── message_repo.py       # 消息仓库
 │   │   ├── knowledge_repo.py     # 知识库仓库
-│   │   ├── youzan_repo.py        # 有赞商品仓库
+│   │   ├── youzan_*_repo.py      # 有赞商品、订单、库存、Webhook 仓库
+│   │   ├── customer_*_repo.py    # 客户主档、地址、客户群仓库
+│   │   ├── order_*_repo.py       # 订单和状态事件仓库
 │   │   └── transfer_repo.py      # 转人工仓库
 │   ├── models/                    # 数据模型层
 │   │   ├── session.py             # 会话模型
 │   │   ├── message.py             # 消息模型
 │   │   ├── knowledge.py           # 知识条目模型
-│   │   └── order.py               # 订单模型
+│   │   ├── order.py               # 订单模型
+│   │   ├── customer_master.py     # 客户主档模型
+│   │   └── employee_agent.py      # 员工助手结构化计划模型
 │   ├── config.py                  # 配置管理
 │   ├── main.py                    # FastAPI 应用入口
 │   ├── database.py                # 数据库初始化
@@ -671,6 +702,11 @@ Platform (repo: YunxiBakeBot)/
 │   ├── apply_migrations.py        # 数据库迁移脚本（默认 dry-run）
 │   ├── seed_baseline_knowledge.py # 基础知识种子脚本（默认 dry-run）
 │   ├── sync_real_products_from_youzan.py # 有赞商品同步脚本
+│   ├── check_project.py           # 统一红线和业务合约检查
+│   ├── preflight_production.py    # 发布前只读预检
+│   ├── import_youzan_customers.py # 有赞客户正式迁移入口
+│   ├── verify_youzan_customer_import.py # 有赞客户迁移后核对
+│   ├── harness_snapshot.py        # Harness 交接快照
 │   └── ...
 ├── tests/                        # 测试目录
 │   ├── api/                       # API 测试
@@ -681,7 +717,11 @@ Platform (repo: YunxiBakeBot)/
 │   ├── bot.db                     # SQLite 数据库文件
 │   └── embeddings/                # 向量索引文件
 ├── docs/                         # 文档目录
-│   ├── 评估报告.md                # 项目评估报告
+│   ├── README.md                  # 文档导航
+│   ├── architecture/              # 当前架构、契约、迁移和机器人能力文档
+│   ├── harness-engineering/       # Harness、证据、ADR、交接入口
+│   ├── AGENTS/                    # Agent 编码红线、快速参考和文档同步工作流
+│   ├── design/                    # 早期业务与技术设计背景
 │   └── ...
 ├── .env.example                  # 环境变量示例文件
 ├── requirements.txt               # Python 依赖
@@ -1008,27 +1048,25 @@ release/vX.X.X   # 发布分支
 #### 2.1 有赞 Webhook
 
 ```
-POST /api/v1/youzan/webhook
+POST /api/v1/webhook/youzan
 ```
 
 接收有赞事件通知（商品上架/下架、订单状态变更等）。
 
-#### 2.2 AI 对话
+#### 2.2 前台客服对话
 
 ```
-POST /api/v1/chat
+POST /api/v1/miniapp/chat/messages
 ```
 
-处理用户消息，返回 AI 回复。
+处理前台用户消息，返回 AI 或转人工相关回复。该路径由 `app/api/channels/storefront/chat.py` 注册，内部调用 `StorefrontConversationService` 和 `ChatService`。
 
 请求体：
 
 ```json
 {
-  "channel": "youzan",
   "user_id": "buyer_123",
-  "content": "你们家有哪些面包？",
-  "channel_msg_id": "msg_123"
+  "content": "你们家有哪些面包？"
 }
 ```
 
@@ -1054,12 +1092,26 @@ Authorization: Bearer <ADMIN_API_TOKEN>
 Cookie: admin_token=<ADMIN_API_TOKEN>
 ```
 
-主要端点：
+主要 API 入口：
 
-- `GET /api/v1/admin/dialog` - AI 对话调试页面
-- `GET /api/v1/admin/transfer` - 转人工队列页面
-- `GET /api/v1/admin/knowledge` - 知识配置页面
-- `GET /api/v1/admin/observability` - 数据观察台页面
+- `/api/v1/admin/ai-dialog/*` - AI 对话调试和会话管理
+- `/api/v1/admin/transfers/*` - 转人工队列与会话处理
+- `/api/v1/admin/knowledge-config/*` - 知识配置、治理字段和向量同步
+- `/api/v1/admin/knowledge-retrieval-report/*` - 知识命中和 no_match 只读报表
+- `/api/v1/admin/observability/*` - 数据观察台、Webhook、内容回写和失败排查
+- `/api/v1/admin/customer-groups/*` - 客户群、团购批次、登记汇总和群文案
+- `/api/v1/admin/orders/*` - 后台订单列表、状态流转和超时关闭
+- `/api/v1/admin/products/*` - 商品对账和商品后台投影
+
+#### 2.4 企微智能机器人
+
+```
+GET  /api/v1/wecom/intelligent-bot/callback
+POST /api/v1/wecom/intelligent-bot/callback
+POST /api/v1/wecom/intelligent-bot/tools/<tool-name>
+```
+
+企微员工助手入口保持 API 模式回调不变；内部采用能力召回、结构化计划和确定性工具回复，LLM 只允许作为规划兜底，不生成最终经营数据回复。
 
 ---
 
@@ -1231,4 +1283,4 @@ git push origin feature/xxx
 
 ---
 
-**最后更新**：2026-06-04
+**最后更新**：2026-07-07

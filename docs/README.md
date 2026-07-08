@@ -6,6 +6,15 @@
 
 除非你是在回顾历史决策，否则当前实施、迁移和双仓协作都应从本节进入；下方“历史方案”和“业务与技术背景”只用于参考，不作为执行起点。
 
+当前代码事实（2026-07-07，`VERSION=0.74.34`）：
+
+- `app/lifespan_routes.py` 是路由装配入口；对外仍暴露 `/api/v1/miniapp/*`、`/api/v1/admin/*`、`/api/v1/wecom/*`、`/api/v1/webhook/*` 等稳定路径。
+- `app/api/channels/storefront/` 是消费者前台渠道的 canonical API 目录，继续承接 MiniApp 兼容路径。
+- `app/api/admin/` 和 `app/api/integrations/` 是当前后台与第三方集成真实 Router 所在目录；根层 `admin_*.py`、`miniapp_*.py`、`webhook.py`、`wecom.py` 只保留兼容入口。
+- `app/lifespan_services.py` 是服务装配入口；当前 canonical 服务包括 `catalog_service`、`order_service`、`customer_address_service`、`customer_group_service`、`storefront_conversation_service`、`employee_agent_service` 等。
+- `app/service/order/`、`app/service/catalog/`、`app/service/customer/`、`app/service/conversation/`、`app/service/ops/` 已承接主要业务逻辑，`app/service/miniapp_*.py` 作为兼容 facade 使用。
+- 统一质量门禁入口为 `python scripts/check_project.py --skip-tests`；发布前预检入口为 `python scripts/preflight_production.py --json`。
+
 - `README.md`
   - 产品命名、仓角色、启动方式和总入口说明。
 - `docs/architecture/project-boundaries.md`
