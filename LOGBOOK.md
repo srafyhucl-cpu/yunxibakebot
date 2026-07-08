@@ -1,4 +1,20 @@
 ﻿
+## [2026-07-08] - fix(runtime): 兼容生产 Python 3.10 启动
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 阶段 5 代码同步到生产并执行迁移后，重启发现生产运行时为 Python 3.10，`datetime.UTC` 仅 Python 3.11+ 支持，导致应用启动失败并返回 502。
+- **决策**:
+  - 将 `datetime.UTC` 改为 Python 3.10 可用的 `timezone.utc`。
+  - 不改变知识审核时间和知识检索报表的 UTC 输出语义。
+- **改动**:
+  - `app/service/knowledge_admin.py` - 审核时间改用 `datetime.now(timezone.utc)`。
+  - `app/service/knowledge_retrieval_report.py` - 报表生成时间改用 `datetime.now(timezone.utc)`。
+- **验证结果**:
+  - `python -m pytest tests/service/test_knowledge_admin.py tests/service/test_knowledge_retrieval_report.py tests/api/test_admin_knowledge.py tests/api/test_admin_knowledge_retrieval_report.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/knowledge_admin.py app/service/knowledge_retrieval_report.py` 通过。
+  - `python -m ruff format --check app/service/knowledge_admin.py app/service/knowledge_retrieval_report.py` 通过。
+  - `python -c "import app.main; import app.service.knowledge_admin; import app.service.knowledge_retrieval_report; print('import-ok')"` 通过。
+
 ## [2026-07-08] - fix(agent): 修复客户工具上下文复用风险
 - **操作人**: AI (Codex)
 - **trace_id**: 20260708-langchain-langgraph-agent-migration

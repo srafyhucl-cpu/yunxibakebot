@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from app.models.content_change_history import (
     ChangeAction,
@@ -365,7 +365,7 @@ class KnowledgeAdminService:
     @staticmethod
     def _reviewed_at(draft: KnowledgeAdminDraft, fallback: str = "") -> str:
         if draft.review_status == KnowledgeReviewStatus.PUBLISHED.value:
-            return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+            return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         return fallback
 
     @staticmethod
