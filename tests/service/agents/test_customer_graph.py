@@ -110,6 +110,93 @@ async def test_customer_graph_runs_tool_round_then_returns_reply(
     assert timing["context_budget"]["tool_result_message_count"] == 1
 
 
+@pytest.mark.asyncio
+async def test_customer_graph_reuses_compiled_graph_without_stale_tool_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.service.agents.customer import nodes as customer_nodes
+
+    tool_call = SimpleNamespace(
+        id="tool-1",
+        function=SimpleNamespace(
+            name="search_knowledge",
+            arguments='{"query": "配送范围"}',
+        ),
+    )
+    tool_sessions: list[str] = []
+
+    class SessionAwareTool:
+        name = "search_knowledge"
+
+        def __init__(self, session_id: str) -> None:
+            self._session_id = session_id
+
+        async def ainvoke(self, args: dict[str, Any]) -> str:
+            return f"tool-session:{self._session_id}"
+
+    async def fake_request_llm_choice(context: Any) -> Any:
+        tool_messages = [
+            message for message in context.messages if message.get("role") == "tool"
+        ]
+        if not tool_messages:
+            return SimpleNamespace(
+                fallback_reply=None,
+                choice=SimpleNamespace(finish_reason="tool_calls"),
+                message=SimpleNamespace(content=None, tool_calls=[tool_call]),
+                first_llm_started_at=1.0,
+            )
+        return SimpleNamespace(
+            fallback_reply=None,
+            choice=SimpleNamespace(finish_reason="stop"),
+            message=SimpleNamespace(
+                content=tool_messages[-1]["content"], tool_calls=[]
+            ),
+            first_llm_started_at=1.0,
+        )
+
+    def fake_build_tools(scope: str, **kwargs: Any) -> list[SessionAwareTool]:
+        assert scope == "customer"
+        session = kwargs["customer_context"].session
+        tool_sessions.append(session.id)
+        return [SessionAwareTool(session.id)]
+
+    monkeypatch.setattr(customer_nodes, "request_llm_choice", fake_request_llm_choice)
+    monkeypatch.setattr(customer_nodes, "build_tools", fake_build_tools)
+    service = CustomerAgentGraphService(
+        CustomerGraphDependencies(
+            session_mgr=_FakeSessionManager(),
+            knowledge=_FakeKnowledgeRetriever(),
+            transfer_mgr=object(),
+            session_repo=object(),
+            youzan_client=object(),
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=_fake_alerter,
+        )
+    )
+
+    first_reply = await service.answer(
+        CustomerGraphRequest(
+            session=Session(id="session-1", channel="youzan", user_id="buyer-1"),
+            user_query="配送范围",
+            intent=IntentType.PRODUCT_CONSULTATION,
+            timing={},
+        )
+    )
+    second_reply = await service.answer(
+        CustomerGraphRequest(
+            session=Session(id="session-2", channel="youzan", user_id="buyer-2"),
+            user_query="配送范围",
+            intent=IntentType.PRODUCT_CONSULTATION,
+            timing={},
+        )
+    )
+
+    assert first_reply == "tool-session:session-1"
+    assert second_reply == "tool-session:session-2"
+    assert tool_sessions == ["session-1", "session-2"]
+
+
 def test_customer_service_import_does_not_import_langgraph() -> None:
     project_root = Path(__file__).resolve().parents[3]
     command = (

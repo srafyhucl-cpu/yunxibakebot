@@ -73,7 +73,6 @@ class CustomerAgentNodes:
 
     def __init__(self, dependencies: CustomerGraphDependencies) -> None:
         self._dependencies = dependencies
-        self._tools_by_name: dict[str, Any] | None = None
 
     async def load_session_context(
         self,
@@ -249,18 +248,16 @@ class CustomerAgentNodes:
         )
 
     def _tools(self, tool_context: ToolExecutionContext) -> dict[str, Any]:
-        if self._tools_by_name is None:
-            context = CustomerToolContext(
-                session=tool_context.session,
-                knowledge_retriever=tool_context.knowledge,
-                youzan_client=tool_context.youzan_client,
-                transfer_handler=build_transfer_handler(tool_context),
-            )
-            self._tools_by_name = {
-                tool.name: tool
-                for tool in build_tools("customer", customer_context=context)
-            }
-        return self._tools_by_name
+        context = CustomerToolContext(
+            session=tool_context.session,
+            knowledge_retriever=tool_context.knowledge,
+            youzan_client=tool_context.youzan_client,
+            transfer_handler=build_transfer_handler(tool_context),
+        )
+        return {
+            tool.name: tool
+            for tool in build_tools("customer", customer_context=context)
+        }
 
 
 def route_after_model(state: CustomerAgentState) -> str:

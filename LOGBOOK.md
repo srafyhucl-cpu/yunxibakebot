@@ -1,4 +1,20 @@
 ﻿
+## [2026-07-08] - fix(agent): 修复客户工具上下文复用风险
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 阶段 5 提交后按 review 口径复查功能实现路径，发现 `CustomerAgentNodes` 若随已编译 graph 被长生命周期复用，缓存的 LangChain customer tools 可能保留第一次会话的 `session` / `transfer_handler`。
+- **决策**:
+  - 当前生产入口每次 `run_ai_conversation_loop()` 都新建 `CustomerAgentGraphService`，该问题不影响已上线主路径，但服务类自身不应留下可复用陷阱。
+  - 移除 customer tools 跨请求缓存，每次工具执行按当前 `ToolExecutionContext` 构造 `CustomerToolContext`。
+- **改动**:
+  - `app/service/agents/customer/nodes.py` - 移除 `_tools_by_name` 缓存，工具构造改为使用当前 graph state 的 tool context。
+  - `tests/service/agents/test_customer_graph.py` - 新增同一个 `CustomerAgentGraphService` 连续处理两个 session 的回归测试，防止第二次复用第一次会话上下文。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_tool_registry.py tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/agents/customer/nodes.py tests/service/agents/test_customer_graph.py` 通过。
+  - `python -m ruff format --check app/service/agents/customer/nodes.py tests/service/agents/test_customer_graph.py` 通过。
+  - `pre-commit run --all-files` 通过。
+
 ## [2026-07-08] - refactor(agent): 完成旧手写编排阶段 5 退场
 - **操作人**: AI (Codex)
 - **trace_id**: 20260708-langchain-langgraph-agent-migration
