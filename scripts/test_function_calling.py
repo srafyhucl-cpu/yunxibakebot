@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from openai import AsyncOpenAI
 
 from app.config import settings
-from app.service.llm.functions import FUNCTION_DEFINITIONS
+from app.service.agents.tools.customer import build_customer_openai_tool_definitions
+
+CUSTOMER_OPENAI_TOOLS = build_customer_openai_tool_definitions()
 
 
 async def test_function_calling() -> None:
@@ -42,7 +44,7 @@ async def test_function_calling() -> None:
     payload = {
         "model": settings.DEEPSEEK_MODEL,
         "messages": messages,
-        "tools": FUNCTION_DEFINITIONS,
+        "tools": CUSTOMER_OPENAI_TOOLS,
         "temperature": 0.7,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -51,7 +53,7 @@ async def test_function_calling() -> None:
     response = await client.chat.completions.create(
         model=settings.DEEPSEEK_MODEL,
         messages=messages,  # type: ignore[arg-type]
-        tools=FUNCTION_DEFINITIONS,
+        tools=CUSTOMER_OPENAI_TOOLS,
         temperature=0.7,
     )
     print(json.dumps(response.model_dump(), ensure_ascii=False, indent=2, default=str))
@@ -81,7 +83,7 @@ async def test_function_calling() -> None:
     payload2 = {
         "model": settings.DEEPSEEK_MODEL,
         "messages": messages2,
-        "tools": FUNCTION_DEFINITIONS,
+        "tools": CUSTOMER_OPENAI_TOOLS,
         "temperature": 0.7,
     }
     print(json.dumps(payload2, ensure_ascii=False, indent=2))
@@ -90,7 +92,7 @@ async def test_function_calling() -> None:
     response2 = await client.chat.completions.create(
         model=settings.DEEPSEEK_MODEL,
         messages=messages2,  # type: ignore[arg-type]
-        tools=FUNCTION_DEFINITIONS,
+        tools=CUSTOMER_OPENAI_TOOLS,
         temperature=0.7,
     )
     print(json.dumps(response2.model_dump(), ensure_ascii=False, indent=2, default=str))

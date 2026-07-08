@@ -18,32 +18,30 @@ def test_tool_registry_import_does_not_load_langchain_runtime() -> None:
 
 
 def test_customer_tool_names_match_legacy_function_definitions() -> None:
+    from app.service.agents.tools.customer import build_customer_openai_tool_definitions
     from app.service.agents.tools.registry import build_tools
-    from app.service.llm.function_defs import FUNCTION_DEFINITIONS
 
-    legacy_names = {
+    schema_names = {
         item["function"]["name"]
-        for item in FUNCTION_DEFINITIONS
+        for item in build_customer_openai_tool_definitions()
         if item.get("type") == "function"
     }
     tools = build_tools("customer", customer_context=CustomerToolContext())
 
-    assert {tool.name for tool in tools} == legacy_names
+    assert {tool.name for tool in tools} == schema_names
 
 
 @pytest.mark.asyncio
-async def test_customer_tool_fallback_matches_legacy_dispatcher() -> None:
+async def test_customer_tool_fallback_keeps_json_contract() -> None:
     from app.service.agents.tools.registry import build_tools
-    from app.service.llm.functions import dispatch_tool
 
     tools = {
         tool.name: tool
         for tool in build_tools("customer", customer_context=CustomerToolContext())
     }
-    expected = await dispatch_tool("search_knowledge", {"query": "配送范围"})
     actual = await tools["search_knowledge"].ainvoke({"query": "配送范围"})
 
-    assert json.loads(actual) == json.loads(expected)
+    assert json.loads(actual) == {"message": "知识库服务暂不可用"}
 
 
 @pytest.mark.asyncio

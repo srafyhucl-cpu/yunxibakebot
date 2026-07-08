@@ -10,7 +10,7 @@
 本计划将项目中属于 LLM 应用编排范畴的能力迁移到 LangChain / LangGraph：
 
 - 客户机器人和员工助手的 Agent 编排统一由 LangGraph 承载。
-- 当前 `FUNCTION_DEFINITIONS` / `dispatch_tool` / 手写 tool loop 迁移为 LangChain tools + LangGraph ToolNode / 条件边。
+- 当前旧 OpenAI tool schema / 旧工具分发器 / 手写 tool loop 迁移为 LangChain tools + LangGraph ToolNode / 条件边。
 - RAG、记忆、上下文注入、转人工、fallback、guard、日志和探针验收进入 graph state / node / middleware 口径。
 - 现有业务 service、repository、models 不迁入 LangChain；它们作为工具和节点的底层依赖继续提供业务真相。
 
@@ -42,7 +42,7 @@ API / channel adapter
 | `app/service/chat_llm.py` | LangGraph 客户图 | 用 graph loop / ToolNode 替代，最终删除 |
 | `app/service/chat_ai_loop.py` | 客户 graph 入口适配 | 保留短期 facade，内部调用 customer graph，稳定后收缩 |
 | `app/service/llm/function_defs.py` | LangChain tool schemas | 迁成 typed tools，旧定义删除 |
-| `app/service/llm/functions.py` | Tool registry | 迁成 `app/service/agents/tools/`，旧 `dispatch_tool` 删除 |
+| `app/service/llm/functions.py` | Tool registry | 迁成 `app/service/agents/tools/`，旧工具分发器删除 |
 | `app/service/chat_context.py` | customer graph context node | 保留上下文构建逻辑，改成 node / adapter 调用 |
 | `app/service/knowledge_retriever.py` | retriever adapter 底层依赖 | 不重写，包装为 LangChain retriever/tool |
 | `app/service/wecom/employee_agent_planner.py` | employee graph planner node | 迁为 structured-output planner node |
@@ -160,7 +160,7 @@ python scripts/check_project.py --skip-tests
   - `group_campaign_summary`
   - `offline_review_summary`
 - 对员工侧事实类工具优先使用确定性返回：工具输出直接进入 finalizer，不让模型二次改写。
-- 保留旧 `dispatch_tool`，但新增等价测试证明新旧工具输出一致。
+- 阶段 2 临时保留旧工具分发器，但新增等价测试证明新旧工具输出一致。
 
 验收：
 
@@ -250,7 +250,7 @@ START
 - 新增 `app/service/agents/customer/nodes.py`。
 - 新增 `app/service/agents/customer/graph.py`。
 - 新增 `app/service/agents/customer/service.py`，由 `ChatService` / `chat_ai_loop.py` 调用。
-- 将 `MAX_TOOL_ROUNDS` 迁入 graph config。
+- 将客户工具轮次限制迁入 graph config。
 - 将 `chat_ai_failure.py`、`chat_transfer.py`、`chat_reply.py` 的关键逻辑以 node 形式接入。
 - `KnowledgeRetriever` 通过 retriever/tool adapter 进入 graph，不直接重写。
 
@@ -274,7 +274,7 @@ python scripts/check_knowledge_retrieval_logs_smoke.py --json
 
 回退：
 
-- `ChatService` 可通过 feature flag 回退旧 `complete_llm_tool_conversation`。
+- `ChatService` 可通过 feature flag 回退旧手写工具循环。
 - 阶段 5 删除旧链路前必须至少跑完整客户侧回归。
 
 ### 阶段 5：旧编排退场
@@ -286,7 +286,7 @@ python scripts/check_knowledge_retrieval_logs_smoke.py --json
 - `app/service/chat_llm.py`
 - `app/service/chat_tools.py`
 - `app/service/llm/function_defs.py`
-- `app/service/llm/functions.py` 中的 `dispatch_tool`
+- `app/service/llm/functions.py` 中的旧工具分发器
 - `EmployeeAgentPlanner` 的旧外部入口
 
 注意：
@@ -297,7 +297,7 @@ python scripts/check_knowledge_retrieval_logs_smoke.py --json
 验收：
 
 ```powershell
-rg -n "dispatch_tool|FUNCTION_DEFINITIONS|complete_llm_tool_conversation|MAX_TOOL_ROUNDS" app tests docs
+rg -n "旧编排入口生产路径引用" app tests docs
 python -m pytest tests/ -q
 python scripts/check_project.py --skip-tests
 ```
@@ -413,7 +413,7 @@ python scripts/check_project.py --skip-tests
 
 1. `app.main` 启动阶段仍不得加载 `langchain_core.tools`、`langchain_openai` 或 `langgraph`。
 2. 员工工具输出先保持 JSON 字符串，后续 employee graph 再决定 finalizer 展示格式。
-3. 旧 `dispatch_tool` 和员工助手原工具服务暂不删除；等阶段 3 / 4 graph 接管并通过等价验收后，再进入阶段 5 退场。
+3. 旧工具分发器和员工助手原工具服务暂不删除；等阶段 3 / 4 graph 接管并通过等价验收后，再进入阶段 5 退场。
 
 ## 十、阶段 3 员工助手 LangGraph 落地记录
 
@@ -491,7 +491,7 @@ START
 - `model_with_tools` 复用既有 `request_llm_choice`，保持 MiMo/视觉模型选择、LLM 失败兜底和告警逻辑。
 - `execute_tools` 使用阶段 2 的 LangChain `StructuredTool` 注册表执行客户工具，并继续按 OpenAI tool message 格式追加 assistant/tool 消息。
 - `transfer_to_human` 在 LangChain tool context 中接回 `request_human_transfer`，保持转人工状态更新和摘要策略。
-- `tool_round_limit` 保留 `MAX_TOOL_ROUNDS` 约束和 `llm_failure_reason=tool_round_limit` 观测。
+- `tool_round_limit` 保留客户工具轮次限制和 `llm_failure_reason=tool_round_limit` 观测。
 - `record_trace` 保留工具输出进入 `guard_source_text` 的事实保护输入。
 - `app.main` 冷导入仍不加载 `langchain_core.tools`、`langchain_openai` 或 `langgraph`。
 
@@ -530,7 +530,42 @@ python scripts/check_project.py --skip-tests
 2. 删除前必须再次跑客户 RAG golden cases、转人工路径、工具轮次限制和知识检索日志 smoke。
 3. 若要补 `eval_retrieval.py` 证据，先按脚本提示获取 `data\prod_snapshot\eval.db`，不要临时改脚本绕过语料库缺口。
 
-## 十二、推荐执行顺序
+## 十二、阶段 5 旧编排退场记录
+
+2026-07-08 已完成旧手写编排退场：
+
+- 删除 `app/service/chat_llm.py`，客户主工具循环不再存在第二套入口。
+- 删除 `app/service/chat_tools.py`，OpenAI tool message 拼装迁入 `app/service/agents/customer/tool_messages.py`。
+- 删除 `app/service/llm/function_defs.py`，客户 OpenAI tool schema 改由 `app/service/agents/tools/customer.py` 统一生成。
+- 删除 `app/service/llm/functions.py`，客户 LangChain tools 直接调用 `function_tool_order.py` / `function_tool_product.py` 中已有服务级函数。
+- 客户 graph 的工具轮次限制改为 `CUSTOMER_TOOL_ROUND_LIMIT`，避免继续复用旧编排符号。
+- `scripts/test_function_calling.py` 改为使用 `build_customer_openai_tool_definitions()`，保持人工 function calling 探针可用。
+
+阶段 5 后当前入口：
+
+```text
+run_ai_conversation_loop
+  -> CustomerAgentGraphService
+  -> CustomerAgentNodes
+  -> build_tools("customer")
+  -> app/service/agents/tools/customer.py
+```
+
+阶段 5 验收口径：
+
+```powershell
+rg -n "旧编排入口生产路径引用" app tests docs
+python -m pytest tests/service/agents tests/service/test_chat_refactor.py -q --no-cov
+python scripts/check_customer_rag_golden_cases.py --summary
+python scripts/check_knowledge_audience_governance_smoke.py --json
+python scripts/check_knowledge_retrieval_logs_smoke.py --json
+python scripts/check_wecom_employee_agent_plans.py --json
+python scripts/check_employee_agent_capability_contracts.py --summary
+python scripts/probe_langchain_capacity.py --include-app-import
+python scripts/check_project.py --skip-tests
+```
+
+## 十三、推荐执行顺序
 
 1. 阶段 0：冻结基线。
 2. 阶段 1：引入依赖和模型适配。
@@ -542,7 +577,7 @@ python scripts/check_project.py --skip-tests
 
 不建议客户机器人先迁。员工助手确定性更强，适合作为 LangGraph 首个落地点；客户机器人涉及自然语言回复、RAG、转人工和多模态入口，应在工具层和员工图稳定后再迁。
 
-## 十三、最终交付物
+## 十四、最终交付物
 
 - 代码：
   - `app/service/agents/**`
@@ -563,6 +598,6 @@ python scripts/check_project.py --skip-tests
   - 知识治理 smoke
   - 可选 LangSmith / 本地 trace 截图或报告
 
-## 十四、执行决策
+## 十五、执行决策
 
 本计划建议执行。迁移目标不是“为了使用 LangChain”，而是把当前已经存在的 LLM 编排、工具调用、RAG、记忆、状态流转和观测能力，统一迁入主流 Agent 工程框架，使系统在长期维护、架构表达和求职展示上更清晰。

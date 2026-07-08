@@ -8,8 +8,8 @@ from typing import Any
 from app.config import settings
 from app.exceptions import LLMError
 from app.logger import setup_logger
+from app.service.agents.tools.customer import build_customer_openai_tool_definitions
 from app.service.llm.client import chat_completion as llm_chat
-from app.service.llm.functions import FUNCTION_DEFINITIONS
 
 logger = setup_logger()
 
@@ -74,7 +74,7 @@ def _ensure_llm_started_at(first_llm_started_at: float | None) -> float:
 async def _request_llm_response(messages: list[dict], has_image: bool) -> Any:
     return await llm_chat(
         messages,
-        tools=FUNCTION_DEFINITIONS,
+        tools=build_customer_openai_tool_definitions(),
         model=select_llm_model(has_image),
     )
 

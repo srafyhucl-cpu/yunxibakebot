@@ -20,7 +20,7 @@ from app.models.content_change_history import (
 )
 from app.models.session import Session
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
-from app.service.llm.function_defs import KNOWLEDGE_SEARCH_LIMIT, PRODUCT_SEARCH_LIMIT
+from app.service.llm.tool_constants import KNOWLEDGE_SEARCH_LIMIT, PRODUCT_SEARCH_LIMIT
 from app.service.observability import ContentChangeLogger, build_product_change_summary
 
 if TYPE_CHECKING:

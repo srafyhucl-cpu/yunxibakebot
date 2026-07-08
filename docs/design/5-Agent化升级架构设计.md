@@ -28,7 +28,7 @@ ______________________________________________________________________
 
 | 约束 | 现状事实 | 设计影响 |
 | :--- | :--- | :--- |
-| 实时延迟 | 顾客在企微 / 有赞实时等回复；现链路 = 意图识别 + RAG + ≤3 轮 tool（`MAX_TOOL_ROUNDS=3`，见 `app/service/llm/functions.py`） | **热路径禁止新增任何 LLM 往返**；纯 CPU 检索优化（线 A）不在此列 |
+| 实时延迟 | 顾客在企微 / 有赞实时等回复；现链路 = 意图识别 + RAG + 客户工具轮次上限 | **热路径禁止新增任何 LLM 往返**；纯 CPU 检索优化（线 A）不在此列 |
 | 硬件 | 2 核 2GB | 离线任务必须低频、可批处理、与热路径资源隔离；检索索引须 CPU 友好、内存可控 |
 | LLM | 小米 MiMo（`MIMO_CHAT_MODEL`，`MIMO_TIMEOUT_SECONDS=120`） | 离线 Agent 复用同一 `chat_completion` 入口，对延迟不敏感 |
 | 身份键 | `sessions(channel, user_id)` 稳定（见 `app/migrations/schema.py`） | 长期记忆以 `(channel, user_id)` 为主键，身份对齐由渠道天然保证 |

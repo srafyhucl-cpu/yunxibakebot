@@ -3,14 +3,14 @@
 from collections.abc import Awaitable, Callable
 import json
 
-from app.service.chat_llm import LLM_FAILURE_REASON_TOOL_ROUND_LIMIT
-from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
-from app.service.chat_tools import (
+from app.service.agents.customer.constants import (
+    LLM_FAILURE_REASON_TOOL_ROUND_LIMIT,
     TRANSFER_TOOL_DEFAULT_REASON,
     TRANSFER_TOOL_ERROR_MESSAGE,
     TRANSFER_TOOL_SUCCESS_MESSAGE,
-    ToolExecutionContext,
 )
+from app.service.agents.customer.tool_messages import ToolExecutionContext
+from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 
 

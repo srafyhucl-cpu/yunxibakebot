@@ -8,6 +8,7 @@ import json
 from app.models.customer_profile import CustomerProfile
 from app.models.session import Session
 from app.service.agents.customer.state import CustomerAgentState
+from app.service.agents.customer.constants import CUSTOMER_TOOL_ROUND_LIMIT
 from app.service.agents.tools.customer import CustomerToolContext
 from app.service.agents.tools.registry import build_tools
 from app.service.agents.customer.support import (
@@ -22,7 +23,7 @@ from app.service.chat_llm_request import (
     LlmRequestContext,
     request_llm_choice,
 )
-from app.service.chat_tools import (
+from app.service.agents.customer.tool_messages import (
     ToolExecutionContext,
     append_tool_result_messages,
     parse_tool_arguments,
@@ -32,7 +33,6 @@ from app.service.conversation_summary_memory import (
     load_active_conversation_summary_text,
 )
 from app.service.knowledge_retriever import KnowledgeRetriever
-from app.service.llm.functions import MAX_TOOL_ROUNDS
 from app.service.llm.intent import IntentType
 from app.service.session_manager import SessionManager
 from app.service.transfer_manager import TransferManager
@@ -271,7 +271,7 @@ def route_after_model(state: CustomerAgentState) -> str:
         return "finalize"
     if (
         state.get("finish_reason") == "tool_calls"
-        and state.get("tool_round", 0) < MAX_TOOL_ROUNDS
+        and state.get("tool_round", 0) < CUSTOMER_TOOL_ROUND_LIMIT
     ):
         return "tools"
     return "limit"

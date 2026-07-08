@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-08] - refactor(agent): 完成旧手写编排阶段 5 退场
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 阶段 3 / 4 已分别把员工助手和客户机器人主编排迁入 LangGraph；本轮进入阶段 5，移除旧手写 LLM tool loop 和旧工具分发兼容入口，避免长期维护双轨编排。
+- **决策**:
+  - 删除旧客户手写工具循环入口，客户主链路只保留 `run_ai_conversation_loop() -> CustomerAgentGraphService`。
+  - OpenAI tool message 拼装迁入 `app/service/agents/customer/tool_messages.py`，归入 customer graph 内部辅助。
+  - 客户 OpenAI tool schema 改由 `app/service/agents/tools/customer.py` 统一生成，不再维护独立 function schema 文件。
+  - 客户 LangChain tools 直接调用 `function_tool_order.py` / `function_tool_product.py` 里的既有服务级函数，不再经过旧工具分发器。
+  - 客户工具轮次常量改为 `CUSTOMER_TOOL_ROUND_LIMIT`，避免新 graph 继续复用旧编排符号。
+- **改动**:
+  - 新增 `app/service/agents/customer/constants.py`、`tool_messages.py`。
+  - 更新 `app/service/agents/tools/customer.py`、`app/service/agents/customer/nodes.py`、`state.py`、`support.py`、`app/service/chat_llm_request.py`、`app/service/llm/function_tool_product.py`。
+  - 删除 `app/service/chat_llm.py`、`app/service/chat_tools.py`、`app/service/llm/function_defs.py`、`app/service/llm/functions.py`。
+  - 更新 `tests/service/test_chat_refactor.py`、`tests/service/agents/test_customer_tool_registry.py` 和 `scripts/test_function_calling.py`。
+  - 同步 `docs/architecture/langchain-langgraph-migration-plan.md`、`docs/architecture/bot-capability-matrix.md`、`docs/AGENTS/quick-reference.md`、`项目进度与配置清单.md`。
+- **验证结果**:
+  - 阶段 5 收口验证待本条目后继续执行并在最终回复记录。
+- **后续**:
+  - 阶段 6 进入观测、迁移 ADR、能力矩阵最终口径和求职展示材料收口。
+
 ## [2026-07-08] - feat(agent): 完成客户机器人 LangGraph 阶段 4 首版
 - **操作人**: AI (Codex)
 - **trace_id**: 20260708-langchain-langgraph-agent-migration

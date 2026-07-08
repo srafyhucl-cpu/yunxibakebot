@@ -5,7 +5,7 @@ from typing import Any, TypedDict
 
 from app.models.customer_profile import CustomerProfile
 from app.models.session import Session
-from app.service.chat_tools import ToolExecutionContext
+from app.service.agents.customer.tool_messages import ToolExecutionContext
 from app.service.llm.intent import IntentType
 
 

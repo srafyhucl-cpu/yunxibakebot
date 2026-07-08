@@ -2,10 +2,25 @@
 
 from dataclasses import dataclass
 from typing import Any
+import json
 
 from pydantic import BaseModel, Field
 
 from app.models.session import Session
+
+ORDER_INFO_DESCRIPTION = "查询订单详细信息：状态、商品、金额、收货地址等"
+PRODUCT_INFO_DESCRIPTION = (
+    "实时查询指定商品的最新价格、规格和库存；当用户提供了商品ID（纯数字）或商品名称时，"
+    "必须优先调用此工具而非搜索知识库"
+)
+LOGISTICS_INFO_DESCRIPTION = "查询物流配送进度"
+TRANSFER_TO_HUMAN_DESCRIPTION = (
+    "当用户要求转人工、表达不满或复杂售后问题时，转接人工客服"
+)
+SEARCH_KNOWLEDGE_DESCRIPTION = (
+    "搜索知识库，查找店铺政策、常见问题（如退换货规则、配送说明等）；"
+    "不适用于查询特定商品的实时库存和价格"
+)
 
 
 @dataclass(frozen=True)
@@ -52,22 +67,74 @@ def build_customer_tools(context: CustomerToolContext) -> list[Any]:
     ]
 
 
+def build_customer_openai_tool_definitions() -> list[dict]:
+    """构造 OpenAI tool schema，避免维护第二份 function_defs。"""
+    return [
+        _openai_tool_schema(
+            "get_order_info",
+            ORDER_INFO_DESCRIPTION,
+            OrderInfoArgs,
+        ),
+        _openai_tool_schema(
+            "get_product_info",
+            PRODUCT_INFO_DESCRIPTION,
+            ProductInfoArgs,
+        ),
+        _openai_tool_schema(
+            "get_logistics_info",
+            LOGISTICS_INFO_DESCRIPTION,
+            LogisticsInfoArgs,
+        ),
+        _openai_tool_schema(
+            "transfer_to_human",
+            TRANSFER_TO_HUMAN_DESCRIPTION,
+            TransferToHumanArgs,
+        ),
+        _openai_tool_schema(
+            "search_knowledge",
+            SEARCH_KNOWLEDGE_DESCRIPTION,
+            SearchKnowledgeArgs,
+        ),
+    ]
+
+
+def _openai_tool_schema(
+    name: str,
+    description: str,
+    args_schema: type[BaseModel],
+) -> dict:
+    parameters = args_schema.model_json_schema()
+    parameters.pop("title", None)
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
+
+
+def _service_unavailable(message: str) -> str:
+    return json.dumps({"message": message}, ensure_ascii=False)
+
+
 def _build_order_info_tool(context: CustomerToolContext, structured_tool: Any) -> Any:
     async def get_order_info_tool(order_no: str) -> str:
-        from app.service.llm.functions import dispatch_tool
+        if context.knowledge_retriever is None:
+            return _service_unavailable("订单查询服务暂不可用")
+        from app.service.llm.function_tool_order import get_order_info
 
-        return await dispatch_tool(
-            "get_order_info",
-            {"order_no": order_no},
-            context.session,
+        return await get_order_info(
             context.knowledge_retriever,
-            context.youzan_client,
+            youzan_client=context.youzan_client,
+            order_no=order_no,
         )
 
     return structured_tool.from_function(
         coroutine=get_order_info_tool,
         name="get_order_info",
-        description="查询订单详细信息：状态、商品、金额、收货地址等",
+        description=ORDER_INFO_DESCRIPTION,
         args_schema=OrderInfoArgs,
     )
 
@@ -77,20 +144,22 @@ def _build_product_info_tool(context: CustomerToolContext, structured_tool: Any)
         product_name: str = "",
         product_id: str = "",
     ) -> str:
-        from app.service.llm.functions import dispatch_tool
+        if context.knowledge_retriever is None:
+            return _service_unavailable("商品查询服务暂不可用")
+        from app.service.llm.function_tool_product import get_product_info
 
-        return await dispatch_tool(
-            "get_product_info",
-            {"product_name": product_name, "product_id": product_id},
-            context.session,
+        return await get_product_info(
             context.knowledge_retriever,
-            context.youzan_client,
+            context.session,
+            youzan_client=context.youzan_client,
+            product_name=product_name,
+            product_id=product_id,
         )
 
     return structured_tool.from_function(
         coroutine=get_product_info_tool,
         name="get_product_info",
-        description="实时查询指定商品的最新价格、规格和库存",
+        description=PRODUCT_INFO_DESCRIPTION,
         args_schema=ProductInfoArgs,
     )
 
@@ -100,20 +169,20 @@ def _build_logistics_info_tool(
     structured_tool: Any,
 ) -> Any:
     async def get_logistics_info_tool(order_no: str) -> str:
-        from app.service.llm.functions import dispatch_tool
+        if context.knowledge_retriever is None:
+            return _service_unavailable("物流查询服务暂不可用")
+        from app.service.llm.function_tool_order import get_logistics_info
 
-        return await dispatch_tool(
-            "get_logistics_info",
-            {"order_no": order_no},
-            context.session,
+        return await get_logistics_info(
             context.knowledge_retriever,
-            context.youzan_client,
+            youzan_client=context.youzan_client,
+            order_no=order_no,
         )
 
     return structured_tool.from_function(
         coroutine=get_logistics_info_tool,
         name="get_logistics_info",
-        description="查询物流配送进度",
+        description=LOGISTICS_INFO_DESCRIPTION,
         args_schema=LogisticsInfoArgs,
     )
 
@@ -123,20 +192,15 @@ def _build_transfer_tool(context: CustomerToolContext, structured_tool: Any) -> 
         if context.transfer_handler is not None:
             return await context.transfer_handler(reason)
 
-        from app.service.llm.functions import dispatch_tool
-
-        return await dispatch_tool(
-            "transfer_to_human",
-            {"reason": reason},
-            context.session,
-            context.knowledge_retriever,
-            context.youzan_client,
+        return json.dumps(
+            {"status": "pending", "message": "正在为您转接人工客服"},
+            ensure_ascii=False,
         )
 
     return structured_tool.from_function(
         coroutine=transfer_to_human_tool,
         name="transfer_to_human",
-        description="当用户要求转人工、表达不满或复杂售后问题时转接人工客服",
+        description=TRANSFER_TO_HUMAN_DESCRIPTION,
         args_schema=TransferToHumanArgs,
         return_direct=True,
     )
@@ -147,19 +211,15 @@ def _build_search_knowledge_tool(
     structured_tool: Any,
 ) -> Any:
     async def search_knowledge_tool(query: str) -> str:
-        from app.service.llm.functions import dispatch_tool
+        if context.knowledge_retriever is None:
+            return _service_unavailable("知识库服务暂不可用")
+        from app.service.llm.function_tool_product import search_knowledge
 
-        return await dispatch_tool(
-            "search_knowledge",
-            {"query": query},
-            context.session,
-            context.knowledge_retriever,
-            context.youzan_client,
-        )
+        return await search_knowledge(context.knowledge_retriever, query=query)
 
     return structured_tool.from_function(
         coroutine=search_knowledge_tool,
         name="search_knowledge",
-        description="搜索知识库，查找店铺政策、常见问题和产品介绍",
+        description=SEARCH_KNOWLEDGE_DESCRIPTION,
         args_schema=SearchKnowledgeArgs,
     )

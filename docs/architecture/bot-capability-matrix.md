@@ -50,9 +50,11 @@ ______________________________________________________________________
 - 前台客服 API：`app/api/channels/storefront/chat.py`
 - 前台会话服务：`app/service/conversation/storefront.py`
 - 客户主链路：`app/service/chat_message_flow.py`
-- AI 工具循环：`app/service/chat_ai_loop.py`
+- AI 主编排：`app/service/chat_ai_loop.py` -> `app/service/agents/customer/service.py`
 - RAG 上下文：`app/service/chat_context.py`
-- Function Calling 工具：`app/service/llm/function_defs.py`、`app/service/llm/functions.py`
+- LangGraph 节点：`app/service/agents/customer/graph.py`、`app/service/agents/customer/nodes.py`
+- LangChain 工具：`app/service/agents/tools/customer.py`
+- OpenAI tool 消息：`app/service/agents/customer/tool_messages.py`
 - 转人工：`app/service/chat_transfer.py`、`app/service/transfer_manager.py`
 - 客户记忆：`app/service/customer_memory.py`、`app/service/offline/agent_memory.py`
 

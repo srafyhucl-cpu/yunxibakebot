@@ -7,8 +7,13 @@ import pytest
 from app.exceptions import LLMError
 from app.service import chat_message_flow as chat_message_flow_module
 from app.service import chat_ai_loop as chat_ai_loop_module
-from app.service import chat_llm as chat_llm_module
 from app.service import chat_llm_request as chat_llm_request_module
+from app.service.agents.customer.support import build_transfer_handler
+from app.service.agents.customer.tool_messages import (
+    ToolExecutionContext,
+    append_tool_result_messages,
+    parse_tool_arguments,
+)
 from app.models.message import Message, MessageRole
 from app.models.customer_profile import CustomerProfile
 from app.models.session import Session, SessionStatus
@@ -41,11 +46,9 @@ from app.service.chat_message_flow import (
 from app.service.conversation_summary_scheduler import (
     ConversationSummaryAfterReplyRequest,
 )
-from app.service.chat_llm import (
-    LlmChoiceResult,
+from app.service.chat_llm_request import (
+    LLM_FAILURE_REASON_KEY,
     LlmRequestContext,
-    LlmToolLoopContext,
-    complete_llm_tool_conversation,
     request_llm_choice,
     select_llm_model,
 )
@@ -54,17 +57,11 @@ from app.service.chat_multimodal import (
     normalize_image_data_uri,
 )
 from app.service.chat_reply import postprocess_reply, record_reply_latency
-from app.service.chat_tools import (
-    ToolExecutionContext,
-    parse_tool_arguments,
-    process_tool_calls,
-)
 from app.service.chat_transfer import (
     HumanTransferContext,
     build_transfer_summary_fallback,
     request_human_transfer,
 )
-from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent import IntentType
 
 
@@ -852,137 +849,6 @@ async def test_request_llm_choice_returns_fallback_on_llm_error(
     assert alerts == ["LLMError: chat.py handle_message 返回兜底回复"]
 
 
-@pytest.mark.asyncio
-async def test_complete_llm_tool_conversation_runs_tool_round_then_returns_text(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool_call = SimpleNamespace(
-        id="tool-1",
-        function=SimpleNamespace(
-            name="search_knowledge", arguments='{"query": "cake"}'
-        ),
-    )
-    requested_rounds: list[list[dict]] = []
-    processed_tool_calls: list[list] = []
-
-    async def fake_request_llm_choice(context: LlmRequestContext) -> LlmChoiceResult:
-        messages = context.messages
-        requested_rounds.append(messages)
-        if len(requested_rounds) == 1:
-            message = SimpleNamespace(content=None, tool_calls=[tool_call])
-            choice = SimpleNamespace(message=message, finish_reason="tool_calls")
-        else:
-            message = SimpleNamespace(content="done", tool_calls=[])
-            choice = SimpleNamespace(message=message, finish_reason="stop")
-        return LlmChoiceResult(
-            choice=choice,
-            message=message,
-            first_llm_started_at=1.0,
-        )
-
-    async def fake_process_tool_calls(
-        tool_calls: list,
-        messages: list[dict],
-        context: ToolExecutionContext,
-    ) -> None:
-        processed_tool_calls.append(tool_calls)
-        messages.append({"role": "tool", "content": "tool result"})
-
-    async def fake_alerter(message: str) -> None:
-        raise AssertionError(message)
-
-    monkeypatch.setattr(chat_llm_module, "request_llm_choice", fake_request_llm_choice)
-    monkeypatch.setattr(chat_llm_module, "process_tool_calls", fake_process_tool_calls)
-    timing: dict[str, int] = {}
-    messages = [{"role": "user", "content": "hello"}]
-
-    reply = await complete_llm_tool_conversation(
-        LlmToolLoopContext(
-            messages=messages,
-            timing=timing,
-            has_image=False,
-            fallback_reply="fallback",
-            timeout_reply="timeout",
-            failure_alerter=fake_alerter,
-            tool_context=ToolExecutionContext(
-                session=Session(id="session-1", channel="youzan", user_id="buyer-1"),
-                history_text="old",
-                transfer_mgr=object(),
-                session_repo=object(),
-                knowledge=object(),
-                youzan_client=object(),
-            ),
-        )
-    )
-
-    assert reply == "done"
-    assert len(requested_rounds) == 2
-    assert processed_tool_calls == [[tool_call]]
-    assert messages[-1] == {"role": "tool", "content": "tool result"}
-    assert timing["tool_rounds"] == 1
-    context_budget = timing["context_budget"]
-    assert context_budget["tool_context_message_count"] == 1
-    assert context_budget["tool_result_message_count"] == 1
-    assert context_budget["tool_result_token_estimate"] > 0
-    assert context_budget["tool_context_policy"] == "observed_runtime_tool_messages"
-
-
-@pytest.mark.asyncio
-async def test_complete_llm_tool_conversation_marks_tool_round_limit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool_call = SimpleNamespace(
-        id="tool-1",
-        function=SimpleNamespace(
-            name="search_knowledge", arguments='{"query": "cake"}'
-        ),
-    )
-
-    async def fake_request_llm_choice(context: LlmRequestContext) -> LlmChoiceResult:
-        message = SimpleNamespace(content=None, tool_calls=[tool_call])
-        choice = SimpleNamespace(message=message, finish_reason="tool_calls")
-        return LlmChoiceResult(
-            choice=choice,
-            message=message,
-            first_llm_started_at=1.0,
-        )
-
-    async def fake_process_tool_calls(
-        tool_calls: list,
-        messages: list[dict],
-        context: ToolExecutionContext,
-    ) -> None:
-        messages.append({"role": "tool", "content": "tool result"})
-
-    monkeypatch.setattr(chat_llm_module, "request_llm_choice", fake_request_llm_choice)
-    monkeypatch.setattr(chat_llm_module, "process_tool_calls", fake_process_tool_calls)
-    timing: dict[str, object] = {}
-
-    reply = await complete_llm_tool_conversation(
-        LlmToolLoopContext(
-            messages=[{"role": "user", "content": "hello"}],
-            timing=timing,
-            has_image=False,
-            fallback_reply="fallback",
-            timeout_reply="timeout",
-            failure_alerter=_fake_alerter,
-            tool_context=ToolExecutionContext(
-                session=Session(id="session-1", channel="youzan", user_id="buyer-1"),
-                history_text="old",
-                transfer_mgr=object(),
-                session_repo=object(),
-                knowledge=object(),
-                youzan_client=object(),
-            ),
-        )
-    )
-
-    assert reply == "timeout"
-    assert timing[LLM_FAILURE_REASON_KEY] == "tool_round_limit"
-    assert timing["tool_rounds"] >= 1
-    assert timing["context_budget"]["tool_result_message_count"] >= 1
-
-
 def test_parse_tool_arguments_rejects_invalid_json() -> None:
     assert parse_tool_arguments("search_knowledge", '{"query": "cake"}') == {
         "query": "cake"
@@ -992,7 +858,7 @@ def test_parse_tool_arguments_rejects_invalid_json() -> None:
 
 
 @pytest.mark.asyncio
-async def test_process_tool_calls_handles_transfer_and_appends_result(
+async def test_transfer_handler_appends_tool_result_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     transfer_mgr = _FakeTransferManager()
@@ -1014,17 +880,25 @@ async def test_process_tool_calls_handles_transfer_and_appends_result(
         "app.service.chat_transfer.build_transfer_summary", fake_summary
     )
 
-    await process_tool_calls(
-        [tool_call],
+    tool_args = parse_tool_arguments(
+        tool_call.function.name,
+        tool_call.function.arguments,
+    )
+    tool_context = ToolExecutionContext(
+        session=session,
+        history_text="old dialog " * 100,
+        transfer_mgr=transfer_mgr,
+        session_repo=session_repo,
+        knowledge=object(),
+        youzan_client=object(),
+    )
+    result = await build_transfer_handler(tool_context)(tool_args["reason"])
+    append_tool_result_messages(
         messages,
-        ToolExecutionContext(
-            session=session,
-            history_text="old dialog " * 100,
-            transfer_mgr=transfer_mgr,
-            session_repo=session_repo,
-            knowledge=object(),
-            youzan_client=object(),
-        ),
+        tool_call,
+        tool_call.function.name,
+        tool_args,
+        result,
     )
 
     assert transfer_mgr.calls[0].reason == "need staff"

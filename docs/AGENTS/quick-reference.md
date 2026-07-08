@@ -8,7 +8,9 @@ ______________________________________________________________________
 |------|------|
 | AI 对话入口 | `app/service/chat.py` |
 | System Prompt 构建 | `app/service/llm/prompt.py` |
-| Function Calling 调度 | `app/service/llm/functions.py` |
+| 客户 LangGraph 编排 | `app/service/agents/customer/graph.py` |
+| 客户 LangChain 工具 | `app/service/agents/tools/customer.py` |
+| 客户 OpenAI tool 消息 | `app/service/agents/customer/tool_messages.py` |
 | 意图识别 | `app/service/llm/intent.py` |
 | RAG 检索 | `app/service/knowledge_retriever.py` |
 | 向量搜索 | `app/service/embedding_search.py` |
