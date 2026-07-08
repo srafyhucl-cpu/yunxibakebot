@@ -647,28 +647,19 @@ async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
 ) -> None:
     captured: dict[str, object] = {}
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
-    messages = [{"role": "user", "content": "hello"}]
 
-    async def fake_prepare_ai_conversation_messages(**kwargs: object) -> tuple:
-        captured["prepare_kwargs"] = kwargs
-        return messages, "prepared history"
+    class FakeCustomerGraphService:
+        def __init__(self, dependencies: object) -> None:
+            captured["graph_dependencies"] = dependencies
 
-    async def fake_complete_llm_tool_conversation(context: LlmToolLoopContext) -> str:
-        captured["llm_context"] = context
-        return "reply"
-
-    async def fake_alerter(message: str) -> None:
-        captured["alert"] = message
+        async def answer(self, request: object) -> str:
+            captured["graph_request"] = request
+            return "reply"
 
     monkeypatch.setattr(
         chat_ai_loop_module,
-        "prepare_ai_conversation_messages",
-        fake_prepare_ai_conversation_messages,
-    )
-    monkeypatch.setattr(
-        chat_ai_loop_module,
-        "complete_llm_tool_conversation",
-        fake_complete_llm_tool_conversation,
+        "CustomerAgentGraphService",
+        FakeCustomerGraphService,
     )
 
     reply = await run_ai_conversation_loop(
@@ -680,7 +671,7 @@ async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
             youzan_client=object(),
             fallback_reply="fallback",
             timeout_reply="timeout",
-            failure_alerter=fake_alerter,
+            failure_alerter=_fake_alerter,
             conversation_summary_repo=_FakeConversationSummaryRepo(
                 "客户早前想要低糖蛋糕。"
             ),
@@ -697,16 +688,15 @@ async def test_run_ai_conversation_loop_prepares_messages_and_invokes_llm(
     )
 
     assert reply == "reply"
-    assert captured["prepare_kwargs"]["session"] is session
-    assert captured["prepare_kwargs"]["conversation_summary_text"] == (
+    graph_dependencies = captured["graph_dependencies"]
+    assert graph_dependencies.conversation_summary_repo.summary_text == (
         "客户早前想要低糖蛋糕。"
     )
-    llm_context = captured["llm_context"]
-    assert isinstance(llm_context, LlmToolLoopContext)
-    assert llm_context.messages == messages
-    assert llm_context.has_image is True
-    assert llm_context.tool_context.history_text == "prepared history"
-    assert llm_context.tool_context.session is session
+    graph_request = captured["graph_request"]
+    assert graph_request.session is session
+    assert graph_request.user_query == "cake"
+    assert graph_request.history_text == "old"
+    assert graph_request.image_base64 == "image"
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,40 @@
 ﻿
+## [2026-07-08] - feat(agent): 完成客户机器人 LangGraph 阶段 4 首版
+- **操作人**: AI (Codex)
+- **trace_id**: 20260708-langchain-langgraph-agent-migration
+- **背景**: 阶段 1-3 已提交并推送到 `origin/master` 与 `server/master`，员工助手已由 LangGraph 接管；本轮继续阶段 4，把客户机器人 AI 主编排入口迁入 LangGraph。
+- **决策**:
+  - `run_ai_conversation_loop()` 改为调用 `CustomerAgentGraphService`，客户 AI 主编排入口进入 LangGraph。
+  - 首版 graph 复用既有 RAG 上下文、会话摘要、客户画像、多模态图片、LLM 请求、tool round 限制和失败兜底逻辑，不在本阶段删除旧 `chat_llm.py`。
+  - `execute_tools` 使用阶段 2 的客户侧 LangChain `StructuredTool` 注册表执行工具，并继续追加 OpenAI tool message，保持旧消息结构兼容。
+  - `transfer_to_human` 在 LangChain tool context 内接回 `request_human_transfer`，保持转人工状态更新、摘要和安全提示。
+  - `record_trace` 保留工具输出进入 `guard_source_text`，避免事实保护输入退化。
+  - LangGraph 继续懒加载，FastAPI / `app.main` 导入路径不得加载 `langchain_core.tools`、`langchain_openai` 或 `langgraph`。
+- **改动**:
+  - `app/service/agents/customer/state.py` - 新增客户机器人 LangGraph 状态模型。
+  - `app/service/agents/customer/nodes.py` - 新增上下文加载、模型请求、LangChain 工具执行、轮次限制、最终回复和 trace 节点。
+  - `app/service/agents/customer/graph.py` - 新增 customer `StateGraph` 构建入口和条件边。
+  - `app/service/agents/customer/service.py` - 新增 `CustomerAgentGraphService` application adapter。
+  - `app/service/chat_ai_loop.py` - 收缩为 customer graph adapter 调用入口。
+  - `tests/service/agents/test_customer_graph.py` - 覆盖 customer graph 工具轮次、guard source 和导入阶段不加载 LangGraph。
+  - `tests/service/test_chat_refactor.py` - 更新旧入口测试，验证 `run_ai_conversation_loop()` 委托 customer graph。
+  - `docs/architecture/langchain-langgraph-migration-plan.md` - 记录阶段 4 首版落地范围、验收结果和退场约束。
+- **验证结果**:
+  - `python -m ruff check app/service/agents/customer app/service/chat_ai_loop.py tests/service/agents/test_customer_graph.py tests/service/test_chat_refactor.py` 通过。
+  - `python -m pytest tests/service/agents tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python -m pytest tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python -m pytest tests/service/youzan -q --no-cov` 通过。
+  - `python scripts/check_customer_rag_golden_cases.py --summary` 通过，13 项失败 0。
+  - `python scripts/check_knowledge_audience_governance_smoke.py --json` 通过，5 项失败 0。
+  - `python scripts/check_knowledge_retrieval_logs_smoke.py --json` 通过，4 项失败 0。
+  - `python scripts/probe_langchain_capacity.py --include-app-import` 通过；本轮 `langchain_openai` 冷导入本地 RSS 增量约 313.54MB，最小 graph 增量约 0.24MB。
+  - 干净进程导入 `app.main` 后 `langchain_core.tools=False`、`langchain_openai=False`、`langgraph=False`。
+  - `python scripts/check_project.py --skip-tests` 通过，函数长度 WARN 仍为既有 52 处。
+- **未完成验证**:
+  - `python scripts/eval_retrieval.py --fixture tests/fixtures/customer_rag_golden_cases.json` 未执行成功，原因是本机缺少 `data\prod_snapshot\eval.db`，脚本要求先运行生产快照拉取。
+- **后续**:
+  - 阶段 5 可进入旧编排退场：逐步删除或收缩 `chat_llm.py`、`chat_tools.py`、`app/service/llm/function_defs.py`、`app/service/llm/functions.py` 等兼容入口，但必须重新跑客户 RAG、转人工、工具轮次限制和检索日志 smoke。
+
 ## [2026-07-08] - feat(agent): 完成员工助手 LangGraph 阶段 3
 - **操作人**: AI (Codex)
 - **trace_id**: 20260708-langchain-langgraph-agent-migration

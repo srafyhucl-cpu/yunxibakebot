@@ -2,7 +2,7 @@
 
 > trace_id: `20260708-langchain-langgraph-agent-migration`
 > 日期：2026-07-08
-> 状态：执行中（阶段 3 已完成）
+> 状态：执行中（阶段 4 首版已完成）
 > 适用范围：客户机器人、企微员工助手、LLM 编排层、工具调用层、RAG / 记忆 / 观测适配层
 
 ## 一、目标结论
@@ -468,7 +468,69 @@ python scripts/check_project.py --skip-tests
 2. 阶段 5 旧编排退场时，`EmployeeAgentPlanner` 可作为 planner node 依赖保留，但不应再作为 `EmployeeAgentService.answer()` 的主编排入口。
 3. 若后续要扩展员工 graph 观测，优先把 `trace_events` 接到本地 observability，而不是在节点里直接写数据库。
 
-## 十一、推荐执行顺序
+## 十一、阶段 4 客户机器人 LangGraph 首版落地记录
+
+2026-07-08 已完成客户机器人 LangGraph 首版接管：
+
+- 新增 `app/service/agents/customer/state.py`、`nodes.py`、`graph.py`、`service.py`。
+- `run_ai_conversation_loop()` 已改为调用 `CustomerAgentGraphService`，客户 AI 主编排入口进入 LangGraph。
+- customer graph 当前节点链路为：
+
+```text
+START
+  -> load_session_context
+  -> model_with_tools
+  -> execute_tools
+  -> model_with_tools
+  -> finalize_reply / tool_round_limit
+  -> record_trace
+  -> END
+```
+
+- `load_session_context` 复用既有 `prepare_ai_conversation_messages`，保持 RAG、会话摘要、客户画像、多模态图片和 context budget 观测。
+- `model_with_tools` 复用既有 `request_llm_choice`，保持 MiMo/视觉模型选择、LLM 失败兜底和告警逻辑。
+- `execute_tools` 使用阶段 2 的 LangChain `StructuredTool` 注册表执行客户工具，并继续按 OpenAI tool message 格式追加 assistant/tool 消息。
+- `transfer_to_human` 在 LangChain tool context 中接回 `request_human_transfer`，保持转人工状态更新和摘要策略。
+- `tool_round_limit` 保留 `MAX_TOOL_ROUNDS` 约束和 `llm_failure_reason=tool_round_limit` 观测。
+- `record_trace` 保留工具输出进入 `guard_source_text` 的事实保护输入。
+- `app.main` 冷导入仍不加载 `langchain_core.tools`、`langchain_openai` 或 `langgraph`。
+
+阶段 4 验收：
+
+```powershell
+python -m pytest tests/service/agents tests/service/test_chat_refactor.py -q --no-cov
+python -m pytest tests/service/test_chat_refactor.py -q --no-cov
+python -m pytest tests/service/youzan -q --no-cov
+python scripts/check_customer_rag_golden_cases.py --summary
+python scripts/check_knowledge_audience_governance_smoke.py --json
+python scripts/check_knowledge_retrieval_logs_smoke.py --json
+python scripts/probe_langchain_capacity.py --include-app-import
+python -c "import sys; import app.main; print({name: (name in sys.modules) for name in ['langchain_core.tools','langchain_openai','langgraph']})"
+python scripts/check_project.py --skip-tests
+```
+
+结果：
+
+- `tests/service/agents` 与 `tests/service/test_chat_refactor.py` 通过。
+- `tests/service/youzan` 通过。
+- 客户 RAG golden cases 13 项通过，失败 0。
+- 知识 audience smoke 5 项通过，失败 0。
+- 知识检索日志 smoke 4 项通过，失败 0。
+- 容量探针通过；本轮本地 `langchain_openai` 冷导入 RSS 增量约 313.54MB，最小 graph 增量约 0.24MB。
+- 干净进程单独导入 `app.main` 后，`langchain_core.tools=False`、`langchain_openai=False`、`langgraph=False`。
+- `python scripts/check_project.py --skip-tests` 通过，函数长度 WARN 仍为既有 52 处。
+
+未完成验证：
+
+- `python scripts/eval_retrieval.py --fixture tests/fixtures/customer_rag_golden_cases.json` 未执行成功，原因是本机缺少 `data\prod_snapshot\eval.db`，脚本要求先拉取生产评估语料库。
+
+阶段 4 后续约束：
+
+1. 阶段 5 才删除或收缩 `chat_llm.py`、`chat_tools.py`、`app/service/llm/function_defs.py`、`app/service/llm/functions.py` 等旧编排/兼容入口。
+2. 删除前必须再次跑客户 RAG golden cases、转人工路径、工具轮次限制和知识检索日志 smoke。
+3. 若要补 `eval_retrieval.py` 证据，先按脚本提示获取 `data\prod_snapshot\eval.db`，不要临时改脚本绕过语料库缺口。
+
+## 十二、推荐执行顺序
 
 1. 阶段 0：冻结基线。
 2. 阶段 1：引入依赖和模型适配。
@@ -480,7 +542,7 @@ python scripts/check_project.py --skip-tests
 
 不建议客户机器人先迁。员工助手确定性更强，适合作为 LangGraph 首个落地点；客户机器人涉及自然语言回复、RAG、转人工和多模态入口，应在工具层和员工图稳定后再迁。
 
-## 十二、最终交付物
+## 十三、最终交付物
 
 - 代码：
   - `app/service/agents/**`
@@ -501,6 +563,6 @@ python scripts/check_project.py --skip-tests
   - 知识治理 smoke
   - 可选 LangSmith / 本地 trace 截图或报告
 
-## 十三、执行决策
+## 十四、执行决策
 
 本计划建议执行。迁移目标不是“为了使用 LangChain”，而是把当前已经存在的 LLM 编排、工具调用、RAG、记忆、状态流转和观测能力，统一迁入主流 Agent 工程框架，使系统在长期维护、架构表达和求职展示上更清晰。
