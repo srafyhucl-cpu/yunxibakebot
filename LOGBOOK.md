@@ -22,6 +22,10 @@
   - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
   - `python scripts\check_evidence_index.py --summary` 通过。
   - `python scripts\check_project.py --skip-tests` 通过。
+  - 生产 `/opt/yunxibakebot` 已同步到 `b1701f00d5471d50c67dfb510f7317e71d024761`，`VERSION=0.105.2`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.2`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - 由具备权限的人在仓库外提供真实客服记录，按操作包导出脱敏 fixture、人工审核后生成 manifest 条目；随后运行 `--require-real` 门禁。
 
