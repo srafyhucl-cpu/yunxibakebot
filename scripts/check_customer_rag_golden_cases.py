@@ -19,6 +19,15 @@ REQUIRED_GROUPS = (
     "human_transfer",
     "knowledge_no_match",
 )
+REQUIRED_SENSITIVE_SCENARIOS = (
+    "order",
+    "refund",
+    "after_sales",
+    "inventory",
+    "price",
+    "human_transfer",
+)
+MIN_SENSITIVE_CASES_PER_SCENARIO = 5
 REQUIRED_CASE_FIELDS = ("id", "group", "query", "intent", "relevant", "guardrails")
 
 
@@ -49,6 +58,7 @@ def validate_fixture(payload: dict[str, object]) -> list[GoldenCaseCheck]:
         if isinstance(case, dict) and case.get("group")
     }
     checks.extend(_check_required_groups(groups))
+    checks.extend(_check_sensitive_scenarios(cases))
     return checks
 
 
@@ -93,6 +103,11 @@ def _case_content_errors(case: dict[str, object]) -> list[str]:
         errors.append("relevant must contain non-empty keyword matchers")
     if not _is_valid_text_list(case.get("guardrails")):
         errors.append("guardrails must contain non-empty text")
+    sensitive_scenarios = case.get("sensitive_scenarios")
+    if sensitive_scenarios is not None and not _is_valid_sensitive_scenarios(
+        sensitive_scenarios
+    ):
+        errors.append("sensitive_scenarios contains unknown or empty value")
     return errors
 
 
@@ -116,6 +131,37 @@ def _check_required_groups(groups: set[str]) -> list[GoldenCaseCheck]:
             "" if group in groups else "required group missing",
         )
         for group in REQUIRED_GROUPS
+    ]
+
+
+def _is_valid_sensitive_scenarios(value: object) -> bool:
+    return _is_valid_text_list(value) and all(
+        str(item) in REQUIRED_SENSITIVE_SCENARIOS for item in value
+    )
+
+
+def _check_sensitive_scenarios(cases: list[object]) -> list[GoldenCaseCheck]:
+    counts = {scenario: 0 for scenario in REQUIRED_SENSITIVE_SCENARIOS}
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+        sensitive_scenarios = case.get("sensitive_scenarios")
+        if not isinstance(sensitive_scenarios, list):
+            continue
+        for scenario in set(str(item) for item in sensitive_scenarios):
+            if scenario in counts:
+                counts[scenario] += 1
+    return [
+        GoldenCaseCheck(
+            f"sensitive.{scenario}",
+            count >= MIN_SENSITIVE_CASES_PER_SCENARIO,
+            (
+                ""
+                if count >= MIN_SENSITIVE_CASES_PER_SCENARIO
+                else f"expected >= {MIN_SENSITIVE_CASES_PER_SCENARIO}, got {count}"
+            ),
+        )
+        for scenario, count in counts.items()
     ]
 
 

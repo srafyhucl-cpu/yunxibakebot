@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - feat(eval): 扩充 P4a 客户事实敏感场景样本
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P3 已完成 RAG 检索模式灰度入口；P4 需要强化订单、退款、售后、库存、价格和转人工等事实敏感场景的可评估治理能力。
+- **决策**:
+  - 在客户 RAG golden cases 中新增 `sensitive_scenarios` 标签，先以脱敏 fixture 和离线 eval 固化治理覆盖，不直接改线上回复策略。
+  - 新增机器检查：订单、退款、售后、库存、价格、转人工 6 类事实敏感场景每类至少 5 条样本。
+  - 新增 30 条客户事实敏感样本，覆盖订单状态/改地址/提前配送/退款到账/售后破损/漏发/食品安全/实时库存/价格优惠/明确转人工等高风险问法。
+- **改动**:
+  - `tests/fixtures/customer_rag_golden_cases.json` - 新增 `required_sensitive_scenarios` 和 30 条事实敏感样本，客户业务样本从 40 条提升到 70 条。
+  - `scripts/check_customer_rag_golden_cases.py` - 增加敏感场景覆盖检查。
+  - `scripts/eval_customer_agent.py` - 在 eval case metadata 中输出 `sensitive_scenarios`。
+  - `tests/scripts/test_check_customer_rag_golden_cases.py`、`tests/scripts/test_agent_eval_scripts.py` - 覆盖敏感场景覆盖和客户 eval 总量。
+- **验证结果**:
+  - `python scripts\check_customer_rag_golden_cases.py --summary` 通过，83 项失败 0。
+  - `python scripts\eval_customer_agent.py --summary` 通过，71 项失败 0。
+  - `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json` 通过，双机器人 133 项失败 0。
+  - `python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py tests\scripts\test_report_retrieval_eval_matrix.py tests\scripts\test_eval_retrieval.py -q --no-cov` 通过，26 项失败 0。
+  - `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5` 通过；70 条可评估客户样本下 hybrid Recall@5=0.9857、MRR=0.8881，planned-hybrid 持平，planned-hybrid+rerank Recall@5=0.9714、MRR=0.9136。
+
 ## [2026-07-10] - feat(rag): 接入 P3e RAG 检索模式热路径门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

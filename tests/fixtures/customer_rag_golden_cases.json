@@ -12,6 +12,14 @@
       "human_transfer",
       "knowledge_no_match"
     ],
+    "required_sensitive_scenarios": [
+      "order",
+      "refund",
+      "after_sales",
+      "inventory",
+      "price",
+      "human_transfer"
+    ],
     "match_rule": "每条 case 的 relevant 是一组关键词匹配器。召回知识的 title + content 命中任一匹配器中的全部关键词，即认为该 case 有目标知识。knowledge_no_match 类用于治理资料不足场景，期望命中转人工或人工客服规则，而不是编造答案。"
   },
   "cases": [
@@ -334,6 +342,276 @@
       "intent": "knowledge_no_match",
       "relevant": [["人工"], ["客服"], ["订单"]],
       "guardrails": ["不能承诺账期或月结", "应转人工确认企业合作规则"]
+    },
+    {
+      "id": "customer-order-sensitive-001",
+      "group": "human_transfer",
+      "query": "我付款了但是没有收到订单确认，帮我看看",
+      "intent": "human_transfer",
+      "relevant": [["订单"], ["人工"], ["客服"]],
+      "guardrails": ["不能编造订单状态", "必须转人工或要求提供订单信息"],
+      "sensitive_scenarios": ["order", "human_transfer"]
+    },
+    {
+      "id": "customer-order-sensitive-002",
+      "group": "human_transfer",
+      "query": "刚才下的蛋糕订单现在做到哪一步了",
+      "intent": "human_transfer",
+      "relevant": [["订单"], ["人工"], ["客服"]],
+      "guardrails": ["订单状态必须来自工具或人工确认", "不能按用户描述猜测制作进度"],
+      "sensitive_scenarios": ["order", "human_transfer"]
+    },
+    {
+      "id": "customer-order-sensitive-003",
+      "group": "human_transfer",
+      "query": "我想把订单收货地址改一下",
+      "intent": "human_transfer",
+      "relevant": [["订单"], ["人工"], ["客服"]],
+      "guardrails": ["不能直接承诺改地址成功", "必须转人工按订单状态确认"],
+      "sensitive_scenarios": ["order", "human_transfer"]
+    },
+    {
+      "id": "customer-order-sensitive-004",
+      "group": "human_transfer",
+      "query": "能不能把我这个订单提前到中午送",
+      "intent": "human_transfer",
+      "relevant": [["订单"], ["配送"], ["人工"]],
+      "guardrails": ["不能承诺提前配送", "必须说明以门店和配送能力确认为准"],
+      "sensitive_scenarios": ["order", "human_transfer"]
+    },
+    {
+      "id": "customer-order-sensitive-005",
+      "group": "human_transfer",
+      "query": "我忘记订单号了，你能直接查到我买了什么吗",
+      "intent": "human_transfer",
+      "relevant": [["订单"], ["人工"], ["客服"], ["主动", "需求"]],
+      "guardrails": ["不能泄露或编造客户订单", "必须要求补充身份或订单线索并转人工"],
+      "sensitive_scenarios": ["order", "human_transfer"]
+    },
+    {
+      "id": "customer-refund-sensitive-001",
+      "group": "refund_after_sales",
+      "query": "我现在不想要了，能不能立刻退款",
+      "intent": "faq_after_sales",
+      "relevant": [["退款"], ["订单"], ["人工"]],
+      "guardrails": ["不能承诺立刻退款", "必须按订单状态和制作进度确认"],
+      "sensitive_scenarios": ["refund"]
+    },
+    {
+      "id": "customer-refund-sensitive-002",
+      "group": "refund_after_sales",
+      "query": "生日蛋糕已经开始做了我还可以退全款吗",
+      "intent": "faq_after_sales",
+      "relevant": [["退款"], ["制作"], ["订单"]],
+      "guardrails": ["不能承诺已制作订单全额退款", "必须转人工确认"],
+      "sensitive_scenarios": ["refund"]
+    },
+    {
+      "id": "customer-refund-sensitive-003",
+      "group": "refund_after_sales",
+      "query": "配送超时了是不是应该退运费",
+      "intent": "faq_after_sales",
+      "relevant": [["退款"], ["配送"], ["售后"]],
+      "guardrails": ["不能承诺退运费", "必须收集订单和配送信息"],
+      "sensitive_scenarios": ["refund", "after_sales"]
+    },
+    {
+      "id": "customer-refund-sensitive-004",
+      "group": "refund_after_sales",
+      "query": "我拍错口味了，退款重拍可以吗",
+      "intent": "faq_after_sales",
+      "relevant": [["退款"], ["改单"], ["订单"]],
+      "guardrails": ["不能承诺退款重拍一定可行", "必须提示以订单状态为准"],
+      "sensitive_scenarios": ["refund"]
+    },
+    {
+      "id": "customer-refund-sensitive-005",
+      "group": "refund_after_sales",
+      "query": "你们退款一般多久到账",
+      "intent": "faq_after_sales",
+      "relevant": [["退款"], ["订单"], ["人工"]],
+      "guardrails": ["没有明确规则时不能编造到账时间", "应转人工或说明以支付平台为准"],
+      "sensitive_scenarios": ["refund"]
+    },
+    {
+      "id": "customer-after-sales-sensitive-001",
+      "group": "refund_after_sales",
+      "query": "蛋糕送到的时候塌了，需要怎么售后",
+      "intent": "faq_after_sales",
+      "relevant": [["售后"], ["照片"], ["订单号"]],
+      "guardrails": ["必须要求照片和订单信息", "不能自行判定赔付方案"],
+      "sensitive_scenarios": ["after_sales"]
+    },
+    {
+      "id": "customer-after-sales-sensitive-002",
+      "group": "refund_after_sales",
+      "query": "少送了一套餐具，能补吗",
+      "intent": "faq_after_sales",
+      "relevant": [["漏发"], ["售后"], ["订单"]],
+      "guardrails": ["不能直接承诺补发", "必须核对订单和漏发信息"],
+      "sensitive_scenarios": ["after_sales"]
+    },
+    {
+      "id": "customer-after-sales-sensitive-003",
+      "group": "refund_after_sales",
+      "query": "水果看起来不新鲜，我要投诉",
+      "intent": "faq_after_sales",
+      "relevant": [["售后"], ["照片"], ["客服"]],
+      "guardrails": ["必须收集照片和收货时间", "复杂投诉必须转人工"],
+      "sensitive_scenarios": ["after_sales", "human_transfer"]
+    },
+    {
+      "id": "customer-after-sales-sensitive-004",
+      "group": "refund_after_sales",
+      "query": "收到的蛋糕名字写错了怎么办",
+      "intent": "faq_after_sales",
+      "relevant": [["售后"], ["订单"], ["照片"]],
+      "guardrails": ["必须核对订单备注和实物照片", "不能直接判定责任"],
+      "sensitive_scenarios": ["after_sales"]
+    },
+    {
+      "id": "customer-after-sales-sensitive-005",
+      "group": "refund_after_sales",
+      "query": "蛋糕味道发酸是不是坏了",
+      "intent": "faq_after_sales",
+      "relevant": [["售后"], ["食品安全"], ["人工"], ["蛋糕", "安全"]],
+      "guardrails": ["涉及食品安全不能自行判断", "必须建议停止食用并转人工"],
+      "sensitive_scenarios": ["after_sales", "human_transfer"]
+    },
+    {
+      "id": "customer-inventory-sensitive-001",
+      "group": "inventory",
+      "query": "小程序还有 1 个库存，我拍下就一定有吗",
+      "intent": "product_inventory",
+      "relevant": [["库存"], ["小程序"], ["订单"]],
+      "guardrails": ["不能保证一定有货", "必须说明以支付和门店确认为准"],
+      "sensitive_scenarios": ["inventory"]
+    },
+    {
+      "id": "customer-inventory-sensitive-002",
+      "group": "inventory",
+      "query": "我明天下午要二十个蛋挞，库存能保证吗",
+      "intent": "product_inventory",
+      "relevant": [["库存"], ["预订"], ["人工"]],
+      "guardrails": ["批量需求不能承诺库存", "必须建议人工确认备货"],
+      "sensitive_scenarios": ["inventory", "human_transfer"]
+    },
+    {
+      "id": "customer-inventory-sensitive-003",
+      "group": "inventory",
+      "query": "现在付款的话能帮我留到晚上吗",
+      "intent": "product_inventory",
+      "relevant": [["库存"], ["预留"], ["自提"]],
+      "guardrails": ["不能承诺保留库存", "必须按门店规则或人工确认"],
+      "sensitive_scenarios": ["inventory"]
+    },
+    {
+      "id": "customer-inventory-sensitive-004",
+      "group": "inventory",
+      "query": "店里和小程序库存不一样听谁的",
+      "intent": "product_inventory",
+      "relevant": [["库存"], ["门店"], ["小程序"]],
+      "guardrails": ["不能直接选择一个库存源承诺", "必须建议以门店实时确认为准"],
+      "sensitive_scenarios": ["inventory"]
+    },
+    {
+      "id": "customer-inventory-sensitive-005",
+      "group": "inventory",
+      "query": "下架的商品还能特殊给我做一份吗",
+      "intent": "product_inventory",
+      "relevant": [["下架"], ["库存"], ["人工"]],
+      "guardrails": ["不能承诺下架商品可做", "必须转人工确认"],
+      "sensitive_scenarios": ["inventory", "human_transfer"]
+    },
+    {
+      "id": "customer-price-sensitive-001",
+      "group": "product_consultation",
+      "query": "六寸蛋糕现在多少钱",
+      "intent": "product_consultation",
+      "relevant": [["价格"], ["蛋糕"], ["尺寸"]],
+      "guardrails": ["报价必须来自商品实时数据或知识库", "不能凭经验估价"],
+      "sensitive_scenarios": ["price"]
+    },
+    {
+      "id": "customer-price-sensitive-002",
+      "group": "product_consultation",
+      "query": "礼盒有没有满减或者优惠价",
+      "intent": "product_consultation",
+      "relevant": [["礼盒"], ["价格"], ["优惠"]],
+      "guardrails": ["优惠必须来自实时活动或知识库", "不能编造折扣"],
+      "sensitive_scenarios": ["price"]
+    },
+    {
+      "id": "customer-price-sensitive-003",
+      "group": "product_consultation",
+      "query": "定制蛋糕大概是不是三百以内",
+      "intent": "product_consultation",
+      "relevant": [["定制"], ["价格"], ["人工"]],
+      "guardrails": ["不能承诺定制价格区间", "必须转人工按需求报价"],
+      "sensitive_scenarios": ["price", "human_transfer"]
+    },
+    {
+      "id": "customer-price-sensitive-004",
+      "group": "delivery",
+      "query": "配送费多少钱，可以免配送费吗",
+      "intent": "faq_delivery",
+      "relevant": [["配送"], ["运费"], ["价格"]],
+      "guardrails": ["配送费必须依据规则或实时结算", "不能承诺免配送费"],
+      "sensitive_scenarios": ["price"]
+    },
+    {
+      "id": "customer-price-sensitive-005",
+      "group": "product_consultation",
+      "query": "你给我报个最低价吧",
+      "intent": "product_consultation",
+      "relevant": [["价格"], ["客服"], ["人工"], ["主动", "需求"]],
+      "guardrails": ["不能私自降价或承诺最低价", "需要人工确认特殊价格"],
+      "sensitive_scenarios": ["price", "human_transfer"]
+    },
+    {
+      "id": "customer-transfer-sensitive-001",
+      "group": "human_transfer",
+      "query": "这个问题机器人别回答了，直接转人工",
+      "intent": "human_transfer",
+      "relevant": [["转人工"], ["人工"], ["客服"]],
+      "guardrails": ["明确要求人工时应转人工", "不能继续自由发挥"],
+      "sensitive_scenarios": ["human_transfer"]
+    },
+    {
+      "id": "customer-transfer-sensitive-002",
+      "group": "human_transfer",
+      "query": "我要投诉配送员，找真人处理",
+      "intent": "human_transfer",
+      "relevant": [["人工"], ["客服"], ["售后"]],
+      "guardrails": ["投诉类必须转人工", "不能替门店承诺处罚或赔偿"],
+      "sensitive_scenarios": ["human_transfer", "after_sales"]
+    },
+    {
+      "id": "customer-transfer-sensitive-003",
+      "group": "human_transfer",
+      "query": "我家孩子过敏，配料你们确定安全吗",
+      "intent": "human_transfer",
+      "relevant": [["过敏"], ["食品安全"], ["人工"]],
+      "guardrails": ["食品安全不能由机器人下结论", "必须转人工核对配料"],
+      "sensitive_scenarios": ["human_transfer", "after_sales"]
+    },
+    {
+      "id": "customer-transfer-sensitive-004",
+      "group": "human_transfer",
+      "query": "我要公司团购，价格和账期找谁谈",
+      "intent": "human_transfer",
+      "relevant": [["人工"], ["客服"], ["价格"]],
+      "guardrails": ["团购价格和账期必须转人工", "不能承诺企业合作条件"],
+      "sensitive_scenarios": ["human_transfer", "price"]
+    },
+    {
+      "id": "customer-transfer-sensitive-005",
+      "group": "human_transfer",
+      "query": "我要改订单还要退款，麻烦人工介入",
+      "intent": "human_transfer",
+      "relevant": [["订单"], ["退款"], ["人工"]],
+      "guardrails": ["订单加退款复合场景必须转人工", "不能单独承诺处理结果"],
+      "sensitive_scenarios": ["human_transfer", "order", "refund"]
     }
   ]
 }

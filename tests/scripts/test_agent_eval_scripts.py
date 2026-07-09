@@ -19,13 +19,22 @@ def test_customer_eval_result_uses_golden_cases() -> None:
     result = eval_customer_agent.build_customer_eval_result()
 
     assert result.status == "passed"
-    assert result.total == 41
+    assert result.total == 71
     assert {case.group for case in result.cases} >= {
         "product_consultation",
         "delivery",
         "refund_after_sales",
         "human_transfer",
     }
+    sensitive_cases = [
+        case for case in result.cases if case.metadata.get("sensitive_scenarios")
+    ]
+    assert len(sensitive_cases) >= 30
+    assert {
+        scenario
+        for case in sensitive_cases
+        for scenario in case.metadata["sensitive_scenarios"]
+    } >= {"order", "refund", "after_sales", "inventory", "price", "human_transfer"}
 
 
 @pytest.mark.asyncio

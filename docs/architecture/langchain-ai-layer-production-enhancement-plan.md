@@ -743,6 +743,61 @@ python scripts/check_project.py --skip-tests
 - 对订单、退款、库存、转人工有明确断言。
 - 回复策略能在作品集里讲成“AI 客服治理能力”，而不是单纯 prompt 约束。
 
+## 二十四、P4a 落地记录
+
+2026-07-10 已完成 P4 事实敏感场景治理增强的第一切片：
+
+- `tests/fixtures/customer_rag_golden_cases.json` 新增 `required_sensitive_scenarios`：
+  - `order`
+  - `refund`
+  - `after_sales`
+  - `inventory`
+  - `price`
+  - `human_transfer`
+- 客户业务样本从 40 条扩展到 70 条，客户 eval 总数从 41 项提升到 71 项。
+- 新增 30 条事实敏感样本，覆盖：
+  - 订单状态、改地址、提前配送、忘记订单号。
+  - 退款、已制作订单退款、退运费、退款到账。
+  - 售后破损、漏发、投诉、名字写错、食品安全。
+  - 实时库存、批量预订、预留、门店/小程序库存不一致、下架商品。
+  - 商品价格、优惠价、定制报价、配送费、最低价。
+  - 明确转人工、投诉、过敏、团购价格账期、订单退款复合场景。
+- `scripts/check_customer_rag_golden_cases.py` 新增敏感场景覆盖检查，每类至少 5 条。
+- `scripts/eval_customer_agent.py` 在 case metadata 中输出 `sensitive_scenarios`，后续作品集和报告可以直接展示治理覆盖。
+- 本切片只扩展脱敏 eval 和机器检查，不改变客户热路径、prompt、工具执行或转人工策略。
+
+P4a 验收：
+
+```powershell
+python scripts\check_customer_rag_golden_cases.py --summary
+python scripts\eval_customer_agent.py --summary
+python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json
+python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py tests\scripts\test_report_retrieval_eval_matrix.py tests\scripts\test_eval_retrieval.py -q --no-cov
+python -m ruff check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py
+python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5
+```
+
+P4a 验证结果：
+
+```text
+客户 golden cases 结构与敏感场景覆盖检查通过：83 项失败 0。
+客户机器人 eval 通过：71 项失败 0。
+双机器人聚合 eval 通过：133 项失败 0。
+相关脚本与 eval 测试通过：26 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+RAG 矩阵在 400 条启用知识、70 条可评估客户样本下可跑通。
+hybrid: Recall@5=0.9857, MRR=0.8881。
+planned-hybrid: Recall@5=0.9857, MRR=0.8881。
+planned-hybrid+rerank: Recall@5=0.9714, MRR=0.9136。
+```
+
+P4 后续：
+
+- P4b 可把 `sensitive_scenarios` 接入更明确的回复策略断言，例如订单必须工具确认、退款必须规则或转人工、库存必须实时注入。
+- P4c 再考虑在 trace 中记录事实敏感场景分类，但不记录敏感明文。
+
 ### 阶段 P5：作品集证据包
 
 目标：把项目整理成求职可展示材料，不只是代码仓库。

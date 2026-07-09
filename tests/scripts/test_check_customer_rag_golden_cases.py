@@ -47,6 +47,33 @@ def test_customer_rag_golden_fixture_requires_all_groups() -> None:
     }
 
 
+def test_customer_rag_golden_fixture_requires_sensitive_scenario_coverage() -> None:
+    payload = {
+        "meta": {"version": "1", "purpose": "test"},
+        "cases": [
+            {
+                "id": f"order-{index}",
+                "group": "human_transfer",
+                "query": "查订单",
+                "intent": "human_transfer",
+                "relevant": [["订单"]],
+                "guardrails": ["不能编造订单"],
+                "sensitive_scenarios": ["order"],
+            }
+            for index in range(5)
+        ],
+    }
+
+    checks = golden_check.validate_fixture(payload)
+    report = golden_check.build_json_report(checks)
+
+    assert report["status"] == "failed"
+    assert any(check.name == "sensitive.order" and check.passed for check in checks)
+    assert any(
+        check.name == "sensitive.refund" and not check.passed for check in checks
+    )
+
+
 def test_customer_rag_golden_main_outputs_json(capsys) -> None:
     exit_code = golden_check.main(["--json"])
 

@@ -58,6 +58,7 @@ def build_customer_eval_result(fixture_path: Path = FIXTURE_PATH) -> AgentEvalRe
 def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
     relevant = case.get("relevant")
     guardrails = case.get("guardrails")
+    sensitive_scenarios = case.get("sensitive_scenarios")
     group = str(case.get("group", ""))
     return AgentEvalCase(
         case_id=str(case.get("id", "")),
@@ -87,6 +88,9 @@ def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
         metadata={
             "relevant_count": len(relevant) if isinstance(relevant, list) else 0,
             "guardrail_count": len(guardrails) if isinstance(guardrails, list) else 0,
+            "sensitive_scenarios": sensitive_scenarios
+            if isinstance(sensitive_scenarios, list)
+            else [],
         },
     )
 
