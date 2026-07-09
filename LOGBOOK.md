@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - feat(ops): 增加生产 callback 失败定位报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P14b 已把生产版本漂移变成 live runtime gate，但两个 production callback 失败 case 仍散落在 release gate、callback JSON 和 probe case 定义中；需要一个只读诊断入口，避免在生产仍为旧版本时误判为当前代码缺陷。
+- **决策**:
+  - 新增 P14c callback 失败定位报告，聚合 callback 失败详情、probe case 期望语义、P14 handoff runtime 状态和下一步动作。
+  - 当 runtime gate 未通过时，报告状态为 blocked，所有 callback 失败先归类为 `runtime_version_not_current`。
+  - 报告只读取已脱敏 JSON 和 probe case 定义，不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径。
+- **改动**:
+  - `scripts/report_langchain_production_callback_failures.py` - 新增生产 callback 失败定位报告。
+  - `tests/scripts/test_report_langchain_production_callback_failures.py` - 覆盖 runtime 未切换、runtime 通过后的订单空结果/知识缺失分类和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P14c 诊断入口追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_langchain_production_callback_failures.py -q --no-cov` 通过，3 项失败 0。
+  - `python -m ruff check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py` 通过。
+  - `python -m ruff format --check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py` 通过。
+  - `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary` 按预期 blocked，输出 `runtime_version_not_current`。
+- **后续**:
+  - 仍需使用具备权限的账号同步并重启生产服务，让 runtime gate 通过后复跑 production release gate 和 callback probe。
+
 ## [2026-07-10] - feat(ops): 增加生产运行时版本门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

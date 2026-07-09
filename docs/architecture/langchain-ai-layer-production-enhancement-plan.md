@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告和 P14b 生产运行时版本门禁已完成，下一步建议进入 P14c 生产服务重启与 callback 失败定位。
+> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁和 P14c callback 失败定位报告入口已完成，下一步建议进入 P14c 生产服务重启与 callback 复验。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1597,7 +1597,31 @@ P14c 后续：
 - 用具备生产权限的账号登录服务器并同步 `/opt/yunxibakebot` 到最新 `origin/master` 或 `server/master`。
 - 重启 `yunxibakebot` 后先运行 `python scripts\check_langchain_production_runtime_version.py --summary`。
 - runtime version 通过后，再运行生产 release gate 和 P13b 发布证据门禁。
-- 若 runtime version 已通过但 callback 仍失败，再定位 `p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge`。
+- 若 runtime version 已通过但 callback 仍失败，再运行 `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary` 定位 `p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge`。
+
+## 二十九、P14c callback 失败定位报告入口
+
+2026-07-10 已完成 P14c 的 repo 侧诊断切片：
+
+- 新增 `scripts/report_langchain_production_callback_failures.py`，读取最新生产 callback JSON 和 P14 handoff JSON，汇总失败 case、期望语义、实际回复预览、诊断分类和下一步动作。
+- 新增 `tests/scripts/test_report_langchain_production_callback_failures.py`，覆盖 runtime 版本未切换时的 blocked 状态，以及 runtime 通过后对订单空结果、知识缺失两类 callback 失败的分类。
+- 当前真实报告输出为 `blocked`：生产 runtime 仍是 `0.85.2`，因此两个 callback 语义失败只作为旧版本证据保留，不能直接判定为当前 `VERSION` 的业务缺陷。
+- 该报告不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径，只聚合既有 release / handoff / callback / probe case 证据。
+
+P14c callback 诊断验收：
+
+```powershell
+python -m pytest tests\scripts\test_report_langchain_production_callback_failures.py -q --no-cov
+python -m ruff check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py
+python -m ruff format --check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py
+python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary
+```
+
+P14c 仍未完成的生产动作：
+
+- 使用具备权限的账号同步并重启生产服务。
+- 让 `scripts\check_langchain_production_runtime_version.py --summary` 通过。
+- 重新生成生产 release gate，再用 P13b/P14 handoff/P14c callback 诊断收口。
 
 ## 五、推荐执行顺序
 

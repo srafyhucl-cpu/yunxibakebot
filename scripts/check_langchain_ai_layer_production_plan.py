@@ -30,6 +30,7 @@ REQUIRED_ARTIFACTS = (
     "scripts/check_langchain_production_observability_release.py",
     "scripts/check_langchain_production_runtime_version.py",
     "scripts/report_langchain_production_sync_handoff.py",
+    "scripts/report_langchain_production_callback_failures.py",
     "tests/fixtures/customer_real_replay_coverage_sample.json",
     "docs/harness-engineering/core/evidence-index.md",
 )
