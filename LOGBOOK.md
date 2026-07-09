@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-10] - feat(ops): 将生产资源观测接入 release gate 加强模式
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P21b 已具备可手动运行的生产只读资源观测门禁，但上线收口常用的是 `check_langchain_ai_layer_release_gate.py`。如果资源门禁不进入显式 release gate，加强验证链路仍可能漏跑。
+- **决策**:
+  - 新增 release gate 显式参数 `--include-production-runtime-capacity`，默认不改变 release gate 行为。
+  - 加强模式追加运行 `scripts/check_langchain_ai_layer_capacity.py --include-production-runtime`，并把报告写入 `reports\agent-traces\langchain-ai-layer-capacity.json`。
+  - release summary 新增 `langchain_ai_layer_capacity` 摘要，展示 trace payload、生产版本、服务状态、RSS、可用内存和 load1。
+  - 该模式仍不做压测、不读取业务数据库、不调用外部 LLM、不向 LangSmith 外发。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 P21c release gate 参数、步骤、summary、目录准备。
+  - `tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 覆盖步骤构建、summary 提取、CLI 参数记录和输出目录创建。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P21c 追溯记录和版本 `0.105.9`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，36 项失败 0。
+  - `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.8` 与本地版本匹配时通过，`total=8 failed=0`。
+- **后续**:
+  - 部署 `0.105.9` 后复跑 P21c release gate，并把生产复验结果补入 evidence index。
+
 ## [2026-07-10] - feat(obs): 增加生产只读资源观测门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

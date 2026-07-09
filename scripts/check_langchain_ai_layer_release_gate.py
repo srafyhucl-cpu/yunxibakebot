@@ -48,6 +48,9 @@ DEFAULT_OBSERVABILITY_EVIDENCE_PATH = (
 DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH = (
     ROOT_DIR / "reports" / "agent-traces" / "langsmith-runtime-config.json"
 )
+DEFAULT_CAPACITY_PATH = (
+    ROOT_DIR / "reports" / "agent-traces" / "langchain-ai-layer-capacity.json"
+)
 DEFAULT_RAG_MATRIX_PATH = ROOT_DIR / "reports" / "rag-eval" / "latest-matrix.json"
 DEFAULT_PRODUCTION_SMOKE_PATH = (
     ROOT_DIR / "reports" / "smoke" / "langchain-prod-smoke-{timestamp}.json"
@@ -100,6 +103,7 @@ def build_gate_steps(
     include_real_replay_intake_readiness: bool = False,
     require_real_replay_pool: bool = False,
     include_observability_evidence: bool = False,
+    include_production_runtime_capacity: bool = False,
     include_production_smoke: bool = False,
     production_base_url: str = DEFAULT_PRODUCTION_BASE_URL,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
@@ -115,6 +119,7 @@ def build_gate_steps(
     real_intake_readiness_path: Path = DEFAULT_REAL_INTAKE_READINESS_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
+    capacity_path: Path = DEFAULT_CAPACITY_PATH,
     real_replay_min_per_scenario: int = 5,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
@@ -264,6 +269,20 @@ def build_gate_steps(
                 ),
             ]
         )
+    if include_production_runtime_capacity:
+        steps.append(
+            GateStep(
+                name="production_runtime_capacity",
+                command=(
+                    sys.executable,
+                    "scripts/check_langchain_ai_layer_capacity.py",
+                    "--include-production-runtime",
+                    "--json-out",
+                    str(capacity_path),
+                    "--summary",
+                ),
+            )
+        )
     if include_rag_matrix:
         steps.append(
             GateStep(
@@ -349,6 +368,7 @@ def build_gate_report(
     include_real_replay_intake_readiness: bool = False,
     require_real_replay_pool: bool,
     include_observability_evidence: bool,
+    include_production_runtime_capacity: bool,
     include_production_smoke: bool,
     production_base_url: str,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
@@ -360,6 +380,7 @@ def build_gate_report(
     real_intake_readiness_path: Path = DEFAULT_REAL_INTAKE_READINESS_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
+    capacity_path: Path = DEFAULT_CAPACITY_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -375,6 +396,7 @@ def build_gate_report(
         "include_real_replay_intake_readiness": include_real_replay_intake_readiness,
         "require_real_replay_pool": require_real_replay_pool,
         "include_observability_evidence": include_observability_evidence,
+        "include_production_runtime_capacity": include_production_runtime_capacity,
         "include_production_smoke": include_production_smoke,
         "production_base_url": production_base_url
         if include_production_smoke
@@ -388,6 +410,7 @@ def build_gate_report(
             include_real_replay_pool=include_real_replay_pool,
             include_real_replay_intake_readiness=include_real_replay_intake_readiness,
             include_observability_evidence=include_observability_evidence,
+            include_production_runtime_capacity=include_production_runtime_capacity,
             include_production_smoke=include_production_smoke,
             agent_eval_path=agent_eval_path,
             reply_eval_path=reply_eval_path,
@@ -398,6 +421,7 @@ def build_gate_report(
             real_intake_readiness_path=real_intake_readiness_path,
             observability_evidence_path=observability_evidence_path,
             langsmith_runtime_config_path=langsmith_runtime_config_path,
+            capacity_path=capacity_path,
             rag_matrix_path=rag_matrix_path,
             production_smoke_path=production_smoke_path,
             production_callback_path=production_callback_path,
@@ -414,6 +438,7 @@ def build_release_summary(
     include_real_replay_pool: bool = False,
     include_real_replay_intake_readiness: bool = False,
     include_observability_evidence: bool = False,
+    include_production_runtime_capacity: bool = False,
     include_production_smoke: bool,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
     reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
@@ -424,6 +449,7 @@ def build_release_summary(
     real_intake_readiness_path: Path = DEFAULT_REAL_INTAKE_READINESS_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
+    capacity_path: Path = DEFAULT_CAPACITY_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -442,6 +468,7 @@ def build_release_summary(
         "real_conversation_replay_intake_readiness": None,
         "langchain_observability_evidence": None,
         "langsmith_runtime_config": None,
+        "langchain_ai_layer_capacity": None,
         "rag_eval_matrix": None,
         "production_smoke": None,
         "production_employee_callback_probe": None,
@@ -473,6 +500,10 @@ def build_release_summary(
         )
         summary["langchain_observability_evidence"] = summarize_observability_report(
             read_json_report(observability_evidence_path)
+        )
+    if include_production_runtime_capacity:
+        summary["langchain_ai_layer_capacity"] = summarize_capacity_report(
+            read_json_report(capacity_path)
         )
     if include_rag_matrix:
         summary["rag_eval_matrix"] = summarize_rag_matrix_report(
@@ -619,6 +650,25 @@ def summarize_langsmith_runtime_config_report(
     }
 
 
+def summarize_capacity_report(report: dict[str, object]) -> dict[str, object]:
+    trace_probe = _dict_value(report, "trace_probe")
+    production_runtime = _dict_value(report, "production_runtime")
+    return {
+        "status": report.get("status", "missing"),
+        "failed": report.get("failed", 0),
+        "trace_latency_ms": trace_probe.get("latency_ms", 0),
+        "payload_bytes": trace_probe.get("payload_bytes", 0),
+        "production_runtime_status": production_runtime.get("status", "missing"),
+        "service_active": production_runtime.get("service_active", False),
+        "version": production_runtime.get("version", ""),
+        "health_version": production_runtime.get("health_version", ""),
+        "ready_version": production_runtime.get("ready_version", ""),
+        "rss_mb": production_runtime.get("rss_mb", 0.0),
+        "mem_available_mb": production_runtime.get("mem_available_mb", 0.0),
+        "load1": production_runtime.get("load1", 0.0),
+    }
+
+
 def summarize_named_results(report: dict[str, object]) -> list[dict[str, object]]:
     summaries = []
     for result in _list_value(report, "results"):
@@ -719,6 +769,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="额外运行生产 /health、/ready、企微员工助手 callback 探针",
     )
     parser.add_argument(
+        "--include-production-runtime-capacity",
+        action="store_true",
+        help="额外运行生产只读资源观测容量门禁，不做压测",
+    )
+    parser.add_argument(
         "--production-base-url",
         default=DEFAULT_PRODUCTION_BASE_URL,
         help="生产门禁目标服务根地址，仅在 --include-production-smoke 时使用",
@@ -735,6 +790,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay_pool=args.include_real_replay_pool,
         include_real_replay_intake_readiness=args.include_real_replay_intake_readiness,
         include_observability_evidence=args.include_observability_evidence,
+        include_production_runtime_capacity=args.include_production_runtime_capacity,
         include_production_smoke=args.include_production_smoke,
     )
     steps = build_gate_steps(
@@ -745,6 +801,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay_intake_readiness=args.include_real_replay_intake_readiness,
         require_real_replay_pool=args.require_real_replay_pool,
         include_observability_evidence=args.include_observability_evidence,
+        include_production_runtime_capacity=args.include_production_runtime_capacity,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
         real_replay_fixture_path=args.real_replay_fixture,
@@ -761,6 +818,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay_intake_readiness=args.include_real_replay_intake_readiness,
         require_real_replay_pool=args.require_real_replay_pool,
         include_observability_evidence=args.include_observability_evidence,
+        include_production_runtime_capacity=args.include_production_runtime_capacity,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
         agent_eval_path=DEFAULT_AGENT_EVAL_PATH,
@@ -770,6 +828,7 @@ def main(argv: list[str] | None = None) -> int:
         real_coverage_path=DEFAULT_REAL_COVERAGE_PATH,
         real_pool_report_path=DEFAULT_REAL_POOL_REPORT_PATH,
         observability_evidence_path=DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
+        capacity_path=DEFAULT_CAPACITY_PATH,
         rag_matrix_path=DEFAULT_RAG_MATRIX_PATH,
         production_smoke_path=DEFAULT_PRODUCTION_SMOKE_PATH,
         production_callback_path=DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -800,6 +859,7 @@ def ensure_output_directories(
     include_real_replay_pool: bool = False,
     include_real_replay_intake_readiness: bool = False,
     include_observability_evidence: bool = False,
+    include_production_runtime_capacity: bool = False,
     include_production_smoke: bool = False,
 ) -> None:
     DEFAULT_AGENT_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -818,6 +878,8 @@ def ensure_output_directories(
     if include_observability_evidence:
         DEFAULT_OBSERVABILITY_EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
         DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if include_production_runtime_capacity:
+        DEFAULT_CAPACITY_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_rag_matrix:
         DEFAULT_RAG_MATRIX_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_production_smoke:

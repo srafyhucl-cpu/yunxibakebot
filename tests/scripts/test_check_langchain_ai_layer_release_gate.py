@@ -138,6 +138,24 @@ def test_build_gate_steps_can_include_observability_evidence(tmp_path: Path) -> 
     assert str(output_path) in observability_step.command
 
 
+def test_build_gate_steps_can_include_production_runtime_capacity(
+    tmp_path: Path,
+) -> None:
+    capacity_path = tmp_path / "capacity.json"
+    steps = release_gate.build_gate_steps(
+        include_production_runtime_capacity=True,
+        capacity_path=capacity_path,
+    )
+    capacity_step = [
+        step for step in steps if step.name == "production_runtime_capacity"
+    ][0]
+
+    assert "scripts/check_langchain_ai_layer_capacity.py" in capacity_step.command
+    assert "--include-production-runtime" in capacity_step.command
+    assert "--json-out" in capacity_step.command
+    assert str(capacity_path) in capacity_step.command
+
+
 def test_build_gate_steps_keeps_production_smoke_optional() -> None:
     steps = release_gate.build_gate_steps(include_production_smoke=False)
 
@@ -509,6 +527,54 @@ def test_build_release_summary_extracts_observability_evidence(
     assert observability["cold_imports"][0]["module"] == "app.config"
 
 
+def test_build_release_summary_extracts_production_runtime_capacity(
+    tmp_path: Path,
+) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    capacity_path = tmp_path / "capacity.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    capacity_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "failed": 0,
+                "trace_probe": {"latency_ms": 2500.0, "payload_bytes": 2227},
+                "production_runtime": {
+                    "status": "ok",
+                    "service_active": True,
+                    "version": "0.105.8",
+                    "health_version": "0.105.8",
+                    "ready_version": "0.105.8",
+                    "rss_mb": 80.0,
+                    "mem_available_mb": 512.0,
+                    "load1": 0.2,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_real_replay=False,
+        include_real_replay_coverage=False,
+        include_production_runtime_capacity=True,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        capacity_path=capacity_path,
+    )
+
+    capacity_summary = summary["langchain_ai_layer_capacity"]
+
+    assert capacity_summary["status"] == "passed"
+    assert capacity_summary["production_runtime_status"] == "ok"
+    assert capacity_summary["version"] == "0.105.8"
+    assert capacity_summary["rss_mb"] == 80.0
+
+
 def test_build_release_summary_extracts_rag_and_production_reports(
     tmp_path: Path,
 ) -> None:
@@ -794,6 +860,43 @@ def test_main_records_observability_evidence_options(
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
 
+def test_main_records_production_runtime_capacity_options(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    captured_steps: list[release_gate.GateStep] = []
+
+    def fake_run_gate_steps(steps):
+        captured_steps.extend(steps)
+        return (
+            release_gate.GateStepResult(
+                name="production_runtime_capacity",
+                command=("python", "scripts/check_langchain_ai_layer_capacity.py"),
+                returncode=0,
+                stdout="langchain_ai_layer_capacity status=passed",
+                stderr="",
+            ),
+        )
+
+    monkeypatch.setattr(release_gate, "run_gate_steps", fake_run_gate_steps)
+    output_path = tmp_path / "gate.json"
+
+    exit_code = release_gate.main(
+        [
+            "--include-production-runtime-capacity",
+            "--json-out",
+            str(output_path),
+            "--summary",
+        ]
+    )
+
+    payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert any(step.name == "production_runtime_capacity" for step in captured_steps)
+    assert payload["include_production_runtime_capacity"] is True
+    assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
+
+
 def test_main_records_production_smoke_options(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
@@ -999,6 +1102,35 @@ def test_ensure_output_directories_creates_observability_parent(
 
     assert observability_path.parent.exists()
     assert langsmith_path.parent.exists()
+
+
+def test_ensure_output_directories_creates_capacity_parent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    capacity_path = tmp_path / "agent-traces" / "capacity.json"
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_AGENT_EVAL_PATH",
+        tmp_path / "agent-eval" / "latest.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_PROBE_PATH",
+        tmp_path / "agent-eval" / "reply-probe.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_EVAL_PATH",
+        tmp_path / "agent-eval" / "reply-eval.json",
+    )
+    monkeypatch.setattr(release_gate, "DEFAULT_CAPACITY_PATH", capacity_path)
+
+    release_gate.ensure_output_directories(
+        include_rag_matrix=False,
+        include_production_runtime_capacity=True,
+    )
+
+    assert capacity_path.parent.exists()
 
 
 def test_ensure_output_directories_creates_production_report_parents(
