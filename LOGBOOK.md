@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实 replay pool 条目草稿生成器
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P17a 已经把真实脱敏 replay 接入准备度固定为可检查报告，但首批真实样本接入时仍需要人工把已脱敏 fixture 转成 manifest 条目，容易漏掉 evidence、脱敏审核和原始来源不入仓字段。当前仓库仍不能提交真实客户对话，因此本切片只补“条目草稿生成器”，不伪造真实样本。
+- **决策**:
+  - 新增只读 P17b-prep 工具，输入已脱敏且已审核的 replay fixture，输出 manifest 条目草稿。
+  - 草稿生成前复用真实 replay coverage checker，确保六类事实敏感场景覆盖通过。
+  - 拒绝 synthetic/schema sample/contract shape 来源，要求 fixture metadata 标记不含敏感数据且有脱敏声明。
+  - intake readiness 和生产增强计划 checker 都把该脚本列为真实样本接入通道必备 artifact。
+- **改动**:
+  - `scripts/prepare_real_conversation_replay_pool_entry.py` - 新增真实样本池条目草稿报告和 CLI。
+  - `tests/scripts/test_prepare_real_conversation_replay_pool_entry.py` - 覆盖真实脱敏样例通过、合成来源拒绝、审核字段缺失失败和 CLI JSON 输出。
+  - `scripts/check_real_conversation_replay_intake_readiness.py`、`scripts/check_langchain_ai_layer_production_plan.py` - 将条目草稿生成器纳入接入准备度和计划 artifact 门禁。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P17b-prep 追溯记录和版本 `0.105.0`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
+  - `python scripts\check_real_conversation_replay_intake_readiness.py --summary` 通过，仍正确输出 `real_sample_ready=false`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过。
+- **后续**:
+  - P17b 真正接入首批真实样本仍需要仓库外原始客服记录、脱敏导出和人工审核；本工具只生成草稿，不把真实样本池改为 ready。
+
 ## [2026-07-10] - feat(eval): 增加真实 replay 接入准备度报告
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

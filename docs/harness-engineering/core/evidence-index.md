@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-028：LangChain AI 应用层 P17b-prep 真实 replay pool 条目草稿生成器
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p17b-real-replay-pool-entry-draft-generator
+- file: `D:\Project\YunxiBakeBot\scripts\prepare_real_conversation_replay_pool_entry.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_prepare_real_conversation_replay_pool_entry.py`; `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay_intake_readiness.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_real_conversation_replay_intake_readiness.py --summary`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加真实 replay pool 条目草稿生成器
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只新增条目草稿生成器和测试；测试使用临时目录中的单元 fixture，不提交真实客户对话、不读取原始客服记录、不包含手机号、地址、open_id、订单明细、token 或 API key。生成的条目草稿默认位于 gitignored reports 目录。
+- summary: P17b-prep 新增真实 replay pool manifest 条目草稿生成器。工具只接受已脱敏且已审核的 replay fixture，生成前复用 coverage checker，并要求真实来源类型、脱敏方法、审核人、审核日期和原始来源不入仓声明；合成来源会被拒绝。当前仓库仍未接入真实脱敏客户样本，readiness 默认通过但 `real_sample_ready=false` 仍是正确状态。
+
 ## E-20260710-027：LangChain AI 应用层 P17a 真实 replay 接入准备度报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

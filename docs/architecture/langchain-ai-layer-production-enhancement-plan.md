@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检和 P17a 真实脱敏回放样本接入准备度报告已完成，下一步建议进入 P14c 生产服务重启与 callback 复验，或在等待生产权限期间继续 P17b 首批真实脱敏样本接入。
+> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告和 P17b-prep 真实 replay pool 条目草稿生成器已完成，下一步建议进入 P14c 生产服务重启与 callback 复验，或在等待生产权限期间继续 P17b 首批真实脱敏样本接入。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1724,8 +1724,29 @@ Ruff format --check 通过。
 
 P17 后续：
 
-- P17b 需要由人工或具备权限的流程提供仓库外原始客服记录，先用 `scripts/export_real_conversation_replay_fixture.py` 脱敏导出到 gitignored reports，再审核后补 manifest 真实条目。
+- P17b 需要由人工或具备权限的流程提供仓库外原始客服记录，先用 `scripts/export_real_conversation_replay_fixture.py` 脱敏导出到 gitignored reports，再审核后用 `scripts/prepare_real_conversation_replay_pool_entry.py` 生成 manifest 条目草稿，最后由人工确认后补 manifest 真实条目。
 - 真实条目通过 `--require-real` 后，才能把 `real_sample_ready=true` 作为上线和作品集证据。
+
+## 三十三、P17b-prep 真实 replay pool 条目草稿生成器
+
+2026-07-10 已完成 P17 真实脱敏回放样本接入的第二个准备切片：
+
+- 新增 `scripts/prepare_real_conversation_replay_pool_entry.py`，用于把已经脱敏并人工审核过的 replay fixture 转成真实样本池 manifest 条目草稿。
+- 工具要求调用方显式提供样本名称、证据 ID、脱敏方法、脱敏审核人和脱敏审核日期，并默认写出 gitignored `reports/agent-eval/real-replay-pool-entry-draft.json`。
+- 草稿生成前会复用 `build_real_replay_coverage_report()` 检查 order、refund、after_sales、inventory、price、human_transfer 六类事实敏感场景覆盖，不允许 coverage 未通过的 fixture 直接生成可用条目。
+- 工具会拒绝 `synthetic`、`schema_sample`、`contract_shape_only` 等来源声明，要求 `metadata.contains_sensitive_data=false`、fixture metadata 带 redaction，且 manifest 草稿声明 `source_type=real_customer_conversation` 和 `raw_source_retention=not_committed`。
+- `scripts/check_real_conversation_replay_intake_readiness.py` 和 `scripts/check_langchain_ai_layer_production_plan.py` 已把该脚本列为真实样本接入通道必备 artifact。
+- 本切片不读取原始客户会话、不修改样本池 manifest、不访问业务数据库、不调用外部 LLM、不提交真实客户数据；它只生成待人工确认的条目草稿。
+
+P17b-prep 验收：
+
+```powershell
+python -m pytest tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
+python -m ruff check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\check_langchain_ai_layer_production_plan.py --summary
+python scripts\check_real_conversation_replay_intake_readiness.py --summary
+```
 
 ## 五、推荐执行顺序
 

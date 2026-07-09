@@ -27,6 +27,7 @@ REQUIRED_ARTIFACTS = (
     "scripts/check_real_conversation_replay.py",
     "scripts/export_real_conversation_replay_fixture.py",
     "scripts/check_real_conversation_replay_coverage.py",
+    "scripts/prepare_real_conversation_replay_pool_entry.py",
     "scripts/check_real_conversation_replay_intake_readiness.py",
     "scripts/check_langchain_production_observability_release.py",
     "scripts/check_langchain_production_runtime_version.py",
