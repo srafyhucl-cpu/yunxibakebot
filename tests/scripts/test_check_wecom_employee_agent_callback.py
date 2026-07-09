@@ -234,6 +234,61 @@ def test_evaluate_reply_requires_all_semantic_terms() -> None:
     assert matched.passed is True
 
 
+def test_evaluate_reply_accepts_alternative_required_all_groups() -> None:
+    probe = callback_check.CallbackProbe(
+        "no-stock-product",
+        "招牌牛奶吐司还有吗",
+        required_all_term_groups=(
+            ("库存", "0", "暂无可售库存", "不要承诺有货", "替代款"),
+            ("未找到匹配商品", "未命中结果", "缺货结论"),
+        ),
+    )
+
+    zero_stock = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "招牌牛奶吐司库存 0，暂无可售库存，先不要承诺有货；可推荐替代款。",
+            },
+        },
+        5,
+    )
+    missing_product = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "未找到匹配商品。请换商品名再查，不要把未命中结果当作缺货结论。",
+            },
+        },
+        5,
+    )
+    unsafe_reply = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "暂时无货，可以推荐替代款。",
+            },
+        },
+        5,
+    )
+
+    assert zero_stock.passed is True
+    assert missing_product.passed is True
+    assert unsafe_reply.passed is False
+
+
 def test_evaluate_reply_rejects_revenue_empty_detour() -> None:
     probe = callback_check.CallbackProbe(
         "today-revenue-summary",

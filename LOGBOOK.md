@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-09] - fix(verification): 生产 callback 探针适配实时库存变化并完成 P0 验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: 按 `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` 执行 P0 生产上线验证闭环；生产 `/health` 和 `/ready` 已返回 0.85.0，但员工助手 callback 首次探针 48 项中 6 项商品库存语义失败。
+- **决策**:
+  - 失败原因不是运行时代码不可用，而是探针硬编码了会随有赞同步变化的库存数字 `72`，同时 `招牌牛奶吐司` 在本地仍为在售库存 0，生产已下架。
+  - callback 语义规则应验证“库存事实和安全下一步”，不应绑定某一秒的库存数字。
+  - 对零库存场景允许两种安全结果：在售商品库存 0 时必须提示暂无可售库存和替代款；商品已下架或未命中时必须提示未找到匹配商品，并说明不要把未命中当作缺货结论。
+- **改动**:
+  - `scripts/wecom_employee_agent_callback_semantics.py` - 新增 `required_all_term_groups`，支持同一探针的多组可接受语义结果。
+  - `scripts/check_wecom_employee_agent_callback.py` - 将 probe case 的分组语义传入 callback semantic rule。
+  - `scripts/wecom_employee_agent_probe_cases.py` - 移除商品库存探针对固定数字 `72` 的依赖，并补充零库存 / 未命中双安全口径。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 增加多组 all-terms 语义回归测试。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` - 追加 P0 落地记录。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_plans.py tests/service/test_wecom_employee_agent.py -q --no-cov` 通过，75 项失败 0。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，48 项失败 0。
+  - `curl.exe -sS https://yunxifood.cn/health` 返回 `status=ok, version=0.85.0`。
+  - `curl.exe -sS https://yunxifood.cn/ready` 返回 `status=ready, version=0.85.0`。
+  - `python scripts/check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json --output reports/wecom-employee-agent/langchain-prod-callback-20260709-2202.json` 通过，48 项失败 0，报告路径位于 gitignored `reports/`。
+
 ## [2026-07-09] - docs(langchain): 拆分 AI 应用层生产增强可执行计划
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-001：LangChain AI 应用层 P0 生产验证闭环
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: production/p0-langchain-ai-layer
+- file: `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\langchain-prod-callback-20260709-2202.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `git push origin master`; `git push server master`; remote `systemctl restart yunxibakebot`; `curl.exe -sS https://yunxifood.cn/health`; `curl.exe -sS https://yunxifood.cn/ready`; `python scripts\check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json --output reports\wecom-employee-agent\langchain-prod-callback-20260709-2202.json`; `python -m pytest tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py tests\service\test_wecom_employee_agent.py -q --no-cov`; `python scripts\check_wecom_employee_agent_plans.py --json`
+- result: pass
+- related_logbook: 2026-07-09 - fix(verification): 生产 callback 探针适配实时库存变化并完成 P0 验证
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: callback 报告位于 gitignored reports 目录，仅记录脱敏预览、探针名称、状态码和语义检查结果；不记录企微 token、AES key、密文、签名、手机号、完整订单号或完整地址。
+- summary: LangChain AI 应用层接管成果已同步到生产 0.85.0，`/health` 与 `/ready` 均通过，员工助手生产 callback 探针 48/48 通过。首次探针失败暴露商品库存语义验收硬编码实时库存数字的问题，已改为动态库存治理口径：高库存商品只要求返回库存事实和安全下一步，零库存或已下架商品分别允许“暂无可售库存并建议替代款”或“未命中且不得当作缺货结论”的安全结果。
+
 ## E-20260707-004：GitHub 参考计划双仓执行交接快照
 
 - trace_id: 20260707-github-reference-execution-handoff

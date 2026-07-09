@@ -15,6 +15,7 @@ class CallbackSemanticRule:
 
     required_any_terms: tuple[str, ...] = ()
     required_all_terms: tuple[str, ...] = ()
+    required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
 
 
@@ -26,6 +27,11 @@ def is_semantic_safe(content: str, rule: CallbackSemanticRule) -> bool:
         return False
     if rule.required_all_terms and not all(
         term in content for term in rule.required_all_terms
+    ):
+        return False
+    if rule.required_all_term_groups and not any(
+        all(term in content for term in term_group)
+        for term_group in rule.required_all_term_groups
     ):
         return False
     return not any(term in content for term in rule.forbidden_terms)

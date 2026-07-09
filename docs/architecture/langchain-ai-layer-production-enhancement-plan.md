@@ -506,3 +506,20 @@ docs/harness-engineering/core/evidence-index.md
 ```
 
 P0 不应再扩功能。它的价值是把“代码已经完成”变成“真实服务器已经验证”的证据。
+
+## 十、P0 落地记录
+
+2026-07-09 已完成 P0 生产上线验证闭环首轮：
+
+- 本地 commit `0183f5261fde6e6bbc6e2723bb6d422f9ec3cd1f` 已推送到 `origin/master` 和 `server/master`。
+- 生产服务器 `/opt/yunxibakebot` 已位于 `0183f5261f docs: add langchain production enhancement plan`。
+- `systemctl restart yunxibakebot` 后服务为 `active`。
+- `https://yunxifood.cn/health` 返回 `status=ok, version=0.85.0`。
+- `https://yunxifood.cn/ready` 返回 `status=ready, version=0.85.0`，企微、智能机器人、handoff staff、后台前端和数据库等 readiness 检查均为 true。
+- `python scripts/check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json --output reports/wecom-employee-agent/langchain-prod-callback-20260709-2202.json` 通过，48 项失败 0。
+- 首次 callback 失败集中在商品库存语义探针：生产实时库存已从本地固定样本变化，且 `招牌牛奶吐司` 在生产已下架。已将探针从固定库存数字 `72` 调整为动态库存治理口径，并允许“在售零库存”和“已下架未命中”两种安全结果。
+
+P0 后续：
+
+- 当前 P0 已证明生产运行版本和员工助手回调探针通过。
+- 下一阶段应进入 P1：线上 Trace 与 LangSmith 观测。

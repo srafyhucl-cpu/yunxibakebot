@@ -25,6 +25,7 @@ class EmployeeAgentProbeCase:
     expected_delivery_time_end: str = ""
     required_any_terms: tuple[str, ...] = ()
     required_all_terms: tuple[str, ...] = ()
+    required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
 
 
@@ -513,7 +514,7 @@ def _order_product_probe_cases(
             today_text,
             today_text,
             expected_keyword="伯牙绝弦",
-            required_all_terms=("库存", "72"),
+            required_all_terms=("库存",),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",
@@ -533,7 +534,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "伯牙绝弦还有吗",
             "product_query",
             ("product_lookup",),
-            required_all_terms=("库存", "72"),
+            required_all_terms=("库存",),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",
@@ -548,8 +549,10 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "招牌牛奶吐司还有吗",
             "product_query",
             ("product_lookup",),
-            required_all_terms=("库存", "0", "暂无可售库存", "不要承诺有货"),
-            required_any_terms=("替代款", "同品类", "相近价位"),
+            required_all_term_groups=(
+                ("库存", "0", "暂无可售库存", "不要承诺有货", "替代款"),
+                ("未找到匹配商品", "未命中结果", "缺货结论"),
+            ),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",
@@ -575,7 +578,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "伯牙绝弦库存不够怎么推荐替代",
             "multi_tool",
             ("product_lookup", "knowledge_answer"),
-            required_all_terms=("库存", "72"),
+            required_all_terms=("库存",),
             required_any_terms=("推荐", "替代", "客户", "回复"),
             forbidden_terms=(
                 "完整订单号",
@@ -593,7 +596,7 @@ def _channel_tool_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "伯牙绝弦没货怎么跟客户说",
             "multi_tool",
             ("product_lookup", "knowledge_answer"),
-            required_all_terms=("库存", "72"),
+            required_all_terms=("库存",),
             required_any_terms=("客户", "回复", "话术", "替代"),
             forbidden_terms=(
                 "完整订单号",
@@ -823,7 +826,7 @@ def _casual_support_probe_cases() -> tuple[EmployeeAgentProbeCase, ...]:
             "帮我看看伯牙绝弦库存",
             "product_query",
             ("product_lookup",),
-            required_all_terms=("库存", "72"),
+            required_all_terms=("库存",),
             forbidden_terms=(
                 "完整订单号",
                 "手机号",

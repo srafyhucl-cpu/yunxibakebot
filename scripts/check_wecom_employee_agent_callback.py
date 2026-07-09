@@ -80,6 +80,7 @@ class CallbackProbe:
     query: str
     required_any_terms: tuple[str, ...] = ()
     required_all_terms: tuple[str, ...] = ()
+    required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
 
 
@@ -118,6 +119,7 @@ def default_probes() -> tuple[CallbackProbe, ...]:
             case.query,
             case.required_any_terms,
             case.required_all_terms,
+            case.required_all_term_groups,
             case.forbidden_terms,
         )
         for case in default_probe_cases(date.today())
@@ -288,6 +290,7 @@ def semantic_rule(probe: CallbackProbe) -> CallbackSemanticRule:
     return CallbackSemanticRule(
         probe.required_any_terms,
         probe.required_all_terms,
+        probe.required_all_term_groups,
         probe.forbidden_terms,
     )
 
