@@ -29,6 +29,32 @@ REQUIRED_SENSITIVE_SCENARIOS = (
 )
 MIN_SENSITIVE_CASES_PER_SCENARIO = 5
 REQUIRED_CASE_FIELDS = ("id", "group", "query", "intent", "relevant", "guardrails")
+SENSITIVE_SCENARIO_POLICY_KEYWORDS = {
+    "order": (
+        ("订单",),
+        ("不能编造", "工具", "人工", "订单状态", "确认", "转人工"),
+    ),
+    "refund": (
+        ("退款",),
+        ("不能承诺", "订单状态", "制作", "人工", "支付平台", "确认"),
+    ),
+    "after_sales": (
+        ("售后", "照片", "订单", "食品安全", "投诉", "停止食用"),
+        ("不能", "必须", "转人工", "收集", "核对", "建议"),
+    ),
+    "inventory": (
+        ("库存", "有货", "下架", "预留", "备货"),
+        ("实时", "不能承诺", "门店", "人工", "确认为准", "确认"),
+    ),
+    "price": (
+        ("价格", "报价", "优惠", "配送费", "最低价", "运费"),
+        ("不能", "必须", "实时", "知识库", "人工", "规则"),
+    ),
+    "human_transfer": (
+        ("人工", "转人工", "真人"),
+        ("必须", "应", "明确", "不能", "需要"),
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -76,6 +102,8 @@ def _check_cases(cases: list[object]) -> list[GoldenCaseCheck]:
     seen_ids: set[str] = set()
     for index, case in enumerate(cases):
         checks.append(_check_case(index, case, seen_ids))
+        if isinstance(case, dict):
+            checks.extend(build_sensitive_policy_checks(case))
     return checks
 
 
@@ -163,6 +191,37 @@ def _check_sensitive_scenarios(cases: list[object]) -> list[GoldenCaseCheck]:
         )
         for scenario, count in counts.items()
     ]
+
+
+def build_sensitive_policy_checks(case: dict[str, object]) -> list[GoldenCaseCheck]:
+    """按敏感场景生成 guardrail 策略契约检查。"""
+    case_id = str(case.get("id", "case"))
+    sensitive_scenarios = case.get("sensitive_scenarios")
+    if not isinstance(sensitive_scenarios, list):
+        return []
+    guardrail_text = "\n".join(str(item) for item in case.get("guardrails", []))
+    return [
+        _build_sensitive_policy_check(case_id, str(scenario), guardrail_text)
+        for scenario in sensitive_scenarios
+        if str(scenario) in SENSITIVE_SCENARIO_POLICY_KEYWORDS
+    ]
+
+
+def _build_sensitive_policy_check(
+    case_id: str,
+    scenario: str,
+    guardrail_text: str,
+) -> GoldenCaseCheck:
+    missing_groups = [
+        " / ".join(keyword_group)
+        for keyword_group in SENSITIVE_SCENARIO_POLICY_KEYWORDS[scenario]
+        if not any(keyword in guardrail_text for keyword in keyword_group)
+    ]
+    return GoldenCaseCheck(
+        f"{case_id}.sensitive_policy.{scenario}",
+        not missing_groups,
+        "" if not missing_groups else f"missing policy keywords: {missing_groups}",
+    )
 
 
 def build_json_report(checks: list[GoldenCaseCheck]) -> dict[str, object]:

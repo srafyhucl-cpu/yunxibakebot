@@ -376,7 +376,7 @@
       "query": "能不能把我这个订单提前到中午送",
       "intent": "human_transfer",
       "relevant": [["订单"], ["配送"], ["人工"]],
-      "guardrails": ["不能承诺提前配送", "必须说明以门店和配送能力确认为准"],
+      "guardrails": ["订单提前配送不能承诺成功", "必须转人工按门店和配送能力确认"],
       "sensitive_scenarios": ["order", "human_transfer"]
     },
     {
@@ -412,7 +412,7 @@
       "query": "配送超时了是不是应该退运费",
       "intent": "faq_after_sales",
       "relevant": [["退款"], ["配送"], ["售后"]],
-      "guardrails": ["不能承诺退运费", "必须收集订单和配送信息"],
+      "guardrails": ["不能承诺退款或退运费", "必须收集订单和配送信息"],
       "sensitive_scenarios": ["refund", "after_sales"]
     },
     {
@@ -430,7 +430,7 @@
       "query": "你们退款一般多久到账",
       "intent": "faq_after_sales",
       "relevant": [["退款"], ["订单"], ["人工"]],
-      "guardrails": ["没有明确规则时不能编造到账时间", "应转人工或说明以支付平台为准"],
+      "guardrails": ["退款到账时间不能编造", "应转人工或说明以支付平台为准"],
       "sensitive_scenarios": ["refund"]
     },
     {

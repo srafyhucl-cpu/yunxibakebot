@@ -24,6 +24,7 @@ from app.service.agents.evaluation import (  # noqa: E402
 from scripts.check_customer_rag_golden_cases import (  # noqa: E402
     FIXTURE_PATH,
     REQUIRED_GROUPS,
+    build_sensitive_policy_checks,
     load_fixture,
     validate_fixture,
 )
@@ -84,6 +85,14 @@ def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
                 "guardrails.present",
                 _has_text_list(guardrails),
             ),
+            *(
+                AgentEvalAssertion(
+                    _sensitive_policy_assertion_name(check.name),
+                    check.passed,
+                    check.detail,
+                )
+                for check in build_sensitive_policy_checks(case)
+            ),
         ),
         metadata={
             "relevant_count": len(relevant) if isinstance(relevant, list) else 0,
@@ -93,6 +102,13 @@ def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
             else [],
         },
     )
+
+
+def _sensitive_policy_assertion_name(check_name: str) -> str:
+    parts = check_name.rsplit(".", maxsplit=2)
+    if len(parts) < 3:
+        return check_name
+    return f"{parts[-2]}.{parts[-1]}"
 
 
 def _has_nested_text(value: object) -> bool:

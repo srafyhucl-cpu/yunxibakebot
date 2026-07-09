@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P4b 事实敏感策略契约断言
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P4a 已给客户 golden cases 增加 `sensitive_scenarios` 标签和每类至少 5 条样本覆盖；下一步需要让标签变成可机器检查的策略契约，避免样本只标高风险但 guardrail 没写清楚。
+- **决策**:
+  - 在 fixture 检查脚本中集中定义事实敏感策略关键词契约，覆盖订单、退款、售后、库存、价格和转人工。
+  - 每个带 `sensitive_scenarios` 的 case 都必须在 guardrails 中命中对应策略关键词组。
+  - 客户 eval 复用同一套检查，输出 `sensitive_policy.<scenario>` 断言，避免 fixture 检查和 eval 报告规则漂移。
+- **改动**:
+  - `scripts/check_customer_rag_golden_cases.py` - 新增 `SENSITIVE_SCENARIO_POLICY_KEYWORDS` 和 `build_sensitive_policy_checks()`。
+  - `scripts/eval_customer_agent.py` - 将敏感策略检查加入每条客户 eval case 的断言。
+  - `tests/fixtures/customer_rag_golden_cases.json` - 补强 3 条事实敏感样本 guardrail 文案，使其明确落到订单/退款/人工确认策略。
+  - `tests/scripts/test_check_customer_rag_golden_cases.py`、`tests/scripts/test_agent_eval_scripts.py` - 覆盖策略契约失败和 eval 断言输出。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，12 项失败 0。
+  - `python scripts\check_customer_rag_golden_cases.py --summary` 通过，130 项失败 0。
+  - `python scripts\eval_customer_agent.py --summary` 通过，71 项失败 0。
+  - `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json` 通过，双机器人 133 项失败 0。
+  - `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5` 通过；hybrid Recall@5=0.9857、MRR=0.8881，planned-hybrid 持平，planned-hybrid+rerank Recall@5=0.9714、MRR=0.9136。
+
 ## [2026-07-10] - feat(eval): 扩充 P4a 客户事实敏感场景样本
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

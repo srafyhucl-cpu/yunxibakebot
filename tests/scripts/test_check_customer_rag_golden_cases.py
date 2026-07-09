@@ -74,6 +74,28 @@ def test_customer_rag_golden_fixture_requires_sensitive_scenario_coverage() -> N
     )
 
 
+def test_customer_rag_golden_fixture_requires_sensitive_policy_keywords() -> None:
+    case = {
+        "id": "order-risk",
+        "group": "human_transfer",
+        "query": "查订单",
+        "intent": "human_transfer",
+        "relevant": [["订单"]],
+        "guardrails": ["回答要谨慎"],
+        "sensitive_scenarios": ["order"],
+    }
+
+    checks = golden_check.build_sensitive_policy_checks(case)
+
+    assert checks == [
+        golden_check.GoldenCaseCheck(
+            "order-risk.sensitive_policy.order",
+            False,
+            "missing policy keywords: ['订单', '不能编造 / 工具 / 人工 / 订单状态 / 确认 / 转人工']",
+        )
+    ]
+
+
 def test_customer_rag_golden_main_outputs_json(capsys) -> None:
     exit_code = golden_check.main(["--json"])
 

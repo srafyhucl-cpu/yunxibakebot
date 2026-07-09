@@ -795,8 +795,56 @@ planned-hybrid+rerank: Recall@5=0.9714, MRR=0.9136。
 
 P4 后续：
 
-- P4b 可把 `sensitive_scenarios` 接入更明确的回复策略断言，例如订单必须工具确认、退款必须规则或转人工、库存必须实时注入。
+- P4b 已把 `sensitive_scenarios` 接入更明确的 guardrail 策略契约断言，例如订单必须禁止编造或要求人工/确认，退款必须禁止承诺或要求按订单状态确认，库存必须强调实时/门店/人工确认。
 - P4c 再考虑在 trace 中记录事实敏感场景分类，但不记录敏感明文。
+
+## 二十五、P4b 落地记录
+
+2026-07-10 已完成 P4 事实敏感场景治理增强的第二切片：
+
+- `scripts/check_customer_rag_golden_cases.py` 新增 `SENSITIVE_SCENARIO_POLICY_KEYWORDS`，集中定义 6 类事实敏感场景的 guardrail 策略契约：
+  - `order`
+  - `refund`
+  - `after_sales`
+  - `inventory`
+  - `price`
+  - `human_transfer`
+- 每个带 `sensitive_scenarios` 的客户样本都必须在 `guardrails` 中命中对应场景的策略关键词组。
+- `scripts/eval_customer_agent.py` 复用同一套策略契约，为每条敏感 case 输出 `sensitive_policy.<scenario>` 断言。
+- P4b 过程中机器检查抓出 4 个 guardrail 缺口，已补强 3 条事实敏感样本文案：
+  - 订单提前配送必须落到订单/人工确认。
+  - 退运费必须明确退款/退运费不能承诺。
+  - 退款到账时间必须明确不能编造并转人工或按支付平台确认。
+- 本切片仍只强化脱敏 eval、fixture governance 和报告断言，不改变线上回复热路径。
+
+P4b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python scripts\check_customer_rag_golden_cases.py --summary
+python scripts\eval_customer_agent.py --summary
+python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json
+python -m ruff check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py
+python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5
+```
+
+P4b 验证结果：
+
+```text
+策略契约与 eval 脚本测试通过：12 项失败 0。
+客户 golden cases 结构、覆盖与策略契约检查通过：130 项失败 0。
+客户机器人 eval 通过：71 项失败 0。
+双机器人聚合 eval 通过：133 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+RAG 矩阵保持：hybrid Recall@5=0.9857、MRR=0.8881；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.9714、MRR=0.9136。
+```
+
+P4 后续：
+
+- P4c 可在 trace 或报告层记录事实敏感场景分类，但必须只记录结构化标签，不记录用户原文、订单号、手机号、地址或 open_id。
+- P4d 可进一步增加“回复输出禁止行为”离线断言，例如订单场景不能出现编造状态、退款场景不能出现未验证承诺。
 
 ### 阶段 P5：作品集证据包
 

@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-004：LangChain AI 应用层 P4b 事实敏感策略契约断言
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p4b-customer-sensitive-policy-contracts
+- file: `D:\Project\YunxiBakeBot\scripts\check_customer_rag_golden_cases.py`; `D:\Project\YunxiBakeBot\scripts\eval_customer_agent.py`; `D:\Project\YunxiBakeBot\tests\fixtures\customer_rag_golden_cases.json`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_customer_rag_golden_cases.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python scripts\check_customer_rag_golden_cases.py --summary`; `python scripts\eval_customer_agent.py --summary`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python -m ruff check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P4b 事实敏感策略契约断言
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记脱敏 fixture、策略关键词契约、eval 报告结构和汇总指标；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥；`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P4b 将 P4a 的 `sensitive_scenarios` 标签升级为可机器检查的策略契约。订单、退款、售后、库存、价格、转人工 6 类高风险场景均要求 guardrails 命中对应策略关键词组；客户 eval 对每条敏感 case 输出 `sensitive_policy.<scenario>` 断言。客户 golden cases 检查通过 130/130，客户 eval 通过 71/71，双机器人聚合 eval 通过 133/133。
+
 ## E-20260710-003：LangChain AI 应用层 P4a 客户事实敏感场景 eval 扩容
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

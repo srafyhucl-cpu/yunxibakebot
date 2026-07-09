@@ -35,6 +35,13 @@ def test_customer_eval_result_uses_golden_cases() -> None:
         for case in sensitive_cases
         for scenario in case.metadata["sensitive_scenarios"]
     } >= {"order", "refund", "after_sales", "inventory", "price", "human_transfer"}
+    order_case = next(
+        case for case in result.cases if case.case_id == "customer-order-sensitive-004"
+    )
+    assert {assertion.name for assertion in order_case.assertions} >= {
+        "sensitive_policy.order",
+        "sensitive_policy.human_transfer",
+    }
 
 
 @pytest.mark.asyncio
