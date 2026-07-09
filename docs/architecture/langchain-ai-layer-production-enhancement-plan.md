@@ -618,5 +618,40 @@ Ruff format --check 通过。
 
 P1 后续：
 
-- P1d 可新增显式 trace probe：运行客户 graph 和员工 graph 的可控 fixture，用 `answer_with_trace()` 写入 `reports/agent-traces/agent-traces-{timestamp}.json`，再用 `scripts/report_agent_traces.py --latest --summary` 验证客户和员工节点级摘要。
 - P1e 若需要线上 LangSmith，单独处理环境变量注入和生产容量探针，仍保持缺 key 不影响主流程。
+
+## 十四、P1d 落地记录
+
+2026-07-09 已完成 P1 线上 Trace 与 LangSmith 观测的第四切片：
+
+- 新增 `scripts/probe_agent_traces.py`，使用受控 fake 依赖运行一次客户机器人 graph 和一次员工助手 graph，不访问真实数据库、不调用外部 LLM、不发送企微消息。
+- probe 通过 `answer_with_trace()` 收集 `AgentTraceRun`，写入 `reports/agent-traces/agent-traces-{timestamp}.json`。
+- `scripts/report_agent_traces.py --latest --summary` 现在可以读取最新 probe 输出，并展示客户机器人和员工助手节点级摘要。
+- 新增 `tests/scripts/test_probe_agent_traces.py`，覆盖 probe 输出 JSON 结构和 report 脚本读取链路。
+
+P1d 验收：
+
+```powershell
+python -m pytest tests/scripts/test_probe_agent_traces.py tests/scripts/test_report_agent_traces.py -q --no-cov
+python -m ruff check scripts/probe_agent_traces.py tests/scripts/test_probe_agent_traces.py scripts/report_agent_traces.py tests/scripts/test_report_agent_traces.py
+python -m ruff format --check scripts/probe_agent_traces.py tests/scripts/test_probe_agent_traces.py scripts/report_agent_traces.py tests/scripts/test_report_agent_traces.py
+python scripts/probe_agent_traces.py
+python scripts/report_agent_traces.py --latest --summary
+python scripts/report_agent_traces.py --latest --json
+```
+
+P1d 验证结果：
+
+```text
+5 项 targeted tests 通过。
+Ruff check 通过。
+Ruff format --check 通过。
+probe 输出 reports/agent-traces/agent-traces-20260709-224837.json。
+summary 输出：agent_traces status=ok total_runs=2 agents=2。
+json 输出包含 customer 4 个节点、employee 7 个节点，未包含敏感明文字段。
+```
+
+P1 当前状态：
+
+- P1 的本地 trace 报告、显式 trace 导出、节点字段补齐和本地 probe 闭环已完成。
+- LangSmith 仍是可选配置能力，当前未做生产环境变量注入和外发验证；这部分应在需要线上 LangSmith 时单独做容量探针和生产配置确认。

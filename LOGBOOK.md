@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-09] - feat(observability): 完成 P1d 本地 trace probe 闭环
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P1a/P1b/P1c 已完成本地报告器、graph 显式 trace 导出和节点字段补齐，但 `scripts/report_agent_traces.py --latest --summary` 需要真实 trace JSON 才能展示客户和员工节点级摘要。
+- **决策**:
+  - 新增显式本地 probe，不把生产热路径改成自动写文件。
+  - probe 使用受控 fake 依赖运行客户 graph 和员工 graph，不访问真实数据库、不调用外部 LLM、不发送企微消息。
+  - probe 输出位于 gitignored `reports/agent-traces/`，只登记路径和摘要，不强行入库。
+- **改动**:
+  - `scripts/probe_agent_traces.py` - 新增双机器人本地 trace probe，输出可被 `report_agent_traces.py` 读取的 JSON。
+  - `tests/scripts/test_probe_agent_traces.py` - 覆盖 probe 输出和 report 读取链路。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` - 追加 P1d 落地记录和 P1 当前状态。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_probe_agent_traces.py tests/scripts/test_report_agent_traces.py -q --no-cov` 通过，5 项失败 0。
+  - `python -m ruff check scripts/probe_agent_traces.py tests/scripts/test_probe_agent_traces.py scripts/report_agent_traces.py tests/scripts/test_report_agent_traces.py` 通过。
+  - `python -m ruff format --check scripts/probe_agent_traces.py tests/scripts/test_probe_agent_traces.py scripts/report_agent_traces.py tests/scripts/test_report_agent_traces.py` 通过。
+  - `python scripts/probe_agent_traces.py` 输出 `reports/agent-traces/agent-traces-20260709-224837.json`。
+  - `python scripts/report_agent_traces.py --latest --summary` 输出 `agent_traces status=ok total_runs=2 agents=2`。
+  - `python scripts/report_agent_traces.py --latest --json` 显示 customer 4 个节点、employee 7 个节点，未包含敏感明文字段。
+
 ## [2026-07-09] - feat(observability): 补齐 P1c graph 节点 trace 字段
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

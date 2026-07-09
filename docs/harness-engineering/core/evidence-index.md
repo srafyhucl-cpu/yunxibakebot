@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-005：LangChain AI 应用层 P1d 本地 trace probe 闭环
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p1d-agent-trace-probe
+- file: `D:\Project\YunxiBakeBot\scripts\probe_agent_traces.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_probe_agent_traces.py`; `D:\Project\YunxiBakeBot\reports\agent-traces\agent-traces-20260709-224837.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_probe_agent_traces.py tests\scripts\test_report_agent_traces.py -q --no-cov`; `python -m ruff check scripts\probe_agent_traces.py tests\scripts\test_probe_agent_traces.py scripts\report_agent_traces.py tests\scripts\test_report_agent_traces.py`; `python -m ruff format --check scripts\probe_agent_traces.py tests\scripts\test_probe_agent_traces.py scripts\report_agent_traces.py tests\scripts\test_report_agent_traces.py`; `python scripts\probe_agent_traces.py`; `python scripts\report_agent_traces.py --latest --summary`; `python scripts\report_agent_traces.py --latest --json`
+- result: pass
+- related_logbook: 2026-07-09 - feat(observability): 完成 P1d 本地 trace probe 闭环
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: probe 使用受控 fake 依赖，不访问真实数据库、不调用外部 LLM、不发送企微消息；输出 JSON 位于 gitignored reports 目录，只包含节点名、模型名、耗时、工具数量、知识 ID 等结构化元数据，不包含真实客户原文、订单明细、手机号、地址或 open_id。
+- summary: P1d 新增本地双机器人 trace probe，使用 `answer_with_trace()` 生成 customer 与 employee 两条 `AgentTraceRun` 并写入 `reports\agent-traces\agent-traces-20260709-224837.json`。`scripts\report_agent_traces.py --latest --summary` 返回 `agent_traces status=ok total_runs=2 agents=2`，JSON 汇总显示 customer 4 个节点、employee 7 个节点。P1 本地 trace 报告、显式导出、节点字段和 latest 报告闭环已具备。
+
 ## E-20260709-004：LangChain AI 应用层 P1c graph 节点 trace 字段补齐
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
