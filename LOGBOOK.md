@@ -1,4 +1,27 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P11a 脱敏真实会话回放入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: 当前 eval 已覆盖工程 fixture、客户回复回放和受控 fake model probe，但真实业务问题分布仍缺少可接入的脱敏 replay 数据契约。
+- **决策**:
+  - 先落数据契约和检查入口，不直接接入生产明文。
+  - 脱敏真实会话 replay 必须通过 `golden_case_id` 绑定客户敏感 golden case，复用既有禁止回复模式。
+  - 脚本检查隐私模式和禁止回复模式，并可导出兼容 `check_customer_reply_replay.py --replies-json` 的回复映射。
+  - 聚合 Agent Eval 默认 133 项不变，显式 `--include-real-replay` 才把 `real_conversation_replay` 作为额外 agent 维度加入。
+- **改动**:
+  - `scripts/check_real_conversation_replay.py` - 新增脱敏真实会话 replay fixture 检查、回复映射导出和 JSON/summary 输出。
+  - `tests/fixtures/customer_real_replay_sample.json` - 新增不含真实客户原文的 schema sample。
+  - `scripts/report_agent_eval.py` - 新增 `real_conversation_replay` agent、`--include-real-replay` 和 `--real-replay-fixture`。
+  - `tests/scripts/test_check_real_conversation_replay.py`、`tests/scripts/test_agent_eval_scripts.py` - 覆盖样例通过、隐私模式失败、禁止回复失败、replies-json 桥接和聚合 eval。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，17 项失败 0。
+  - `python -m ruff check scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python scripts\check_real_conversation_replay.py --json-out reports\agent-eval\real-conversation-replay-latest.json --replies-json-out reports\agent-eval\real-conversation-replies-latest.json --summary` 通过，2 项失败 0。
+  - `python scripts\check_customer_reply_replay.py --replies-json reports\agent-eval\real-conversation-replies-latest.json --json-out reports\agent-eval\real-conversation-reply-replay-latest.json --summary` 通过，30 项失败 0。
+  - `python scripts\report_agent_eval.py --latest --include-real-replay --json-out reports\agent-eval\latest-with-real-conversation-replay.json --summary` 通过，135 项失败 0。
+  - `python scripts\report_agent_eval.py --latest --include-reply-replay --reply-replay-json reports\agent-eval\real-conversation-replies-latest.json --include-real-replay --json-out reports\agent-eval\latest-with-reply-and-real-replay.json --summary` 通过，165 项失败 0。
+
 ## [2026-07-10] - feat(eval): 增加 P10c 发布摘要结构化
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

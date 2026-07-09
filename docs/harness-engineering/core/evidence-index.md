@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-014：LangChain AI 应用层 P11a 脱敏真实会话回放入口
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p11a-real-conversation-replay-contract
+- file: `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay.py`; `D:\Project\YunxiBakeBot\tests\fixtures\customer_real_replay_sample.json`; `D:\Project\YunxiBakeBot\scripts\report_agent_eval.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_real_conversation_replay.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replay-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replies-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest-with-real-conversation-replay.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest-with-reply-and-real-replay.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python -m ruff check scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\check_real_conversation_replay.py --json-out reports\agent-eval\real-conversation-replay-latest.json --replies-json-out reports\agent-eval\real-conversation-replies-latest.json --summary`; `python scripts\check_customer_reply_replay.py --replies-json reports\agent-eval\real-conversation-replies-latest.json --json-out reports\agent-eval\real-conversation-reply-replay-latest.json --summary`; `python scripts\report_agent_eval.py --latest --include-real-replay --json-out reports\agent-eval\latest-with-real-conversation-replay.json --summary`; `python scripts\report_agent_eval.py --latest --include-reply-replay --reply-replay-json reports\agent-eval\real-conversation-replies-latest.json --include-real-replay --json-out reports\agent-eval\latest-with-reply-and-real-replay.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P11a 脱敏真实会话回放入口
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮新增 fixture 是 schema sample，不包含真实客户原文；脚本报告只记录脱敏 user_message、case id、golden case id、断言结果、隐私模式命中情况和禁止回复模式命中情况；导出的 replies-json 位于 gitignored reports 目录，后续接入真实样本前必须先脱敏并保持 `contains_sensitive_data=false`。
+- summary: P11a 为真实业务问题回放建立脱敏数据契约。`check_real_conversation_replay.py` 要求每条 replay case 绑定客户敏感 golden case，并复用对应 forbidden reply patterns 检查最终回复；同时检查手机号、长订单号、UUID、open_id、完整地址和完整订单号等隐私模式。样例 replay 2/2 通过，导出的 replies-json 可被既有 customer_reply_replay 消费，聚合 Agent Eval 显式包含 real replay 后 135/135 通过，同时包含 reply replay 与 real replay 后 165/165 通过。
+
 ## E-20260710-013：LangChain AI 应用层 P10c 发布摘要结构化
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

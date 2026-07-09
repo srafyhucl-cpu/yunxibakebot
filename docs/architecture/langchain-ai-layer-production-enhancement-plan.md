@@ -1239,6 +1239,54 @@ RAG 加强 release gate 通过：4 步失败 0。
 `release_summary.agent_eval_default.total=133`，`release_summary.agent_eval_with_reply_replay.total=163`，`release_summary.rag_eval_matrix.best.name=hybrid`，Recall@5=0.9857，MRR=0.8881。
 ```
 
+## 三十五、P11a 落地记录
+
+2026-07-10 已完成 P11 真实会话脱敏回放的第一切片：
+
+- 新增 `scripts/check_real_conversation_replay.py`，定义并检查脱敏真实会话 replay fixture。
+- 新增样例 fixture `tests/fixtures/customer_real_replay_sample.json`，只作为 schema sample，不包含真实客户原文。
+- replay case 必须包含：
+  - `case_id`
+  - `golden_case_id`
+  - `user_message`
+  - `final_reply`
+  - `source`
+  - 可选 `group` / `intent`
+- `golden_case_id` 必须指向客户敏感 golden case，脚本复用该 golden case 的 `forbidden_reply_patterns` 检查最终回复。
+- 脚本会检查用户消息和最终回复中是否出现手机号、长订单号、UUID、open_id、完整地址、完整订单号等隐私模式。
+- 脚本支持 `--replies-json-out`，可导出兼容 `scripts/check_customer_reply_replay.py --replies-json` 的回复映射。
+- `scripts/report_agent_eval.py` 新增显式 `--include-real-replay` 和 `--real-replay-fixture`，可把 `real_conversation_replay` 作为第四个 agent 维度并入聚合 eval；默认 133 项基线保持不变。
+- 本切片不访问生产、不导出真实明文、不调用外部 LLM、不改变客户或员工热路径。
+
+P11a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python -m ruff check scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py
+python scripts\check_real_conversation_replay.py --json-out reports\agent-eval\real-conversation-replay-latest.json --replies-json-out reports\agent-eval\real-conversation-replies-latest.json --summary
+python scripts\check_customer_reply_replay.py --replies-json reports\agent-eval\real-conversation-replies-latest.json --json-out reports\agent-eval\real-conversation-reply-replay-latest.json --summary
+python scripts\report_agent_eval.py --latest --include-real-replay --json-out reports\agent-eval\latest-with-real-conversation-replay.json --summary
+python scripts\report_agent_eval.py --latest --include-reply-replay --reply-replay-json reports\agent-eval\real-conversation-replies-latest.json --include-real-replay --json-out reports\agent-eval\latest-with-reply-and-real-replay.json --summary
+```
+
+P11a 验证结果：
+
+```text
+脚本测试通过：17 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+脱敏真实会话 replay 样例通过：2 项失败 0。
+导出的 replies-json 可被 customer_reply_replay 消费：30 项失败 0。
+聚合 Agent Eval 显式包含 real replay 后通过：135 项失败 0。
+聚合 Agent Eval 同时包含 reply replay 与 real replay 后通过：165 项失败 0。
+```
+
+P11 后续：
+
+- P11b 可增加真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
+- P11c 可把真实 replay 数量扩到每类事实敏感场景至少 5 条，并在 release gate 增加显式 `--include-real-replay`。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：
