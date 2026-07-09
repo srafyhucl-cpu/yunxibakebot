@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-032：LangChain AI 应用层 P18a LangSmith 生产灰度发布预检
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p18a-langsmith-production-rollout-preflight
+- file: `D:\Project\YunxiBakeBot\scripts\check_langsmith_production_rollout.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langsmith_production_rollout.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\check_langsmith_production_rollout.py --summary`; `python scripts\check_langsmith_runtime_config.py --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(obs): 增加 LangSmith 生产灰度发布预检
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只读检查 LangSmith runtime config、metadata 脱敏、冷导入和灰度参数；不修改生产环境、不向 LangSmith 外发、不调用外部 LLM、不读取业务数据库、不包含 API key、客户原文、手机号、地址、open_id 或订单明文。生成的 rollout JSON 默认位于 gitignored reports 目录。
+- summary: P18a 新增 LangSmith 生产灰度发布预检。默认关闭态采样率 `0.0` 通过，用于证明当前不外发仍安全；严格启用模式要求 runtime safe_to_enable、人工外发合规确认和安全采样率。下一步 P18b 需要生产注入 key/project/tracing 开关，并用小采样率复验后才可打开外发。
+
 ## E-20260710-031：LangChain AI 应用层 P17b-intake 外部真实 replay 接入操作包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

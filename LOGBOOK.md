@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加 LangSmith 生产灰度发布预检
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P17b 真实样本接入仍等待仓库外真实脱敏客服会话，不能用合成样例伪装完成。计划允许并行推进 P18，但直接打开 LangSmith 生产外发需要先有合规、采样率、容量和回滚边界。需要一个默认不外发的发布预检。
+- **决策**:
+  - 新增 P18a 只读生产灰度发布预检，默认采样率 `0.0`，不修改生产环境、不向 LangSmith 外发。
+  - 预检复用现有 LangSmith runtime config 报告和冷导入检查，继续要求 metadata 脱敏通过。
+  - 严格启用模式必须同时满足 runtime safe_to_enable 和人工 `--external-export-approved`。
+  - 默认安全采样率上限固定为 `0.1`，超出即失败并输出降采样动作。
+- **改动**:
+  - `scripts/check_langsmith_production_rollout.py` - 新增 LangSmith 生产灰度发布预检报告和 CLI。
+  - `tests/scripts/test_check_langsmith_production_rollout.py` - 覆盖关闭态通过、采样率过高失败、严格启用缺合规失败、严格启用合规通过和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`scripts/check_project.py` - 将 P18a 预检纳入计划门禁和项目业务合约。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P18a 追溯记录和版本 `0.105.3`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\check_langsmith_production_rollout.py --summary` 通过，输出 `enabled=false sample_rate=0.0`。
+  - `python scripts\check_langsmith_runtime_config.py --summary` 通过，输出 `enabled=false safe_to_enable=false missing=0`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过。
+- **后续**:
+  - 若要进入 P18b，需先在生产环境注入 LangSmith key/project/tracing 开关，并完成外发合规确认；再用 `--require-enabled --external-export-approved --sample-rate 0.05` 这类小流量参数复验。
+
 ## [2026-07-10] - feat(eval): 增加真实 replay 外部接入操作包
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

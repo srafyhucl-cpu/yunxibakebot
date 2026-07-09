@@ -39,6 +39,10 @@ def test_langchain_ai_layer_production_plan_detects_missing_boundary() -> None:
         "artifact.scripts/build_real_conversation_replay_intake_packet.py"
         in report["failed_names"]
     )
+    assert (
+        "artifact.scripts/check_langsmith_production_rollout.py"
+        in report["failed_names"]
+    )
 
 
 def test_langchain_ai_layer_production_plan_main_outputs_json(capsys) -> None:
