@@ -124,6 +124,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
         "scripts/check_github_reference_implementation_plan.py",
         "--summary",
     ),
+    (
+        sys.executable,
+        "scripts/check_langchain_ai_layer_production_plan.py",
+        "--summary",
+    ),
 )
 
 # ── 洁净代码检查常量 ────────────────────────────────────────────────────────

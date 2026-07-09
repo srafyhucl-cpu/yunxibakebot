@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-018：LangChain AI 应用层生产增强计划状态门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/plan-status-guardrail
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python -m ruff check scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_check_langchain_ai_layer_production_plan.py scripts\check_project.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_check_langchain_ai_layer_production_plan.py scripts\check_project.py`; `python -m pytest tests\scripts\test_check_langchain_ai_layer_production_plan.py tests\test_red_line_rules.py -q --no-cov`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - chore(harness): 增加 LangChain 生产增强计划状态门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只检查计划文档状态、边界短语、关键脚本引用和 stale phrase，不包含客户原文、订单号、手机号、地址、open_id 或密钥。
+- summary: 增加 LangChain AI 应用层生产增强计划静态验收，防止计划文档在 P0-P11d 已完成后仍保留“待执行”或“下一步 P0”等旧口径。检查已接入 `check_project.py --skip-tests` 业务合约，当前计划状态为持续执行中，下一步建议进入 P12，并明确合成覆盖样例不等同真实客服样本池。
+
 ## E-20260710-017：LangChain AI 应用层 P11d real replay 场景覆盖门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

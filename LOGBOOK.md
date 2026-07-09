@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - chore(harness): 增加 LangChain 生产增强计划状态门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P0-P11d 已持续落地，但 `langchain-ai-layer-production-enhancement-plan.md` 顶部仍保留“待执行”和“下一步 P0”等旧口径，容易让后续 Agent 从过时入口继续执行。
+- **决策**:
+  - 增加计划静态验收脚本，把“持续执行中、P0-P11d 已完成、下一步 P12”作为可检查状态。
+  - 明确合成覆盖样例不等同真实客服样本池，真实样本接入仍需外部脱敏数据。
+  - 将该脚本接入 `check_project.py --skip-tests` 的业务合约检查，避免计划状态再次漂移。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_production_plan.py` - 新增生产增强计划静态验收。
+  - `tests/scripts/test_check_langchain_ai_layer_production_plan.py` - 覆盖计划通过、旧状态失败、缺边界失败、JSON/summary 输出。
+  - `scripts/check_project.py` - 将计划静态验收接入业务合约检查。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` - 更新状态、P12 下一步建议和 P11d 合成样例边界。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过，5 项失败 0。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，18 项失败 0。
+  - `python -m ruff check scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_check_langchain_ai_layer_production_plan.py scripts\check_project.py` 通过。
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_production_plan.py tests\test_red_line_rules.py -q --no-cov` 通过，34 项失败 0。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查新增 `langchain_ai_layer_production_plan status=passed total=18 failed=0`；仅有既有函数长度 WARN。
+
 ## [2026-07-10] - feat(eval): 增加真实会话回放场景覆盖门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -1,0 +1,54 @@
+"""LangChain AI 应用层生产增强计划静态验收测试。"""
+
+from __future__ import annotations
+
+import json
+
+from scripts import check_langchain_ai_layer_production_plan as plan_check
+
+
+def test_langchain_ai_layer_production_plan_passes_static_check() -> None:
+    checks = plan_check.validate_plan(plan_check.load_plan())
+    report = plan_check.build_json_report(checks)
+
+    assert report["status"] == "passed"
+    assert report["failed"] == 0
+
+
+def test_langchain_ai_layer_production_plan_detects_stale_status() -> None:
+    checks = plan_check.validate_plan("状态：计划冻结，待执行")
+    report = plan_check.build_json_report(checks)
+
+    assert report["status"] == "failed"
+    assert "stale.状态：计划冻结，待执行" in report["failed_names"]
+    assert "status.状态：持续执行中" in report["failed_names"]
+
+
+def test_langchain_ai_layer_production_plan_detects_missing_boundary() -> None:
+    checks = plan_check.validate_plan("状态：持续执行中")
+    report = plan_check.build_json_report(checks)
+
+    assert report["status"] == "failed"
+    assert "boundary.合成覆盖样例不等同真实客服样本池" in report["failed_names"]
+    assert (
+        "artifact.scripts/check_real_conversation_replay_coverage.py"
+        in report["failed_names"]
+    )
+
+
+def test_langchain_ai_layer_production_plan_main_outputs_json(capsys) -> None:
+    exit_code = plan_check.main(["--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["status"] == "passed"
+    assert payload["failed"] == 0
+
+
+def test_langchain_ai_layer_production_plan_main_outputs_summary(capsys) -> None:
+    exit_code = plan_check.main(["--summary"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "langchain_ai_layer_production_plan status=passed" in output
+    assert "failed=0" in output

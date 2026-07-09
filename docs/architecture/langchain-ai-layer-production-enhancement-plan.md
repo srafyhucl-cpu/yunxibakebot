@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：计划冻结，待执行
+> 状态：持续执行中，P0-P11d 已完成；下一步建议进入 P12 真实脱敏样本池接入与生产观测证据收口。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1420,6 +1420,8 @@ release gate 摘要显示 order=6、refund=6、after_sales=8、inventory=5、pri
 P11 后续：
 
 - 接入真实脱敏客服样本池时，把导出结果交给 `--include-real-replay --include-real-replay-coverage` 门禁；真实样本应替换或补充当前合成覆盖样例，而不是把合成样例当作真实业务证据。
+- 合成覆盖样例不等同真实客服样本池；它只用于验证门禁形状和覆盖统计，不能作为真实问题分布证据。
+- LangSmith 仍保持可选配置能力，未完成生产环境变量注入和外发验证前，不作为默认上线依赖。
 
 ## 五、推荐执行顺序
 
@@ -1485,13 +1487,13 @@ docs/harness-engineering/core/evidence-index.md
 
 ## 九、下一步建议
 
-下一步建议直接进入阶段 P0：
+下一步建议进入 P12：
 
 ```text
-目标：把当前 LangChain AI 应用层接管成果同步到生产，并完成 health / ready / callback / 客户 RAG / 员工助手正向探针。
+目标：接入真实脱敏客服样本池或生产观测证据，把 P11 的 schema sample / 合成覆盖样例推进为真实问题分布回归资产。
 ```
 
-P0 不应再扩功能。它的价值是把“代码已经完成”变成“真实服务器已经验证”的证据。
+P12 不应让脚本直接读取生产明文。应先通过 P11c 导出器或等价脱敏流程生成 `contains_sensitive_data=false` 的 replay fixture，再用 `--include-real-replay --include-real-replay-coverage` release gate 做准入检查。
 
 ## 十、P0 落地记录
 
