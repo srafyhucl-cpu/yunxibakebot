@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from types import SimpleNamespace
 from typing import Any
 
 from app.models.employee_agent import (
     AgentIntent,
+    AgentPlan,
     AnswerStyle,
     OrderQueryKind,
     OrderQueryPlan,
@@ -565,27 +565,24 @@ async def test_planner_builds_product_knowledge_multi_tool_plan() -> None:
 async def test_planner_gives_llm_all_capabilities_when_search_is_empty(
     monkeypatch,
 ) -> None:
-    captured: dict[str, str] = {}
+    captured: dict[str, tuple[str, ...]] = {}
 
-    async def fake_llm_chat(
-        messages: list[dict[str, str]],
-        **kwargs: Any,
-    ) -> SimpleNamespace:
-        captured["prompt"] = messages[0]["content"]
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            '{"intent":"product_query","tools":["product_lookup"],'
-                            '"queryPlan":null,"answerStyle":"summary"}'
-                        )
-                    )
-                )
-            ]
+    async def fake_structured_planner(
+        query: str,
+        capabilities: list[Any],
+        today: date,
+    ) -> Any:
+        captured["capabilities"] = tuple(card.name for card in capabilities)
+        return AgentPlan(
+            intent=AgentIntent.PRODUCT_QUERY,
+            tools=("product_lookup",),
         )
 
-    monkeypatch.setattr(employee_agent_planner, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(
+        employee_agent_planner,
+        "request_employee_plan_with_langchain",
+        fake_structured_planner,
+    )
 
     plan = await EmployeeAgentPlanner(
         today_provider=lambda: date(2026, 7, 3),
@@ -593,8 +590,8 @@ async def test_planner_gives_llm_all_capabilities_when_search_is_empty(
     ).plan("伯牙绝弦")
 
     assert plan.intent == AgentIntent.PRODUCT_QUERY
-    assert "product_lookup" in captured["prompt"]
-    assert "order_dynamic_query" in captured["prompt"]
+    assert "product_lookup" in captured["capabilities"]
+    assert "order_dynamic_query" in captured["capabilities"]
 
 
 async def test_employee_agent_uses_order_lookup_service() -> None:

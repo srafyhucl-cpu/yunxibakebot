@@ -6,7 +6,7 @@
 
 除非你是在回顾历史决策，否则当前实施、迁移和双仓协作都应从本节进入；下方“历史方案”和“业务与技术背景”只用于参考，不作为执行起点。
 
-当前代码事实（2026-07-07，`VERSION=0.74.34`）：
+当前代码事实（2026-07-09，`VERSION=0.84.0`）：
 
 - `app/lifespan_routes.py` 是路由装配入口；对外仍暴露 `/api/v1/miniapp/*`、`/api/v1/admin/*`、`/api/v1/wecom/*`、`/api/v1/webhook/*` 等稳定路径。
 - `app/api/channels/storefront/` 是消费者前台渠道的 canonical API 目录，继续承接 MiniApp 兼容路径。
@@ -14,6 +14,7 @@
 - `app/lifespan_services.py` 是服务装配入口；当前 canonical 服务包括 `catalog_service`、`order_service`、`customer_address_service`、`customer_group_service`、`storefront_conversation_service`、`employee_agent_service` 等。
 - `app/service/order/`、`app/service/catalog/`、`app/service/customer/`、`app/service/conversation/`、`app/service/ops/` 已承接主要业务逻辑，`app/service/miniapp_*.py` 作为兼容 facade 使用。
 - 统一质量门禁入口为 `python scripts/check_project.py --skip-tests`；发布前预检入口为 `python scripts/preflight_production.py --json`。
+- AI 应用层已引入 LangChain / LangGraph：客户机器人使用 LangGraph 编排和 LangChain tool/model adapter；员工助手使用 LangGraph 执行流、LangChain structured planner fallback 和确定性 finalizer；业务领域层仍保持 `api -> service -> repository -> models`。
 
 - `README.md`
   - 产品命名、仓角色、启动方式和总入口说明。
@@ -29,6 +30,10 @@
   - GitHub 参考项目借鉴、客户机器人 / 员工助手双线边界、LangChain / LangGraph 取舍和分阶段实施计划。
 - `docs/architecture/bot-capability-matrix.md`
   - 客户机器人和员工助手的能力目录，覆盖入口、底层 service、回复策略、验证入口和当前缺口。
+- `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md`
+  - LangChain / LangGraph 接管 AI 应用层的分阶段执行计划和阶段 1-9 落地记录。
+- `docs/architecture/langchain-ai-layer-portfolio.md`
+  - 面向作品集和求职展示的 LangChain 生态化工程说明，覆盖边界、关键代码、eval 证据和回滚策略。
 - `docs/architecture/customer-session-summary-design.md`
   - 客户机器人会话摘要设计，明确短期摘要、长期画像、触发阈值、独立数据层、异步生成和热路径读取边界。
 - `docs/architecture/customer-memory-governance-plan.md`
@@ -45,6 +50,10 @@
   - 客户机器人首批 RAG golden cases 的结构验收入口，覆盖商品咨询、配送、退款售后和转人工。
 - `scripts/eval_retrieval.py --fixture tests/fixtures/customer_rag_golden_cases.json`
   - 客户机器人 golden cases 的离线检索评估入口，输出整体和分组 Recall@K / MRR。
+- `scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5`
+  - RAG Advanced 多模式评测矩阵，比较 vector、hybrid、planned-hybrid 和 planned-hybrid+rerank。
+- `scripts/report_agent_eval.py --latest`
+  - 双机器人统一离线 Agent Eval 报告，聚合客户 RAG golden cases、员工 planner 探针和能力合约。
 - `docs/architecture/customer-master-v1.md`
   - 当前客户主档 v1 设计基线，明确主档、身份链接、来源快照三层结构，以及有赞迁移审计落点。
 - `docs/architecture/customer-master-v1-schema-draft.md`
@@ -85,6 +94,8 @@
   - Harness Engineering 总入口。
 - `docs/harness-engineering/adr/0002-platform-storefront-boundaries-and-instance-naming.md`
   - 固化逻辑总项目、双仓边界和 `Yunxi` 实例名定位的长期决策。
+- `docs/harness-engineering/adr/0003-langchain-ai-layer-boundary.md`
+  - 固化 LangChain 生态接管 AI 应用层、但不接管业务领域层和数据库事实层的长期边界。
 - `docs/harness-engineering/core/evidence-index.md`
   - 历史证据索引，只做追溯，不作为当前架构口径来源。
 

@@ -1,6 +1,7 @@
 """LangChain RAG Retriever 适配测试。"""
 
 import pytest
+from types import SimpleNamespace
 
 from app.models.knowledge import KnowledgeEntry
 from app.service.agents.rag.documents import knowledge_entry_to_document
@@ -9,6 +10,7 @@ from app.service.agents.rag.query import (
     RagQueryVariant,
     build_customer_rag_query_plan,
 )
+from app.service.agents.rag.rerank import rerank_documents_by_query_rules
 from app.service.agents.rag.retriever import LangChainKnowledgeRetriever
 
 
@@ -136,3 +138,66 @@ async def test_langchain_knowledge_retriever_supports_multi_query_metadata() -> 
     assert documents[0].metadata["original_query"] == "原始退款问题"
     assert documents[1].metadata["retrieval_query"] == "退款规则 售后政策"
     assert documents[1].metadata["query_variant_index"] == 1
+
+
+def test_rule_reranker_prioritizes_query_relevant_document() -> None:
+    documents = [
+        SimpleNamespace(
+            page_content="三公里内可配送",
+            metadata={"title": "配送范围", "category": "delivery"},
+        ),
+        SimpleNamespace(
+            page_content="未制作可退款，已制作需人工确认",
+            metadata={"title": "退款规则", "category": "after_sales"},
+        ),
+    ]
+
+    reranked = rerank_documents_by_query_rules("我下错单了可以退款吗", documents)
+
+    assert reranked[0].metadata["title"] == "退款规则"
+
+
+@pytest.mark.asyncio
+async def test_langchain_knowledge_retriever_applies_optional_reranker() -> None:
+    delivery_entry = KnowledgeEntry(
+        id=1,
+        title="配送范围",
+        content="三公里内可配送",
+        category="delivery",
+    )
+    refund_entry = KnowledgeEntry(
+        id=2,
+        title="退款规则",
+        content="未制作可退款，已制作需人工确认",
+        category="after_sales",
+    )
+    fake_retriever = _FakeMultiQueryKnowledgeRetriever(
+        {
+            "可以退款吗": [delivery_entry],
+            "退款规则 售后政策": [refund_entry],
+        }
+    )
+
+    def query_planner(query: str) -> RagQueryPlan:
+        return RagQueryPlan(
+            original_query=query,
+            variants=(
+                RagQueryVariant(query=query, reason="original"),
+                RagQueryVariant(query="退款规则 售后政策", reason="rule_expand"),
+            ),
+        )
+
+    retriever = LangChainKnowledgeRetriever(
+        fake_retriever,
+        limit=1,
+        query_planner=query_planner,
+        document_reranker=rerank_documents_by_query_rules,
+    ).as_retriever()
+
+    documents = await retriever.ainvoke("可以退款吗")
+
+    assert fake_retriever.calls == [
+        ("可以退款吗", 1),
+        ("退款规则 售后政策", 1),
+    ]
+    assert [document.metadata["title"] for document in documents] == ["退款规则"]

@@ -12,6 +12,8 @@
 检索模式（--mode）：
     vector  —— 仅向量（现状基线，默认）
     hybrid  —— 向量 + BM25 + RRF（线 A 改造后；A1 落地后可用）
+    planned-vector —— query plan + 仅向量
+    planned-hybrid —— query plan + 向量 + BM25 + RRF
 
 命中判定：
     标注集中每条用例的 relevant 是一组『匹配器』，匹配器为关键词列表。
@@ -20,6 +22,9 @@
 用法：
     python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db
     python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --mode vector --k 5
+    python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --mode planned-vector --k 5
+    python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --mode planned-hybrid --k 5
+    python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --mode planned-hybrid --rerank --k 5
     python scripts/eval_retrieval.py --db data/prod_snapshot/eval.db --fixture tests/fixtures/customer_rag_golden_cases.json
 """
 
@@ -32,6 +37,7 @@ import sqlite3
 import sys
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -39,7 +45,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # YUNXI_USE_FAKE_EMBEDDING=1 用轻量哈希编码器跑通流程（此时分数仅供管线验证）。
 from app.service.embedding_search import EmbeddingSearcher  # noqa: E402
 from app.service.bm25_search import BM25Searcher  # noqa: E402
+from app.service.agents.rag.query import (  # noqa: E402
+    RagQueryVariant,
+    build_customer_rag_query_plan,
+)
+from app.service.agents.rag.rerank import rerank_documents_by_query_rules  # noqa: E402
 from app.service.retrieval_fusion import DEFAULT_RRF_K, fuse_ranked_results  # noqa: E402
+
+MODE_VECTOR = "vector"
+MODE_HYBRID = "hybrid"
+MODE_PLANNED_VECTOR = "planned-vector"
+MODE_PLANNED_HYBRID = "planned-hybrid"
+PLANNED_MODES = {MODE_PLANNED_VECTOR, MODE_PLANNED_HYBRID}
+HYBRID_MODES = {MODE_HYBRID, MODE_PLANNED_HYBRID}
+DEFAULT_RERANK_CANDIDATE_MULTIPLIER = 3
 
 DEFAULT_FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent
@@ -134,6 +153,69 @@ class HybridEvalSearcher:
             rrf_k=DEFAULT_RRF_K,
         )
         return [(key, float(limit - index)) for index, key in enumerate(fused_keys)]
+
+
+class PlannedQueryEvalSearcher:
+    """评测脚本专用的 query plan 多查询包装器。"""
+
+    def __init__(self, base_searcher: object) -> None:
+        self._base_searcher = base_searcher
+
+    def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
+        plan = build_customer_rag_query_plan(query)
+        variants = plan.variants or (RagQueryVariant(query=query, reason="original"),)
+        seen_keys: set[str] = set()
+        ranked_results: list[tuple[str, float]] = []
+        for variant in variants:
+            results = self._base_searcher.search(variant.query, limit=limit)
+            for key, score in results:
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                ranked_results.append((key, float(score)))
+                if len(ranked_results) >= limit:
+                    return ranked_results
+        return ranked_results
+
+
+class RerankEvalSearcher:
+    """评测脚本专用的 Document rerank 包装器。"""
+
+    def __init__(
+        self,
+        base_searcher: object,
+        corpus: list[tuple[str, str, str]],
+        candidate_multiplier: int = DEFAULT_RERANK_CANDIDATE_MULTIPLIER,
+    ) -> None:
+        self._base_searcher = base_searcher
+        self._documents_by_key = _build_eval_documents_by_key(corpus)
+        self._candidate_multiplier = max(candidate_multiplier, 1)
+
+    def search(self, query: str, limit: int = 8) -> list[tuple[str, float]]:
+        candidate_limit = max(limit * self._candidate_multiplier, limit)
+        results = self._base_searcher.search(query, limit=candidate_limit)
+        documents = [
+            self._documents_by_key[key]
+            for key, _score in results
+            if key in self._documents_by_key
+        ]
+        reranked_documents = rerank_documents_by_query_rules(query, documents)
+        return [
+            (document.metadata["key"], float(limit - index))
+            for index, document in enumerate(reranked_documents[:limit])
+        ]
+
+
+def _build_eval_documents_by_key(
+    corpus: list[tuple[str, str, str]],
+) -> dict[str, SimpleNamespace]:
+    return {
+        key: SimpleNamespace(
+            page_content=content,
+            metadata={"key": key, "title": title, "category": ""},
+        )
+        for key, title, content in corpus
+    }
 
 
 def evaluate(
@@ -275,6 +357,11 @@ def print_report(mode: str, db_path: str, corpus_size: int, summary: dict) -> No
     )
     print(f"  Recall@{summary['k']}:     {summary['recall_at_k']}")
     print(f"  MRR:           {summary['mrr']}")
+    if summary.get("rerank"):
+        print(
+            "  Rerank:        enabled "
+            f"(candidate_multiplier={summary['rerank_candidate_multiplier']})"
+        )
     if summary.get("group_metrics"):
         print("  分组指标:")
         for group, metrics in summary["group_metrics"].items():
@@ -310,11 +397,30 @@ async def main() -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=["vector", "hybrid"],
-        default="vector",
-        help="检索模式：vector=纯向量基线（默认）；hybrid=向量+BM25+RRF（A1 后可用）",
+        choices=[
+            MODE_VECTOR,
+            MODE_HYBRID,
+            MODE_PLANNED_VECTOR,
+            MODE_PLANNED_HYBRID,
+        ],
+        default=MODE_VECTOR,
+        help=(
+            "检索模式：vector=纯向量基线（默认）；hybrid=向量+BM25+RRF；"
+            "planned-vector/planned-hybrid=先做 query plan 再检索"
+        ),
     )
     parser.add_argument("--k", type=int, default=5, help="Recall@K 与召回截断的 K")
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="显式启用规则 rerank；会扩大候选池后再按规则排序，不作为默认基线",
+    )
+    parser.add_argument(
+        "--rerank-candidate-multiplier",
+        type=int,
+        default=DEFAULT_RERANK_CANDIDATE_MULTIPLIER,
+        help="启用 --rerank 时的候选池倍数，默认 3",
+    )
     parser.add_argument(
         "--json-out", default="", help="可选：将汇总指标写入该 JSON 路径"
     )
@@ -341,12 +447,26 @@ async def main() -> int:
     # 构建向量索引（与生产同源：title + content）
     searcher = EmbeddingSearcher()
     searcher.build(corpus)
-    if args.mode == "hybrid":
+    if args.mode in HYBRID_MODES:
         bm25_searcher = BM25Searcher()
         bm25_searcher.build(corpus)
         searcher = HybridEvalSearcher(searcher, bm25_searcher)
+    if args.mode in PLANNED_MODES:
+        searcher = PlannedQueryEvalSearcher(searcher)
+    if args.rerank:
+        searcher = RerankEvalSearcher(
+            searcher,
+            corpus,
+            candidate_multiplier=args.rerank_candidate_multiplier,
+        )
 
     summary = evaluate(cases, corpus, searcher, k=args.k)
+    summary["rerank"] = bool(args.rerank)
+    if args.rerank:
+        summary["rerank_candidate_multiplier"] = max(
+            args.rerank_candidate_multiplier,
+            1,
+        )
     print_report(args.mode, str(db_path), len(corpus), summary)
 
     if args.json_out:

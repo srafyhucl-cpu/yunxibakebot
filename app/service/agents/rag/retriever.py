@@ -17,10 +17,12 @@ class LangChainKnowledgeRetriever:
         knowledge_retriever: KnowledgeRetriever,
         limit: int = 8,
         query_planner: Callable[[str], RagQueryPlan] | None = None,
+        document_reranker: Callable[[str, list[Any]], list[Any]] | None = None,
     ) -> None:
         self._knowledge_retriever = knowledge_retriever
         self._limit = limit
         self._query_planner = query_planner
+        self._document_reranker = document_reranker
 
     def as_retriever(self) -> Any:
         """构造 LangChain BaseRetriever 实例。"""
@@ -73,9 +75,11 @@ class LangChainKnowledgeRetriever:
                     )
                 )
                 seen_keys.add(entry_key)
-                if len(documents) >= self._limit:
+                if self._document_reranker is None and len(documents) >= self._limit:
                     return documents
-        return documents
+        if self._document_reranker is None:
+            return documents
+        return self._document_reranker(query, documents)[: self._limit]
 
     def _build_query_plan(self, query: str) -> RagQueryPlan:
         if self._query_planner is not None:

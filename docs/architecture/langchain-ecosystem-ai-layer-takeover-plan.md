@@ -1047,3 +1047,285 @@ python -m ruff format --check app/service/agents/rag/query.py app/service/agents
 
 - 下一切片可把 planner 挂到离线 eval 或实验脚本，不直接打开客户热路径。
 - 若要进入线上路径，需要 feature flag、golden cases 对比和知识检索日志字段扩展。
+
+## 二十、阶段 6b 落地记录
+
+2026-07-09 已完成 `phase-6b-rag-query-plan-eval-mode` 首版：
+
+- `scripts/eval_retrieval.py` 新增 `planned-vector` 和 `planned-hybrid` 两个离线评测模式。
+- 新增 `PlannedQueryEvalSearcher`，复用阶段 6a 的 `build_customer_rag_query_plan()`，先生成查询变体，再调用原 vector 或 hybrid searcher，并按 key 去重。
+- 每个 query variant 仍使用 `k` 作为检索 limit，避免 planned 模式通过扩大候选池造成 Recall@K 虚高。
+- query plan 无 variants 时回退到原始 query，和生产 adapter 的 fallback 行为保持一致。
+- 原 `vector` / `hybrid` 模式保持兼容；planned 模式只在显式传参时启用，不接入客户热路径。
+- 本阶段不导入 `langchain_openai`、`langgraph` 或 `langsmith`，只复用轻量 query planning 组件。
+
+阶段 6b 代码量记录：
+
+```text
+扩展 scripts/eval_retrieval.py：新增 planned 模式、常量和 PlannedQueryEvalSearcher
+扩展 tests/scripts/test_eval_retrieval.py：覆盖 query plan 扩展、去重和无扩展查询回退
+本阶段净代码量增加较小；收益是 query rewrite / multi-query 的效果可以先在离线 eval 中量化，再决定是否进入线上路径。
+```
+
+阶段 6b 验收：
+
+```powershell
+python -m pytest tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov
+python -m ruff check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py
+python -m ruff format --check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py
+```
+
+阶段 6b 后续：
+
+- 下一步可在真实或脱敏评测库上对比 `vector`、`hybrid`、`planned-vector`、`planned-hybrid` 的 Recall@K / MRR。
+- 如果 planned 模式稳定提升，再考虑通过 feature flag 接入线上 retriever adapter。
+
+## 二十一、阶段 6c 落地记录
+
+2026-07-09 已完成 `phase-6c-rag-rule-rerank-adapter` 首版：
+
+- 新增 `app/service/agents/rag/rerank.py`，提供轻量规则版 `rerank_documents_by_query_rules()`，按客户 query 与 Document 的 title、content、category 相关性稳定排序。
+- `LangChainKnowledgeRetriever` 新增可选 `document_reranker` 参数；默认不传时行为不变，仍按原检索顺序和 limit 返回。
+- 传入 reranker 时，multi-query 会先收集各 query variant 的候选 Document，再统一 rerank 并截断到 `limit`。
+- 本阶段不接入客户热路径，不导入 `langchain_openai`、`langgraph` 或 `langsmith`，只建立规则 rerank 的标准 adapter 边界。
+
+阶段 6c 代码量记录：
+
+```text
+新增 app/service/agents/rag/rerank.py：约 60 行
+扩展 app/service/agents/rag/retriever.py：新增可选 document_reranker 参数
+扩展 tests/service/agents/test_rag_retriever.py：覆盖规则排序和 retriever 可选 rerank 接入
+本阶段净代码量增加；收益是后续 reranker 模型或规则实验可以复用同一 Document rerank 接口，不把排序逻辑散落到 graph、prompt 或 eval 脚本中。
+```
+
+阶段 6c 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_rag_retriever.py tests/scripts/test_eval_retrieval.py -q --no-cov
+python -m ruff check app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py
+python -m ruff format --check app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py
+python -c "import sys; import app.service.agents.rag.rerank; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"
+```
+
+阶段 6c 后续：
+
+- 下一步可让离线 eval 支持可选 rerank，对比 planned/no-rerank 与 planned/rerank 的 Recall@K / MRR。
+- 若 rerank 在脱敏评测库稳定提升，再考虑 feature flag 接入线上 retriever adapter。
+
+## 二十二、阶段 6d 落地记录
+
+2026-07-09 已完成 `phase-6d-rag-rerank-eval-mode` 首版：
+
+- `scripts/eval_retrieval.py` 新增显式 `--rerank` 开关和 `--rerank-candidate-multiplier` 参数。
+- 新增 `RerankEvalSearcher`，在离线 eval 中复用 `rerank_documents_by_query_rules()`；默认不启用，原 `vector` / `hybrid` / `planned-*` 指标兼容不变。
+- 启用 `--rerank` 时会按候选池倍数扩大检索结果，再将 corpus 中的 key/title/content 转成轻量 Document 形态做规则 rerank，最后截断到 `k`。
+- 报告和 JSON summary 会标记 `rerank=true` 与候选池倍数，避免把 rerank 扩池评测误读成默认 Recall@K 基线。
+- 本阶段不接入客户热路径，不导入 `langchain_openai`、`langgraph` 或 `langsmith`。
+
+阶段 6d 代码量记录：
+
+```text
+扩展 scripts/eval_retrieval.py：新增 RerankEvalSearcher、--rerank 和候选池倍数参数
+扩展 tests/scripts/test_eval_retrieval.py：覆盖 rerank 候选池扩展、规则排序和倍数下限
+本阶段净代码量增加；收益是 rerank 规则可以先在离线评测中量化，再决定是否通过 feature flag 接入线上 retriever。
+```
+
+阶段 6d 验收：
+
+```powershell
+python -m pytest tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov
+python -m ruff check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py
+python -m ruff format --check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py
+python -c "import sys; import scripts.eval_retrieval; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"
+```
+
+阶段 6d 后续：
+
+- 有脱敏评测库后，跑 `vector`、`hybrid`、`planned-hybrid`、`planned-hybrid --rerank` 四组 Recall@K / MRR 对比。
+- 若 `--rerank` 只提升 MRR 但降低 Recall@K，优先作为排序优化而不是召回优化接入。
+
+## 二十三、阶段 6e 落地记录
+
+2026-07-09 已完成 `phase-6e-rag-eval-matrix-report` 首版：
+
+- 新增 `scripts/report_retrieval_eval_matrix.py`，一条命令输出 `vector`、`hybrid`、`planned-hybrid`、`planned-hybrid+rerank` 四组 Recall@K / MRR 对比。
+- 矩阵脚本复用 `scripts/eval_retrieval.py` 的 corpus loader、golden case loader、评测指标、hybrid/planned/rerank wrapper，不重复实现检索评分逻辑。
+- 同一轮只构建一次向量索引和一次 BM25 索引，再给不同场景复用，避免四组评测重复 embedding，降低服务器承载压力。
+- 报告支持 text 与 JSON 输出，并按 Recall@K、MRR、evaluable 数选择 `best`，用于后续判断是否打开 feature flag。
+- 本阶段仍然只做离线评测工具，不接入客户热路径。
+
+阶段 6e 代码量记录：
+
+```text
+新增 scripts/report_retrieval_eval_matrix.py：约 260 行
+新增 tests/scripts/test_report_retrieval_eval_matrix.py：约 130 行
+本阶段净代码量增加；收益是 Advanced RAG 策略可以用固定矩阵对比，避免靠单次脚本输出人工拼结论。
+```
+
+阶段 6e 验收：
+
+```powershell
+python -m pytest tests/scripts/test_report_retrieval_eval_matrix.py tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov
+python -m ruff check scripts/report_retrieval_eval_matrix.py tests/scripts/test_report_retrieval_eval_matrix.py
+$env:YUNXI_USE_FAKE_EMBEDDING='1'; python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+Remove-Item Env:\YUNXI_USE_FAKE_EMBEDDING -ErrorAction SilentlyContinue; python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+```
+
+阶段 6e fake embedding 管线验证结果：
+
+```text
+语料库: data\bot.db（400 条启用知识）
+标注集: tests\fixtures\customer_rag_golden_cases.json
+vector: Recall@5=0.375, MRR=0.1917
+hybrid: Recall@5=1.0, MRR=0.8125
+planned-hybrid: Recall@5=1.0, MRR=0.8125
+planned-hybrid+rerank: Recall@5=1.0, MRR=1.0
+best: planned-hybrid+rerank
+```
+
+说明：以上分数来自 `YUNXI_USE_FAKE_EMBEDDING=1`，只证明矩阵脚本、SQLite 语料、BM25、planned wrapper、rerank wrapper 的流程可跑通；真实召回质量仍需在本地模型或脱敏评测库上复跑。
+
+阶段 6e 真实 embedding 验证结果：
+
+```text
+模型: BAAI/bge-small-zh-v1.5
+语料库: data\bot.db（400 条启用知识）
+向量构建耗时: 约 29.06 秒
+整轮矩阵耗时: 约 77 秒
+vector: Recall@5=1.0, MRR=0.9167
+hybrid: Recall@5=1.0, MRR=1.0
+planned-hybrid: Recall@5=1.0, MRR=1.0
+planned-hybrid+rerank: Recall@5=1.0, MRR=1.0
+best: hybrid
+```
+
+说明：当前只有 400 条启用知识，且矩阵脚本已改为复用索引；在当前本机数据规模下，LangChain/RAG 评测链路没有表现出服务器承载问题。上线热路径是否开启 planned/rerank，仍应以脱敏生产库和真实 query 分布为准。
+
+阶段 6e 后续：
+
+- 用真实 embedding 模型在脱敏评测库上复跑矩阵，并把 JSON 结果归档到 `reports/`。
+- 若真实矩阵中 `planned-hybrid+rerank` 不降低 Recall@K 且提升 MRR，再考虑通过 feature flag 接入线上 `LangChainKnowledgeRetriever`。
+
+## 二十四、阶段 7 落地记录
+
+2026-07-09 已完成 `phase-7-employee-structured-planner` 首版：
+
+- 新增 `app/service/agents/employee/prompts.py`，把员工助手 planner prompt 从旧 wecom LLM JSON helper 中分离出来，作为 LangChain structured planner 的消息入口。
+- 新增 `app/service/agents/employee/structured_planner.py`，定义 `EmployeeStructuredPlan` / `EmployeeStructuredOrderPlan` pydantic schema，并通过 `get_langchain_chat_model(...).with_structured_output()` 请求结构化计划。
+- 结构化结果继续复用 `parse_llm_plan()` 转成 `AgentPlan`，因此 intent、answer style、date field、limit、order query kind 等安全收敛逻辑保持原样。
+- `EmployeeAgentPlanner` 仍然 rule-first；只有规则规划返回 `unsupported` 且 `enable_llm=True` 时才进入 LangChain planner。
+- LangChain structured planner 失败时回落旧 `llm_chat` JSON fallback；旧 fallback 也失败时返回规则兜底，不编造工具结果。
+- deterministic finalizer、工具执行、订单/库存/客户线索事实回复不改。
+
+阶段 7 代码量记录：
+
+```text
+新增 app/service/agents/employee/prompts.py：约 30 行
+新增 app/service/agents/employee/structured_planner.py：约 95 行
+扩展 app/service/wecom/employee_agent_planner.py：约 90 行
+新增 tests/service/agents/test_employee_structured_planner.py：约 110 行
+本阶段新增代码集中在 planner adapter，不把确定性回复、工具执行或数据库查询迁移到 LLM。
+```
+
+阶段 7 验收：
+
+```powershell
+python -m pytest tests/service/test_wecom_employee_agent.py tests/service/agents/test_employee_graph.py tests/service/agents/test_employee_structured_planner.py -q --no-cov
+python scripts/check_wecom_employee_agent_plans.py --json
+python scripts/check_employee_agent_capability_contracts.py --summary
+python -c "import sys; import app.service.wecom.employee_agent_planner; print({name: (name in sys.modules) for name in ['langchain_openai','langgraph','langsmith']})"
+```
+
+阶段 7 验证结果：
+
+```text
+员工助手服务/graph/structured planner 测试：51 项通过
+员工助手规划探针：48 项通过，失败 0
+员工助手能力合约：66 项通过，失败 0
+employee_agent_planner 冷导入：langchain_openai=False, langgraph=False, langsmith=False
+```
+
+阶段 7 后续：
+
+- 可以增加一个只读脚本专门探测 structured planner live API 延迟、失败率和 schema 合规率。
+- 若后续决定关闭旧 `llm_chat` JSON fallback，需要先让 live structured planner 通过独立探针和回放用例。
+
+## 二十五、阶段 8 落地记录
+
+2026-07-09 已完成 `phase-8-agent-eval-report` 首版：
+
+- 新增 `app/service/agents/evaluation.py`，统一 `AgentEvalAssertion`、`AgentEvalCase`、`AgentEvalResult` 与双机器人聚合报告模型。
+- 新增 `scripts/eval_customer_agent.py`，把 `tests/fixtures/customer_rag_golden_cases.json` 与 fixture governance 检查包装成客户机器人 eval 报告。
+- 新增 `scripts/eval_employee_agent.py`，复用 `check_wecom_employee_agent_plans.py` 和 `check_employee_agent_capability_contracts.py`，输出员工助手 eval 报告。
+- 新增 `scripts/report_agent_eval.py`，聚合客户机器人和员工助手结果，支持 text、summary、JSON 输出。
+- 本阶段不调用线上 LLM，不改客户或员工热路径，不接入 pre-commit；先作为可执行评估报告和作品集证据。
+
+阶段 8 代码量记录：
+
+```text
+新增 app/service/agents/evaluation.py：约 110 行
+新增 scripts/eval_customer_agent.py：约 157 行
+新增 scripts/eval_employee_agent.py：约 111 行
+新增 scripts/report_agent_eval.py：约 79 行
+新增 tests/service/agents/test_evaluation.py：约 66 行
+新增 tests/scripts/test_agent_eval_scripts.py：约 84 行
+本阶段代码增加集中在离线 eval 包装层；收益是分散脚本变成统一 Agent Eval 视角，可用于回归、展示和后续门禁。
+```
+
+阶段 8 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py -q --no-cov
+python scripts/eval_customer_agent.py --summary
+python scripts/eval_employee_agent.py --summary
+python scripts/report_agent_eval.py --latest
+```
+
+阶段 8 验证结果：
+
+```text
+customer_agent_eval status=passed total=9 failed=0 pass_rate=1.0
+employee_agent_eval status=passed total=49 failed=0 pass_rate=1.0
+agent_eval status=passed total=58 failed=0 pass_rate=1.0
+```
+
+阶段 8 后续：
+
+- 可以为 `scripts/report_agent_eval.py` 增加 `--json-out`，把每轮报告归档到 `reports/`。
+- 后续接真实回放时，应继续把模型调用和线上状态隔离在显式参数之后，默认保持离线、可重复。
+
+## 二十六、阶段 9 落地记录
+
+2026-07-09 已完成 `phase-9-docs-adr-portfolio-closure` 首版：
+
+- 更新 `README.md`，把当前技术栈从旧的 FastAPI + DeepSeek + RAG 口径更新为 FastAPI + LangChain / LangGraph + RAG + SQLite，并补充 LangChain、LangGraph、LangSmith、Mimo、Agent Eval 等当前能力。
+- 更新 `docs/AGENTS/quick-reference.md`，增加 LangChain 模型工厂、客户/员工 graph、RAG retriever adapter、query plan、rerank、structured planner 和 Agent Eval 入口。
+- 更新 `docs/README.md`，把当前代码事实更新到 2026-07-09 / VERSION 0.84.0，并加入 LangChain 生态化计划、作品集说明、RAG 矩阵和 Agent Eval 报告入口。
+- 更新 `docs/architecture/bot-capability-matrix.md`，把双机器人能力矩阵刷新为 LangChain 生态化后的边界：AI 应用层交给 LangChain / LangGraph，业务事实层仍由项目 service/repository 管理。
+- 新增 `docs/harness-engineering/adr/0003-langchain-ai-layer-boundary.md`，固化“LangChain 接管 AI 应用层，不接管业务领域层”的长期决策。
+- 新增 `docs/architecture/langchain-ai-layer-portfolio.md`，形成可用于求职/作品集展示的项目说明，覆盖架构边界、关键代码路径、eval 证据、迁移收益和回滚策略。
+
+阶段 9 代码量记录：
+
+```text
+新增 ADR：docs/harness-engineering/adr/0003-langchain-ai-layer-boundary.md
+新增作品集说明：docs/architecture/langchain-ai-layer-portfolio.md
+更新 README、docs/README、quick-reference、bot-capability-matrix
+本阶段为文档收口，不改运行时代码。
+```
+
+阶段 9 验收：
+
+```powershell
+python scripts/report_agent_eval.py --latest
+python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+python scripts/check_project.py --skip-tests
+python scripts/check_evidence_index.py --summary
+python scripts/check_logbook.py
+git diff --check
+```
+
+阶段 9 后续：
+
+- 若要对外展示，可优先引用 `docs/architecture/langchain-ai-layer-portfolio.md`，再附 `scripts/report_agent_eval.py --latest` 和 RAG 矩阵输出。
+- 若后续开启 planned/rerank 热路径或移除旧 planner fallback，必须新增独立阶段记录和回滚说明。

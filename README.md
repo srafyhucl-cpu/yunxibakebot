@@ -63,9 +63,9 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 ### 💡 解决方案
 
-本系统采用 **FastAPI + DeepSeek LLM + RAG（检索增强生成）** 技术栈，实现了：
+本系统采用 **FastAPI + LangChain / LangGraph + RAG（检索增强生成）+ SQLite** 技术栈，实现了：
 
-- 🤖 **智能对话**：基于 DeepSeek 大模型，支持多轮对话、上下文理解
+- 🤖 **智能对话**：基于 LangChain 模型适配和 LangGraph 编排，支持多轮对话、上下文理解
 - 📚 **知识库管理**：支持 FAQ、产品信息、规则话术等知识的录入和检索
 - 🔍 **混合检索**：向量语义搜索 + 关键词搜索，提高召回准确率
 - 🛒 **有赞集成**：自动同步商品信息、实时查询订单和物流
@@ -182,7 +182,11 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 |------|------|------|
 | **Python** | 3.11+ | 后端编程语言 |
 | **FastAPI** | 0.104+ | Web 框架，提供高性能 API |
+| **LangChain** | 1.x | 大模型调用、工具绑定、Retriever adapter、structured output |
+| **LangGraph** | 1.x | 客户机器人和员工助手 Agent 编排 |
+| **LangSmith** | 可选 | LangChain tracing，默认不在启动期加载 |
 | **DeepSeek API** | - | 大语言模型，提供对话能力 |
+| **Mimo API** | - | 客户多模态与员工 planner 模型服务 |
 | **SQLite** | 3.x | 本地数据库，存储会话、消息、知识库 |
 | **aiosqlite** | 0.19+ | 异步 SQLite 驱动 |
 | **Pydantic** | 2.x | 数据验证和设置管理 |
@@ -204,12 +208,15 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 
 | 技术 | 用途 |
 |------|------|
-| **RAG（检索增强生成）** | 结合知识库检索和 LLM 生成 |
-| **向量语义搜索** | 使用 NumPy 实现向量相似度搜索 |
-| **关键词搜索** | SQL LIKE 模糊匹配 |
-| **混合检索** | 向量搜索 + 关键词搜索组合 |
-| **Function Calling** | LLM 自动调用工具函数 |
+| **LangGraph Agent 编排** | 客户机器人和员工助手执行流节点化、可观测 |
+| **LangChain Tool / Retriever / Structured Output** | 工具绑定、知识检索适配、员工 planner 结构化 fallback |
+| **RAG（检索增强生成）** | 结合 SQLite 知识库、向量检索、BM25、RRF 和规则 rerank |
+| **向量语义搜索** | 归一化向量点积检索，语义等价 cosine similarity |
+| **关键词搜索** | jieba + BM25，用于 hybrid 检索 |
+| **混合检索** | vector + BM25 + RRF，多模式 eval 矩阵对比 |
+| **Function Calling / Tools** | 客户机器人调用订单、商品、知识、转人工等工具 |
 | **意图识别** | 基于规则 + LLM 的意图分类 |
+| **Agent Eval** | 客户 RAG golden cases、员工 planner 探针和双机器人统一报告 |
 
 ---
 

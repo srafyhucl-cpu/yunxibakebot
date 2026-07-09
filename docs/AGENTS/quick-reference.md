@@ -11,6 +11,13 @@ ______________________________________________________________________
 | 客户 LangGraph 编排 | `app/service/agents/customer/graph.py` |
 | 客户 LangChain 工具 | `app/service/agents/tools/customer.py` |
 | 客户 OpenAI tool 消息 | `app/service/agents/customer/tool_messages.py` |
+| 客户 LangChain 模型适配 | `app/service/agents/customer/model.py` |
+| LangChain 聊天模型工厂 | `app/service/agents/llm.py` |
+| LangChain RAG Retriever adapter | `app/service/agents/rag/retriever.py` |
+| RAG query plan / rerank | `app/service/agents/rag/query.py`、`app/service/agents/rag/rerank.py` |
+| 员工 LangGraph 编排 | `app/service/agents/employee/graph.py` |
+| 员工 structured planner | `app/service/agents/employee/structured_planner.py` |
+| Agent Eval 模型 | `app/service/agents/evaluation.py` |
 | 意图识别 | `app/service/llm/intent.py` |
 | RAG 检索 | `app/service/knowledge_retriever.py` |
 | 向量搜索 | `app/service/embedding_search.py` |
@@ -35,6 +42,14 @@ ______________________________________________________________________
 ```bash
 # 全量测试
 python -m pytest tests/ -q
+
+# 双机器人离线 Agent Eval
+python scripts/eval_customer_agent.py --summary
+python scripts/eval_employee_agent.py --summary
+python scripts/report_agent_eval.py --latest
+
+# RAG Advanced 检索评测矩阵
+python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
 
 # 仅跑红线规则自测
 python -m pytest tests/test_red_line_rules.py -q --tb=short

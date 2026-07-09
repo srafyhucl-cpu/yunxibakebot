@@ -1,4 +1,154 @@
 ﻿
+## [2026-07-09] - docs(langchain): 收口 AI 应用层接管文档、ADR 和作品集说明
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 1-8 已完成 LangChain / LangGraph 在客户机器人、员工助手、RAG 和 Agent Eval 的小切片落地；需要把架构边界、代码入口、验证证据和作品集表达收口到当前权威文档。
+- **决策**:
+  - README 直接反映当前技术栈：FastAPI + LangChain / LangGraph + RAG + SQLite。
+  - 文档导航和 quick-reference 增加 LangChain/RAG/Agent Eval 入口。
+  - 能力矩阵更新为 LangChain 生态化后的双机器人边界。
+  - 新增 ADR 固化“LangChain 接管 AI 应用层，不接管业务领域层”。
+  - 新增作品集说明，便于求职展示时解释迁移目标、边界和证据。
+- **改动**:
+  - `README.md` - 更新解决方案、后端技术栈和核心算法。
+  - `docs/AGENTS/quick-reference.md` - 增加 LangChain、RAG Advanced、Agent Eval 关键入口和命令。
+  - `docs/README.md` - 更新当前代码事实和文档导航。
+  - `docs/architecture/bot-capability-matrix.md` - 更新客户机器人 / 员工助手能力矩阵。
+  - `docs/harness-engineering/adr/0003-langchain-ai-layer-boundary.md` - 新增长期架构决策。
+  - `docs/architecture/langchain-ai-layer-portfolio.md` - 新增作品集说明。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 记录阶段 9。
+- **验证结果**:
+  - `python scripts/report_agent_eval.py --latest` 通过，双机器人总计 58 项，失败 0，pass_rate=1.0。
+  - `python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5` 通过；真实 `BAAI/bge-small-zh-v1.5` 路径下 400 条启用知识向量构建约 32.47 秒，`hybrid` / `planned-hybrid` / `planned-hybrid+rerank` 均为 Recall@5=1.0、MRR=1.0。
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/agents/test_employee_graph.py tests/service/agents/test_employee_structured_planner.py tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py tests/scripts/test_report_retrieval_eval_matrix.py tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov` 通过，78 项失败 0。
+  - `python scripts/check_project.py --skip-tests` 通过；7 类业务合约通过，红线检查通过。
+  - `python scripts/check_evidence_index.py --summary` 通过，169 项失败 0。
+  - `python scripts/check_logbook.py` 通过。
+  - `python scripts/check_text_encoding.py README.md docs/README.md docs/AGENTS/quick-reference.md docs/architecture/bot-capability-matrix.md docs/architecture/langchain-ai-layer-portfolio.md docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md docs/harness-engineering/adr/0003-langchain-ai-layer-boundary.md LOGBOOK.md` 通过。
+  - `git diff --check` 通过。
+
+## [2026-07-09] - feat(agent-eval): 增加双机器人统一离线 eval 报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: LangChain / LangGraph 迁移后已有客户 RAG golden cases、员工 planner 探针和能力合约，但缺少统一 Agent Eval 报告，不利于持续回归和作品集展示。
+- **决策**:
+  - 新增 `app/service/agents/evaluation.py`，统一 `AgentEvalAssertion`、`AgentEvalCase`、`AgentEvalResult` 与聚合报告模型。
+  - 新增客户 eval 脚本，复用 `customer_rag_golden_cases.json` 与 fixture governance 检查，不调用线上模型。
+  - 新增员工 eval 脚本，复用 planner 探针与能力合约检查，保持 `llm=disabled`。
+  - 新增聚合脚本 `scripts/report_agent_eval.py`，输出双机器人整体 pass rate、分 agent 结果和 JSON/text 报告。
+  - 本阶段不接入 pre-commit，不改线上热路径。
+- **改动**:
+  - `app/service/agents/evaluation.py` - 新增通用 eval 数据模型。
+  - `scripts/eval_customer_agent.py` - 新增客户机器人离线 eval。
+  - `scripts/eval_employee_agent.py` - 新增员工助手离线 eval。
+  - `scripts/report_agent_eval.py` - 新增双机器人聚合 eval 报告。
+  - `tests/service/agents/test_evaluation.py`、`tests/scripts/test_agent_eval_scripts.py` - 覆盖 eval 模型和脚本聚合。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py -q --no-cov` 通过，5 项失败 0。
+  - `python scripts/eval_customer_agent.py --summary` 通过，`customer_agent_eval status=passed total=9 failed=0 pass_rate=1.0`。
+  - `python scripts/eval_employee_agent.py --summary` 通过，`employee_agent_eval status=passed total=49 failed=0 pass_rate=1.0`。
+  - `python scripts/report_agent_eval.py --latest` 通过，双机器人总计 58 项，失败 0，pass_rate=1.0。
+
+## [2026-07-09] - feat(employee-agent): 员工助手 planner 接入 LangChain structured output
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 员工助手执行流已由 LangGraph 编排，但 planner 的 LLM fallback 仍是旧 JSON prompt + `llm_chat` 解析；阶段 7 目标是在不改变规则优先和确定性回复的前提下，把弱关键词 fallback 升级为 LangChain structured output。
+- **决策**:
+  - 新增 `app/service/agents/employee/prompts.py`，集中员工 planner prompt。
+  - 新增 `app/service/agents/employee/structured_planner.py`，使用 LangChain `with_structured_output(EmployeeStructuredPlan)` 生成结构化计划。
+  - 结构化结果继续复用 `parse_llm_plan()` 转成 `AgentPlan`，保留既有安全枚举、日期字段白名单和 limit 解析。
+  - `EmployeeAgentPlanner` 仍然 rule-first；只有规则无法覆盖且 `enable_llm=True` 时才调用 LangChain planner。
+  - LangChain structured planner 异常时回落旧 LLM JSON fallback；两者失败才返回规则兜底的 `unsupported`，不让最终回复 LLM 化。
+- **改动**:
+  - `app/service/agents/employee/prompts.py` - 新增结构化 planner 消息构造。
+  - `app/service/agents/employee/structured_planner.py` - 新增 pydantic schema 与 LangChain structured output adapter。
+  - `app/service/wecom/employee_agent_planner.py` - LLM fallback 优先调用 LangChain structured planner，保留旧 fallback。
+  - `tests/service/agents/test_employee_structured_planner.py` - 覆盖 structured output 转 `AgentPlan`、RunnableConfig 和冷导入。
+  - `tests/service/test_wecom_employee_agent.py` - 更新弱关键词 fallback 测试，验证空检索时会把全量能力卡交给 structured planner。
+- **验证结果**:
+  - `python -m pytest tests/service/test_wecom_employee_agent.py tests/service/agents/test_employee_graph.py tests/service/agents/test_employee_structured_planner.py -q --no-cov` 通过，51 项失败 0。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，48 项失败 0。
+  - `python scripts/check_employee_agent_capability_contracts.py --summary` 通过，66 项失败 0。
+  - `python -c "import sys; import app.service.wecom.employee_agent_planner; print({name: (name in sys.modules) for name in ['langchain_openai','langgraph','langsmith']})"` 输出均为 `False`。
+
+## [2026-07-09] - feat(rag): 增加离线检索评测矩阵报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 6b/6d 已能分别评测 planned retrieval 与 rerank，但还缺一条命令对比 `vector`、`hybrid`、`planned-hybrid`、`planned-hybrid+rerank`，不利于后续判断是否接入客户热路径。
+- **决策**:
+  - 新增独立脚本 `scripts/report_retrieval_eval_matrix.py`，只编排现有 eval 组件，不复制检索评分逻辑。
+  - 默认矩阵覆盖四个场景：`vector`、`hybrid`、`planned-hybrid`、`planned-hybrid+rerank`。
+  - 同一轮评测只构建一次向量索引和一次 BM25 索引，避免四场景重复 embedding，降低服务器承载压力。
+  - 报告输出 text/JSON，并按 Recall@K、MRR、evaluable 数选择 best，用于后续 feature flag 决策。
+- **改动**:
+  - `scripts/report_retrieval_eval_matrix.py` - 新增检索评测矩阵脚本。
+  - `tests/scripts/test_report_retrieval_eval_matrix.py` - 覆盖矩阵场景、索引复用、best 选择和缺库错误。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 记录阶段 6e。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_report_retrieval_eval_matrix.py tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov` 通过，21 项失败 0。
+  - `python -m ruff check scripts/report_retrieval_eval_matrix.py tests/scripts/test_report_retrieval_eval_matrix.py` 通过。
+  - `$env:YUNXI_USE_FAKE_EMBEDDING='1'; python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5` 通过；本地 400 条启用知识，fake embedding 下 best 为 `planned-hybrid+rerank`，该分数只验证管线，不作为真实召回质量结论。
+  - `Remove-Item Env:\YUNXI_USE_FAKE_EMBEDDING -ErrorAction SilentlyContinue; python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5` 通过；真实 `BAAI/bge-small-zh-v1.5` 路径下 400 条启用知识向量构建约 29.06 秒，整轮矩阵约 77 秒，`hybrid` / `planned-hybrid` / `planned-hybrid+rerank` 均为 Recall@5=1.0、MRR=1.0。
+
+## [2026-07-09] - feat(rag): 离线检索评测支持规则 rerank
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 6c 已建立 Document 规则 rerank adapter；继续把 rerank 接入离线 eval，先量化排序收益，不直接打开客户热路径。
+- **决策**:
+  - `scripts/eval_retrieval.py` 新增显式 `--rerank` 开关，默认关闭。
+  - 启用 rerank 时通过 `--rerank-candidate-multiplier` 扩大候选池，再按规则 rerank 并截断到 `k`。
+  - 报告和 JSON summary 标记 `rerank=true` 与候选池倍数，避免与默认 Recall@K 基线混淆。
+  - 不导入 LangChain / LangGraph 重依赖，不改线上检索路径。
+- **改动**:
+  - `scripts/eval_retrieval.py` - 新增 `RerankEvalSearcher`、`--rerank` 和候选池倍数参数。
+  - `tests/scripts/test_eval_retrieval.py` - 覆盖 rerank 候选池扩展、规则排序和倍数下限。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 记录阶段 6d。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov` 通过，18 项失败 0。
+  - `python -m ruff check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py` 通过。
+  - `python -m ruff format --check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py` 通过。
+  - `python -c "import sys; import scripts.eval_retrieval; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"` 输出均为 `False`。
+
+## [2026-07-09] - feat(rag): 增加 RAG Document 规则 rerank adapter
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 6a/6b 已建立 query plan 与离线 planned eval；继续补 RAG Advanced 的规则 rerank 边界，但不接入客户热路径。
+- **决策**:
+  - 新增轻量规则版 Document reranker，基于 query 与 title/content/category 的相关性稳定排序。
+  - `LangChainKnowledgeRetriever` 只通过可选 `document_reranker` 接入 rerank；默认不传时行为不变。
+  - 传入 reranker 时，multi-query 先收集候选 Document，再统一排序并截断到 `limit`。
+  - 不导入 LangChain / LangGraph 重依赖，不改 `KnowledgeRetriever`、向量搜索、audience 过滤、实时库存注入或检索日志。
+- **改动**:
+  - `app/service/agents/rag/rerank.py` - 新增规则 rerank helper。
+  - `app/service/agents/rag/retriever.py` - 增加可选 `document_reranker` 参数。
+  - `tests/service/agents/test_rag_retriever.py` - 覆盖规则排序和 retriever 可选 rerank 接入。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 记录阶段 6c。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_rag_retriever.py tests/scripts/test_eval_retrieval.py -q --no-cov` 通过，16 项失败 0。
+  - `python -m ruff check app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过。
+  - `python -m ruff format --check app/service/agents/rag/rerank.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过。
+  - `python -c "import sys; import app.service.agents.rag.rerank; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"` 输出均为 `False`。
+
+## [2026-07-09] - feat(rag): 离线检索评测支持 query plan 模式
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 6a 已在 LangChain Retriever adapter 上建立可选 query planner；继续把 planner 接入离线 eval，先量化 planned retrieval，不直接打开客户热路径。
+- **决策**:
+  - `scripts/eval_retrieval.py` 新增 `planned-vector` / `planned-hybrid`，显式传参才启用。
+  - planned 模式复用 `build_customer_rag_query_plan()` 生成查询变体，再调用原 vector 或 hybrid searcher。
+  - 结果按 key 去重；每个 query variant 仍使用原始 `k` 作为检索 limit，避免离线 planned 指标因扩池虚高。
+  - query plan 无 variants 时回退到原始 query；原 `vector` / `hybrid` 模式兼容不变。
+  - 本阶段不导入 LangChain / LangGraph 重依赖，不改线上检索路径。
+- **改动**:
+  - `scripts/eval_retrieval.py` - 新增 planned 模式常量和 `PlannedQueryEvalSearcher`。
+  - `tests/scripts/test_eval_retrieval.py` - 覆盖 query plan 扩展、去重和无扩展查询回退。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 记录阶段 6b 落地结果和后续评测路径。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_eval_retrieval.py tests/service/agents/test_rag_retriever.py -q --no-cov` 通过，14 项失败 0。
+  - `python -m ruff check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过；仅 `.ruff_cache` 写入权限警告。
+  - `python -m ruff format --check scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过；仅 `.ruff_cache` 写入权限警告。
+  - `python -c "import sys; import scripts.eval_retrieval; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"` 输出均为 `False`。
+
 ## [2026-07-09] - feat(rag): 增加 LangChain Retriever multi-query 规划入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover

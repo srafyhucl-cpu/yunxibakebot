@@ -1,8 +1,8 @@
 # 双机器人能力目录
 
 > trace_id: `20260706-plan-review-capability-matrix`
-> 状态：阶段 1 首版
-> 日期：2026-07-06
+> 状态：LangChain 生态化后更新
+> 日期：2026-07-09
 > 适用范围：客户机器人、企微员工助手、共享业务服务、验证入口
 > 关联文档：
 > - [GitHub 参考项目借鉴与可实施计划](./github-reference-benchmark-and-implementation-plan.md)
@@ -17,6 +17,12 @@ ______________________________________________________________________
 ## 一、结论
 
 当前项目已经具备执行“客户机器人 / 员工助手分线治理”的基础，没有发现会阻断阶段 1 的不可实现项。
+
+2026-07-09 后，AI 应用层已完成 LangChain / LangGraph 生态化小切片：
+
+- 客户机器人：LangGraph 编排、LangChain chat model adapter、LangChain tools、Retriever adapter、query plan、离线 rerank eval 和 RAG 矩阵报告。
+- 员工助手：LangGraph 执行流、LangChain structured planner fallback、LangChain tools、deterministic finalizer 和统一 Agent Eval。
+- 业务事实层：订单、商品库存、客户线索、知识发布状态、转人工和观测日志仍由项目 service/repository 管理，不交给 LangChain 直接接管。
 
 需要坚持的边界：
 
@@ -37,9 +43,9 @@ ______________________________________________________________________
 | 入口 | MiniApp 客服、有赞托管消息、企微客服消息 | 企微智能机器人插件 / 群内机器人 |
 | 主要目标 | 回答咨询、导购、售后解释、安抚、转人工 | 查订单、查库存、查待办、查系统状态、查客户线索 |
 | 回复策略 | 自然语言 + RAG + 工具结果 + guard | 工具结果 + 模板化确定性回复 |
-| LLM 使用 | 意图识别、RAG 回答、工具调用循环、必要的自然表达 | 只用于规划兜底，最终回复不交给 LLM 改写 |
+| LLM 使用 | LangChain 模型适配、RAG 回答、工具调用循环、必要的自然表达 | 规则优先，LangChain structured output 只做 planner fallback，最终回复不交给 LLM 改写 |
 | 失败兜底 | 转人工、保守回复、回复 guard | 明确空结果 / 缺参数 / 工具不可用，不编造 |
-| 验证重点 | 不乱承诺、不脱离知识库、能转人工、长上下文不爆 | 计划正确、数值保真、工具结果不被改写、探针通过 |
+| 验证重点 | 不乱承诺、不脱离知识库、能转人工、长上下文不爆、RAG eval 不退化 | 计划正确、数值保真、工具结果不被改写、探针通过、structured fallback 不破坏 rule-first |
 
 ______________________________________________________________________
 
@@ -54,17 +60,21 @@ ______________________________________________________________________
 - RAG 上下文：`app/service/chat_context.py`
 - LangGraph 节点：`app/service/agents/customer/graph.py`、`app/service/agents/customer/nodes.py`
 - LangChain 工具：`app/service/agents/tools/customer.py`
+- LangChain 模型适配：`app/service/agents/customer/model.py`
+- LangChain Retriever adapter：`app/service/agents/rag/retriever.py`
+- RAG query plan / rerank：`app/service/agents/rag/query.py`、`app/service/agents/rag/rerank.py`
+- RAG eval 矩阵：`scripts/report_retrieval_eval_matrix.py`
 - OpenAI tool 消息：`app/service/agents/customer/tool_messages.py`
 - 转人工：`app/service/chat_transfer.py`、`app/service/transfer_manager.py`
 - 客户记忆：`app/service/customer_memory.py`、`app/service/offline/agent_memory.py`
 
 | 能力 | 当前状态 | 入口 / 工具 | 底层 service | 回复策略 | 验证入口 | 后续动作 |
 |---|---|---|---|---|---|---|
-| 商品咨询 / 导购 | 已有 | `get_product_info`、`search_knowledge` | `catalog`、`knowledge_retriever`、有赞商品同步 | 自然语言回答，商品事实来自工具和知识库 | `tests/service/youzan/*`、商品同步测试、客户聊天链路测试 | 建立客户 RAG golden cases |
+| 商品咨询 / 导购 | 已有 | `get_product_info`、`search_knowledge` | `catalog`、`knowledge_retriever`、有赞商品同步 | 自然语言回答，商品事实来自工具和知识库 | `tests/service/youzan/*`、商品同步测试、客户聊天链路测试、`scripts/report_agent_eval.py --latest` | 持续扩充客户 RAG golden cases |
 | 商品实时价格 / 库存 | 已有 | `get_product_info` | `function_tool_product.py`、有赞 client、知识库回写 | 客户可读解释，不能编造库存 | `tests/service/youzan/test_full_chain_e2e.py` 等 | 观测工具调用成功率 |
 | 订单详情查询 | 已有 | `get_order_info` | `function_tool_order.py`、有赞订单接口 / 本地订单数据 | 仅查询客户本人或明确订单号，回复需谨慎 | `tests/service/youzan/*`、托管消息测试 | 加强客户身份和订单归属说明 |
 | 物流查询 | 已有 | `get_logistics_info` | `function_tool_order.py` | 解释物流状态，缺物流时保守说明 | 物流相关 service 测试 | 建立“暂无物流”客户问法回归 |
-| 售后 / 配送 / FAQ | 已有 | `search_knowledge` | `knowledge_retriever`、`knowledge_base` | 基于知识库自然回答，资料不足转人工 | `tests/scripts/test_seed_baseline_knowledge.py`、RAG 检索脚本 | 增加 audience / 有效期 / 引用日志 |
+| 售后 / 配送 / FAQ | 已有 | `search_knowledge` | `knowledge_retriever`、`knowledge_base`、LangChain Retriever adapter | 基于知识库自然回答，资料不足转人工 | `tests/scripts/test_seed_baseline_knowledge.py`、`scripts/eval_retrieval.py`、`scripts/report_retrieval_eval_matrix.py` | 用真实 no_match 样本反哺知识 |
 | 转人工 | 已有 | `transfer_to_human`、`/api/v1/miniapp/chat/transfer` | `chat_transfer.py`、`transfer_manager.py`、`transfer_repo` | 客户引导 + 工单创建 + 人工接管 | `tests/service/wecom/test_kf_callback_processor.py`、admin transfer tests | 增加转人工原因分类观测 |
 | AI 失败自动转人工 | 已有 | LLM 失败路径 | `chat_ai_failure.py` | AI 降级时自动接人工 | 相关聊天链路测试 | 把失败原因纳入观测指标 |
 | 客户长期记忆 | 已有基础 | prompt 注入客户画像 | `customer_memory.py`、`profile_prompt.py`、`offline/agent_memory.py` | 只作为提示，不作为事实结论 | 离线复盘 / memory 相关测试、`scripts/check_customer_memory_governance_plan.py --summary` | 已冻结证据、置信度、撤销、过期和会话摘要隔离治理计划，后续再实现 schema 或后台操作 |
@@ -85,7 +95,9 @@ ______________________________________________________________________
 
 - 企微智能机器人入口：`app/api/integrations/wecom_intelligent_bot.py`
 - 员工助手编排：`app/service/wecom/employee_agent_service.py`
+- 员工 LangGraph 编排：`app/service/agents/employee/graph.py`、`app/service/agents/employee/nodes.py`
 - 员工助手规划：`app/service/wecom/employee_agent_planner.py`
+- LangChain structured planner：`app/service/agents/employee/structured_planner.py`、`app/service/agents/employee/prompts.py`
 - 能力检索卡：`app/service/wecom/employee_agent_capabilities.py`
 - 能力合约清单：`app/service/wecom/employee_agent_capability_contracts.py`
 - 结构化计划模型：`app/models/employee_agent.py`
@@ -95,6 +107,7 @@ ______________________________________________________________________
 - 状态工具：`app/service/wecom/intelligent_bot_status_tools.py`
 - 探针：`scripts/wecom_employee_agent_probe_cases.py`、`scripts/check_wecom_employee_agent_plans.py`
 - 能力合约验收：`scripts/check_employee_agent_capability_contracts.py --json`，并已接入 `scripts/check_project.py --skip-tests`
+- 统一 Agent Eval：`scripts/eval_employee_agent.py --summary`、`scripts/report_agent_eval.py --latest`
 
 | 能力 | 当前状态 | 工具名 / endpoint | 底层 service | 回复策略 | 验证入口 | 后续动作 |
 |---|---|---|---|---|---|---|
@@ -109,7 +122,7 @@ ______________________________________________________________________
 | 客户地址线索 | 已有 | `customer_lookup` / `/tools/customer-lookup` | `CustomerAddressService` | 脱敏线索 + 人工核对提示 | `tests/api/test_wecom_intelligent_bot_plugin_api.py`、员工探针 | 后续客户主档成熟后再升级为 CRM 查询 |
 | 客户群活动汇总 | 已有 | `group_campaign_summary` / `/tools/group-campaign-summary` | `CustomerGroupOperationsService` | 汇总文案和待跟进列表 | `tests/api/test_wecom_intelligent_bot_plugin_api.py`、员工探针 | 与 MiniApp 登记页继续同 trace 验证 |
 | 离线复盘摘要 | 已有 | `offline_review_summary` / `/tools/offline-review-summary` | `OfflineReviewScheduler` summary provider | 确定性复盘结果和跳过原因翻译 | `tests/api/test_wecom_intelligent_bot_plugin_api.py`、ops format tests | LangGraph 只能在此类离线流程试点 |
-| 弱关键词规划兜底 | 已有 | `EmployeeAgentPlanner._plan_with_llm` | LLM 结构化 JSON plan | 不生成用户可见回复 | `tests/service/test_wecom_employee_agent.py` | 保持 temperature=0，继续用规则优先 |
+| 弱关键词规划兜底 | 已有 | `EmployeeAgentPlanner._plan_with_llm` | LangChain structured output，失败后回落旧 JSON fallback | 不生成用户可见回复 | `tests/service/test_wecom_employee_agent.py`、`tests/service/agents/test_employee_structured_planner.py` | 保持 rule-first；未来移除旧 fallback 前先跑 live structured planner 探针 |
 
 员工助手当前最明显的缺口：
 
@@ -124,6 +137,7 @@ ______________________________________________________________________
 | 共享能力 | 客户机器人使用方式 | 员工助手使用方式 | 边界 |
 |---|---|---|---|
 | `knowledge_retriever` | 生成客户可读回答，使用 `audience='customer'` | 员工助手使用独立 `employee_knowledge_retriever`，列来源、员工可复制话术 | 共享 repository 和数据真相，入口 audience 与回复策略分开 |
+| LangChain / LangGraph | 客户 Agent 编排、工具绑定、Retriever adapter、RAG eval | 员工 Agent 编排、structured planner、工具 adapter、Agent Eval | 只接管 AI 应用编排层，不接管业务领域层和数据库事实层 |
 | `order` 域 | 查询客户订单 / 物流 | 查询经营订单 / 统计 / 风险 | 权限和口径不同 |
 | `catalog` 域 | 商品咨询、导购 | 库存、价格、上架状态 | 同源数据，展示不同 |
 | `conversation` / `transfer` | 客户转人工 | 员工查待人工列表 | 客户触发，员工处理 |
