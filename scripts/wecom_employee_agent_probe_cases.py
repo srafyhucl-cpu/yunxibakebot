@@ -27,6 +27,7 @@ class EmployeeAgentProbeCase:
     required_all_terms: tuple[str, ...] = ()
     required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
+    allow_empty_result: bool = False
 
 
 MISSING_LOGISTICS_EXCLUSION_FORBIDDEN_TERMS = (
@@ -884,7 +885,7 @@ def _p2c_employee_eval_expansion_probe_cases(
             today_text,
             today_text,
             expected_statuses=("TRADE_CLOSED",),
-            expected_keyword="已关闭",
+            expected_keyword="",
             required_any_terms=("已关闭", "关闭", "单"),
             forbidden_terms=("完整订单号", "手机号"),
         ),
@@ -897,9 +898,10 @@ def _p2c_employee_eval_expansion_probe_cases(
             today_text,
             today_text,
             expected_statuses=("WAIT_BUYER_CONFIRM_GOODS",),
-            expected_keyword="待收货",
+            expected_keyword="",
             required_all_terms=("尾号", "待收货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
+            allow_empty_result=True,
         ),
         EmployeeAgentProbeCase(
             "p2c-today-wait-seller-send-list",

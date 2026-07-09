@@ -532,6 +532,33 @@ def test_evaluate_reply_rejects_empty_order_generic_detour() -> None:
     assert result.semantic_safe is False
 
 
+def test_evaluate_reply_accepts_explicit_controlled_empty_result() -> None:
+    probe = callback_check.CallbackProbe(
+        "p2c-today-wait-buyer-confirm-list",
+        "今天待收货订单有哪些",
+        required_all_terms=("尾号", "待收货"),
+        forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        allow_empty_result=True,
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "今天待收货订单有哪些：没有查到下单日期 2026-07-10、待收货的订单。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is True
+    assert result.semantic_safe is True
+
+
 def test_evaluate_reply_rejects_markdown_decorations() -> None:
     result = callback_check.evaluate_reply(
         callback_check.CallbackProbe("plain-text", "今天哪个商品卖得多"),
@@ -748,6 +775,14 @@ def _fake_reply_text(content: str) -> str:
         )
     if "明天" in content and "预定" in content:
         return "明天待处理预定订单已汇总，包含约送时间和待发货状态。"
+    if "待收货订单" in content:
+        return "今天待收货订单有哪些：没有查到下单日期 2026-07-10、待收货的订单。"
+    if "待发货订单" in content:
+        return "1. 尾号 000001｜待发货｜约送 2026-07-04 16:00｜暂无物流"
+    if "上午" in content and "待处理" in content:
+        return "上午待处理订单已汇总，包含约送时间和待发货状态。"
+    if "下午" in content and "待处理" in content:
+        return "下午待处理订单已汇总，包含约送时间和待收货状态。"
     if "晚上" in content and "待处理" in content:
         return "晚上待处理订单已汇总，包含约送时间和待发货状态。"
     if "明天" in content and "待处理" in content:
@@ -782,6 +817,10 @@ def _fake_reply_text(content: str) -> str:
         return "当前待人工事项已汇总。"
     if "地址线索" in content:
         return "客户地址线索已汇总。"
+    if "客户线索" in content:
+        return "客户线索已汇总。"
+    if "还买过什么" in content:
+        return "该客户历史订单已汇总，展示买过的商品。"
     if "campaign" in content:
         return "群活动 campaign 已汇总。"
     if "离线复盘" in content:

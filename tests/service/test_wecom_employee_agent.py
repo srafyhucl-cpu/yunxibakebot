@@ -381,6 +381,15 @@ async def test_planner_builds_pending_order_list_plan() -> None:
     assert plan.query_plan.statuses == ("WAIT_SELLER_SEND_GOODS",)
 
 
+async def test_planner_does_not_use_status_word_as_order_keyword() -> None:
+    plan = await _planner().plan("今天待收货订单有哪些")
+
+    assert plan.intent == AgentIntent.ORDER_QUERY
+    assert plan.query_plan is not None
+    assert plan.query_plan.statuses == ("WAIT_BUYER_CONFIRM_GOODS",)
+    assert plan.query_plan.keyword == ""
+
+
 async def test_planner_builds_evening_pending_order_window_plan() -> None:
     plan = await _planner().plan("晚上还有哪些待处理订单")
 

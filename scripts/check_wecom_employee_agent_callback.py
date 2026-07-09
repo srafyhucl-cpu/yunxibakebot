@@ -82,6 +82,7 @@ class CallbackProbe:
     required_all_terms: tuple[str, ...] = ()
     required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
+    allow_empty_result: bool = False
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,7 @@ def default_probes() -> tuple[CallbackProbe, ...]:
             case.required_all_terms,
             case.required_all_term_groups,
             case.forbidden_terms,
+            case.allow_empty_result,
         )
         for case in default_probe_cases(date.today())
     )
@@ -292,6 +294,7 @@ def semantic_rule(probe: CallbackProbe) -> CallbackSemanticRule:
         probe.required_all_terms,
         probe.required_all_term_groups,
         probe.forbidden_terms,
+        probe.allow_empty_result,
     )
 
 

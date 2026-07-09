@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-10] - fix(ops): 稳定 P14c 生产 callback 失败用例
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: 生产已重启到 `0.105.0` 后，P14 handoff 的 runtime gate 已通过，但显式生产 release gate 仍有两个 callback 语义失败：当天待收货订单为空时 probe 不能表达受控空结果，且退款规则知识缺失会直接返回“未找到匹配知识”。需要在不伪造生产数据、不放宽隐私禁词、不绕过 release gate 的前提下修复。
+- **决策**:
+  - 订单状态词只用于 status filter，不再作为商品关键词进入订单查询。
+  - 受控空结果必须由 probe 显式允许，且仍检查完整订单号、手机号、完整地址等 forbidden terms。
+  - 退款/售后知识未命中时只给保守治理兜底，不承诺退款金额、到账时间或具体政策。
+  - P14c 完成状态仍以部署 `0.105.1` 后的生产 runtime gate、release gate、P13b 发布证据门禁和 P14 handoff 为准。
+- **改动**:
+  - `app/service/wecom/employee_agent_order_keyword_extract.py` - 将订单状态词加入关键词清洗 stop words。
+  - `app/service/wecom/intelligent_bot_knowledge_format.py` - 增加退款/售后知识缺失保守兜底。
+  - `scripts/wecom_employee_agent_probe_cases.py`、`scripts/wecom_employee_agent_callback_semantics.py`、`scripts/check_wecom_employee_agent_callback.py` - 支持显式受控空结果 probe。
+  - `tests/service/test_wecom_employee_agent.py`、`tests/service/test_wecom_intelligent_bot_knowledge_reply.py`、`tests/scripts/test_check_wecom_employee_agent_callback.py` - 补回归测试。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P14c 本地稳定化记录和版本 `0.105.1`。
+- **验证结果**:
+  - `python -m pytest tests\service\test_wecom_employee_agent.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py -q --no-cov` 通过。
+  - `python -m ruff check app\service\wecom\employee_agent_order_keyword_extract.py app\service\wecom\intelligent_bot_knowledge_format.py scripts\wecom_employee_agent_probe_cases.py scripts\wecom_employee_agent_callback_semantics.py scripts\check_wecom_employee_agent_callback.py tests\service\test_wecom_employee_agent.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py` 通过。
+  - `python -m ruff format --check app\service\wecom\employee_agent_order_keyword_extract.py app\service\wecom\intelligent_bot_knowledge_format.py scripts\wecom_employee_agent_probe_cases.py scripts\wecom_employee_agent_callback_semantics.py scripts\check_wecom_employee_agent_callback.py tests\service\test_wecom_employee_agent.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py` 通过。
+- **后续**:
+  - 提交推送后同步生产到 `0.105.1`，重启服务并运行生产 release gate、P13b 发布证据门禁和 P14 handoff；只有这些全部通过后，P14c 才能改为完成态。
+
 ## [2026-07-10] - feat(eval): 增加真实 replay pool 条目草稿生成器
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

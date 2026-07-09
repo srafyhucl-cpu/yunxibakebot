@@ -7,6 +7,7 @@ import re
 
 PLAIN_TEXT_FORBIDDEN_MARKERS = ("**", "__", "`")
 BLOCKQUOTE_MARK_PATTERN = re.compile(r"(?m)^>\s*")
+EMPTY_RESULT_MARKERS = ("没有查到", "未查到", "暂无匹配", "暂无")
 
 
 @dataclass(frozen=True)
@@ -17,10 +18,13 @@ class CallbackSemanticRule:
     required_all_terms: tuple[str, ...] = ()
     required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
+    allow_empty_result: bool = False
 
 
 def is_semantic_safe(content: str, rule: CallbackSemanticRule) -> bool:
     """判断回复是否满足探针语义约束。"""
+    if rule.allow_empty_result and has_controlled_empty_result(content):
+        return not any(term in content for term in rule.forbidden_terms)
     if rule.required_any_terms and not any(
         term in content for term in rule.required_any_terms
     ):
@@ -35,6 +39,11 @@ def is_semantic_safe(content: str, rule: CallbackSemanticRule) -> bool:
     ):
         return False
     return not any(term in content for term in rule.forbidden_terms)
+
+
+def has_controlled_empty_result(content: str) -> bool:
+    """判断回复是否是明确的受控空结果。"""
+    return any(marker in content for marker in EMPTY_RESULT_MARKERS)
 
 
 def has_plain_text_violation(content: str) -> bool:

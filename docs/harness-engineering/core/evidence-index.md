@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-029：LangChain AI 应用层 P14c callback 稳定化本地修复
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p14c-production-callback-stabilization
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_order_keyword_extract.py`; `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_knowledge_format.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_callback_semantics.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_intelligent_bot_knowledge_reply.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\test_wecom_employee_agent.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py -q --no-cov`; `python scripts\check_wecom_employee_agent_plans.py --json`; `python -m ruff check app\service\wecom\employee_agent_order_keyword_extract.py app\service\wecom\intelligent_bot_knowledge_format.py scripts\wecom_employee_agent_probe_cases.py scripts\wecom_employee_agent_callback_semantics.py scripts\check_wecom_employee_agent_callback.py tests\service\test_wecom_employee_agent.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py`; `python -m ruff format --check app\service\wecom\employee_agent_order_keyword_extract.py app\service\wecom\intelligent_bot_knowledge_format.py scripts\wecom_employee_agent_probe_cases.py scripts\wecom_employee_agent_callback_semantics.py scripts\check_wecom_employee_agent_callback.py tests\service\test_wecom_employee_agent.py tests\service\test_wecom_intelligent_bot_knowledge_reply.py tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_check_wecom_employee_agent_plans.py`; pending production `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - fix(ops): 稳定 P14c 生产 callback 失败用例
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只修改员工助手 planner keyword 清洗、知识未命中保守兜底和 callback probe 语义规则；不读取原始客服记录、不提交真实客户对话、不包含手机号、地址、open_id、完整订单号、callback token、AES key、服务器密码或 API key。生产 release gate 报告位于 gitignored reports 目录。
+- summary: P14c 本地稳定化修复已完成：订单状态词不再作为商品关键词，允许显式受控空结果但不放宽隐私禁词，退款/售后知识缺失时输出保守治理话术而不是“未找到匹配知识”。本证据只证明本地修复和测试通过，P14c 完成仍需要部署 `0.105.1` 后通过生产 runtime gate、显式生产 release gate、P13b 发布证据门禁和 P14 handoff。
+
 ## E-20260710-028：LangChain AI 应用层 P17b-prep 真实 replay pool 条目草稿生成器
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
