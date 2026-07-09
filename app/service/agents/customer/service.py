@@ -7,6 +7,7 @@ from app.service.agents.customer.contracts import (
     CustomerGraphRequest,
     initial_customer_state,
 )
+from app.service.agents.trace_report import AgentTraceRun
 
 
 class CustomerAgentGraphService:
@@ -18,13 +19,39 @@ class CustomerAgentGraphService:
 
     async def answer(self, request: CustomerGraphRequest) -> str:
         """执行客户机器人 LangGraph 并返回回复。"""
+        reply, _trace_run = await self.answer_with_trace(request)
+        return reply
+
+    async def answer_with_trace(
+        self,
+        request: CustomerGraphRequest,
+    ) -> tuple[str, AgentTraceRun]:
+        """执行客户机器人 LangGraph 并返回脱敏 trace。"""
         result = await self._compiled_graph().ainvoke(
             initial_customer_state(request),
             config=build_customer_graph_config(request.session),
         )
-        return str(result.get("reply", ""))
+        reply = str(result.get("reply", ""))
+        return reply, AgentTraceRun(
+            agent="customer",
+            trace_events=tuple(result.get("trace_events") or ()),
+            conversation_id=request.session.id,
+            channel=request.session.channel,
+            final_status=_final_status(result),
+        )
 
     def _compiled_graph(self):
         if self._graph is None:
             self._graph = build_customer_agent_graph(self._dependencies)
         return self._graph
+
+
+def _final_status(result: dict) -> str:
+    trace_events = result.get("trace_events") or ()
+    if any(event.get("fallback_reason") for event in trace_events):
+        return "fallback"
+    if any(event.get("finish_reason") == "fallback" for event in trace_events):
+        return "fallback"
+    if any(event.get("node") == "tool_round_limit" for event in trace_events):
+        return "fallback"
+    return "success"

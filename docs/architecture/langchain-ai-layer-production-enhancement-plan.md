@@ -554,6 +554,38 @@ Ruff format --check 通过。
 
 P1 后续：
 
-- P1b 应把真实 graph 运行后的 `trace_events` 以脱敏 JSON 形式写入 `reports/agent-traces/` 或现有结构化日志，使 `python scripts/report_agent_traces.py --latest --summary` 能在本地运行后看到客户机器人和员工助手节点级摘要。
-- P1c 再补客户和员工节点字段完整度：`trace_id`、`conversation_id`、`channel`、`agent`、`model`、`tool_name`、`knowledge_entry_ids`、`latency_ms`、`fallback_reason`、`final_status`。
+- P1b 应把真实 graph 运行后的 `trace_events` 显式导出为可序列化的 `AgentTraceRun`，使 eval、运维脚本或手动探针可以安全写入 `reports/agent-traces/`。
+- P1c 再补客户和员工节点字段完整度：`trace_id`、`model`、`tool_name`、`knowledge_entry_ids`、`latency_ms`、`fallback_reason`。
 - LangSmith 仍保持可选开关，未配置 key 时不得影响主流程。
+
+## 十二、P1b 落地记录
+
+2026-07-09 已完成 P1 线上 Trace 与 LangSmith 观测的第二切片：
+
+- `CustomerAgentGraphService` 新增 `answer_with_trace()`，返回 `(reply, AgentTraceRun)`；原 `answer()` 保持只返回字符串，外部调用方行为不变。
+- `EmployeeAgentGraphService` 新增 `answer_with_trace()`，返回 `(reply, AgentTraceRun)`；原 `answer()` 保持只返回确定性回复。
+- `AgentTraceRun` 新增 `to_dict()`，序列化时自动通过 `safe_trace_payload()` 过滤敏感字段，后续 eval 或运维探针可直接写入 JSON。
+- 客户 trace run 写入 `agent=customer`、`conversation_id=session.id`、`channel=session.channel`、`final_status` 和节点事件。
+- 员工 trace run 写入 `agent=employee`、`channel=wecom_employee`、`final_status` 和节点事件。
+- 本切片不默认写 `reports/agent-traces/`，避免生产热路径每条消息产生文件；真实落盘应由显式探针、eval 或后续结构化日志配置触发。
+
+P1b 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py tests/service/agents/test_observability.py -q --no-cov
+python -m ruff check app/service/agents/customer/service.py app/service/agents/employee/service.py app/service/agents/trace_report.py app/service/agents/observability.py scripts/report_agent_traces.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py tests/service/agents/test_observability.py
+python -m ruff format --check app/service/agents/customer/service.py app/service/agents/employee/service.py app/service/agents/trace_report.py app/service/agents/observability.py scripts/report_agent_traces.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py tests/service/agents/test_observability.py
+```
+
+P1b 验证结果：
+
+```text
+33 项 targeted tests 通过。
+Ruff check 通过。
+Ruff format --check 通过。
+```
+
+P1 后续：
+
+- P1c 补节点级字段完整度和耗时字段，优先覆盖模型节点、工具节点、RAG 命中和 fallback。
+- P1d 再决定是否增加显式探针脚本，把一次客户机器人和一次员工助手运行写入 `reports/agent-traces/` 后用 `scripts/report_agent_traces.py --latest --summary` 汇总。

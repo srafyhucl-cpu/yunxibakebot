@@ -81,6 +81,34 @@ async def test_employee_graph_returns_deterministic_tool_reply() -> None:
 
 
 @pytest.mark.asyncio
+async def test_employee_graph_service_can_return_trace_run() -> None:
+    service = EmployeeAgentGraphService(
+        EmployeeGraphDependencies(
+            business_tool_service=_FakeBusinessToolService(),
+            ops_tool_service=_FakeOpsToolService(),
+            status_tool_service=_FakeStatusToolService(),
+            planner=_FakePlanner(),
+        )
+    )
+
+    reply, trace_run = await service.answer_with_trace("草莓蛋糕还有库存吗")
+
+    assert "草莓蛋糕还有库存吗｜库存 6" in reply
+    assert trace_run.agent == "employee"
+    assert trace_run.channel == "wecom_employee"
+    assert trace_run.final_status == "success"
+    assert [event["node"] for event in trace_run.trace_events] == [
+        "load_employee_context",
+        "plan_intent",
+        "select_tools",
+        "execute_tools",
+        "validate_tool_facts",
+        "deterministic_finalizer",
+        "record_trace",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_employee_graph_trace_events_use_observability_shape() -> None:
     graph = build_employee_agent_graph(
         EmployeeGraphDependencies(

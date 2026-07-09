@@ -35,6 +35,17 @@ class AgentTraceRun:
             metadata=safe_trace_payload(payload.get("metadata") or {}),
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "agent": self.agent,
+            "trace_id": self.trace_id,
+            "conversation_id": self.conversation_id,
+            "channel": self.channel,
+            "final_status": self.final_status,
+            "metadata": self.metadata,
+            "trace_events": [safe_trace_payload(event) for event in self.trace_events],
+        }
+
 
 @dataclass(frozen=True)
 class AgentTraceSummary:

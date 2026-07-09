@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-003：LangChain AI 应用层 P1b graph 显式 trace 导出
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p1b-agent-trace-export
+- file: `D:\Project\YunxiBakeBot\app\service\agents\customer\service.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\service.py`; `D:\Project\YunxiBakeBot\app\service\agents\trace_report.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_graph.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_employee_graph.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_customer_graph.py tests\service\agents\test_employee_graph.py tests\service\agents\test_trace_report.py tests\scripts\test_report_agent_traces.py tests\service\agents\test_observability.py -q --no-cov`; `python -m ruff check app\service\agents\customer\service.py app\service\agents\employee\service.py app\service\agents\trace_report.py app\service\agents\observability.py scripts\report_agent_traces.py tests\service\agents\test_customer_graph.py tests\service\agents\test_employee_graph.py tests\service\agents\test_trace_report.py tests\scripts\test_report_agent_traces.py tests\service\agents\test_observability.py`; `python -m ruff format --check app\service\agents\customer\service.py app\service\agents\employee\service.py app\service\agents\trace_report.py app\service\agents\observability.py scripts\report_agent_traces.py tests\service\agents\test_customer_graph.py tests\service\agents\test_employee_graph.py tests\service\agents\test_trace_report.py tests\scripts\test_report_agent_traces.py tests\service\agents\test_observability.py`
+- result: pass
+- related_logbook: 2026-07-09 - feat(observability): 完成 P1b graph 显式 trace 导出
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记 graph service 显式 trace 导出代码和测试命令；`AgentTraceRun.to_dict()` 通过统一脱敏函数过滤敏感字段，不登记真实客户原文、订单明细、手机号、地址或 open_id。
+- summary: P1b 为客户机器人和员工助手 graph service 增加 `answer_with_trace()`，在保留原 `answer()` 字符串返回行为的同时显式暴露可序列化 `AgentTraceRun`。本切片不默认写 `reports\agent-traces\`，避免生产热路径每条消息产生文件；后续显式探针、eval 或结构化日志可调用该入口导出 trace JSON，再交给 `scripts\report_agent_traces.py` 汇总。
+
 ## E-20260709-002：LangChain AI 应用层 P1a 本地 Agent trace 报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

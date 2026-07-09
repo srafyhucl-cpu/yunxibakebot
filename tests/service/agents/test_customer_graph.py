@@ -118,6 +118,59 @@ async def test_customer_graph_runs_tool_round_then_returns_reply(
 
 
 @pytest.mark.asyncio
+async def test_customer_graph_service_can_return_trace_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.service.agents.customer import nodes as customer_nodes
+
+    async def fake_request_customer_model_with_tools(context: Any) -> Any:
+        return SimpleNamespace(
+            fallback_reply=None,
+            finish_reason="stop",
+            message=SimpleNamespace(content="最终回复", tool_calls=[]),
+            first_llm_started_at=1.0,
+        )
+
+    monkeypatch.setattr(
+        customer_nodes,
+        "request_customer_model_with_tools",
+        fake_request_customer_model_with_tools,
+    )
+    monkeypatch.setattr(customer_nodes, "build_tools", lambda *_args, **_kwargs: [])
+    service = CustomerAgentGraphService(
+        CustomerGraphDependencies(
+            session_mgr=_FakeSessionManager(),
+            knowledge=_FakeKnowledgeRetriever(),
+            transfer_mgr=object(),
+            session_repo=object(),
+            youzan_client=object(),
+            fallback_reply="fallback",
+            timeout_reply="timeout",
+            failure_alerter=_fake_alerter,
+        )
+    )
+
+    reply, trace_run = await service.answer_with_trace(
+        CustomerGraphRequest(
+            session=Session(id="session-1", channel="youzan", user_id="buyer-1"),
+            user_query="配送范围",
+        )
+    )
+
+    assert reply == "最终回复"
+    assert trace_run.agent == "customer"
+    assert trace_run.conversation_id == "session-1"
+    assert trace_run.channel == "youzan"
+    assert trace_run.final_status == "success"
+    assert [event["node"] for event in trace_run.trace_events] == [
+        "load_session_context",
+        "model_with_tools",
+        "finalize_reply",
+        "record_trace",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_customer_graph_reuses_compiled_graph_without_stale_tool_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

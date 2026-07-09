@@ -1,4 +1,22 @@
 ﻿
+## [2026-07-09] - feat(observability): 完成 P1b graph 显式 trace 导出
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P1a 已提供本地 Agent trace 报告器和 CLI，但 graph service 公开入口仍只返回回复字符串，eval、运维探针或后续结构化日志无法显式拿到真实 graph 运行后的脱敏 trace run。
+- **决策**:
+  - 在客户机器人和员工助手 graph service 上新增 `answer_with_trace()`，保留原 `answer()` 行为不变。
+  - 不默认把每次生产消息写入 `reports/agent-traces/`，避免热路径产生大量文件；落盘留给显式探针、eval 或后续结构化日志配置。
+  - `AgentTraceRun.to_dict()` 统一走 `safe_trace_payload()`，序列化时继续过滤敏感字段。
+- **改动**:
+  - `app/service/agents/customer/service.py` - 新增客户 `answer_with_trace()`，返回 reply、agent、conversation_id、channel、final_status 和 trace_events。
+  - `app/service/agents/employee/service.py` - 新增员工 `answer_with_trace()`，返回 reply、agent、channel、final_status 和 trace_events。
+  - `app/service/agents/trace_report.py` - 新增 `AgentTraceRun.to_dict()`。
+  - `tests/service/agents/test_customer_graph.py`、`tests/service/agents/test_employee_graph.py` - 增加服务层显式 trace 导出回归。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py tests/service/agents/test_observability.py -q --no-cov` 通过，33 项失败 0。
+  - `python -m ruff check app/service/agents/customer/service.py app/service/agents/employee/service.py app/service/agents/trace_report.py app/service/agents/observability.py scripts/report_agent_traces.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py tests/service/agents/test_observability.py` 通过。
+  - `python -m ruff format --check app/service/agents/customer/service.py app/service/agents/employee/service.py app/service/agents/trace_report.py app/service/agents/observability.py scripts/report_agent_traces.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py tests/service/agents/test_observability.py` 通过。
+
 ## [2026-07-09] - feat(observability): 完成 P1a 本地 Agent trace 报告切片
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

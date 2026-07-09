@@ -2,6 +2,7 @@
 
 from app.service.agents.employee.graph import build_employee_agent_graph
 from app.service.agents.employee.nodes import EmployeeGraphDependencies
+from app.service.agents.trace_report import AgentTraceRun
 
 
 class EmployeeAgentGraphService:
@@ -13,10 +14,30 @@ class EmployeeAgentGraphService:
 
     async def answer(self, query: str) -> str:
         """执行员工助手 LangGraph 并返回原始确定性回复。"""
+        reply, _trace_run = await self.answer_with_trace(query)
+        return reply
+
+    async def answer_with_trace(self, query: str) -> tuple[str, AgentTraceRun]:
+        """执行员工助手 LangGraph 并返回脱敏 trace。"""
         result = await self._compiled_graph().ainvoke({"query": query})
-        return str(result.get("reply", ""))
+        reply = str(result.get("reply", ""))
+        return reply, AgentTraceRun(
+            agent="employee",
+            trace_events=tuple(result.get("trace_events") or ()),
+            channel="wecom_employee",
+            final_status=_final_status(result),
+        )
 
     def _compiled_graph(self):
         if self._graph is None:
             self._graph = build_employee_agent_graph(self._dependencies)
         return self._graph
+
+
+def _final_status(result: dict) -> str:
+    trace_events = result.get("trace_events") or ()
+    if any(event.get("fallback_reason") for event in trace_events):
+        return "fallback"
+    if any(event.get("finish_reason") == "fallback" for event in trace_events):
+        return "fallback"
+    return "success"
