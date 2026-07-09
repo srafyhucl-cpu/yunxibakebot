@@ -20,6 +20,9 @@ from app.service.agents.evaluation import (  # noqa: E402
     filter_agent_eval_result,
     write_json_report,
 )
+from scripts.check_customer_reply_replay import (  # noqa: E402
+    build_customer_reply_replay_result,
+)
 from scripts.eval_customer_agent import build_customer_eval_result  # noqa: E402
 from scripts.eval_employee_agent import build_employee_eval_result  # noqa: E402
 
@@ -29,8 +32,14 @@ async def build_agent_eval_report(
     agent: str = "all",
     case_ids: tuple[str, ...] = (),
     fail_fast: bool = False,
+    include_reply_replay: bool = False,
+    reply_replay_json: Path | None = None,
 ) -> dict[str, object]:
-    results = await _build_selected_results(agent)
+    results = await _build_selected_results(
+        agent,
+        include_reply_replay=include_reply_replay,
+        reply_replay_json=reply_replay_json,
+    )
     if case_ids:
         results = tuple(
             filter_agent_eval_result(result, case_ids) for result in results
@@ -49,16 +58,33 @@ async def build_agent_eval_report(
             "agent_filter": agent,
             "case_filter": list(case_ids),
             "fail_fast": fail_fast,
+            "include_reply_replay": include_reply_replay,
+            "reply_replay_source": str(reply_replay_json) if reply_replay_json else "",
         },
     )
 
 
-async def _build_selected_results(agent: str) -> tuple[AgentEvalResult, ...]:
+async def _build_selected_results(
+    agent: str,
+    *,
+    include_reply_replay: bool,
+    reply_replay_json: Path | None,
+) -> tuple[AgentEvalResult, ...]:
     if agent == "customer":
         return (build_customer_eval_result(),)
     if agent == "employee":
         return (await build_employee_eval_result(),)
-    return (build_customer_eval_result(), await build_employee_eval_result())
+    if agent == "customer_reply_replay":
+        return (build_customer_reply_replay_result(reply_json_path=reply_replay_json),)
+    results: list[AgentEvalResult] = [
+        build_customer_eval_result(),
+        await build_employee_eval_result(),
+    ]
+    if include_reply_replay:
+        results.append(
+            build_customer_reply_replay_result(reply_json_path=reply_replay_json)
+        )
+    return tuple(results)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -68,7 +94,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--json-out", type=Path, help="写入 JSON 报告路径")
     parser.add_argument(
         "--agent",
-        choices=("customer", "employee", "all"),
+        choices=("customer", "employee", "customer_reply_replay", "all"),
         default="all",
         help="选择 eval agent",
     )
@@ -79,6 +105,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="只报告指定 case_id，可重复传入",
     )
     parser.add_argument("--fail-fast", action="store_true", help="首个失败后停止报告")
+    parser.add_argument(
+        "--include-reply-replay",
+        action="store_true",
+        help="在 all 聚合报告中额外包含客户回复回放检查",
+    )
+    parser.add_argument(
+        "--reply-replay-json",
+        type=Path,
+        help="客户回复回放 JSON，传给 customer_reply_replay eval",
+    )
     parser.add_argument(
         "--latest",
         action="store_true",
@@ -93,6 +129,8 @@ async def main(argv: list[str] | None = None) -> int:
         agent=args.agent,
         case_ids=tuple(args.case_id),
         fail_fast=args.fail_fast,
+        include_reply_replay=args.include_reply_replay,
+        reply_replay_json=args.reply_replay_json,
     )
     if args.json_out is not None:
         write_json_report(payload, args.json_out)

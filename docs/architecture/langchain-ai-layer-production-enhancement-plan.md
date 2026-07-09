@@ -1091,6 +1091,41 @@ P6 后续：
 - P6c 可从脱敏真实客服会话或生产 shadow 输出生成 `--replies-json`，让同一套检查覆盖真实问题分布。
 - P6d 可把 `check_customer_reply_replay.py` 接入聚合 Agent Eval 报告，形成 `customer_reply_replay` agent 维度。
 
+## 三十一、P6d 落地记录
+
+2026-07-10 已完成 P6 回复回放并入聚合 Agent Eval：
+
+- `scripts/report_agent_eval.py` 新增 `customer_reply_replay` agent 维度。
+- 默认 `python scripts\report_agent_eval.py --latest` 仍只聚合客户 RAG eval 和员工助手 eval，保持 133 项基线不变。
+- 显式传入 `--include-reply-replay` 时，聚合报告额外包含客户回复回放检查，当前总数为 163 项。
+- 支持 `--reply-replay-json` 传入 P6b 生成的 graph fake model replies JSON；报告 metadata 输出 `include_reply_replay` 和 `reply_replay_source`。
+- 本切片仍不调用外部 LLM、不改客户热路径、不写数据库、不改变生产配置。
+
+P6d 验收：
+
+```powershell
+python -m pytest tests\scripts\test_agent_eval_scripts.py tests\scripts\test_probe_customer_reply_replay.py -q --no-cov
+python -m ruff check scripts\report_agent_eval.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\report_agent_eval.py tests\scripts\test_agent_eval_scripts.py
+python scripts\report_agent_eval.py --latest --summary
+python scripts\probe_customer_reply_replay.py --output reports\agent-eval\customer-reply-replay-probe-latest.json; python scripts\report_agent_eval.py --latest --include-reply-replay --reply-replay-json reports\agent-eval\customer-reply-replay-probe-latest.json --json-out reports\agent-eval\latest-with-reply-replay.json --summary
+```
+
+P6d 验证结果：
+
+```text
+脚本测试通过：13 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+默认聚合 eval 通过：133 项失败 0。
+扩展聚合 eval 通过：163 项失败 0，其中包含 30 条 customer_reply_replay 回复回放检查。
+```
+
+P6 后续：
+
+- P6c/P6e 可继续接入脱敏真实客服会话或生产 shadow replies JSON，让 `customer_reply_replay` 从 fake model 逐步走向真实问题分布。
+- 可在 P10 发布门禁中增加 `report_agent_eval.py --include-reply-replay` 作为加强验收，而不是替代默认 133 项基线。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：

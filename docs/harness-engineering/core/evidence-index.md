@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-010：LangChain AI 应用层 P6d 回复回放并入聚合 Agent Eval
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p6d-agent-eval-reply-replay-aggregation
+- file: `D:\Project\YunxiBakeBot\scripts\report_agent_eval.py`; `D:\Project\YunxiBakeBot\scripts\check_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\scripts\probe_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_probe_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest-with-reply-replay.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_agent_eval_scripts.py tests\scripts\test_probe_customer_reply_replay.py -q --no-cov`; `python -m ruff check scripts\report_agent_eval.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\report_agent_eval.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\report_agent_eval.py --latest --summary`; `python scripts\probe_customer_reply_replay.py --output reports\agent-eval\customer-reply-replay-probe-latest.json; python scripts\report_agent_eval.py --latest --include-reply-replay --reply-replay-json reports\agent-eval\customer-reply-replay-probe-latest.json --json-out reports\agent-eval\latest-with-reply-replay.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 将 P6d 回复回放并入聚合 Agent Eval
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 聚合报告使用脱敏 fixture 和受控 fake model replies JSON；`reports\agent-eval\latest-with-reply-replay.json` 位于 gitignored reports 目录；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥。
+- summary: P6d 将客户回复回放作为可选第三个 agent 维度并入 `report_agent_eval.py`。默认 `--latest` 仍保持 133/133 双机器人 eval，显式 `--include-reply-replay` 后聚合客户 RAG、员工助手和客户回复回放三类结果，当前 163/163 通过；报告 metadata 记录 `include_reply_replay` 和 `reply_replay_source`，便于作品集和上线门禁引用。
+
 ## E-20260710-009：LangChain AI 应用层 P6b 客户 graph 回复回放探针
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

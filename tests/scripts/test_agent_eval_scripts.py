@@ -119,6 +119,91 @@ async def test_report_agent_eval_outputs_combined_json(monkeypatch, capsys) -> N
 
 
 @pytest.mark.asyncio
+async def test_report_agent_eval_can_include_reply_replay(
+    monkeypatch,
+    capsys,
+) -> None:
+    customer = AgentEvalResult(
+        agent="customer",
+        cases=(
+            AgentEvalCase(
+                case_id="customer-ok",
+                agent="customer",
+                query="ok",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+        ),
+    )
+    employee = AgentEvalResult(
+        agent="employee",
+        cases=(
+            AgentEvalCase(
+                case_id="employee-ok",
+                agent="employee",
+                query="ok",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+        ),
+    )
+    reply_replay = AgentEvalResult(
+        agent="customer_reply_replay",
+        cases=(
+            AgentEvalCase(
+                case_id="reply-ok",
+                agent="customer_reply_replay",
+                query="ok",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        report_agent_eval,
+        "build_customer_eval_result",
+        lambda: customer,
+    )
+
+    async def fake_employee_result() -> AgentEvalResult:
+        return employee
+
+    monkeypatch.setattr(
+        report_agent_eval,
+        "build_employee_eval_result",
+        fake_employee_result,
+    )
+    monkeypatch.setattr(
+        report_agent_eval,
+        "build_customer_reply_replay_result",
+        lambda reply_json_path=None: reply_replay,
+    )
+
+    exit_code = await report_agent_eval.main(["--include-reply-replay", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["total"] == 3
+    assert payload["metadata"]["include_reply_replay"] is True
+    assert [agent["agent"] for agent in payload["agent_totals"]] == [
+        "customer",
+        "employee",
+        "customer_reply_replay",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_report_agent_eval_keeps_default_total_without_reply_replay() -> None:
+    payload = await report_agent_eval.build_agent_eval_report()
+
+    assert payload["status"] == "passed"
+    assert payload["total"] == 133
+    assert payload["metadata"]["include_reply_replay"] is False
+    assert [agent["agent"] for agent in payload["agent_totals"]] == [
+        "customer",
+        "employee",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_report_agent_eval_filters_agent_case_and_writes_json(
     monkeypatch,
     tmp_path: Path,

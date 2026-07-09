@@ -1,4 +1,22 @@
 ﻿
+## [2026-07-10] - feat(eval): 将 P6d 回复回放并入聚合 Agent Eval
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P6a/P6b 已形成客户回复回放检查和客户 graph fake model 回复生成，但聚合 `report_agent_eval.py` 仍只覆盖客户 RAG eval 和员工助手 eval；作品集或门禁若要展示回复回放，需要单独记忆另一条命令。
+- **决策**:
+  - 默认 `python scripts\report_agent_eval.py --latest` 继续保持 133 项双机器人 eval，不静默改变既有基线。
+  - 新增显式 `--include-reply-replay` 才把 `customer_reply_replay` 作为第三个 agent 维度并入聚合报告。
+  - 支持 `--agent customer_reply_replay` 和 `--reply-replay-json`，便于单独定位回复回放失败。
+- **改动**:
+  - `scripts/report_agent_eval.py` - 增加 `customer_reply_replay` agent、`--include-reply-replay` 和 `--reply-replay-json`。
+  - `tests/scripts/test_agent_eval_scripts.py` - 覆盖默认 133 项不变、显式扩展聚合包含 reply replay、metadata 输出开关。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_agent_eval_scripts.py tests\scripts\test_probe_customer_reply_replay.py -q --no-cov` 通过，13 项失败 0。
+  - `python -m ruff check scripts\report_agent_eval.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check scripts\report_agent_eval.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python scripts\report_agent_eval.py --latest --summary` 通过，默认聚合 eval 133 项失败 0。
+  - `python scripts\probe_customer_reply_replay.py --output reports\agent-eval\customer-reply-replay-probe-latest.json; python scripts\report_agent_eval.py --latest --include-reply-replay --reply-replay-json reports\agent-eval\customer-reply-replay-probe-latest.json --json-out reports\agent-eval\latest-with-reply-replay.json --summary` 通过，扩展聚合 eval 163 项失败 0。
+
 ## [2026-07-10] - feat(eval): 增加 P6b 客户 graph 回复回放探针
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
