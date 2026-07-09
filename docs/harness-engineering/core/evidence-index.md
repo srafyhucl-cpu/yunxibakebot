@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-012：LangChain AI 应用层 P10b 生产 smoke/callback 可选门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local+production/p10b-langchain-ai-layer-production-release-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\scripts\smoke_test.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_smoke_test.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-prod-latest.json`; `D:\Project\YunxiBakeBot\reports\smoke\langchain-prod-smoke-20260710-014618.json`; `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\langchain-prod-callback-20260710-014620.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --production-base-url https://yunxifood.cn --json-out reports\agent-eval\langchain-ai-layer-release-gate-prod-latest.json --summary`
+- result: partial
+- related_logbook: 2026-07-10 - feat(eval): 增加 P10b 生产 smoke/callback 可选门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: release gate 报告只保存命令、状态和 stdout/stderr 摘要；production smoke 只记录 `/health`、`/ready` 和服务可达结果；callback probe 报告由脚本脱敏，明确不记录 token、AES key、密文、手机号、完整地址或完整订单号；reports 目录被 gitignored。
+- summary: P10b 将生产 `/health`、`/ready` 和企微员工助手 callback probe 编排进显式 release gate。默认门禁仍不触碰生产；`--include-production-smoke` 才追加生产只读探针。`smoke_test.py --http-only` 避免把本地静态配置误判为远程生产失败。本地脚本测试、Ruff、默认 release gate 均通过；显式生产 gate 的本地 133 eval、客户回复回放 probe、扩展 163 eval 和生产 http-only smoke 均通过，但当前线上 `0.85.2` callback probe 61 项中 2 项语义失败，需部署当前 `0.89.0` 或补齐生产员工知识后复验。
+
 ## E-20260710-011：LangChain AI 应用层 P10a 发布门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

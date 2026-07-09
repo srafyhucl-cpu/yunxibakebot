@@ -530,6 +530,82 @@ async def test_run_smoke_checks_skips_http_endpoints_when_service_unreachable(
     assert results[2].detail.startswith(smoke_test.SERVICE_UNREACHABLE_DETAIL)
 
 
+async def test_run_http_only_smoke_checks_skips_static_and_admin_checks(
+    monkeypatch,
+) -> None:
+    async def fake_check_service_reachability() -> smoke_test.SmokeResult:
+        return smoke_test.SmokeResult(
+            smoke_test.SERVICE_REACHABILITY_NAME,
+            True,
+            "https://bot.example.com:443",
+        )
+
+    async def fake_check_health_endpoint() -> smoke_test.SmokeResult:
+        return smoke_test.SmokeResult("健康检查接口", True, "ok")
+
+    async def fake_check_ready_endpoint() -> smoke_test.SmokeResult:
+        return smoke_test.SmokeResult("就绪检查接口", True, "ready")
+
+    async def forbidden_observability_summary() -> smoke_test.SmokeResult:
+        raise AssertionError("http-only should not check admin observability")
+
+    monkeypatch.setattr(
+        smoke_test,
+        "run_static_checks",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("http-only should not run static checks")
+        ),
+    )
+    monkeypatch.setattr(
+        smoke_test,
+        "check_service_reachability",
+        fake_check_service_reachability,
+    )
+    monkeypatch.setattr(smoke_test, "check_health_endpoint", fake_check_health_endpoint)
+    monkeypatch.setattr(smoke_test, "check_ready_endpoint", fake_check_ready_endpoint)
+    monkeypatch.setattr(
+        smoke_test,
+        "check_observability_summary_endpoint",
+        forbidden_observability_summary,
+    )
+
+    results = await smoke_test.run_http_only_smoke_checks()
+
+    assert [result.name for result in results] == [
+        smoke_test.SERVICE_REACHABILITY_NAME,
+        "健康检查接口",
+        "就绪检查接口",
+    ]
+    assert all(result.passed for result in results)
+
+
+async def test_run_http_only_smoke_checks_skips_only_health_ready_when_unreachable(
+    monkeypatch,
+) -> None:
+    async def fake_check_service_reachability() -> smoke_test.SmokeResult:
+        return smoke_test.SmokeResult(
+            smoke_test.SERVICE_REACHABILITY_NAME,
+            False,
+            "https://bot.example.com:443; connect_failed=refused",
+        )
+
+    monkeypatch.setattr(
+        smoke_test,
+        "check_service_reachability",
+        fake_check_service_reachability,
+    )
+    monkeypatch.setattr(smoke_test.httpx, "AsyncClient", _ForbiddenAsyncClient)
+
+    results = await smoke_test.run_http_only_smoke_checks()
+
+    assert [result.name for result in results] == [
+        smoke_test.SERVICE_REACHABILITY_NAME,
+        *smoke_test.HTTP_ONLY_ENDPOINT_CHECK_NAMES,
+    ]
+    assert results[0].passed is False
+    assert results[1].detail.startswith(smoke_test.SERVICE_UNREACHABLE_DETAIL)
+
+
 async def test_check_ready_endpoint_passes_when_ready(monkeypatch) -> None:
     _FakeAsyncClient.requested_urls = []
     _FakeAsyncClient.response = _FakeResponse(
@@ -841,6 +917,31 @@ async def test_main_json_output_uses_base_url_override(monkeypatch) -> None:
     assert smoke_test.settings.SERVER_PORT == 7001
 
 
+async def test_main_http_only_json_output_uses_remote_http_checks(monkeypatch) -> None:
+    async def fake_run_http_only_smoke_checks() -> list[smoke_test.SmokeResult]:
+        return [smoke_test.SmokeResult("remote", True, "ready")]
+
+    async def forbidden_run_smoke_checks() -> list[smoke_test.SmokeResult]:
+        raise AssertionError("http-only should not run full smoke")
+
+    fake_stdout = _FakeStdout()
+    monkeypatch.setattr(smoke_test.sys, "stdout", fake_stdout)
+    monkeypatch.setattr(smoke_test, "datetime", _FrozenDateTime)
+    monkeypatch.setattr(
+        smoke_test,
+        "run_http_only_smoke_checks",
+        fake_run_http_only_smoke_checks,
+    )
+    monkeypatch.setattr(smoke_test, "run_smoke_checks", forbidden_run_smoke_checks)
+
+    exit_code = await smoke_test.main(["--json", "--http-only"])
+
+    assert exit_code == 0
+    payload = json.loads(fake_stdout.buffer.getvalue().decode("utf-8"))
+    assert payload["status"] == "passed"
+    assert payload["results"][0]["name"] == "remote"
+
+
 async def test_main_json_output_uses_runtime_path_overrides(
     monkeypatch,
     tmp_path,
@@ -938,6 +1039,7 @@ def test_parse_args_help_mentions_timestamp_placeholder(capsys) -> None:
     assert "YYYYMMDD-HHMMSS" in help_text
     assert "--db-path" in help_text
     assert "--index-path" in help_text
+    assert "--http-only" in help_text
 
 
 async def test_main_json_output_refuses_to_overwrite_file(

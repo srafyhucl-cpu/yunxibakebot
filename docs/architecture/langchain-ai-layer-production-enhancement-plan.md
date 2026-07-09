@@ -1162,8 +1162,46 @@ Ruff format --check 通过。
 
 P10 后续：
 
-- P10b 可把 release gate 输出和生产 `/health`、`/ready`、callback probe 合并成生产同步前门禁。
+- P10b 已把 release gate 输出和生产 `/health`、`/ready`、callback probe 合并成生产同步前门禁。
 - P10c 可在需要时把 `--include-rag-matrix` 的核心指标抽取成结构化 release summary，便于面试或上线报告直接引用。
+
+## 三十三、P10b 落地记录
+
+2026-07-10 已完成 P10 生产级发布门禁的第二切片：
+
+- `scripts/check_langchain_ai_layer_release_gate.py` 新增显式 `--include-production-smoke` 和 `--production-base-url`。
+- 默认 release gate 仍只跑本地 AI 层门禁，不访问生产服务。
+- 显式生产门禁会在默认 3 步之后追加：
+  - `scripts/smoke_test.py --http-only --base-url <url> --json --output reports/smoke/langchain-prod-smoke-{timestamp}.json`
+  - `scripts/check_wecom_employee_agent_callback.py --base-url <url> --json --output reports/wecom-employee-agent/langchain-prod-callback-{timestamp}.json`
+- `scripts/smoke_test.py` 新增 `--http-only`，只检查服务端口可达、`/health` 和 `/ready`，不读取本地数据库、向量、`.env`、生产通道配置或后台 dist，避免本地静态配置被误判为远程生产失败。
+- 本切片只编排已有只读探针，不改客户或员工热路径，不写业务数据库，不重启生产服务。
+
+P10b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --production-base-url https://yunxifood.cn --json-out reports\agent-eval\langchain-ai-layer-release-gate-prod-latest.json --summary
+```
+
+P10b 验证结果：
+
+```text
+smoke/release gate 脚本测试通过：59 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+默认 release gate 通过：3 步失败 0。
+显式生产 release gate 已跑通到生产 callback 阶段：本地 133 eval、客户 graph 回复回放 probe、扩展 163 eval、生产 http-only smoke 均通过；生产 callback probe 在当前线上 0.85.2 返回 61 项中 2 项语义失败。
+```
+
+P10b 残余风险：
+
+- 本次显式生产门禁访问到的线上 `/health` 和 `/ready` 版本为 `0.85.2`，低于本地当前 `0.89.0`；因此 callback 语义失败不能视为当前代码部署后的最终结论。
+- 失败 case 为 `p2c-today-wait-buyer-confirm-list` 和 `p2c-refund-policy-knowledge`：前者受生产当天待收货订单数据波动影响，后者暴露生产员工知识库退款规则未命中或旧版本检索行为不足。
+- 后续完成部署或生产知识补齐后，应复跑 `--include-production-smoke`，并将通过报告登记为正式发布证据。
 
 ## 五、推荐执行顺序
 

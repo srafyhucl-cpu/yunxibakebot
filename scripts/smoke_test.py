@@ -54,6 +54,10 @@ HTTP_ENDPOINT_CHECK_NAMES = (
     "就绪检查接口",
     "观察台值守摘要接口",
 )
+HTTP_ONLY_ENDPOINT_CHECK_NAMES = (
+    "健康检查接口",
+    "就绪检查接口",
+)
 DATABASE_SCHEMA_CHECK_NAME = "数据库表结构"
 KNOWLEDGE_ROWS_CHECK_NAME = "知识库数据"
 EMBEDDING_FILE_CHECK_NAME = "向量索引文件"
@@ -488,6 +492,16 @@ def build_skipped_http_results(reachability_result: SmokeResult) -> list[SmokeRe
     ]
 
 
+def build_skipped_http_only_results(
+    reachability_result: SmokeResult,
+) -> list[SmokeResult]:
+    detail = f"{SERVICE_UNREACHABLE_DETAIL}: {reachability_result.detail}"
+    return [
+        SmokeResult(check_name, False, detail)
+        for check_name in HTTP_ONLY_ENDPOINT_CHECK_NAMES
+    ]
+
+
 def _format_http_error(exc: httpx.HTTPError) -> str:
     detail = str(exc) or exc.__class__.__name__
     return f"请求失败: {detail}"
@@ -697,6 +711,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="临时覆盖本次冒烟使用的向量索引基路径；会检查 .npy/.json 配对文件。",
     )
+    parser.add_argument(
+        "--http-only",
+        action="store_true",
+        help="只检查服务可达性、/health 和 /ready，不读取本地数据库或环境配置。",
+    )
     return parser.parse_args(argv)
 
 
@@ -732,6 +751,17 @@ async def run_smoke_checks() -> list[SmokeResult]:
     return results
 
 
+async def run_http_only_smoke_checks() -> list[SmokeResult]:
+    reachability_result = await check_service_reachability()
+    results = [reachability_result]
+    if not reachability_result.passed:
+        results.extend(build_skipped_http_only_results(reachability_result))
+        return results
+    results.append(await check_health_endpoint())
+    results.append(await check_ready_endpoint())
+    return results
+
+
 async def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
@@ -752,7 +782,11 @@ async def main(argv: list[str] | None = None) -> int:
             return 2
     else:
         output_path = None
-    results = await run_smoke_checks()
+    results = (
+        await run_http_only_smoke_checks()
+        if args.http_only
+        else await run_smoke_checks()
+    )
     if args.json:
         json_bytes = (
             json.dumps(build_json_report(results), ensure_ascii=False, indent=2) + "\n"

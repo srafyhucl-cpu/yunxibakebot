@@ -19,6 +19,16 @@ DEFAULT_REPLY_EVAL_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "latest-with-reply-replay.json"
 )
 DEFAULT_RAG_MATRIX_PATH = ROOT_DIR / "reports" / "rag-eval" / "latest-matrix.json"
+DEFAULT_PRODUCTION_SMOKE_PATH = (
+    ROOT_DIR / "reports" / "smoke" / "langchain-prod-smoke-{timestamp}.json"
+)
+DEFAULT_PRODUCTION_CALLBACK_PATH = (
+    ROOT_DIR
+    / "reports"
+    / "wecom-employee-agent"
+    / "langchain-prod-callback-{timestamp}.json"
+)
+DEFAULT_PRODUCTION_BASE_URL = "https://yunxifood.cn"
 
 
 @dataclass(frozen=True)
@@ -53,10 +63,14 @@ class GateStepResult:
 def build_gate_steps(
     *,
     include_rag_matrix: bool = False,
+    include_production_smoke: bool = False,
+    production_base_url: str = DEFAULT_PRODUCTION_BASE_URL,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
     reply_probe_path: Path = DEFAULT_REPLY_PROBE_PATH,
     reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
+    production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
+    production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
 ) -> tuple[GateStep, ...]:
     steps = [
         GateStep(
@@ -112,6 +126,36 @@ def build_gate_steps(
                 ),
             )
         )
+    if include_production_smoke:
+        steps.extend(
+            [
+                GateStep(
+                    name="production_smoke",
+                    command=(
+                        sys.executable,
+                        "scripts/smoke_test.py",
+                        "--base-url",
+                        production_base_url,
+                        "--http-only",
+                        "--json",
+                        "--output",
+                        str(production_smoke_path),
+                    ),
+                ),
+                GateStep(
+                    name="production_employee_callback_probe",
+                    command=(
+                        sys.executable,
+                        "scripts/check_wecom_employee_agent_callback.py",
+                        "--base-url",
+                        production_base_url,
+                        "--json",
+                        "--output",
+                        str(production_callback_path),
+                    ),
+                ),
+            ]
+        )
     return tuple(steps)
 
 
@@ -143,12 +187,18 @@ def build_gate_report(
     results: tuple[GateStepResult, ...],
     *,
     include_rag_matrix: bool,
+    include_production_smoke: bool,
+    production_base_url: str,
 ) -> dict[str, object]:
     failed = sum(1 for result in results if not result.passed)
     return {
         "status": "passed" if failed == 0 else "failed",
         "generated_at": _utc_now(),
         "include_rag_matrix": include_rag_matrix,
+        "include_production_smoke": include_production_smoke,
+        "production_base_url": production_base_url
+        if include_production_smoke
+        else None,
         "total": len(results),
         "failed": failed,
         "steps": [result.to_dict() for result in results],
@@ -165,15 +215,37 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="额外运行 RAG 检索矩阵，耗时较长",
     )
+    parser.add_argument(
+        "--include-production-smoke",
+        action="store_true",
+        help="额外运行生产 /health、/ready、企微员工助手 callback 探针",
+    )
+    parser.add_argument(
+        "--production-base-url",
+        default=DEFAULT_PRODUCTION_BASE_URL,
+        help="生产门禁目标服务根地址，仅在 --include-production-smoke 时使用",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    ensure_output_directories(include_rag_matrix=args.include_rag_matrix)
-    steps = build_gate_steps(include_rag_matrix=args.include_rag_matrix)
+    ensure_output_directories(
+        include_rag_matrix=args.include_rag_matrix,
+        include_production_smoke=args.include_production_smoke,
+    )
+    steps = build_gate_steps(
+        include_rag_matrix=args.include_rag_matrix,
+        include_production_smoke=args.include_production_smoke,
+        production_base_url=args.production_base_url,
+    )
     results = run_gate_steps(steps)
-    report = build_gate_report(results, include_rag_matrix=args.include_rag_matrix)
+    report = build_gate_report(
+        results,
+        include_rag_matrix=args.include_rag_matrix,
+        include_production_smoke=args.include_production_smoke,
+        production_base_url=args.production_base_url,
+    )
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(
@@ -192,12 +264,19 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if report["status"] == "passed" else 1
 
 
-def ensure_output_directories(*, include_rag_matrix: bool) -> None:
+def ensure_output_directories(
+    *,
+    include_rag_matrix: bool,
+    include_production_smoke: bool = False,
+) -> None:
     DEFAULT_AGENT_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
     DEFAULT_REPLY_PROBE_PATH.parent.mkdir(parents=True, exist_ok=True)
     DEFAULT_REPLY_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_rag_matrix:
         DEFAULT_RAG_MATRIX_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if include_production_smoke:
+        DEFAULT_PRODUCTION_SMOKE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_PRODUCTION_CALLBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def print_text_report(report: dict[str, object]) -> None:

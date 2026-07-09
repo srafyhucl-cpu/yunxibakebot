@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P10b 生产 smoke/callback 可选门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P10a 已能串联本地 133 eval、客户回复回放 probe 和扩展 163 eval，但生产 `/health`、`/ready` 与企微员工助手 callback probe 仍需单独记忆命令，发布收口容易漏跑。
+- **决策**:
+  - release gate 默认仍不访问生产，避免普通本地门禁产生外部依赖。
+  - 新增显式 `--include-production-smoke` 才追加生产只读探针，并通过 `--production-base-url` 指定目标服务。
+  - 生产 smoke 使用 `smoke_test.py --http-only`，只验证服务可达、`/health` 和 `/ready`，不把本地 `.env`、数据库、向量和通道静态配置误当作远程生产失败。
+  - 企微员工助手 callback probe 继续复用既有脚本和 `{timestamp}` 报告路径，避免覆盖历史证据。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 增加生产 smoke/callback 可选步骤、生产 base url 和报告 metadata。
+  - `scripts/smoke_test.py` - 增加 `--http-only` 和对应只读 HTTP 检查路径。
+  - `tests/scripts/test_check_langchain_ai_layer_release_gate.py`、`tests/scripts/test_smoke_test.py` - 覆盖默认不碰生产、显式生产步骤、`--http-only` 不跑本地静态检查。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，59 项失败 0。
+  - `python -m ruff check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary` 通过，默认门禁 3 步失败 0。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --production-base-url https://yunxifood.cn --json-out reports\agent-eval\langchain-ai-layer-release-gate-prod-latest.json --summary` 已跑到生产 callback 阶段：本地 133 eval、客户回复回放 probe、扩展 163 eval 和生产 http-only smoke 均通过；当前线上版本 `0.85.2` 的 callback probe 61 项中 2 项语义失败，需部署当前 `0.89.0` 或补齐生产知识后复验。
+
 ## [2026-07-10] - feat(eval): 增加 P10a LangChain AI 应用层发布门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
