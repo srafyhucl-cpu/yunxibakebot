@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-09] - feat(rag): 增加 P3c 检索模式策略 helper
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P3b 已新增 `RAG_RETRIEVAL_MODE` 配置门禁；下一步需要把配置值映射到 RAG adapter 可复用的 planner/reranker 策略，但仍不能直接改客户热路径。
+- **决策**:
+  - 新增只读 strategy/factory helper，负责把 `hybrid`、`planned-hybrid`、`planned-hybrid-rerank` 映射到 `LangChainKnowledgeRetriever` 参数。
+  - 默认 `hybrid` 不挂 query planner 和 reranker，保持稳定模式。
+  - 本切片只提供 factory/helper 和单测，不接入客户 graph、context builder 或线上回复。
+- **改动**:
+  - `app/service/agents/rag/modes.py` - 新增 `RagRetrievalModeStrategy`、`resolve_rag_retrieval_mode_strategy()` 和 `build_langchain_knowledge_retriever_for_mode()`。
+  - `tests/service/agents/test_rag_retriever.py` - 覆盖三种模式映射、非法模式拒绝、hybrid 单查询和 planned query expansion。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_rag_retriever.py -q --no-cov` 通过，12 项失败 0。
+  - `python -m ruff check app/service/agents/rag/modes.py tests/service/agents/test_rag_retriever.py` 通过。
+  - `python -m ruff format --check app/service/agents/rag/modes.py tests/service/agents/test_rag_retriever.py` 通过。
+  - `python -c "import sys; import app.service.agents.rag.modes; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph','langchain_core']})"` 输出四项均为 `False`。
+
 ## [2026-07-09] - feat(rag): 增加 P3b RAG 检索模式配置门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

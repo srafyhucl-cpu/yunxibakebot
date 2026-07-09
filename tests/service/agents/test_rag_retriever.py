@@ -5,6 +5,10 @@ from types import SimpleNamespace
 
 from app.models.knowledge import KnowledgeEntry
 from app.service.agents.rag.documents import knowledge_entry_to_document
+from app.service.agents.rag.modes import (
+    build_langchain_knowledge_retriever_for_mode,
+    resolve_rag_retrieval_mode_strategy,
+)
 from app.service.agents.rag.query import (
     RagQueryPlan,
     RagQueryVariant,
@@ -201,3 +205,77 @@ async def test_langchain_knowledge_retriever_applies_optional_reranker() -> None
         ("退款规则 售后政策", 1),
     ]
     assert [document.metadata["title"] for document in documents] == ["退款规则"]
+
+
+def test_resolve_rag_retrieval_mode_strategy_defaults_to_plain_hybrid() -> None:
+    strategy = resolve_rag_retrieval_mode_strategy(" hybrid ")
+
+    assert strategy.mode == "hybrid"
+    assert strategy.uses_query_planning is False
+    assert strategy.uses_rerank is False
+
+
+def test_resolve_rag_retrieval_mode_strategy_supports_planned_mode() -> None:
+    strategy = resolve_rag_retrieval_mode_strategy("planned-hybrid")
+
+    assert strategy.mode == "planned-hybrid"
+    assert strategy.uses_query_planning is True
+    assert strategy.uses_rerank is False
+    assert strategy.query_planner is build_customer_rag_query_plan
+
+
+def test_resolve_rag_retrieval_mode_strategy_supports_rerank_mode() -> None:
+    strategy = resolve_rag_retrieval_mode_strategy("planned-hybrid-rerank")
+
+    assert strategy.mode == "planned-hybrid-rerank"
+    assert strategy.uses_query_planning is True
+    assert strategy.uses_rerank is True
+
+
+def test_resolve_rag_retrieval_mode_strategy_rejects_unknown_mode() -> None:
+    with pytest.raises(ValueError, match="未知 RAG 检索模式"):
+        resolve_rag_retrieval_mode_strategy("experimental")
+
+
+@pytest.mark.asyncio
+async def test_build_langchain_knowledge_retriever_for_hybrid_mode_keeps_single_query() -> (
+    None
+):
+    entry = KnowledgeEntry(id=1, title="配送范围", content="三公里内可配送")
+    fake_retriever = _FakeKnowledgeRetriever([entry])
+    retriever = build_langchain_knowledge_retriever_for_mode(
+        fake_retriever,
+        mode="hybrid",
+        limit=1,
+    ).as_retriever()
+
+    documents = await retriever.ainvoke("蛋糕坏了可以退款吗")
+
+    assert fake_retriever.calls == [("蛋糕坏了可以退款吗", 1)]
+    assert documents[0].metadata["query_variant_reason"] == "original"
+
+
+@pytest.mark.asyncio
+async def test_build_langchain_knowledge_retriever_for_planned_mode_expands_query() -> (
+    None
+):
+    refund_entry = KnowledgeEntry(id=2, title="退款规则", content="未制作可退款")
+    fake_retriever = _FakeMultiQueryKnowledgeRetriever(
+        {
+            "蛋糕坏了可以退款吗": [],
+            "退款规则 售后政策": [refund_entry],
+        }
+    )
+    retriever = build_langchain_knowledge_retriever_for_mode(
+        fake_retriever,
+        mode="planned-hybrid",
+        limit=1,
+    ).as_retriever()
+
+    documents = await retriever.ainvoke("蛋糕坏了可以退款吗")
+
+    assert fake_retriever.calls == [
+        ("蛋糕坏了可以退款吗", 1),
+        ("退款规则 售后政策", 1),
+    ]
+    assert documents[0].metadata["title"] == "退款规则"

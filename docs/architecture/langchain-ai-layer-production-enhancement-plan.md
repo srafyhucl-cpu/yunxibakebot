@@ -564,8 +564,49 @@ Ruff format --check 通过。
 
 P3 后续：
 
-- P3c 可把 `RAG_RETRIEVAL_MODE` 接入一个只读 factory/helper，生成对应的离线 searcher/retriever adapter，但默认仍返回 `hybrid`。
+- P3c 已把 `RAG_RETRIEVAL_MODE` 接入只读 strategy/factory helper，生成对应的 LangChain retriever adapter 参数，但默认仍保持 `hybrid`。
 - P3d 再考虑显式运维探针或 shadow logging，主链路继续使用稳定模式。
+
+## 二十一、P3c 落地记录
+
+2026-07-09 已完成 P3 RAG 热路径灰度增强的第三切片：
+
+- 新增 `app/service/agents/rag/modes.py`。
+- 新增 `RagRetrievalModeStrategy`：
+  - `mode`
+  - `query_planner`
+  - `document_reranker`
+  - `uses_query_planning`
+  - `uses_rerank`
+- 新增 `resolve_rag_retrieval_mode_strategy()`：
+  - `hybrid` -> 不挂 query planner / reranker。
+  - `planned-hybrid` -> 挂 `build_customer_rag_query_plan()`。
+  - `planned-hybrid-rerank` -> 挂 `build_customer_rag_query_plan()` 和 `rerank_documents_by_query_rules()`。
+- 新增 `build_langchain_knowledge_retriever_for_mode()`，把 mode strategy 转成 `LangChainKnowledgeRetriever` 参数。
+- 本切片不接入客户 graph、context builder 或线上回复；只提供后续灰度入口需要的受控 helper。
+
+P3c 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_rag_retriever.py -q --no-cov
+python -m ruff check app/service/agents/rag/modes.py tests/service/agents/test_rag_retriever.py
+python -m ruff format --check app/service/agents/rag/modes.py tests/service/agents/test_rag_retriever.py
+python -c "import sys; import app.service.agents.rag.modes; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph','langchain_core']})"
+```
+
+P3c 验证结果：
+
+```text
+RAG retriever adapter 测试通过：12 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+冷导入 app.service.agents.rag.modes 不加载 langsmith、langchain_openai、langgraph、langchain_core。
+```
+
+P3 后续：
+
+- P3d 可新增显式 shadow logging/probe，把当前稳定检索结果与 `RAG_RETRIEVAL_MODE` 候选策略并排输出。
+- 只有当 shadow compare 连续证明候选不低于 baseline，才考虑把 helper 接入客户热路径。
 
 ### 阶段 P4：事实敏感场景治理增强
 

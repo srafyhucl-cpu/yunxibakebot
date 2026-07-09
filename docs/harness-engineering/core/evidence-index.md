@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-012：LangChain AI 应用层 P3c RAG 检索模式策略 helper
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p3c-rag-retrieval-mode-strategy
+- file: `D:\Project\YunxiBakeBot\app\service\agents\rag\modes.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_rag_retriever.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_rag_retriever.py -q --no-cov`; `python -m ruff check app\service\agents\rag\modes.py tests\service\agents\test_rag_retriever.py`; `python -m ruff format --check app\service\agents\rag\modes.py tests\service\agents\test_rag_retriever.py`; `python -c "import sys; import app.service.agents.rag.modes; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph','langchain_core']})"`
+- result: pass
+- related_logbook: 2026-07-09 - feat(rag): 增加 P3c 检索模式策略 helper
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记 RAG 策略 helper、测试命令和冷导入结果，不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥。
+- summary: P3c 新增只读 RAG retrieval mode strategy/helper，把 `hybrid` 映射为稳定单查询，把 `planned-hybrid` 映射为 query planner，把 `planned-hybrid-rerank` 映射为 query planner + reranker。该 helper 尚未接入客户 graph 或线上回复，生产默认仍由现有稳定链路承载；冷导入 helper 不加载 LangChain 或 LangGraph 重依赖。
+
 ## E-20260709-011：LangChain AI 应用层 P3b RAG 检索模式配置门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
