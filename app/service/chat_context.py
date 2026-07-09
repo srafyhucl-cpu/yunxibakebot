@@ -35,6 +35,7 @@ class ChatContext:
     messages: list[dict]
     rag_ms: int
     product_titles: tuple[str, ...] = ()
+    knowledge_entry_ids: tuple[int, ...] = ()
     guard_source_text: str = ""
     context_budget: ChatContextBudgetSnapshot | None = None
 
@@ -68,6 +69,7 @@ async def prepare_ai_conversation_messages(
         timing["rag_ms"] = chat_context.rag_ms
         timing["guard_product_titles"] = list(chat_context.product_titles)
         timing["guard_source_text"] = chat_context.guard_source_text
+        timing["knowledge_entry_ids"] = list(chat_context.knowledge_entry_ids)
         if chat_context.context_budget is not None:
             timing["context_budget"] = chat_context.context_budget.to_dict()
     messages = chat_context.messages
@@ -104,6 +106,7 @@ async def prepare_chat_context(
         messages=messages,
         rag_ms=round((time.monotonic() - started_at) * 1000),
         product_titles=extract_product_titles(knowledge_entries),
+        knowledge_entry_ids=tuple(entry.id for entry in knowledge_entries),
         guard_source_text=build_guard_source_text(knowledge_entries),
         context_budget=build_chat_context_budget_snapshot(
             system_prompt=system_prompt,

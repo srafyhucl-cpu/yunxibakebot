@@ -587,5 +587,36 @@ Ruff format --check 通过。
 
 P1 后续：
 
-- P1c 补节点级字段完整度和耗时字段，优先覆盖模型节点、工具节点、RAG 命中和 fallback。
 - P1d 再决定是否增加显式探针脚本，把一次客户机器人和一次员工助手运行写入 `reports/agent-traces/` 后用 `scripts/report_agent_traces.py --latest --summary` 汇总。
+
+## 十三、P1c 落地记录
+
+2026-07-09 已完成 P1 线上 Trace 与 LangSmith 观测的第三切片：
+
+- 客户模型 adapter 的 `CustomerModelResult` 新增 `model_name`，模型节点 trace 可记录实际使用模型。
+- 客户 `load_session_context` trace 新增 `latency_ms`、`knowledge_entry_ids`、`knowledge_hit_count`，字段来自 RAG 上下文构造结果，不包含知识正文或用户原文。
+- 客户 `model_with_tools` trace 新增 `model`、`latency_ms`、`tool_call_count`，fallback 时额外记录 `fallback_reason`。
+- 客户 `execute_tools` trace 新增 `tool_name`、`tool_names`、`tool_call_count`。
+- 员工 `select_tools` 和 `execute_tools` trace 新增 `tool_name`、`tool_call_count`，`deterministic_finalizer` trace 新增 `final_status=success`。
+- `ChatContext` 新增 `knowledge_entry_ids`，只把知识 ID 写入 timing，不把知识正文、客户画像或历史消息写入 trace。
+
+P1c 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/service/test_chat_refactor.py -q --no-cov
+python -m ruff check app/service/agents/customer/model.py app/service/chat_context.py app/service/agents/customer/nodes.py app/service/agents/employee/nodes.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py
+python -m ruff format --check app/service/agents/customer/model.py app/service/chat_context.py app/service/agents/customer/nodes.py app/service/agents/employee/nodes.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py
+```
+
+P1c 验证结果：
+
+```text
+46 项 targeted tests 通过。
+Ruff check 通过。
+Ruff format --check 通过。
+```
+
+P1 后续：
+
+- P1d 可新增显式 trace probe：运行客户 graph 和员工 graph 的可控 fixture，用 `answer_with_trace()` 写入 `reports/agent-traces/agent-traces-{timestamp}.json`，再用 `scripts/report_agent_traces.py --latest --summary` 验证客户和员工节点级摘要。
+- P1e 若需要线上 LangSmith，单独处理环境变量注入和生产容量探针，仍保持缺 key 不影响主流程。

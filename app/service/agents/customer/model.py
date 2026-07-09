@@ -39,6 +39,7 @@ class CustomerModelResult:
 
     message: Any | None
     finish_reason: str
+    model_name: str = ""
     fallback_reply: str | None = None
     first_llm_started_at: float | None = None
 
@@ -48,8 +49,9 @@ async def request_customer_model_with_tools(
 ) -> CustomerModelResult:
     """通过 LangChain chat model 请求客户回复。"""
     first_llm_started_at = _ensure_started_at(request.first_llm_started_at)
+    model_name = select_llm_model(request.has_image) or settings.MIMO_CHAT_MODEL
     try:
-        message = await _bound_model(request).ainvoke(
+        message = await _bound_model(request, model_name).ainvoke(
             to_langchain_messages(request.messages),
             config=_build_runnable_config(request),
         )
@@ -57,7 +59,9 @@ async def request_customer_model_with_tools(
         _record_failure_reason(request.timing, LLM_FAILURE_REASON_API_ERROR)
         logger.error("客户 LangChain 模型调用失败，返回兜底回复: %s", exc)
         await request.failure_alerter("LLMError: customer graph 返回兜底回复")
-        return _fallback_result(request.fallback_reply, first_llm_started_at)
+        return _fallback_result(
+            request.fallback_reply, first_llm_started_at, model_name
+        )
 
     _record_latency(request.timing, first_llm_started_at)
     try:
@@ -66,17 +70,19 @@ async def request_customer_model_with_tools(
         _record_failure_reason(request.timing, LLM_FAILURE_REASON_RESPONSE_PARSE)
         logger.error("客户 LangChain 模型响应解析失败，返回兜底回复: %s", exc)
         await request.failure_alerter(f"LLM 响应解析失败: {exc}")
-        return _fallback_result(request.fallback_reply, first_llm_started_at)
+        return _fallback_result(
+            request.fallback_reply, first_llm_started_at, model_name
+        )
 
     return CustomerModelResult(
         message=message,
         finish_reason=finish_reason,
+        model_name=model_name,
         first_llm_started_at=first_llm_started_at,
     )
 
 
-def _bound_model(request: CustomerModelRequest) -> Any:
-    model_name = select_llm_model(request.has_image) or settings.MIMO_CHAT_MODEL
+def _bound_model(request: CustomerModelRequest, model_name: str) -> Any:
     provider = "mimo" if "mimo" in model_name.lower() else "deepseek"
     return get_langchain_chat_model(provider=provider, model=model_name).bind_tools(
         request.tools
@@ -121,10 +127,12 @@ def _record_failure_reason(timing: dict | None, reason: str) -> None:
 def _fallback_result(
     fallback_reply: str,
     first_llm_started_at: float,
+    model_name: str,
 ) -> CustomerModelResult:
     return CustomerModelResult(
         message=None,
         finish_reason="fallback",
+        model_name=model_name,
         fallback_reply=fallback_reply,
         first_llm_started_at=first_llm_started_at,
     )

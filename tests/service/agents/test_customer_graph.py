@@ -482,6 +482,7 @@ async def test_customer_graph_trace_events_use_observability_shape(
         return SimpleNamespace(
             fallback_reply=None,
             finish_reason="stop",
+            model_name="mimo-test",
             message=SimpleNamespace(content="trace reply", tool_calls=[]),
             first_llm_started_at=1.0,
         )
@@ -526,6 +527,10 @@ async def test_customer_graph_trace_events_use_observability_shape(
         "record_trace",
     ]
     assert all(event["event"] == "node" for event in trace_events)
+    assert trace_events[0]["knowledge_entry_ids"] == []
+    assert trace_events[0]["knowledge_hit_count"] == 0
+    assert trace_events[1]["model"] == "mimo-test"
+    assert trace_events[1]["tool_call_count"] == 0
 
 
 @pytest.mark.asyncio

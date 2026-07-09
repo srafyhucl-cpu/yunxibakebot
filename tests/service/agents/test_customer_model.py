@@ -84,6 +84,7 @@ async def test_customer_model_uses_langchain_messages_and_bound_tools(
 
     assert result.message is response
     assert result.finish_reason == "stop"
+    assert result.model_name
     assert chat_model.bound_tools == tools
     assert captured["model_kwargs"]["provider"] == "mimo"
     assert bound_model.messages is not None
@@ -173,7 +174,7 @@ async def test_customer_model_uses_vision_model_when_image_present(
         fake_get_langchain_chat_model,
     )
 
-    await request_customer_model_with_tools(
+    result = await request_customer_model_with_tools(
         CustomerModelRequest(
             messages=[{"role": "user", "content": "看图"}],
             tools=[],
@@ -186,6 +187,7 @@ async def test_customer_model_uses_vision_model_when_image_present(
     )
 
     assert captured["model"] == "vision-model"
+    assert result.model_name == "vision-model"
 
 
 @pytest.mark.asyncio
@@ -222,5 +224,6 @@ async def test_customer_model_returns_fallback_on_langchain_error(
     assert result.message is None
     assert result.fallback_reply == "fallback"
     assert result.finish_reason == "fallback"
+    assert result.model_name
     assert timing[LLM_FAILURE_REASON_KEY] == "llm_api_error"
     assert alerts == ["LLMError: customer graph 返回兜底回复"]

@@ -80,6 +80,8 @@ class EmployeeAgentNodes:
                 state.get("trace_events"),
                 "select_tools",
                 tools=list(selected_tools),
+                tool_name=selected_tools[0] if len(selected_tools) == 1 else "",
+                tool_call_count=len(selected_tools),
             ),
         }
 
@@ -99,6 +101,10 @@ class EmployeeAgentNodes:
                 state.get("trace_events"),
                 "execute_tools",
                 count=len(results),
+                tool_name=state["selected_tools"][0]
+                if len(state.get("selected_tools", ())) == 1
+                else "",
+                tool_call_count=len(state.get("selected_tools", ())),
             ),
         }
 
@@ -133,6 +139,7 @@ class EmployeeAgentNodes:
             "trace_events": append_trace_event(
                 state.get("trace_events"),
                 "deterministic_finalizer",
+                final_status="success",
             ),
         }
 

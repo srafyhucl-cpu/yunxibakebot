@@ -31,6 +31,7 @@ from app.service.agents.customer.tool_messages import (
     get_tool_call_args,
     get_tool_call_name,
 )
+from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent import IntentType
 
 
@@ -83,7 +84,9 @@ class CustomerAgentNodes:
             "failure_alerter": self._dependencies.failure_alerter,
             "first_llm_started_at": None,
             "tool_round": 0,
-            "trace_events": [_build_memory_trace_event(memory_block)],
+            "trace_events": [
+                _build_memory_trace_event(memory_block, state.get("timing"))
+            ],
         }
 
     async def model_with_tools(
@@ -112,6 +115,9 @@ class CustomerAgentNodes:
                     state.get("trace_events"),
                     "model_with_tools",
                     finish_reason="fallback",
+                    model=getattr(llm_result, "model_name", ""),
+                    latency_ms=_timing_value(state, "llm_ms"),
+                    fallback_reason=_timing_value(state, LLM_FAILURE_REASON_KEY),
                 ),
             }
         message = llm_result.message
@@ -126,13 +132,18 @@ class CustomerAgentNodes:
                 state.get("trace_events"),
                 "model_with_tools",
                 finish_reason=llm_result.finish_reason,
+                model=getattr(llm_result, "model_name", ""),
+                latency_ms=_timing_value(state, "llm_ms"),
+                tool_call_count=len(message.tool_calls or []),
             ),
         }
 
     async def execute_tools(self, state: CustomerAgentState) -> CustomerAgentState:
         """执行 LangChain customer tools 并追加 OpenAI tool 消息。"""
         message_count_before_tools = len(state["messages"])
+        tool_names: list[str] = []
         for tool_call in state["llm_message"].tool_calls or []:
+            tool_names.append(get_tool_call_name(tool_call))
             await self._execute_tool_call(tool_call, state)
         record_tool_context_budget_delta(
             state.get("timing"),
@@ -146,6 +157,9 @@ class CustomerAgentNodes:
                 state.get("trace_events"),
                 "execute_tools",
                 tool_round=tool_round,
+                tool_name=tool_names[0] if len(tool_names) == 1 else "",
+                tool_names=tool_names,
+                tool_call_count=len(tool_names),
             ),
         }
 
@@ -251,11 +265,23 @@ def route_after_model(state: CustomerAgentState) -> str:
     return "limit"
 
 
-def _build_memory_trace_event(memory_block: Any) -> dict[str, Any]:
+def _build_memory_trace_event(
+    memory_block: Any,
+    timing: dict[str, Any] | None,
+) -> dict[str, Any]:
+    context_budget = (timing or {}).get("context_budget") or {}
     return build_node_trace_event(
         "load_session_context",
         memory={
             "conversation_summary": memory_block.has_conversation_summary,
             "customer_profile": memory_block.has_customer_profile,
         },
+        latency_ms=(timing or {}).get("rag_ms"),
+        knowledge_entry_ids=(timing or {}).get("knowledge_entry_ids") or [],
+        knowledge_hit_count=context_budget.get("knowledge_entry_count", 0),
     )
+
+
+def _timing_value(state: CustomerAgentState, key: str) -> Any:
+    timing = state.get("timing") or {}
+    return timing.get(key)

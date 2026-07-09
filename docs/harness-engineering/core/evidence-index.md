@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-004：LangChain AI 应用层 P1c graph 节点 trace 字段补齐
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p1c-agent-trace-fields
+- file: `D:\Project\YunxiBakeBot\app\service\agents\customer\model.py`; `D:\Project\YunxiBakeBot\app\service\chat_context.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\nodes.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_model.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_graph.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_employee_graph.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_customer_model.py tests\service\agents\test_customer_graph.py tests\service\agents\test_employee_graph.py tests\service\agents\test_trace_report.py tests\service\test_chat_refactor.py -q --no-cov`; `python -m ruff check app\service\agents\customer\model.py app\service\chat_context.py app\service\agents\customer\nodes.py app\service\agents\employee\nodes.py tests\service\agents\test_customer_model.py tests\service\agents\test_customer_graph.py tests\service\agents\test_employee_graph.py`; `python -m ruff format --check app\service\agents\customer\model.py app\service\chat_context.py app\service\agents\customer\nodes.py app\service\agents\employee\nodes.py tests\service\agents\test_customer_model.py tests\service\agents\test_customer_graph.py tests\service\agents\test_employee_graph.py`
+- result: pass
+- related_logbook: 2026-07-09 - feat(observability): 补齐 P1c graph 节点 trace 字段
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记结构化 trace 字段和验证命令；trace 字段记录模型名、耗时、工具名、工具数量、知识 ID、命中数量、fallback reason 和 final status，不包含用户消息、历史、客户画像、知识正文、工具结果明文、手机号、地址或 open_id。
+- summary: P1c 补齐客户与员工 graph 节点 trace 字段。客户侧模型结果显式携带 `model_name`，load/model/tool 节点记录 RAG 命中、模型、耗时、工具数量和 fallback reason；员工侧工具选择、工具执行和确定性 finalizer 记录工具字段与 final status。字段只包含可观测结构化元数据，不扩大 LangSmith 外发或业务表写入边界。
+
 ## E-20260709-003：LangChain AI 应用层 P1b graph 显式 trace 导出
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

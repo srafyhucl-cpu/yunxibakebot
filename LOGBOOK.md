@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-09] - feat(observability): 补齐 P1c graph 节点 trace 字段
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P1a/P1b 已建立 trace 报告器和 graph 显式 trace 导出，但节点事件仍偏稀疏，缺少模型名、耗时、工具数量、RAG 命中 ID、fallback reason 和 final status 等 P1 计划字段。
+- **决策**:
+  - 只补结构化字段，不把用户消息、历史、客户画像、知识正文或工具结果明文写入 trace。
+  - RAG 只记录 knowledge entry id 和命中数量；具体知识正文继续留在受控上下文和既有知识检索日志。
+  - 客户模型名由 `CustomerModelResult.model_name` 显式返回，避免 trace 节点猜测模型。
+- **改动**:
+  - `app/service/agents/customer/model.py` - `CustomerModelResult` 增加 `model_name`。
+  - `app/service/chat_context.py` - `ChatContext` 增加 `knowledge_entry_ids`，并写入 timing。
+  - `app/service/agents/customer/nodes.py` - 客户 load/model/tool 节点 trace 增加 RAG 命中、模型、耗时、工具和 fallback 字段。
+  - `app/service/agents/employee/nodes.py` - 员工 select/execute/finalizer 节点 trace 增加工具和 final_status 字段。
+  - `tests/service/agents/test_customer_model.py`、`tests/service/agents/test_customer_graph.py`、`tests/service/agents/test_employee_graph.py` - 增加字段回归断言。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/service/agents/test_trace_report.py tests/service/test_chat_refactor.py -q --no-cov` 通过，46 项失败 0。
+  - `python -m ruff check app/service/agents/customer/model.py app/service/chat_context.py app/service/agents/customer/nodes.py app/service/agents/employee/nodes.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py` 通过。
+  - `python -m ruff format --check app/service/agents/customer/model.py app/service/chat_context.py app/service/agents/customer/nodes.py app/service/agents/employee/nodes.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py` 通过。
+
 ## [2026-07-09] - feat(observability): 完成 P1b graph 显式 trace 导出
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

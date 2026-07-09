@@ -133,7 +133,12 @@ async def test_employee_graph_trace_events_use_observability_shape() -> None:
     ]
     assert all(event["event"] == "node" for event in trace_events)
     assert trace_events[1]["intent"] == "product_query"
+    assert trace_events[2]["tool_name"] == "product_lookup"
+    assert trace_events[2]["tool_call_count"] == 1
     assert trace_events[3]["count"] == 1
+    assert trace_events[3]["tool_name"] == "product_lookup"
+    assert trace_events[3]["tool_call_count"] == 1
+    assert trace_events[5]["final_status"] == "success"
 
 
 def test_employee_service_import_does_not_import_langgraph() -> None:
