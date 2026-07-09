@@ -23,6 +23,11 @@
   - `python scripts\check_evidence_index.py --summary` 通过。
   - `python scripts\check_project.py --skip-tests` 通过。
   - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+  - 生产 `/opt/yunxibakebot` 已同步到 `5c06a1ed476a8ecce2c18a1b4f06cae75db11e0f`，`VERSION=0.105.6`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.6`。
+  - 生产 `/health` 和 `/ready` 均返回 `version=0.105.6`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - P19b 可接入真实检索日志或生产 shadow 输入，继续保持不改变线上回复；只有连续证据证明候选不低于 baseline 后再讨论热启。
 
