@@ -161,6 +161,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
     ),
     (
         sys.executable,
+        "scripts/check_langchain_ai_layer_capacity.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
         "scripts/report_langchain_observability_evidence.py",
         "--summary",
     ),

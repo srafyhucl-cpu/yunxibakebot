@@ -1,4 +1,31 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加 LangChain AI 层容量门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P18b 已补齐 LangSmith 生产启用操作包，但用户此前关心“服务器是否支撑得住 LangChain”。需要把容量、延迟和成本边界变成可执行门禁，而不是靠口头判断。该切片不能做生产压测，不能读取业务库，也不能调用外部 LLM。
+- **决策**:
+  - 新增 P21a 只读容量门禁，默认运行受控 fake trace probe，统计 trace 耗时、payload 大小、run/event 数和单 run 最大 event 数。
+  - 复用 P13a 冷导入检查，确保容量门禁能发现轻量入口拉起 LangSmith、LangGraph、LangChain OpenAI 等重依赖的问题。
+  - 复用 P18a LangSmith rollout 默认关闭态报告，确保默认不外发、采样率为 0，采样率上限仍是 `0.1`。
+  - 默认阈值为 trace probe `5000ms`、trace payload `200000 bytes`、单 run event 数 `20`，后续可按生产观测收紧。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_capacity.py` - 新增 LangChain AI 层容量门禁报告和 CLI。
+  - `tests/scripts/test_check_langchain_ai_layer_capacity.py` - 覆盖正常通过、payload 超限、缺 trace、冷导入失败和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`scripts/check_project.py` - 将 P21a 容量门禁纳入计划门禁和项目业务合约。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P21a 追溯记录和版本 `0.105.5`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\check_langchain_ai_layer_capacity.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\check_langchain_ai_layer_capacity.py --summary` 通过，输出 `payload_bytes=2227`，本地多次运行 trace latency 约 3.0 秒。
+  - `python scripts\check_langsmith_production_rollout.py --summary` 通过，仍为关闭态 `enabled=false sample_rate=0.0`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过。
+  - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+- **后续**:
+  - P21b 可进一步接入生产 `/metrics` 或 systemd 只读资源指标；仍需避免在客服高峰期做主动压测。
+
 ## [2026-07-10] - feat(obs): 增加 LangSmith 生产启用操作包
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

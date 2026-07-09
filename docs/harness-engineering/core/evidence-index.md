@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-034：LangChain AI 应用层 P21a 容量门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p21a-langchain-ai-layer-capacity-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_capacity.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\check_langchain_ai_layer_capacity.py --summary`; `python scripts\check_langsmith_production_rollout.py --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(obs): 增加 LangChain AI 层容量门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只运行受控 fake trace probe、冷导入检查和 LangSmith 默认关闭态检查；不做生产压测、不读取业务数据库、不调用外部 LLM、不向 LangSmith 外发、不包含 API key、客户原文、手机号、地址、open_id 或订单明文。生成的 capacity JSON 默认位于 gitignored reports 目录。
+- summary: P21a 新增 LangChain AI 层容量门禁，检查 trace probe 耗时、payload 大小、event 数、冷导入和 LangSmith 默认关闭态。当前本地默认门禁通过，受控 trace probe 耗时约 3.1 秒、payload 约 2.2KB；该结论是发布前轻量容量边界，不等同于生产压测。
+
 ## E-20260710-033：LangChain AI 应用层 P18b LangSmith 生产启用操作包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
