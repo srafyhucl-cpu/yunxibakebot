@@ -25,6 +25,16 @@ from scripts.check_real_conversation_replay_coverage import (  # noqa: E402
 DEFAULT_POOL_MANIFEST_PATH = (
     ROOT_DIR / "tests" / "fixtures" / "customer_real_replay_pool_manifest_sample.json"
 )
+REAL_ENTRY_REQUIRED_TEXT_FIELDS = (
+    "source_type",
+    "redaction_method",
+    "redaction_reviewer",
+    "redaction_reviewed_at",
+    "raw_source_retention",
+)
+REAL_SOURCE_TYPE = "real_customer_conversation"
+RAW_SOURCE_RETENTION_NOT_COMMITTED = "not_committed"
+SYNTHETIC_SOURCE_MARKERS = ("synthetic", "schema_sample", "contract_shape_only")
 
 
 def build_real_replay_pool_report(
@@ -131,6 +141,10 @@ def build_entry_report(
         }
         assertions["replay.passed"] = replay_result.status == "passed"
         assertions["coverage.passed"] = coverage_report["status"] == "passed"
+    if is_real_customer_data:
+        assertions.update(
+            build_real_entry_assertions(entry, fixture_payload, manifest_path)
+        )
     status = "passed" if all(assertions.values()) else "failed"
     return {
         "name": name,
@@ -139,12 +153,60 @@ def build_entry_report(
         "enabled": enabled,
         "is_real_customer_data": is_real_customer_data,
         "purpose": str(entry.get("purpose", "")),
+        "source_type": str(entry.get("source_type", "")),
+        "redaction_method": str(entry.get("redaction_method", "")),
+        "redaction_reviewer": str(entry.get("redaction_reviewer", "")),
+        "redaction_reviewed_at": str(entry.get("redaction_reviewed_at", "")),
+        "raw_source_retention": str(entry.get("raw_source_retention", "")),
         "min_per_scenario": min_per_scenario,
         "evidence_id": str(entry.get("evidence_id", "")),
         "assertions": assertions,
         "replay": replay_summary,
         "coverage": coverage_summary,
     }
+
+
+def build_real_entry_assertions(
+    entry: dict[str, Any],
+    fixture_payload: dict[str, object],
+    manifest_path: Path,
+) -> dict[str, bool]:
+    return {
+        "manifest.contains_real_customer_data_true": manifest_declares_real_customer_data(
+            manifest_path
+        ),
+        "source_type.real_customer_conversation": str(
+            entry.get("source_type", "")
+        ).strip()
+        == REAL_SOURCE_TYPE,
+        "redaction_method.present": bool(
+            str(entry.get("redaction_method", "")).strip()
+        ),
+        "redaction_reviewer.present": bool(
+            str(entry.get("redaction_reviewer", "")).strip()
+        ),
+        "redaction_reviewed_at.present": bool(
+            str(entry.get("redaction_reviewed_at", "")).strip()
+        ),
+        "raw_source_retention.not_committed": str(
+            entry.get("raw_source_retention", "")
+        ).strip()
+        == RAW_SOURCE_RETENTION_NOT_COMMITTED,
+        "fixture.source_not_synthetic": not is_synthetic_fixture_source(
+            fixture_payload
+        ),
+        "fixture.redaction.present": bool(metadata_text(fixture_payload, "redaction")),
+    }
+
+
+def manifest_declares_real_customer_data(manifest_path: Path) -> bool:
+    manifest_payload = load_json_object(manifest_path)
+    return metadata_bool(manifest_payload, "contains_real_customer_data")
+
+
+def is_synthetic_fixture_source(fixture_payload: dict[str, object]) -> bool:
+    source = metadata_text(fixture_payload, "source").lower()
+    return any(marker in source for marker in SYNTHETIC_SOURCE_MARKERS)
 
 
 def build_missing_replay_summary() -> dict[str, object]:

@@ -1624,6 +1624,33 @@ P14c 仍未完成的生产动作：
 - 让 `scripts\check_langchain_production_runtime_version.py --summary` 通过。
 - 重新生成生产 release gate，再用 P13b/P14 handoff/P14c callback 诊断收口。
 
+## 三十、P15a 真实 replay 样本池脱敏证明准入
+
+2026-07-10 已完成 P15 真实脱敏样本池的第一切片：
+
+- `scripts/check_real_conversation_replay_pool.py` 对 `is_real_customer_data=true` 的 manifest 条目新增真实来源和脱敏证明断言。
+- 真实条目必须声明 `source_type=real_customer_conversation`、`redaction_method`、`redaction_reviewer`、`redaction_reviewed_at` 和 `raw_source_retention=not_committed`。
+- 真实条目对应 fixture 的 metadata `source` 不能是 `synthetic`、`schema_sample` 或 `contract_shape_only`，且必须声明 `redaction`。
+- 合成样例 manifest 的默认门禁行为不变：仍可验证门禁形状，但 `real_pool_ready=false`，不能作为真实问题分布证据。
+- 当前仓库仍未接入真实客服样本；`--require-real` 失败是正确状态。
+
+P15a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\check_real_conversation_replay_pool.py tests\scripts\test_check_real_conversation_replay_pool.py
+python -m ruff format --check scripts\check_real_conversation_replay_pool.py tests\scripts\test_check_real_conversation_replay_pool.py
+python scripts\check_real_conversation_replay_pool.py --summary
+python scripts\check_real_conversation_replay_pool.py --require-real --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --require-real-replay-pool --summary
+```
+
+P15 后续：
+
+- 接入真实脱敏样本时，manifest 必须补齐脱敏证明字段，并把原始客户会话留在仓库外。
+- 真实池通过后，再把 release gate 的 `--require-real-replay-pool` 作为上线和作品集证据的一部分。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：

@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-025：LangChain AI 应用层 P15a 真实 replay 样本池脱敏证明准入
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p15a-real-replay-pool-redaction-proof-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay_pool.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_real_conversation_replay_pool.py`; `D:\Project\YunxiBakeBot\tests\fixtures\customer_real_replay_pool_manifest_sample.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_real_conversation_replay_pool.py tests\scripts\test_check_real_conversation_replay_pool.py`; `python -m ruff format --check scripts\check_real_conversation_replay_pool.py tests\scripts\test_check_real_conversation_replay_pool.py`; `python scripts\check_real_conversation_replay_pool.py --summary`; expected-fail `python scripts\check_real_conversation_replay_pool.py --require-real --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --summary`; expected-fail `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --require-real-replay-pool --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 强化真实 replay 样本池脱敏证明准入
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只强化样本池 manifest 门禁和测试，不接入真实客户会话、不保存原始客服记录、不包含手机号、地址、open_id、完整订单号、token、密钥或 API key。
+- summary: P15a 增强真实 replay 样本池准入：真实条目必须声明真实来源类型、脱敏方式、审核人、审核时间和原始来源不入仓；真实 fixture 不能使用 synthetic/schema sample 来源声明。当前默认合成样例仍可验证门禁形状但 `real_pool_ready=false`，`--require-real` 按预期失败，不能作为真实问题分布证据。
+
 ## E-20260710-024：LangChain AI 应用层 P14c callback 失败定位报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

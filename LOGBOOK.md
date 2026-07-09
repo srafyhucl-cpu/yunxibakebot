@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-10] - feat(eval): 强化真实 replay 样本池脱敏证明准入
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P12b 已能区分合成 replay pool 和真实 replay pool，但真实条目主要依赖 `is_real_customer_data=true` 与 fixture 通过 replay/coverage 检查；后续接入真实客服样本时，需要避免只靠布尔值把合成样例伪装成真实分布证据。
+- **决策**:
+  - 对 `is_real_customer_data=true` 的 manifest 条目增加真实来源和脱敏证明字段断言。
+  - 真实条目必须声明 `source_type=real_customer_conversation`、脱敏方式、审核人、审核日期和 `raw_source_retention=not_committed`。
+  - 真实条目对应 fixture 不能使用 `synthetic`、`schema_sample` 或 `contract_shape_only` 来源声明。
+  - 当前仓库仍不接入真实客户样本；默认合成样例继续通过，`--require-real` 继续按预期失败。
+- **改动**:
+  - `scripts/check_real_conversation_replay_pool.py` - 增加真实条目脱敏证明断言和 fixture 来源检查。
+  - `tests/scripts/test_check_real_conversation_replay_pool.py` - 覆盖真实条目通过、缺少脱敏证明失败、敏感 fixture 失败和 CLI JSON 输出。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P15a 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，34 项失败 0。
+  - `python -m ruff check scripts\check_real_conversation_replay_pool.py tests\scripts\test_check_real_conversation_replay_pool.py` 通过。
+  - `python -m ruff format --check scripts\check_real_conversation_replay_pool.py tests\scripts\test_check_real_conversation_replay_pool.py` 通过。
+  - `python scripts\check_real_conversation_replay_pool.py --summary` 通过，`real_ready=false`。
+  - `python scripts\check_real_conversation_replay_pool.py --require-real --summary` 按预期失败。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --summary` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --require-real-replay-pool --summary` 按预期失败。
+- **后续**:
+  - 接入真实脱敏样本时，必须补齐 manifest 脱敏证明字段，并保证原始客户会话不入仓。
+
 ## [2026-07-10] - feat(ops): 增加生产 callback 失败定位报告
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
