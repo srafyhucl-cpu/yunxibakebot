@@ -33,7 +33,7 @@ async def test_employee_eval_result_includes_planner_and_contracts() -> None:
     result = await eval_employee_agent.build_employee_eval_result()
 
     assert result.status == "passed"
-    assert result.total == 49
+    assert result.total == 62
     assert result.cases[0].case_id == "employee.capability_contracts"
 
 

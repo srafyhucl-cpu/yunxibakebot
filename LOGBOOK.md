@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-09] - feat(eval): 扩充员工助手 P2c 离线 eval 样本
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P2b 已把客户机器人 eval 扩到 40 条业务样本；P2 完成标准还要求员工助手 eval 保持或超过 60 项，并强化查订单、查客户、查发货时间、弱关键词和不支持意图。
+- **决策**:
+  - 先扩现有员工助手自由问法 planner 探针，不改线上 planner、工具执行或确定性 finalizer。
+  - 新增 P2c 独立样本分组，便于后续继续追加真实脱敏回放，不把新样本散落到旧分组里。
+  - 样本覆盖交易成功/已关闭/待收货/待发货、上午/下午约送、商品销量、精确订单详情、客户复购、退款规则、客户线索和 unsupported。
+- **改动**:
+  - `scripts/wecom_employee_agent_probe_cases.py` - 新增 13 条 P2c 员工助手 eval 样本。
+  - `tests/scripts/test_agent_eval_scripts.py` - 员工 eval 总数预期从 49 更新为 62。
+- **验证结果**:
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，61 项失败 0。
+  - `python scripts/eval_employee_agent.py --summary` 通过，62 项失败 0。
+  - `python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 通过，双机器人 103 项失败 0，报告位于 gitignored reports 目录。
+  - `python -m pytest tests/scripts/test_agent_eval_scripts.py::test_employee_eval_result_includes_planner_and_contracts -q --no-cov` 通过，1 项失败 0。
+
 ## [2026-07-09] - feat(eval): 扩充客户机器人 P2b 脱敏 eval 样本
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

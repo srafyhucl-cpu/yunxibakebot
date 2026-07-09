@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-008：LangChain AI 应用层 P2c 员工助手 eval 样本扩容
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p2c-employee-eval-fixture-expansion
+- file: `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\check_wecom_employee_agent_plans.py --json`; `python scripts\eval_employee_agent.py --summary`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python -m pytest tests\scripts\test_agent_eval_scripts.py::test_employee_eval_result_includes_planner_and_contracts -q --no-cov`
+- result: pass
+- related_logbook: 2026-07-09 - feat(eval): 扩充员工助手 P2c 离线 eval 样本
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 新增样本为脱敏、合成化员工问法和结构化 planner 断言，不包含真实客户原文、订单号、手机号、地址、open_id 或密钥；`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P2c 将员工助手离线 eval 从 49 项提升到 62 项，其中 planner 探针从 48 条提升到 61 条；双机器人聚合 eval 提升到 `passed total=103 failed=0`。新增样本覆盖交易成功、已关闭、待收货、待发货、上午/下午约送、商品销量、精确订单详情、客户复购、退款规则、客户线索和 unsupported；不改线上 planner、工具执行或确定性 finalizer。
+
 ## E-20260709-007：LangChain AI 应用层 P2b 客户 eval 样本扩容
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

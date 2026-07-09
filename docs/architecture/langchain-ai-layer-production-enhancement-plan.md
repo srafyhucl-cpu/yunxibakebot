@@ -358,8 +358,50 @@ RAG 矩阵在 400 条启用知识、40 条客户标注样本下可跑通；best=
 
 P2 后续：
 
-- P2c 扩充员工助手 eval 样本，目标从当前 49 项推进到至少 60 项，重点覆盖查订单、查客户、查发货时间、弱关键词和不支持意图。
+- P2c 已完成员工助手 eval 样本扩容，员工 eval 从 49 项推进到 62 项，覆盖查订单、查客户、查发货时间、弱关键词和不支持意图。
 - P2d 可把 expanded customer fixture 的分组统计加入 eval 报告 metadata，方便作品集展示。
+
+## 十七、P2c 落地记录
+
+2026-07-09 已完成 P2 真实业务 Eval 数据集扩容的第三切片：
+
+- `scripts/wecom_employee_agent_probe_cases.py` 新增 13 条 P2c 员工助手自由问法样本。
+- 员工助手 planner 探针从 48 条提升到 61 条。
+- 员工助手 eval 总数从 49 项提升到 62 项，其中 1 项为 capability contracts 聚合治理 case，61 项为 planner 离线样本。
+- 样本覆盖：
+  - 查订单：交易成功、已关闭、待收货、待发货。
+  - 查发货时间：上午、下午待处理订单。
+  - 商品销量：草莓蛋糕当日销量。
+  - 精确订单：订单详情、客户复购。
+  - 查客户：李四客户线索、王女士地址线索。
+  - 知识问答：退款规则。
+  - 不支持意图：写诗。
+- 本切片不改线上 planner、工具执行、业务 service 或 deterministic finalizer，只把现有可识别能力固化为回归样本。
+
+P2c 验收：
+
+```powershell
+python scripts/check_wecom_employee_agent_plans.py --json
+python scripts/eval_employee_agent.py --summary
+python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json
+python -m pytest tests/scripts/test_agent_eval_scripts.py::test_employee_eval_result_includes_planner_and_contracts -q --no-cov
+```
+
+P2c 验证结果：
+
+```text
+员工助手规划探针通过：61 项失败 0。
+员工助手 eval 通过：employee_agent_eval status=passed total=62 failed=0 pass_rate=1.0。
+双机器人聚合 eval 通过：agent_eval status=passed total=103 failed=0 pass_rate=1.0。
+聚焦测试通过：1 项失败 0。
+```
+
+P2 当前状态：
+
+- 客户机器人 eval：41 项通过，其中 40 条业务样本。
+- 员工助手 eval：62 项通过，其中 61 条 planner 样本。
+- 双机器人聚合 eval 预期提升到 103 项，下一步应复跑 `python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 并归档当前报告摘要。
+- P2d 可继续把 case group 统计、agent 分布和新增样本摘要加入 eval report metadata，方便作品集展示。
 
 ### 阶段 P3：RAG 热路径灰度增强
 
