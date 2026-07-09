@@ -1,4 +1,32 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加 LangSmith 生产启用操作包
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P18a 已证明 LangSmith 生产灰度发布预检在默认关闭态安全，但真正进入小流量外发前仍需要一份固定启用操作包，明确生产环境变量、启用前门禁、人工合规确认、启用后观测和回滚命令。该切片不能打印 API key、不能修改生产环境，也不能把“生成操作包”等同于已经外发。
+- **决策**:
+  - 新增 P18b 只读启用操作包生成器，默认采样率 `0.05`，并继承 P18a 安全上限 `0.1`。
+  - 操作包显式列出 `LANGCHAIN_TRACING_ENABLED`、`LANGCHAIN_TRACING_V2`、`LANGSMITH_TRACING`、`LANGCHAIN_PROJECT` 和 `LANGSMITH_API_KEY`，其中 API key 只显示 `<configured outside repo>`。
+  - 操作包固定启用前 strict rollout 命令、启用后观测命令、人工合规确认项和 rollback 命令。
+  - `check_project.py --skip-tests` 与生产增强计划静态门禁纳入该脚本，防止 P18b 流程从工程证据链中脱落。
+- **改动**:
+  - `scripts/build_langsmith_production_enablement_packet.py` - 新增 LangSmith 生产启用操作包报告和 CLI。
+  - `tests/scripts/test_build_langsmith_production_enablement_packet.py` - 覆盖环境变量、命令链、敏感边界、采样率、必填字段和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`scripts/check_project.py` - 将 P18b 操作包纳入计划门禁和项目业务合约。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P18b 追溯记录和版本 `0.105.4`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_build_langsmith_production_enablement_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py tests\scripts\test_check_langsmith_production_rollout.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\build_langsmith_production_enablement_packet.py scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langsmith_production_enablement_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py tests\scripts\test_check_langsmith_production_rollout.py` 通过。
+  - `python -m ruff format --check scripts\build_langsmith_production_enablement_packet.py scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langsmith_production_enablement_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py tests\scripts\test_check_langsmith_production_rollout.py` 通过。
+  - `python scripts\build_langsmith_production_enablement_packet.py --summary` 通过，输出 `sample_rate=0.05`。
+  - `python scripts\check_langsmith_production_rollout.py --summary` 通过，仍为关闭态 `enabled=false sample_rate=0.0`。
+  - `python scripts\check_langsmith_runtime_config.py --summary` 通过，仍为关闭态 `enabled=false safe_to_enable=false missing=0`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过。
+  - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+- **后续**:
+  - P18c 若要真正打开小流量外发，需先在生产环境仓库外注入 key/project/tracing 开关，并运行 P18a 严格模式：`python scripts\check_langsmith_production_rollout.py --require-enabled --external-export-approved --sample-rate 0.05 --summary`。
+
 ## [2026-07-10] - feat(obs): 增加 LangSmith 生产灰度发布预检
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包和 P18a LangSmith 生产灰度发布预检已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18b 小流量外发灰度。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包、P18a LangSmith 生产灰度发布预检和 P18b LangSmith 生产启用操作包已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1829,6 +1829,28 @@ python -m ruff check scripts\check_langsmith_production_rollout.py scripts\check
 python -m ruff format --check scripts\check_langsmith_production_rollout.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langsmith_production_rollout.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
 python scripts\check_langsmith_production_rollout.py --summary
 python scripts\check_langsmith_runtime_config.py --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
+```
+
+## 三十六、P18b LangSmith 生产启用操作包
+
+2026-07-10 已完成 P18 的第二个生产启用准备切片：
+
+- 新增 `scripts/build_langsmith_production_enablement_packet.py`，用于生成 LangSmith 生产启用操作包。
+- 操作包列出生产启用需要的环境变量：`LANGCHAIN_TRACING_ENABLED=true`、`LANGCHAIN_TRACING_V2=true`、`LANGSMITH_TRACING=true`、`LANGCHAIN_PROJECT=<project>` 和 `LANGSMITH_API_KEY=<configured outside repo>`。
+- 操作包固定启用前门禁命令、启用后观测命令、人工合规确认项和回滚命令；默认采样率为 `0.05`，必须高于 0 且不超过 P18a 安全上限 `0.1`。
+- 报告明确 `production_env_changed=false`、`langsmith_external_export=false`、`api_key_printed=false`、`business_database_read=false` 和 `external_llm_called=false`；本脚本不读取生产环境、不打印 API key、不修改服务配置。
+- `scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入该操作包，防止 P18b 启用流程从生产增强计划中丢失。
+- 当前 P18b 只证明启用流程、边界和回滚包齐全；真正打开生产外发仍需要仓库外注入 key/project/tracing 开关，并运行 P18a 严格模式。
+
+P18b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_build_langsmith_production_enablement_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
+python -m ruff check scripts\build_langsmith_production_enablement_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langsmith_production_enablement_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\build_langsmith_production_enablement_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langsmith_production_enablement_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\build_langsmith_production_enablement_packet.py --summary
+python scripts\check_langsmith_production_rollout.py --summary
 python scripts\check_langchain_ai_layer_production_plan.py --summary
 ```
 
