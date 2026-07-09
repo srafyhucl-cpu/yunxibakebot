@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-011：LangChain AI 应用层 P3b RAG 检索模式配置门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p3b-rag-retrieval-mode-config
+- file: `D:\Project\YunxiBakeBot\app\config.py`; `D:\Project\YunxiBakeBot\tests\test_config.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\test_config.py -q --no-cov`; `python -m ruff check app\config.py tests\test_config.py`; `python -m ruff format --check app\config.py tests\test_config.py`; `python -c "import sys; import app.config; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"`
+- result: pass
+- related_logbook: 2026-07-09 - feat(rag): 增加 P3b RAG 检索模式配置门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记配置字段、合法值和测试命令，不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥。
+- summary: P3b 新增 `RAG_RETRIEVAL_MODE` 配置门禁，默认保持 `hybrid`，允许 `hybrid`、`planned-hybrid` 和 `planned-hybrid-rerank`，非法值在 `Settings` 初始化时失败。该配置当前只完成解析和测试，不接入客户热路径、不改变生产回复；冷导入 `app.config` 不加载 `langsmith`、`langchain_openai` 或 `langgraph`。
+
 ## E-20260709-010：LangChain AI 应用层 P3a RAG shadow compare
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

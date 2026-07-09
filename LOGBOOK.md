@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-09] - feat(rag): 增加 P3b RAG 检索模式配置门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P3a 已新增离线 shadow compare，并证明当前 `planned-hybrid+rerank` 低于 baseline，不能直接热启；P3 下一步需要先把 retrieval mode 做成显式配置和合法值门禁。
+- **决策**:
+  - 新增 `RAG_RETRIEVAL_MODE`，默认值为 `hybrid`，不改变生产默认行为。
+  - 允许值只包含 `hybrid`、`planned-hybrid`、`planned-hybrid-rerank`；非法值在 Settings 初始化时失败，避免生产误配。
+  - 本切片只补配置解析和测试，不让客户热路径读取该配置，不启用 planned/rerank。
+- **改动**:
+  - `app/config.py` - 新增 RAG 检索模式常量、`RAG_RETRIEVAL_MODE` 字段和 pydantic validator。
+  - `tests/test_config.py` - 覆盖默认值、环境变量归一化和非法值拒绝。
+- **验证结果**:
+  - `python -m pytest tests/test_config.py -q --no-cov` 通过，7 项失败 0。
+  - `python -m ruff check app/config.py tests/test_config.py` 通过。
+  - `python -m ruff format --check app/config.py tests/test_config.py` 通过。
+  - `python -c "import sys; import app.config; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"` 输出三项均为 `False`。
+
 ## [2026-07-09] - feat(rag): 增加 P3a 检索 shadow compare 报告
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -7,6 +7,7 @@
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -20,6 +21,17 @@ def _read_version() -> str:
 
 
 APP_VERSION: str = _read_version()
+
+RAG_RETRIEVAL_MODE_HYBRID = "hybrid"
+RAG_RETRIEVAL_MODE_PLANNED_HYBRID = "planned-hybrid"
+RAG_RETRIEVAL_MODE_PLANNED_HYBRID_RERANK = "planned-hybrid-rerank"
+RAG_RETRIEVAL_MODES = frozenset(
+    {
+        RAG_RETRIEVAL_MODE_HYBRID,
+        RAG_RETRIEVAL_MODE_PLANNED_HYBRID,
+        RAG_RETRIEVAL_MODE_PLANNED_HYBRID_RERANK,
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -40,6 +52,7 @@ class Settings(BaseSettings):
     DB_PATH: str = "data/bot.db"
     EMBEDDING_INDEX_DIR: str = "data/embeddings"
     ENABLE_HYBRID_RETRIEVAL: bool = False
+    RAG_RETRIEVAL_MODE: str = RAG_RETRIEVAL_MODE_HYBRID
     RRF_K: int = 60
     ENABLE_CUSTOMER_MEMORY: bool = True
     LANGCHAIN_TRACING_ENABLED: bool = False
@@ -133,6 +146,16 @@ class Settings(BaseSettings):
     WECOM_KF_SERVICER_USERID: str = (
         ""  # 转人工时的默认接待人员 userid（企微内部userid）
     )
+
+    @field_validator("RAG_RETRIEVAL_MODE")
+    @classmethod
+    def validate_rag_retrieval_mode(cls, value: str) -> str:
+        """校验 RAG 检索模式，避免生产误配到未知路径。"""
+        normalized_value = value.strip().lower()
+        if normalized_value not in RAG_RETRIEVAL_MODES:
+            allowed_values = ", ".join(sorted(RAG_RETRIEVAL_MODES))
+            raise ValueError(f"RAG_RETRIEVAL_MODE 只支持: {allowed_values}")
+        return normalized_value
 
 
 settings = Settings()

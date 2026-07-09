@@ -526,9 +526,46 @@ planned-hybrid+rerank: Recall@5=0.95, MRR=0.9375，delta_recall=-0.025，delta_m
 
 P3 后续：
 
-- P3b 可补 `RAG_RETRIEVAL_MODE` feature flag 的配置解析与默认值测试，但仍保持生产默认 `hybrid`。
+- P3b 已补 `RAG_RETRIEVAL_MODE` feature flag 的配置解析与默认值测试，生产默认仍保持 `hybrid`。
 - P3c 再把 shadow compare 接入真实检索日志或显式运维探针，连续收集差异后再决定是否灰度打开 planned/rerank。
 - 当前数据不支持热启 `planned-hybrid+rerank`，因为它低于 baseline。
+
+## 二十、P3b 落地记录
+
+2026-07-09 已完成 P3 RAG 热路径灰度增强的第二切片：
+
+- `app/config.py` 新增 RAG 检索模式常量：
+  - `hybrid`
+  - `planned-hybrid`
+  - `planned-hybrid-rerank`
+- `Settings.RAG_RETRIEVAL_MODE` 默认值为 `hybrid`。
+- `RAG_RETRIEVAL_MODE` 会在 Settings 初始化时做合法值校验：
+  - 自动 `strip()` 和小写归一化。
+  - 非法值直接抛出 pydantic validation error。
+- 本切片不接入客户热路径，不改变线上回复，不启用 planned/rerank；配置字段只是为后续 P3c/P3d 灰度入口预留安全门禁。
+
+P3b 验收：
+
+```powershell
+python -m pytest tests/test_config.py -q --no-cov
+python -m ruff check app/config.py tests/test_config.py
+python -m ruff format --check app/config.py tests/test_config.py
+python -c "import sys; import app.config; print({name: (name in sys.modules) for name in ['langsmith','langchain_openai','langgraph']})"
+```
+
+P3b 验证结果：
+
+```text
+配置测试通过：7 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+冷导入 app.config 不加载 langsmith、langchain_openai、langgraph。
+```
+
+P3 后续：
+
+- P3c 可把 `RAG_RETRIEVAL_MODE` 接入一个只读 factory/helper，生成对应的离线 searcher/retriever adapter，但默认仍返回 `hybrid`。
+- P3d 再考虑显式运维探针或 shadow logging，主链路继续使用稳定模式。
 
 ### 阶段 P4：事实敏感场景治理增强
 

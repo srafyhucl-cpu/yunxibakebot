@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.config import ENV_FILE, PROJECT_ROOT, Settings
 
 
@@ -35,3 +38,24 @@ def test_settings_defaults_keep_langsmith_tracing_disabled() -> None:
     assert loaded_settings.LANGCHAIN_PROJECT == "yunxi-bakebot"
     assert loaded_settings.LANGSMITH_API_KEY == ""
     assert loaded_settings.AGENT_LOCAL_TRACE_ENABLED is True
+
+
+def test_settings_defaults_keep_rag_retrieval_mode_stable() -> None:
+    loaded_settings = Settings(_env_file=None)
+
+    assert loaded_settings.RAG_RETRIEVAL_MODE == "hybrid"
+
+
+def test_settings_accepts_planned_rag_retrieval_mode(monkeypatch) -> None:
+    monkeypatch.setenv("RAG_RETRIEVAL_MODE", " planned-hybrid-rerank ")
+
+    loaded_settings = Settings(_env_file=None)
+
+    assert loaded_settings.RAG_RETRIEVAL_MODE == "planned-hybrid-rerank"
+
+
+def test_settings_rejects_unknown_rag_retrieval_mode(monkeypatch) -> None:
+    monkeypatch.setenv("RAG_RETRIEVAL_MODE", "experimental")
+
+    with pytest.raises(ValidationError, match="RAG_RETRIEVAL_MODE"):
+        Settings(_env_file=None)
