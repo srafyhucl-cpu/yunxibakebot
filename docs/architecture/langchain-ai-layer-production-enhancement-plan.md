@@ -991,6 +991,40 @@ git diff --check
 - 技术栈不是堆名词，而是能映射到代码路径和验证命令。
 - 每个关键能力都有证据：代码入口、eval 输出、生产探针或文档决策。
 
+## 二十八、P5a 落地记录
+
+2026-07-10 已完成 P5 作品集证据包的第一切片：
+
+- `docs/architecture/langchain-ai-layer-portfolio.md` 更新为当前作品集证据包，覆盖 LangChain / LangGraph 接管边界、RAG retrieval mode gate、133 项双机器人 eval、RAG 矩阵、事实敏感治理矩阵、禁止回复契约、少写代码估算和面试问答。
+- `README.md` 新增 LangChain / LangGraph AI 应用层作品集入口。
+- `docs/README.md` 更新作品集文档描述，明确 133 项 eval、RAG 矩阵和事实敏感客服治理。
+- 本切片只做文档与证据收口，不改客户机器人、员工助手、RAG、工具调用、数据库或生产配置。
+
+P5a 验收：
+
+```powershell
+python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json
+python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5
+python scripts\check_text_encoding.py README.md docs\README.md docs\architecture\langchain-ai-layer-portfolio.md docs\architecture\langchain-ai-layer-production-enhancement-plan.md LOGBOOK.md
+git diff --check
+```
+
+P5a 验证结果：
+
+```text
+双机器人聚合 eval 通过：133 项失败 0。
+客户机器人 eval 通过：71 项失败 0。
+员工助手 eval 通过：62 项失败 0。
+RAG 矩阵通过：400 条启用知识、70 条可评估客户样本；hybrid Recall@5=0.9857、MRR=0.8881，planned-hybrid 持平，planned-hybrid+rerank Recall@5=0.9714、MRR=0.9136。
+文本编码检查通过。
+git diff --check 通过，仅有 CRLF 工作区换行提醒。
+```
+
+P5 后续：
+
+- P5b 可按需补一页式 PDF/Markdown 摘要，但仓库内作品集入口已经可从 README 追溯到代码路径、eval、RAG 和事实敏感治理证据。
+- 下一阶段建议进入 P6：真实或 fake 客户回复回放，把 P4d 的 `forbidden_reply_patterns` 应用于最终回复文本，验证“不当承诺/编造”不会出现在输出中。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：

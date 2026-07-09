@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-10] - docs(portfolio): 更新 P5a LangChain 作品集证据包
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P0-P4 已形成生产验证、trace、eval、RAG shadow、RAG 灰度入口和事实敏感治理证据；原 `langchain-ai-layer-portfolio.md` 仍停留在早期 58 项 eval 和旧 RAG 指标，需要同步为当前可面试展示版本。
+- **决策**:
+  - 将作品集说明升级为当前证据包：133 项双机器人 eval、70 条客户业务样本、RAG 矩阵、事实敏感治理矩阵、禁用回复契约和 LangChain 接管边界。
+  - README 只新增作品集入口，不大面积重写仓库首页。
+  - docs 导航更新该文档描述，方便从文档索引进入。
+- **改动**:
+  - `docs/architecture/langchain-ai-layer-portfolio.md` - 更新 eval/RAG 指标、事实敏感治理证据、LangChain 少写代码估算和面试问答。
+  - `README.md` - 增加 LangChain / LangGraph AI 应用层作品集入口。
+  - `docs/README.md` - 更新作品集文档描述。
+- **验证结果**:
+  - `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json` 通过，双机器人聚合 eval 133 项失败 0；客户机器人 71 项失败 0，员工助手 62 项失败 0。
+  - `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5` 通过，400 条启用知识、70 条可评估客户样本下 hybrid Recall@5=0.9857、MRR=0.8881，planned-hybrid 持平，planned-hybrid+rerank Recall@5=0.9714、MRR=0.9136。
+  - `python scripts\check_text_encoding.py README.md docs\README.md docs\architecture\langchain-ai-layer-portfolio.md docs\architecture\langchain-ai-layer-production-enhancement-plan.md LOGBOOK.md docs\harness-engineering\core\evidence-index.md "项目进度与配置清单.md"` 通过。
+  - `python scripts\check_evidence_index.py --summary` 通过，188 项失败 0。
+  - `python scripts\check_logbook.py` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过，业务合约检查均通过；仅保留既有函数行数 WARN。
+  - `git diff --check` 通过，仅提示 CRLF 工作区换行提醒。
+
 ## [2026-07-10] - feat(eval): 增加 P4d 禁止回复模式输出契约
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -18,6 +18,8 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 > 如果你需要回看双仓推进的历史过渡材料，请到 [docs/README.md](docs/README.md) 的“历史方案”区统一查看，不要把这些材料当作当前实施蓝图。
 >
 > 文档分层导航见 [docs/README.md](docs/README.md)。
+>
+> LangChain / LangGraph AI 应用层作品集入口见 [docs/architecture/langchain-ai-layer-portfolio.md](docs/architecture/langchain-ai-layer-portfolio.md)，其中汇总了双机器人 Agent Eval、RAG 矩阵、事实敏感客服治理和框架接管边界。
 
 ## 📋 目录
 

@@ -33,7 +33,7 @@
 - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md`
   - LangChain / LangGraph 接管 AI 应用层的分阶段执行计划和阶段 1-9 落地记录。
 - `docs/architecture/langchain-ai-layer-portfolio.md`
-  - 面向作品集和求职展示的 LangChain 生态化工程说明，覆盖边界、关键代码、eval 证据和回滚策略。
+  - 面向作品集和求职展示的 LangChain 生态化工程说明，覆盖边界、关键代码、133 项双机器人 eval、RAG 矩阵、事实敏感客服治理和回滚策略。
 - `docs/architecture/customer-session-summary-design.md`
   - 客户机器人会话摘要设计，明确短期摘要、长期画像、触发阈值、独立数据层、异步生成和热路径读取边界。
 - `docs/architecture/customer-memory-governance-plan.md`

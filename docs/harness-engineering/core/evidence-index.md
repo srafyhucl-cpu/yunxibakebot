@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-007：LangChain AI 应用层 P5a 作品集证据包
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p5a-langchain-portfolio-evidence-package
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\docs\README.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-portfolio.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5`; `python scripts\check_text_encoding.py README.md docs\README.md docs\architecture\langchain-ai-layer-portfolio.md docs\architecture\langchain-ai-layer-production-enhancement-plan.md LOGBOOK.md docs\harness-engineering\core\evidence-index.md "项目进度与配置清单.md"`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_logbook.py`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - docs(portfolio): 更新 P5a LangChain 作品集证据包
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记 README、文档索引、作品集说明、聚合 eval 指标、RAG 矩阵指标和事实敏感治理汇总；`reports\agent-eval\latest.json` 位于 gitignored reports 目录，不纳入提交；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥。
+- summary: P5a 将 LangChain / LangGraph AI 应用层迁移成果整理为可面试展示的证据包。作品集文档同步当前 133/133 双机器人 eval、70 条客户业务样本、事实敏感治理矩阵、RAG 检索模式决策和 LangChain 少写代码估算；README 与 docs 导航新增入口，便于从仓库首页追溯到代码路径、验证命令和治理证据。
+
 ## E-20260710-006：LangChain AI 应用层 P4d 禁止回复模式输出契约
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
