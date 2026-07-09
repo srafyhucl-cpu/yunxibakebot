@@ -5,13 +5,13 @@
 - generated_at: 2026-07-10
 - evidence_type: local-production/p21b-production-runtime-capacity-gate
 - file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
-- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_capacity.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py`; `python scripts\check_langchain_ai_layer_capacity.py --summary`; `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary`
-- result: partial
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_capacity.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py`; `python scripts\check_langchain_ai_layer_capacity.py --summary`; `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary`; production `ssh -o BatchMode=yes -o ConnectTimeout=8 root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse HEAD && cat VERSION && git status --short && systemctl is-active yunxibakebot"`; production `systemctl restart yunxibakebot`; `python scripts\check_langchain_production_runtime_version.py --summary`; production `/health`; production `/ready`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`
+- result: pass
 - related_logbook: 2026-07-10 - feat(obs): 增加生产只读资源观测门禁
 - related_adr: 0003-langchain-ai-layer-boundary
 - contains_sensitive_data: no
 - retention_note: 本轮只读取生产服务状态、版本、进程 RSS、线程数、可用内存和 load1；不做生产压测、不读取业务数据库、不调用外部 LLM、不向 LangSmith 外发、不包含客户原文、手机号、地址、open_id 或订单明文。
-- summary: P21b 扩展 LangChain AI 层容量门禁，默认不访问生产，显式 `--include-production-runtime` 时通过 SSH 只读检查生产资源与版本。本地默认容量门禁已通过；生产只读观测在 `0.105.8` 部署前会因版本漂移按设计失败，部署后必须复验为通过。该结论是资源边界门禁，不等同于压测。
+- summary: P21b 扩展 LangChain AI 层容量门禁，默认不访问生产，显式 `--include-production-runtime` 时通过 SSH 只读检查生产资源与版本。本地默认容量门禁已通过；生产已同步并重启到 `0.105.8 / 8a966c09caf53f41a874e793a2a5f884134ba3db`，生产只读观测 `production_runtime=ok`，runtime gate 和显式生产 release gate 均通过。该结论是资源边界门禁，不等同于压测。
 
 ## E-20260710-036：LangChain AI 应用层 P19b RAG shadow log 观测输入门禁
 

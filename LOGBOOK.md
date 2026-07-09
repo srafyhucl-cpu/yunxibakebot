@@ -17,7 +17,12 @@
   - `python -m ruff check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py` 通过。
   - `python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py` 通过。
   - `python scripts\check_langchain_ai_layer_capacity.py --summary` 通过，默认 `production_runtime=skipped`。
-  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 在本地版本 `0.105.8` 尚未部署到生产时按设计失败 1 项，原因是生产仍为上一版；部署后必须复验为通过。
+  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 在本地版本 `0.105.8` 尚未部署到生产时按设计失败 1 项，原因是生产仍为上一版；部署后复验通过，`production_runtime=ok`。
+  - 本地 commit `8a966c09caf53f41a874e793a2a5f884134ba3db` 已推送到 `origin/master` 和 `server/master`。
+  - 生产 `/opt/yunxibakebot` 已同步到 `8a966c09caf53f41a874e793a2a5f884134ba3db`，`VERSION=0.105.8`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`；服务完全启动后 `/health` 和 `/ready` 均返回 `version=0.105.8`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.8`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - P21c 可把生产资源指标纳入显式 release gate 加强模式，但仍不做主动压测。
 
