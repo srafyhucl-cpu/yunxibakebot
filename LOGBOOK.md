@@ -1,4 +1,22 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P4c 事实敏感场景报告汇总
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P4b 已让每条敏感 case 输出 `sensitive_policy.<scenario>` 断言；下一步需要让聚合 eval JSON 能直接展示订单、退款、售后、库存、价格和转人工的覆盖数量与通过率，便于上线报告和作品集引用。
+- **决策**:
+  - 在通用 Agent Eval 模型层按 `metadata.sensitive_scenarios` 汇总，不让客户脚本和聚合脚本各自重复计算。
+  - 单 agent 报告和双机器人聚合报告都输出 `sensitive_scenarios`。
+  - 只记录结构化场景标签、数量、失败数和通过率，不新增用户原文、订单号、手机号、地址或 open_id。
+- **改动**:
+  - `app/service/agents/evaluation.py` - 新增 `summarize_eval_cases_by_sensitive_scenario()`，并在单 agent 与聚合报告中输出 `sensitive_scenarios`。
+  - `tests/service/agents/test_evaluation.py`、`tests/scripts/test_agent_eval_scripts.py` - 覆盖单 agent 与聚合报告的事实敏感场景汇总。
+- **验证结果**:
+  - `python -m pytest tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，10 项失败 0。
+  - `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json` 通过，双机器人 133 项失败 0。
+  - `python -m ruff check app\service\agents\evaluation.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check app\service\agents\evaluation.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - JSON 抽查显示顶层与 customer agent 均包含 after_sales 8、human_transfer 16、inventory 5、order 6、price 6、refund 6，失败数均为 0。
+
 ## [2026-07-10] - feat(eval): 增加 P4b 事实敏感策略契约断言
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

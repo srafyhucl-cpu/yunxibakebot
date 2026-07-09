@@ -91,6 +91,9 @@ class AgentEvalResult:
             "pass_rate": self.pass_rate,
             "metadata": self.metadata,
             "case_groups": summarize_eval_cases_by_group(self.cases),
+            "sensitive_scenarios": summarize_eval_cases_by_sensitive_scenario(
+                self.cases
+            ),
             "cases": [case.to_dict() for case in self.cases],
             "failed_ids": [case.case_id for case in self.cases if not case.passed],
         }
@@ -111,6 +114,9 @@ def combine_agent_eval_results(
         "metadata": metadata or {},
         "agent_totals": summarize_agent_eval_results(results),
         "case_groups": summarize_eval_cases_by_group(
+            tuple(case for result in results for case in result.cases)
+        ),
+        "sensitive_scenarios": summarize_eval_cases_by_sensitive_scenario(
             tuple(case for result in results for case in result.cases)
         ),
         "agents": [result.to_dict() for result in results],
@@ -155,6 +161,40 @@ def _build_case_group_summary(
     total = len(cases)
     return {
         "group": group_name,
+        "total": total,
+        "failed": failed,
+        "passed": total - failed,
+        "pass_rate": round((total - failed) / total, 4) if total else 0.0,
+    }
+
+
+def summarize_eval_cases_by_sensitive_scenario(
+    cases: tuple[AgentEvalCase, ...],
+) -> list[dict[str, object]]:
+    """按事实敏感场景汇总 eval 结果。"""
+    grouped_cases: dict[str, list[AgentEvalCase]] = {}
+    for case in cases:
+        scenario_values = case.metadata.get("sensitive_scenarios")
+        if not isinstance(scenario_values, list):
+            continue
+        for scenario in scenario_values:
+            scenario_name = str(scenario).strip()
+            if scenario_name:
+                grouped_cases.setdefault(scenario_name, []).append(case)
+    return [
+        _build_sensitive_scenario_summary(scenario, tuple(scenario_cases))
+        for scenario, scenario_cases in sorted(grouped_cases.items())
+    ]
+
+
+def _build_sensitive_scenario_summary(
+    scenario: str,
+    cases: tuple[AgentEvalCase, ...],
+) -> dict[str, object]:
+    failed = sum(1 for case in cases if not case.passed)
+    total = len(cases)
+    return {
+        "scenario": scenario,
         "total": total,
         "failed": failed,
         "passed": total - failed,

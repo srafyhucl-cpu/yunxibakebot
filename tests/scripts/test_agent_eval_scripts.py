@@ -62,6 +62,7 @@ async def test_report_agent_eval_outputs_combined_json(monkeypatch, capsys) -> N
                 case_id="customer-ok",
                 agent="customer",
                 query="ok",
+                metadata={"sensitive_scenarios": ["order"]},
                 assertions=(AgentEvalAssertion("shape", True),),
             ),
         ),
@@ -99,6 +100,15 @@ async def test_report_agent_eval_outputs_combined_json(monkeypatch, capsys) -> N
     assert exit_code == 0
     assert payload["status"] == "passed"
     assert payload["total"] == 2
+    assert payload["sensitive_scenarios"] == [
+        {
+            "scenario": "order",
+            "total": 1,
+            "failed": 0,
+            "passed": 1,
+            "pass_rate": 1.0,
+        }
+    ]
 
 
 @pytest.mark.asyncio

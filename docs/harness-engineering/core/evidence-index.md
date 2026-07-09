@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-005：LangChain AI 应用层 P4c 事实敏感场景报告汇总
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p4c-sensitive-scenario-report-summary
+- file: `D:\Project\YunxiBakeBot\app\service\agents\evaluation.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_evaluation.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python -m ruff check app\service\agents\evaluation.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check app\service\agents\evaluation.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py`; JSON 抽查 `sensitive_scenarios`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P4c 事实敏感场景报告汇总
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记结构化场景标签、数量、失败数和通过率；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥；`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P4c 在通用 Agent Eval 模型层新增事实敏感场景汇总，单 agent 与双机器人聚合报告均输出 `sensitive_scenarios`。当前报告显示 after_sales 8、human_transfer 16、inventory 5、order 6、price 6、refund 6，失败数均为 0；双机器人聚合 eval 继续通过 133/133。
+
 ## E-20260710-004：LangChain AI 应用层 P4b 事实敏感策略契约断言
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

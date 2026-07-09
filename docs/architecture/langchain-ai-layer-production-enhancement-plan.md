@@ -843,8 +843,48 @@ RAG 矩阵保持：hybrid Recall@5=0.9857、MRR=0.8881；planned-hybrid 持平�
 
 P4 后续：
 
-- P4c 可在 trace 或报告层记录事实敏感场景分类，但必须只记录结构化标签，不记录用户原文、订单号、手机号、地址或 open_id。
+- P4c 已在报告层记录事实敏感场景分类，只输出结构化标签、数量、失败数和通过率，不记录用户原文、订单号、手机号、地址或 open_id。
 - P4d 可进一步增加“回复输出禁止行为”离线断言，例如订单场景不能出现编造状态、退款场景不能出现未验证承诺。
+
+## 二十六、P4c 落地记录
+
+2026-07-10 已完成 P4 事实敏感场景治理增强的第三切片：
+
+- `app/service/agents/evaluation.py` 新增 `summarize_eval_cases_by_sensitive_scenario()`。
+- 单 agent eval JSON 新增 `sensitive_scenarios`。
+- 双机器人聚合 eval JSON 顶层新增 `sensitive_scenarios`。
+- 汇总字段只包含：
+  - `scenario`
+  - `total`
+  - `failed`
+  - `passed`
+  - `pass_rate`
+- 本切片只记录结构化场景标签和统计，不记录用户原文、订单号、手机号、地址、open_id 或工具结果明文。
+
+P4c 验收：
+
+```powershell
+python -m pytest tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json
+python -m ruff check app\service\agents\evaluation.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check app\service\agents\evaluation.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py
+```
+
+P4c 验证结果：
+
+```text
+Agent Eval 模型与脚本测试通过：10 项失败 0。
+双机器人聚合 eval 通过：133 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+JSON 抽查显示顶层与 customer agent 均包含：
+after_sales 8、human_transfer 16、inventory 5、order 6、price 6、refund 6，失败数均为 0。
+```
+
+P4 后续：
+
+- P4d 可进一步增加“回复输出禁止行为”离线断言，例如订单场景不能出现编造状态、退款场景不能出现未验证承诺。
+- P4e 再根据需要决定是否把事实敏感场景分类写入真实 trace，但必须保持脱敏，只写结构化标签。
 
 ### 阶段 P5：作品集证据包
 

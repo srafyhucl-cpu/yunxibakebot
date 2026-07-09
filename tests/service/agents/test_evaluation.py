@@ -18,12 +18,14 @@ def test_agent_eval_result_calculates_status_and_pass_rate() -> None:
                 case_id="ok",
                 agent="sample",
                 query="ok",
+                metadata={"sensitive_scenarios": ["order", "refund"]},
                 assertions=(AgentEvalAssertion("shape", True),),
             ),
             AgentEvalCase(
                 case_id="fail",
                 agent="sample",
                 query="fail",
+                metadata={"sensitive_scenarios": ["order"]},
                 assertions=(AgentEvalAssertion("shape", False, "bad"),),
             ),
         ),
@@ -44,6 +46,22 @@ def test_agent_eval_result_calculates_status_and_pass_rate() -> None:
             "pass_rate": 0.5,
         }
     ]
+    assert payload["sensitive_scenarios"] == [
+        {
+            "scenario": "order",
+            "total": 2,
+            "failed": 1,
+            "passed": 1,
+            "pass_rate": 0.5,
+        },
+        {
+            "scenario": "refund",
+            "total": 1,
+            "failed": 0,
+            "passed": 1,
+            "pass_rate": 1.0,
+        },
+    ]
 
 
 def test_combine_agent_eval_results() -> None:
@@ -55,6 +73,7 @@ def test_combine_agent_eval_results() -> None:
                 agent="customer",
                 query="ok",
                 group="product",
+                metadata={"sensitive_scenarios": ["price"]},
                 assertions=(AgentEvalAssertion("shape", True),),
             ),
         ),
@@ -108,6 +127,15 @@ def test_combine_agent_eval_results() -> None:
             "passed": 1,
             "pass_rate": 1.0,
         },
+    ]
+    assert payload["sensitive_scenarios"] == [
+        {
+            "scenario": "price",
+            "total": 1,
+            "failed": 0,
+            "passed": 1,
+            "pass_rate": 1.0,
+        }
     ]
 
 
