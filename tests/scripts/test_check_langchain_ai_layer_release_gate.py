@@ -88,14 +88,22 @@ def test_build_gate_steps_can_include_real_replay_pool(tmp_path: Path) -> None:
 
 def test_build_gate_steps_can_include_observability_evidence(tmp_path: Path) -> None:
     output_path = tmp_path / "observability.json"
+    langsmith_path = tmp_path / "langsmith.json"
     steps = release_gate.build_gate_steps(
         include_observability_evidence=True,
         observability_evidence_path=output_path,
+        langsmith_runtime_config_path=langsmith_path,
     )
+    langsmith_step = [
+        step for step in steps if step.name == "langsmith_runtime_config"
+    ][0]
     observability_step = [
         step for step in steps if step.name == "langchain_observability_evidence"
     ][0]
 
+    assert "scripts/check_langsmith_runtime_config.py" in langsmith_step.command
+    assert "--json-out" in langsmith_step.command
+    assert str(langsmith_path) in langsmith_step.command
     assert (
         "scripts/report_langchain_observability_evidence.py"
         in observability_step.command
@@ -372,9 +380,26 @@ def test_build_release_summary_extracts_observability_evidence(
 ) -> None:
     agent_eval_path = tmp_path / "agent.json"
     reply_eval_path = tmp_path / "reply.json"
+    langsmith_path = tmp_path / "langsmith.json"
     observability_path = tmp_path / "observability.json"
     agent_eval_path.write_text("{}", encoding="utf-8")
     reply_eval_path.write_text("{}", encoding="utf-8")
+    langsmith_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "runtime": {
+                    "enabled": False,
+                    "safe_to_enable": False,
+                    "project": "yunxi-bakebot",
+                    "api_key_configured": False,
+                    "missing": [],
+                },
+                "metadata_redaction": {"status": "passed"},
+            }
+        ),
+        encoding="utf-8",
+    )
     observability_path.write_text(
         release_gate.json.dumps(
             {
@@ -397,11 +422,16 @@ def test_build_release_summary_extracts_observability_evidence(
         include_production_smoke=False,
         agent_eval_path=agent_eval_path,
         reply_eval_path=reply_eval_path,
+        langsmith_runtime_config_path=langsmith_path,
         observability_evidence_path=observability_path,
     )
 
+    langsmith = summary["langsmith_runtime_config"]
     observability = summary["langchain_observability_evidence"]
 
+    assert langsmith["status"] == "passed"
+    assert langsmith["project"] == "yunxi-bakebot"
+    assert langsmith["metadata_redaction_status"] == "passed"
     assert observability["status"] == "passed"
     assert observability["trace_total_runs"] == 2
     assert observability["langsmith_enabled"] is False
@@ -616,13 +646,13 @@ def test_main_records_observability_evidence_options(
         captured_steps.extend(steps)
         return (
             release_gate.GateStepResult(
-                name="langchain_observability_evidence",
+                name="langsmith_runtime_config",
                 command=(
                     "python",
-                    "scripts/report_langchain_observability_evidence.py",
+                    "scripts/check_langsmith_runtime_config.py",
                 ),
                 returncode=0,
-                stdout="langchain_observability_evidence status=passed",
+                stdout="langsmith_runtime_config status=passed",
                 stderr="",
             ),
         )
@@ -645,6 +675,7 @@ def test_main_records_observability_evidence_options(
     assert any(
         step.name == "langchain_observability_evidence" for step in captured_steps
     )
+    assert any(step.name == "langsmith_runtime_config" for step in captured_steps)
     assert payload["include_observability_evidence"] is True
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
@@ -787,6 +818,7 @@ def test_ensure_output_directories_creates_observability_parent(
     tmp_path: Path, monkeypatch
 ) -> None:
     observability_path = tmp_path / "agent-traces" / "observability.json"
+    langsmith_path = tmp_path / "agent-traces" / "langsmith.json"
     monkeypatch.setattr(
         release_gate,
         "DEFAULT_AGENT_EVAL_PATH",
@@ -807,6 +839,11 @@ def test_ensure_output_directories_creates_observability_parent(
         "DEFAULT_OBSERVABILITY_EVIDENCE_PATH",
         observability_path,
     )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH",
+        langsmith_path,
+    )
 
     release_gate.ensure_output_directories(
         include_rag_matrix=False,
@@ -814,6 +851,7 @@ def test_ensure_output_directories_creates_observability_parent(
     )
 
     assert observability_path.parent.exists()
+    assert langsmith_path.parent.exists()
 
 
 def test_ensure_output_directories_creates_production_report_parents(

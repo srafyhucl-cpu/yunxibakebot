@@ -136,6 +136,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
     ),
     (
         sys.executable,
+        "scripts/check_langsmith_runtime_config.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
         "scripts/report_langchain_observability_evidence.py",
         "--summary",
     ),

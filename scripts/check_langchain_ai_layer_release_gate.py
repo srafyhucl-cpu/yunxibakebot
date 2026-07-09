@@ -42,6 +42,9 @@ DEFAULT_REAL_POOL_REPORT_PATH = (
 DEFAULT_OBSERVABILITY_EVIDENCE_PATH = (
     ROOT_DIR / "reports" / "agent-traces" / "langchain-observability-evidence.json"
 )
+DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH = (
+    ROOT_DIR / "reports" / "agent-traces" / "langsmith-runtime-config.json"
+)
 DEFAULT_RAG_MATRIX_PATH = ROOT_DIR / "reports" / "rag-eval" / "latest-matrix.json"
 DEFAULT_PRODUCTION_SMOKE_PATH = (
     ROOT_DIR / "reports" / "smoke" / "langchain-prod-smoke-{timestamp}.json"
@@ -106,6 +109,7 @@ def build_gate_steps(
     real_pool_manifest_path: Path = DEFAULT_REAL_POOL_MANIFEST_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
+    langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
     real_replay_min_per_scenario: int = 5,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
@@ -216,17 +220,29 @@ def build_gate_steps(
             )
         )
     if include_observability_evidence:
-        steps.append(
-            GateStep(
-                name="langchain_observability_evidence",
-                command=(
-                    sys.executable,
-                    "scripts/report_langchain_observability_evidence.py",
-                    "--json-out",
-                    str(observability_evidence_path),
-                    "--summary",
+        steps.extend(
+            [
+                GateStep(
+                    name="langsmith_runtime_config",
+                    command=(
+                        sys.executable,
+                        "scripts/check_langsmith_runtime_config.py",
+                        "--json-out",
+                        str(langsmith_runtime_config_path),
+                        "--summary",
+                    ),
                 ),
-            )
+                GateStep(
+                    name="langchain_observability_evidence",
+                    command=(
+                        sys.executable,
+                        "scripts/report_langchain_observability_evidence.py",
+                        "--json-out",
+                        str(observability_evidence_path),
+                        "--summary",
+                    ),
+                ),
+            ]
         )
     if include_rag_matrix:
         steps.append(
@@ -321,6 +337,7 @@ def build_gate_report(
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
+    langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -355,6 +372,7 @@ def build_gate_report(
             real_coverage_path=real_coverage_path,
             real_pool_report_path=real_pool_report_path,
             observability_evidence_path=observability_evidence_path,
+            langsmith_runtime_config_path=langsmith_runtime_config_path,
             rag_matrix_path=rag_matrix_path,
             production_smoke_path=production_smoke_path,
             production_callback_path=production_callback_path,
@@ -378,6 +396,7 @@ def build_release_summary(
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
+    langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -394,6 +413,7 @@ def build_release_summary(
         "real_conversation_replay_coverage": None,
         "real_conversation_replay_pool": None,
         "langchain_observability_evidence": None,
+        "langsmith_runtime_config": None,
         "rag_eval_matrix": None,
         "production_smoke": None,
         "production_employee_callback_probe": None,
@@ -414,6 +434,9 @@ def build_release_summary(
             read_json_report(real_pool_report_path)
         )
     if include_observability_evidence:
+        summary["langsmith_runtime_config"] = summarize_langsmith_runtime_config_report(
+            read_json_report(langsmith_runtime_config_path)
+        )
         summary["langchain_observability_evidence"] = summarize_observability_report(
             read_json_report(observability_evidence_path)
         )
@@ -528,6 +551,22 @@ def summarize_observability_report(report: dict[str, object]) -> dict[str, objec
         "langsmith_enabled": langsmith.get("enabled", False),
         "langsmith_project": langsmith.get("project", ""),
         "cold_imports": report.get("cold_imports", []),
+    }
+
+
+def summarize_langsmith_runtime_config_report(
+    report: dict[str, object],
+) -> dict[str, object]:
+    runtime = _dict_value(report, "runtime")
+    metadata_redaction = _dict_value(report, "metadata_redaction")
+    return {
+        "status": report.get("status", "missing"),
+        "enabled": runtime.get("enabled", False),
+        "safe_to_enable": runtime.get("safe_to_enable", False),
+        "project": runtime.get("project", ""),
+        "api_key_configured": runtime.get("api_key_configured", False),
+        "missing": runtime.get("missing", []),
+        "metadata_redaction_status": metadata_redaction.get("status", "missing"),
     }
 
 
@@ -718,6 +757,7 @@ def ensure_output_directories(
         DEFAULT_REAL_POOL_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_observability_evidence:
         DEFAULT_OBSERVABILITY_EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_rag_matrix:
         DEFAULT_RAG_MATRIX_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_production_smoke:

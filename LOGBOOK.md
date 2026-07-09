@@ -1,4 +1,27 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加 LangSmith 运行时配置预检
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P13a 已能汇总本地 trace、LangSmith 配置摘要和冷导入证据，但缺少一个可单独回答“现在打开 LangSmith 是否安全”的运行时预检；后续生产若打开 LangSmith，需要先确认 key/project/tracing 开关完整，并证明 RunnableConfig metadata 不会携带客户或密钥明文。
+- **决策**:
+  - 新增只读 LangSmith runtime config preflight，默认关闭态通过，严格模式 `--require-enabled` 用于生产要求启用时阻断缺配置。
+  - 预检只输出 API key 是否配置，不打印 `LANGSMITH_API_KEY` 或 `LANGCHAIN_API_KEY` 真实值。
+  - 使用现有 `AgentTracingConfig.to_runnable_config()` 和 `safe_trace_payload()` 检查样例 metadata 脱敏，不复制第二套脱敏逻辑。
+  - 将 `langsmith_runtime_config` 接入 release gate 的 `--include-observability-evidence` 路径，使观测证据门禁先检查 LangSmith 配置边界。
+- **改动**:
+  - `scripts/check_langsmith_runtime_config.py` - 新增 LangSmith 运行时配置和 metadata 脱敏预检。
+  - `tests/scripts/test_check_langsmith_runtime_config.py` - 覆盖默认关闭、启用缺 key、严格模式、环境变量别名、metadata 脱敏和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_release_gate.py`、`tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 将 LangSmith runtime config 预检接入观测证据 release gate。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`scripts/check_langchain_ai_layer_production_plan.py`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P16a 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，34 项失败 0。
+  - `python -m ruff check scripts\check_langsmith_runtime_config.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\check_langsmith_runtime_config.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_langsmith_runtime_config.py --summary` 通过，默认关闭态输出 `enabled=false safe_to_enable=false missing=0`。
+  - `python scripts\check_langsmith_runtime_config.py --require-enabled --summary` 按预期失败，当前未配置生产 LangSmith key 和 tracing 开关。
+- **后续**:
+  - 若生产要启用 LangSmith，需先注入 key/project/tracing 开关，再用 `--require-enabled` 复验；外发合规、容量影响和采样策略仍需单独确认。
+
 ## [2026-07-10] - feat(eval): 强化真实 replay 样本池脱敏证明准入
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

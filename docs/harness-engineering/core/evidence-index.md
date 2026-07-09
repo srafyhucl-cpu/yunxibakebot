@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-026：LangChain AI 应用层 P16a LangSmith 运行时配置预检
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p16a-langsmith-runtime-config-preflight
+- file: `D:\Project\YunxiBakeBot\scripts\check_langsmith_runtime_config.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langsmith_runtime_config.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_langsmith_runtime_config.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_langsmith_runtime_config.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langsmith_runtime_config.py --summary`; expected-fail `python scripts\check_langsmith_runtime_config.py --require-enabled --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-observability-evidence --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(obs): 增加 LangSmith 运行时配置预检
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 报告只记录 LangSmith/LangChain tracing 开关、project、API key 是否配置和 metadata 脱敏检查结果；不打印 API key、客户原文、手机号、地址、open_id、订单明细、token 或工具结果明文。生成的 JSON 位于 gitignored reports 目录。
+- summary: P16a 新增 LangSmith runtime config 预检，默认关闭态通过，严格启用模式在当前缺 key/tracing 开关时按预期失败；release gate 的 `--include-observability-evidence` 已先运行 `langsmith_runtime_config` 再运行原有观测证据包，避免线上 LangSmith 外发前缺少配置和脱敏边界检查。
+
 ## E-20260710-025：LangChain AI 应用层 P15a 真实 replay 样本池脱敏证明准入
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

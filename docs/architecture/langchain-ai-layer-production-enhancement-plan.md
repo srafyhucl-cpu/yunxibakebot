@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁和 P14c callback 失败定位报告入口已完成，下一步建议进入 P14c 生产服务重启与 callback 复验。
+> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P15a 真实 replay 样本池脱敏证明准入和 P16a LangSmith 运行时配置预检已完成，下一步建议进入 P14c 生产服务重启与 callback 复验，或在等待生产权限期间继续 P17 真实脱敏回放样本接入。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1650,6 +1650,44 @@ P15 后续：
 
 - 接入真实脱敏样本时，manifest 必须补齐脱敏证明字段，并把原始客户会话留在仓库外。
 - 真实池通过后，再把 release gate 的 `--require-real-replay-pool` 作为上线和作品集证据的一部分。
+
+## 三十一、P16a LangSmith 运行时配置预检
+
+2026-07-10 已完成 P16 LangSmith 线上观测准备的第一切片：
+
+- 新增 `scripts/check_langsmith_runtime_config.py`，单独检查 LangSmith / LangChain tracing 运行时配置是否完整。
+- 预检默认不要求启用 LangSmith：未配置时是安全关闭态，脚本通过；显式 `--require-enabled` 时会要求 tracing 开关、project 和 API key 都完整。
+- 报告只输出 API key 是否配置的布尔值或 `configured` 标记，绝不打印 `LANGSMITH_API_KEY` 或 `LANGCHAIN_API_KEY` 的真实值。
+- 预检会构造包含 API key、token、open_id、手机号、地址、用户消息、历史、客户画像和工具结果的样例 metadata，并通过现有 `AgentTracingConfig.to_runnable_config()` / `safe_trace_payload()` 检查脱敏结果。
+- `scripts/check_langchain_ai_layer_release_gate.py --include-observability-evidence` 已先运行 `langsmith_runtime_config`，再运行原有观测证据包，避免 LangSmith 配置预检变成孤立脚本。
+- 本切片不调用外部 LLM、不向 LangSmith 外发、不读取业务数据库、不改变客户或员工热路径。
+
+P16a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\check_langsmith_runtime_config.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\check_langsmith_runtime_config.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langsmith_runtime_config.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\check_langsmith_runtime_config.py --summary
+python scripts\check_langsmith_runtime_config.py --require-enabled --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-observability-evidence --summary
+```
+
+P16a 验证结果：
+
+```text
+LangSmith runtime config 和 release gate 相关测试通过：34 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+默认关闭态预检通过：langsmith_runtime_config status=passed enabled=false safe_to_enable=false missing=0。
+严格启用预检按预期失败：langsmith_runtime_config status=failed enabled=false safe_to_enable=false missing=2。
+release gate 的 observability evidence 模式已包含 langsmith_runtime_config 步骤。
+```
+
+P16 后续：
+
+- 若要真正打开线上 LangSmith，先在生产环境注入 key/project/tracing 开关，再运行 `python scripts\check_langsmith_runtime_config.py --require-enabled --summary`。
+- 生产打开 LangSmith 前仍需额外确认外发合规、容量影响和采样策略；本切片只证明配置与 metadata 脱敏边界。
 
 ## 五、推荐执行顺序
 
