@@ -154,6 +154,24 @@ class _FakeKnowledgeRetriever:
         return []
 
 
+class _FakeLangChainRetriever:
+    def __init__(self, documents: list[object]) -> None:
+        self.documents = documents
+        self.queries: list[str] = []
+
+    async def ainvoke(self, query: str) -> list[object]:
+        self.queries.append(query)
+        return self.documents
+
+
+class _FakeLangChainRetrieverAdapter:
+    def __init__(self, retriever: _FakeLangChainRetriever) -> None:
+        self.retriever = retriever
+
+    def as_retriever(self) -> _FakeLangChainRetriever:
+        return self.retriever
+
+
 class _FakeConversationSummaryRepo:
     def __init__(self, summary_text: str = "") -> None:
         self.summary_text = summary_text
@@ -453,6 +471,101 @@ async def test_prepare_chat_context_builds_system_message_and_preserves_history(
         BUDGET_PRESSURE_LEVEL_NORMAL
     )
     assert chat_context.context_budget.needs_session_summary_candidate is False
+
+
+@pytest.mark.asyncio
+async def test_prepare_chat_context_uses_hybrid_direct_search_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    knowledge = _FakeKnowledgeRetriever()
+    history = [{"role": "user", "content": "hello"}]
+    adapter_calls: list[object] = []
+
+    async def fake_rewrite_query(user_query: str, history: str = "") -> str:
+        return f"rewritten:{user_query}"
+
+    def fake_build_adapter(*args: object, **kwargs: object) -> object:
+        adapter_calls.append((args, kwargs))
+        return object()
+
+    monkeypatch.setattr(
+        "app.service.chat_context.rewrite_query",
+        fake_rewrite_query,
+    )
+    monkeypatch.setattr(
+        "app.service.chat_context.build_langchain_knowledge_retriever_for_mode",
+        fake_build_adapter,
+    )
+    monkeypatch.setattr(
+        "app.service.chat_context.settings.RAG_RETRIEVAL_MODE", "hybrid"
+    )
+
+    await prepare_chat_context(
+        knowledge=knowledge,
+        user_query="cake",
+        history_text="old",
+        intent=IntentType.PRODUCT_CONSULTATION,
+        history=history,
+    )
+
+    assert knowledge.search_calls == [("rewritten:cake", 8)]
+    assert adapter_calls == []
+
+
+@pytest.mark.asyncio
+async def test_prepare_chat_context_uses_langchain_retriever_for_planned_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    knowledge = _FakeKnowledgeRetriever()
+    history = [{"role": "user", "content": "hello"}]
+    fake_document = SimpleNamespace(
+        page_content="命中的知识正文",
+        metadata={
+            "knowledge_id": 12,
+            "title": "命中知识",
+            "category": "faq",
+            "content_type": "faq",
+            "audience": "customer",
+            "review_status": "published",
+            "priority": 3,
+        },
+    )
+    fake_retriever = _FakeLangChainRetriever([fake_document])
+    adapter_calls: list[dict[str, object]] = []
+
+    async def fake_rewrite_query(user_query: str, history: str = "") -> str:
+        return f"rewritten:{user_query}"
+
+    def fake_build_adapter(*args: object, **kwargs: object) -> object:
+        adapter_calls.append(kwargs)
+        return _FakeLangChainRetrieverAdapter(fake_retriever)
+
+    monkeypatch.setattr(
+        "app.service.chat_context.rewrite_query",
+        fake_rewrite_query,
+    )
+    monkeypatch.setattr(
+        "app.service.chat_context.build_langchain_knowledge_retriever_for_mode",
+        fake_build_adapter,
+    )
+    monkeypatch.setattr(
+        "app.service.chat_context.settings.RAG_RETRIEVAL_MODE",
+        "planned-hybrid",
+    )
+
+    chat_context = await prepare_chat_context(
+        knowledge=knowledge,
+        user_query="cake",
+        history_text="old",
+        intent=IntentType.PRODUCT_CONSULTATION,
+        history=history,
+    )
+
+    assert knowledge.search_calls == []
+    assert adapter_calls == [{"mode": "planned-hybrid", "limit": 8}]
+    assert fake_retriever.queries == ["rewritten:cake"]
+    assert chat_context.knowledge_entry_ids == (12,)
+    assert "命中的知识正文" in chat_context.guard_source_text
 
 
 @pytest.mark.asyncio

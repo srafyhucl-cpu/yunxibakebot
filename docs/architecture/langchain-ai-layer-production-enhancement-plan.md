@@ -646,8 +646,51 @@ planned-hybrid+rerank: Recall@5=0.95, MRR=0.9375，delta_recall=-0.025，delta_m
 
 P3 后续：
 
-- P3e 可把 `RAG_RETRIEVAL_MODE` 接入客户 RAG 热路径，但默认必须保持 `hybrid`，并继续用 P3d shadow compare 报告证明候选模式不退化。
+- P3e 已把 `RAG_RETRIEVAL_MODE` 接入客户 RAG 热路径；默认 `hybrid` 仍保持原稳定路径，非默认模式才走 LangChain retriever adapter。
 - 当前数据仍不支持热启 `planned-hybrid-rerank`。
+
+## 二十三、P3e 落地记录
+
+2026-07-10 已完成 P3 RAG 热路径灰度增强的第五切片：
+
+- 客户 RAG 热路径现在读取 `settings.RAG_RETRIEVAL_MODE`。
+- 默认 `hybrid` 模式继续直接调用 `KnowledgeRetriever.search()`，不额外进入 LangChain retriever，确保生产默认行为稳定。
+- `planned-hybrid` 和 `planned-hybrid-rerank` 模式通过 `build_langchain_knowledge_retriever_for_mode()` 进入 LangChain retriever adapter：
+  - `planned-hybrid` 启用 query planner。
+  - `planned-hybrid-rerank` 启用 query planner + document reranker。
+- 新增 `document_to_knowledge_entry()`，把 LangChain Document 还原成现有 `KnowledgeEntry`，让 prompt、context budget、guard source、知识 ID trace 继续复用原业务模型。
+- 本切片不让 LangChain 直接读取数据库，不绕过 `KnowledgeRetriever` 的 audience 过滤、发布状态、有效期、实时价格/库存注入和检索日志。
+
+P3e 验收：
+
+```powershell
+python -m pytest tests\service\test_chat_refactor.py tests\service\agents\test_rag_retriever.py -q --no-cov
+python -m ruff check app\service\chat_context.py app\service\agents\rag\documents.py tests\service\test_chat_refactor.py
+python -m ruff format --check app\service\chat_context.py app\service\agents\rag\documents.py tests\service\test_chat_refactor.py
+python scripts\eval_customer_agent.py --summary
+$env:RAG_RETRIEVAL_MODE='planned-hybrid'; python scripts\eval_customer_agent.py --summary; Remove-Item Env:\RAG_RETRIEVAL_MODE
+python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5
+```
+
+P3e 验证结果：
+
+```text
+chat_context 与 RAG retriever 测试通过：37 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+客户机器人默认模式 eval 通过：41 项失败 0。
+客户机器人 planned-hybrid 环境变量模式 eval 通过：41 项失败 0。
+RAG 矩阵保持：hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375。
+```
+
+P3 当前状态：
+
+- P3a shadow compare 报告完成。
+- P3b `RAG_RETRIEVAL_MODE` 配置门禁完成。
+- P3c retrieval mode strategy/helper 完成。
+- P3d 显式 shadow compare 运维探针完成。
+- P3e 客户 RAG 热路径 feature flag 接入完成。
+- 下一阶段建议进入 P4：事实敏感场景治理增强，继续强化订单、退款、售后、库存、价格和转人工等高风险场景。
 
 ### 阶段 P4：事实敏感场景治理增强
 

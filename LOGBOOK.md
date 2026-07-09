@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - feat(rag): 接入 P3e RAG 检索模式热路径门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P3d 已把 RAG shadow compare 做成显式运维探针；下一步需要让客户机器人 RAG 热路径能读取 `RAG_RETRIEVAL_MODE`，但默认生产必须继续保持 `hybrid` 稳定行为。
+- **决策**:
+  - `hybrid` 默认模式继续直接调用 `KnowledgeRetriever.search()`，避免默认路径额外加载 LangChain retriever。
+  - `planned-hybrid` / `planned-hybrid-rerank` 通过 `build_langchain_knowledge_retriever_for_mode()` 接入 LangChain retriever adapter，再把 Document 还原为现有 `KnowledgeEntry` 交给 prompt/context builder。
+  - LangChain 只接管检索编排形态，不读取业务数据库、不跳过 `KnowledgeRetriever` 的 audience、发布状态、实时价格/库存注入和检索日志。
+- **改动**:
+  - `app/service/chat_context.py` - 非 small talk 的知识加载读取 `settings.RAG_RETRIEVAL_MODE`；默认 `hybrid` 保持原路径，其他模式走 LangChain retriever adapter。
+  - `app/service/agents/rag/documents.py` - 新增 `document_to_knowledge_entry()`，用于把 LangChain Document 安全还原为现有知识上下文模型。
+  - `tests/service/test_chat_refactor.py` - 覆盖默认 hybrid 不调用 adapter、planned-hybrid 调用 adapter 并把 Document 注入 guard source。
+- **验证结果**:
+  - `python -m pytest tests\service\test_chat_refactor.py tests\service\agents\test_rag_retriever.py -q --no-cov` 通过，37 项失败 0。
+  - `python -m ruff check app\service\chat_context.py app\service\agents\rag\documents.py tests\service\test_chat_refactor.py` 通过。
+  - `python -m ruff format --check app\service\chat_context.py app\service\agents\rag\documents.py tests\service\test_chat_refactor.py` 通过。
+  - `python scripts\eval_customer_agent.py --summary` 通过，41 项失败 0。
+  - `$env:RAG_RETRIEVAL_MODE='planned-hybrid'; python scripts\eval_customer_agent.py --summary; Remove-Item Env:\RAG_RETRIEVAL_MODE` 通过，41 项失败 0。
+  - `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5` 通过；hybrid 和 planned-hybrid Recall@5=0.975、MRR=0.9437，planned-hybrid+rerank 仍略低。
+
 ## [2026-07-10] - feat(rag): 增强 P3d 检索 shadow compare 显式探针
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -4,9 +4,12 @@ import time
 from dataclasses import dataclass
 
 from app.logger import setup_logger
+from app.config import RAG_RETRIEVAL_MODE_HYBRID, settings
 from app.models.customer_profile import CustomerProfile
 from app.models.knowledge import KnowledgeEntry
 from app.models.session import Session
+from app.service.agents.rag.documents import document_to_knowledge_entry
+from app.service.agents.rag.modes import build_langchain_knowledge_retriever_for_mode
 from app.service.chat_context_budget import (
     ChatContextBudgetSnapshot,
     build_chat_context_budget_snapshot,
@@ -133,7 +136,22 @@ async def load_knowledge_entries(
     search_query = user_query or DEFAULT_SEARCH_QUERY
     rewritten = await rewrite_query(search_query, history=history_text)
     try:
-        return await knowledge.search(rewritten, limit=KNOWLEDGE_SEARCH_LIMIT)
+        return await _search_knowledge_with_configured_mode(knowledge, rewritten)
     except Exception as exc:
         logger.error("知识库检索失败，使用空上下文继续: %s", exc)
         return []
+
+
+async def _search_knowledge_with_configured_mode(
+    knowledge: KnowledgeRetriever,
+    query: str,
+) -> list[KnowledgeEntry]:
+    if settings.RAG_RETRIEVAL_MODE == RAG_RETRIEVAL_MODE_HYBRID:
+        return await knowledge.search(query, limit=KNOWLEDGE_SEARCH_LIMIT)
+    retriever = build_langchain_knowledge_retriever_for_mode(
+        knowledge,
+        mode=settings.RAG_RETRIEVAL_MODE,
+        limit=KNOWLEDGE_SEARCH_LIMIT,
+    ).as_retriever()
+    documents = await retriever.ainvoke(query)
+    return [document_to_knowledge_entry(document) for document in documents]

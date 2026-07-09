@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-002：LangChain AI 应用层 P3e RAG 检索模式热路径门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p3e-rag-retrieval-mode-hot-path-gate
+- file: `D:\Project\YunxiBakeBot\app\service\chat_context.py`; `D:\Project\YunxiBakeBot\app\service\agents\rag\documents.py`; `D:\Project\YunxiBakeBot\tests\service\test_chat_refactor.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\test_chat_refactor.py tests\service\agents\test_rag_retriever.py -q --no-cov`; `python -m ruff check app\service\chat_context.py app\service\agents\rag\documents.py tests\service\test_chat_refactor.py`; `python -m ruff format --check app\service\chat_context.py app\service\agents\rag\documents.py tests\service\test_chat_refactor.py`; `python scripts\eval_customer_agent.py --summary`; `$env:RAG_RETRIEVAL_MODE='planned-hybrid'; python scripts\eval_customer_agent.py --summary; Remove-Item Env:\RAG_RETRIEVAL_MODE`; `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5`
+- result: pass
+- related_logbook: 2026-07-10 - feat(rag): 接入 P3e RAG 检索模式热路径门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记 RAG 热路径门禁代码、脱敏 eval 命令和汇总指标；不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥。
+- summary: P3e 将 `RAG_RETRIEVAL_MODE` 接入客户 RAG 热路径。默认 `hybrid` 仍直接调用原 `KnowledgeRetriever.search()`，保持生产稳定路径；`planned-hybrid` 和 `planned-hybrid-rerank` 才通过 LangChain retriever adapter 进入 query planning / rerank 编排，并把 Document 还原为现有 `KnowledgeEntry`。客户 eval 默认模式与 `planned-hybrid` 环境变量模式均 41/41 通过；检索矩阵显示 planned-hybrid 与 hybrid 持平，planned-hybrid+rerank 仍低于 baseline。
+
 ## E-20260710-001：LangChain AI 应用层 P3d RAG shadow compare 显式探针
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
