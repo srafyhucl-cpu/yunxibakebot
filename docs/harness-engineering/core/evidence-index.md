@@ -5,13 +5,13 @@
 - generated_at: 2026-07-10
 - evidence_type: local-production/p21c-release-gate-production-runtime-capacity
 - file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
-- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; production `ssh -o BatchMode=yes -o ConnectTimeout=8 root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse HEAD && cat VERSION && git status --short && systemctl is-active yunxibakebot"`; production `systemctl restart yunxibakebot`; `python scripts\check_langchain_production_runtime_version.py --summary`; production `/health`; production `/ready`; `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary`
 - result: pass
 - related_logbook: 2026-07-10 - feat(ops): 将生产资源观测接入 release gate 加强模式
 - related_adr: 0003-langchain-ai-layer-boundary
 - contains_sensitive_data: no
 - retention_note: 本轮只把生产只读资源观测作为显式 release gate 加强项；不做压测、不读取业务数据库、不调用外部 LLM、不向 LangSmith 外发。生成的 release gate JSON 和 capacity JSON 位于 gitignored reports 目录。
-- summary: P21c 新增 `--include-production-runtime-capacity`，release gate 可串联生产 smoke、观测证据和生产只读容量门禁。当前在生产 `0.105.8` 与本地版本匹配时加强 gate 通过，`total=8 failed=0`；`0.105.9` 部署后需复验并补生产同步证据。
+- summary: P21c 新增 `--include-production-runtime-capacity`，release gate 可串联生产 smoke、观测证据和生产只读容量门禁。生产已同步并重启到 `0.105.9 / 8b92e4889b178ea29b9c8765c463aeb4acb26db6`，加强 release gate 通过 `total=8 failed=0`；生产观测发布证据门禁通过，`callback_failed=0`；生产只读容量门禁通过，`production_runtime=ok`。
 
 ## E-20260710-037：LangChain AI 应用层 P21b 生产只读资源观测门禁
 

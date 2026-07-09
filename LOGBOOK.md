@@ -17,8 +17,15 @@
   - `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
   - `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
   - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.8` 与本地版本匹配时通过，`total=8 failed=0`。
+  - 本地 commit `8b92e4889b178ea29b9c8765c463aeb4acb26db6` 已推送到 `origin/master` 和 `server/master`。
+  - 生产 `/opt/yunxibakebot` 已同步到 `8b92e4889b178ea29b9c8765c463aeb4acb26db6`，`VERSION=0.105.9`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`，公网 `/health` 和 `/ready` 均返回 `version=0.105.9`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.9`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.9` 上通过，`total=8 failed=0`。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`production_versions=0.105.9`、`callback_failed=0`。
+  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 通过，`production_runtime=ok`。
 - **后续**:
-  - 部署 `0.105.9` 后复跑 P21c release gate，并把生产复验结果补入 evidence index。
+  - P21d 可考虑把 production runtime capacity 加入 P13b 生产观测发布证据门禁的显式字段校验。
 
 ## [2026-07-10] - feat(obs): 增加生产只读资源观测门禁
 - **操作人**: AI (Codex)
