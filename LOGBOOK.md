@@ -24,6 +24,11 @@
   - `python scripts\check_evidence_index.py --summary` 通过。
   - `python scripts\check_project.py --skip-tests` 通过。
   - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+  - 生产 `/opt/yunxibakebot` 已同步到 `6152861fe13309821100a2df5468accf23d3598b`，`VERSION=0.105.4`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.4`。
+  - 生产 `/health` 和 `/ready` 均返回 `version=0.105.4`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - P18c 若要真正打开小流量外发，需先在生产环境仓库外注入 key/project/tracing 开关，并运行 P18a 严格模式：`python scripts\check_langsmith_production_rollout.py --require-enabled --external-export-approved --sample-rate 0.05 --summary`。
 
