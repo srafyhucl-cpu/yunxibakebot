@@ -191,6 +191,7 @@ def build_post_sync_verification_commands() -> list[str]:
         "python scripts\\check_langchain_production_runtime_version.py --summary",
         "python scripts\\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\\agent-eval\\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary",
         "python scripts\\check_langchain_production_observability_release.py --report reports\\agent-eval\\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary",
+        "python scripts\\report_langchain_production_callback_failures.py --json-out reports\\harness\\langchain-production-callback-failures-latest.json --summary",
         "python scripts\\check_project.py --skip-tests",
         "python scripts\\check_evidence_index.py --summary",
     ]

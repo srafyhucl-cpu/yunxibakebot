@@ -6,15 +6,17 @@
 - **决策**:
   - 新增 P14c callback 失败定位报告，聚合 callback 失败详情、probe case 期望语义、P14 handoff runtime 状态和下一步动作。
   - 当 runtime gate 未通过时，报告状态为 blocked，所有 callback 失败先归类为 `runtime_version_not_current`。
+  - 将 callback 失败定位命令接入 P14 handoff 的 `post_sync_verification`，生产同步后可按报告顺序复验。
   - 报告只读取已脱敏 JSON 和 probe case 定义，不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径。
 - **改动**:
   - `scripts/report_langchain_production_callback_failures.py` - 新增生产 callback 失败定位报告。
   - `tests/scripts/test_report_langchain_production_callback_failures.py` - 覆盖 runtime 未切换、runtime 通过后的订单空结果/知识缺失分类和 CLI JSON 输出。
+  - `scripts/report_langchain_production_sync_handoff.py`、`tests/scripts/test_report_langchain_production_sync_handoff.py` - 将 callback 诊断命令纳入 post-sync 复验清单。
   - `scripts/check_langchain_ai_layer_production_plan.py`、`docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P14c 诊断入口追溯记录。
 - **验证结果**:
-  - `python -m pytest tests\scripts\test_report_langchain_production_callback_failures.py -q --no-cov` 通过，3 项失败 0。
-  - `python -m ruff check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py` 通过。
-  - `python -m ruff format --check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py` 通过。
+  - `python -m pytest tests\scripts\test_report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_sync_handoff.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\report_langchain_production_callback_failures.py scripts\report_langchain_production_sync_handoff.py tests\scripts\test_report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_sync_handoff.py` 通过。
+  - `python -m ruff format --check scripts\report_langchain_production_callback_failures.py scripts\report_langchain_production_sync_handoff.py tests\scripts\test_report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_sync_handoff.py` 通过。
   - `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary` 按预期 blocked，输出 `runtime_version_not_current`。
 - **后续**:
   - 仍需使用具备权限的账号同步并重启生产服务，让 runtime gate 通过后复跑 production release gate 和 callback probe。

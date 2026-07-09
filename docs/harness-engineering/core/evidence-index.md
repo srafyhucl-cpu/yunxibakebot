@@ -4,14 +4,14 @@
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
 - generated_at: 2026-07-10
 - evidence_type: local/p14c-production-callback-failure-diagnosis
-- file: `D:\Project\YunxiBakeBot\scripts\report_langchain_production_callback_failures.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_langchain_production_callback_failures.py`; `D:\Project\YunxiBakeBot\reports\harness\langchain-production-callback-failures-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
-- command: `python -m pytest tests\scripts\test_report_langchain_production_callback_failures.py -q --no-cov`; `python -m ruff check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py`; `python -m ruff format --check scripts\report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_callback_failures.py`; `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary`
+- file: `D:\Project\YunxiBakeBot\scripts\report_langchain_production_callback_failures.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_langchain_production_callback_failures.py`; `D:\Project\YunxiBakeBot\scripts\report_langchain_production_sync_handoff.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_langchain_production_sync_handoff.py`; `D:\Project\YunxiBakeBot\reports\harness\langchain-production-callback-failures-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_sync_handoff.py -q --no-cov`; `python -m ruff check scripts\report_langchain_production_callback_failures.py scripts\report_langchain_production_sync_handoff.py tests\scripts\test_report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_sync_handoff.py`; `python -m ruff format --check scripts\report_langchain_production_callback_failures.py scripts\report_langchain_production_sync_handoff.py tests\scripts\test_report_langchain_production_callback_failures.py tests\scripts\test_report_langchain_production_sync_handoff.py`; `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary`
 - result: pass
 - related_logbook: 2026-07-10 - feat(ops): 增加生产 callback 失败定位报告
 - related_adr: 0003-langchain-ai-layer-boundary
 - contains_sensitive_data: no
 - retention_note: 报告只读取已脱敏 callback JSON、P14 handoff JSON 和 probe case 期望字段；不包含 callback token、AES key、密文、手机号、完整地址、open_id、完整订单号、服务器密码或私钥。生成的诊断 JSON 位于 gitignored reports 目录。
-- summary: P14c repo 侧新增生产 callback 失败定位报告，聚合两个失败 case 的实际回复预览、期望语义、诊断分类和下一步动作。当前报告按预期 blocked：生产 runtime 仍为旧版本，`p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge` 暂归类为 `runtime_version_not_current`，必须先完成生产同步重启并让 runtime gate 通过，再判断是否需要修业务逻辑、生产知识或 callback 断言。
+- summary: P14c repo 侧新增生产 callback 失败定位报告，聚合两个失败 case 的实际回复预览、期望语义、诊断分类和下一步动作，并接入 P14 handoff 的 post-sync 复验清单。当前报告按预期 blocked：生产 runtime 仍为旧版本，`p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge` 暂归类为 `runtime_version_not_current`，必须先完成生产同步重启并让 runtime gate 通过，再判断是否需要修业务逻辑、生产知识或 callback 断言。
 
 ## E-20260710-023：LangChain AI 应用层 P14b 生产运行时版本门禁
 

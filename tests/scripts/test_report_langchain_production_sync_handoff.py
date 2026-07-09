@@ -109,6 +109,11 @@ def test_handoff_passes_when_release_refs_and_ssh_are_ready(
     assert report["post_sync_verification"][0] == (
         "python scripts\\check_langchain_production_runtime_version.py --summary"
     )
+    assert report["post_sync_verification"][3] == (
+        "python scripts\\report_langchain_production_callback_failures.py "
+        "--json-out reports\\harness\\langchain-production-callback-failures-latest.json "
+        "--summary"
+    )
 
 
 def test_main_writes_json_and_summary(tmp_path: Path, monkeypatch, capsys) -> None:

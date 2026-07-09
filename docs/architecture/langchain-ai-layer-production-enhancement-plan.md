@@ -1605,6 +1605,7 @@ P14c 后续：
 
 - 新增 `scripts/report_langchain_production_callback_failures.py`，读取最新生产 callback JSON 和 P14 handoff JSON，汇总失败 case、期望语义、实际回复预览、诊断分类和下一步动作。
 - 新增 `tests/scripts/test_report_langchain_production_callback_failures.py`，覆盖 runtime 版本未切换时的 blocked 状态，以及 runtime 通过后对订单空结果、知识缺失两类 callback 失败的分类。
+- `scripts/report_langchain_production_sync_handoff.py` 的 `post_sync_verification` 已接入 callback 失败定位命令，生产同步后不会只停在 release gate 摘要。
 - 当前真实报告输出为 `blocked`：生产 runtime 仍是 `0.85.2`，因此两个 callback 语义失败只作为旧版本证据保留，不能直接判定为当前 `VERSION` 的业务缺陷。
 - 该报告不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径，只聚合既有 release / handoff / callback / probe case 证据。
 
