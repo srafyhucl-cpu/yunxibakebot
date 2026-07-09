@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-010：LangChain AI 应用层 P3a RAG shadow compare
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p3a-rag-shadow-compare
+- file: `D:\Project\YunxiBakeBot\scripts\report_retrieval_shadow_compare.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_retrieval_shadow_compare.py`; `D:\Project\YunxiBakeBot\reports\retrieval-shadow\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_eval_matrix.py tests\scripts\test_eval_retrieval.py -q --no-cov`; `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json`
+- result: pass
+- related_logbook: 2026-07-09 - feat(rag): 增加 P3a 检索 shadow compare 报告
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: shadow compare 使用脱敏 fixture 和本地 SQLite 知识语料，仅登记 case id、query、group、top-k key/title 和汇总指标；不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥；`reports\retrieval-shadow\latest.json` 位于 gitignored reports 目录。
+- summary: P3a 新增离线 RAG shadow compare 报告，baseline 默认为 `hybrid`，候选为 `planned-hybrid` 与 `planned-hybrid+rerank`。在 `data\bot.db` 400 条启用知识、40 条可评估客户样本下，baseline hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375，说明当前不应直接热启 rerank，应继续以 shadow compare 收集差异。
+
 ## E-20260709-009：LangChain AI 应用层 P2d Agent Eval 分组统计
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

@@ -484,7 +484,7 @@ python -m pytest tests/service/agents/test_rag_retriever.py tests/scripts/test_r
 建议新增验收：
 
 ```powershell
-python scripts/report_retrieval_shadow_compare.py --latest --summary
+python scripts/report_retrieval_shadow_compare.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5 --json-out reports/retrieval-shadow/latest.json
 ```
 
 完成标准：
@@ -493,6 +493,42 @@ python scripts/report_retrieval_shadow_compare.py --latest --summary
 - shadow compare 能输出稳定模式与候选模式的差异。
 - planned/rerank 候选在真实样本上不低于稳定模式。
 - RAG 日志能解释“为什么命中这条知识”。
+
+## 十九、P3a 落地记录
+
+2026-07-09 已完成 P3 RAG 热路径灰度增强的第一切片：
+
+- 新增 `scripts/report_retrieval_shadow_compare.py`，默认以 `hybrid` 作为稳定 baseline，以 `planned-hybrid` 和 `planned-hybrid+rerank` 作为候选模式。
+- shadow compare 复用 `scripts/report_retrieval_eval_matrix.py` 的索引构建与 searcher 组装，避免重复实现向量、BM25、planned query 和 rerank 包装逻辑。
+- 报告输出：
+  - baseline 指标。
+  - candidate 指标。
+  - `delta_recall_at_k` / `delta_mrr`。
+  - 逐 case 的 baseline top-k、candidate top-k、title、changed 和 overlap_count。
+- 本切片只做离线 shadow compare，不接入客户热路径，不改变线上回复，不启用 rerank。
+
+P3a 验收：
+
+```powershell
+python -m pytest tests/scripts/test_report_retrieval_shadow_compare.py tests/scripts/test_report_retrieval_eval_matrix.py tests/scripts/test_eval_retrieval.py -q --no-cov
+python scripts/report_retrieval_shadow_compare.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5 --json-out reports/retrieval-shadow/latest.json
+```
+
+P3a 验证结果：
+
+```text
+shadow compare / matrix / retrieval eval 测试通过：18 项失败 0。
+真实 embedding 路径下，语料库 data\bot.db 400 条启用知识，客户 fixture 40 条可评估样本。
+baseline hybrid: Recall@5=0.975, MRR=0.9437。
+planned-hybrid: Recall@5=0.975, MRR=0.9437，delta_recall=0.0，delta_mrr=0.0。
+planned-hybrid+rerank: Recall@5=0.95, MRR=0.9375，delta_recall=-0.025，delta_mrr=-0.0062。
+```
+
+P3 后续：
+
+- P3b 可补 `RAG_RETRIEVAL_MODE` feature flag 的配置解析与默认值测试，但仍保持生产默认 `hybrid`。
+- P3c 再把 shadow compare 接入真实检索日志或显式运维探针，连续收集差异后再决定是否灰度打开 planned/rerank。
+- 当前数据不支持热启 `planned-hybrid+rerank`，因为它低于 baseline。
 
 ### 阶段 P4：事实敏感场景治理增强
 

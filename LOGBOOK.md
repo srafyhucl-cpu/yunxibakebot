@@ -1,4 +1,19 @@
 ﻿
+## [2026-07-09] - feat(rag): 增加 P3a 检索 shadow compare 报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P2 已把双机器人 eval 扩展到 103 项并补齐报告 metadata；进入 P3 前，需要先能离线比较稳定检索模式与 planned/rerank 候选模式的差异，避免直接改客户热路径。
+- **决策**:
+  - 新增只读 shadow compare 脚本，默认 baseline 使用 `hybrid`，候选使用 `planned-hybrid` 和 `planned-hybrid+rerank`。
+  - 复用已有 retrieval eval matrix 的索引构建和 searcher 包装，避免重复实现向量/BM25/planned/rerank 逻辑。
+  - 本切片不接入客户热路径，不改变线上回复，不启用 rerank。
+- **改动**:
+  - `scripts/report_retrieval_shadow_compare.py` - 新增 RAG shadow compare 报告，输出 baseline、candidate delta 和逐 case top-k 差异。
+  - `tests/scripts/test_report_retrieval_shadow_compare.py` - 覆盖候选差异、索引复用、缺库错误和 JSON 父目录自动创建。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_report_retrieval_shadow_compare.py tests/scripts/test_report_retrieval_eval_matrix.py tests/scripts/test_eval_retrieval.py -q --no-cov` 通过，18 项失败 0。
+  - `python scripts/report_retrieval_shadow_compare.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5 --json-out reports/retrieval-shadow/latest.json` 通过；400 条启用知识、40 条可评估客户样本下 baseline hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375，暂不应热启 rerank。
+
 ## [2026-07-09] - feat(eval): 增加 P2d Agent Eval 分组统计
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
