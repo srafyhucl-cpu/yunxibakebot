@@ -1285,7 +1285,7 @@ Ruff format --check 通过。
 P11 后续：
 
 - P11b 已完成 release gate 显式 `--include-real-replay` 接入。
-- P11c 可增加真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
+- P11c 已完成真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
 - P11d 可把真实 replay 数量扩到每类事实敏感场景至少 5 条。
 
 ## 三十六、P11b 落地记录
@@ -1330,7 +1330,49 @@ real replay 门禁摘要显示脱敏 replay 样例 2/2、并入聚合 Agent Eval
 
 P11 后续：
 
-- P11c 增加真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
+- P11c 已完成真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
+- P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条，并继续通过 `--include-real-replay` 进入 release gate。
+
+## 三十七、P11c 落地记录
+
+2026-07-10 已完成 P11 真实会话脱敏回放的第三切片：
+
+- 新增 `scripts/export_real_conversation_replay_fixture.py`，把 JSON / JSONL 原始记录导出为 P11a fixture 格式。
+- 新增合成输入样例 `tests/fixtures/customer_real_replay_export_records_sample.json`，用于验证导出器输入格式，不包含真实客户原文。
+- 导出器要求每条记录显式提供 `golden_case_id`，不自动猜测绑定哪条事实敏感 golden case。
+- 导出器支持字段别名：
+  - 用户问题：`user_message`、`query`、`customer_message`、`message`、`user_text`。
+  - 最终回复：`final_reply`、`reply`、`assistant_reply`、`bot_reply`、`answer`。
+  - case 标识：`case_id`、`id`、`conversation_id`，缺失时生成 `real-export-001` 这类稳定 ID。
+- 导出器会脱敏手机号、长订单号、UUID、open_id / openid / unionid、地址片段，以及“手机号 / 电话 / 完整地址 / 收货地址 / 完整订单号”等敏感标签。
+- 默认输出到 gitignored `reports/agent-eval/real-conversation-replay-draft.json`，并立即调用 P11a checker 验证导出结果；可用 `--skip-validation` 显式跳过校验。
+- 本切片不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径。
+
+P11c 验收：
+
+```powershell
+python -m pytest tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay.py -q --no-cov
+python -m ruff check scripts\export_real_conversation_replay_fixture.py tests\scripts\test_export_real_conversation_replay_fixture.py
+python -m ruff format --check scripts\export_real_conversation_replay_fixture.py tests\scripts\test_export_real_conversation_replay_fixture.py
+python scripts\export_real_conversation_replay_fixture.py --input tests\fixtures\customer_real_replay_export_records_sample.json --output reports\agent-eval\real-conversation-replay-draft.json --summary
+python scripts\check_real_conversation_replay.py --fixture reports\agent-eval\real-conversation-replay-draft.json --json-out reports\agent-eval\real-conversation-replay-draft-check.json --replies-json-out reports\agent-eval\real-conversation-replies-draft.json --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --real-replay-fixture reports\agent-eval\real-conversation-replay-draft.json --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-exported-real-replay-latest.json --summary
+```
+
+P11c 验证结果：
+
+```text
+导出器和 real replay checker 测试通过：8 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+合成输入样例导出通过：real_conversation_replay_export status=passed total=2 failed=0。
+导出 draft 通过 P11a checker：2 项失败 0。
+导出 draft 接入 P11b release gate 后通过：5 步失败 0。
+release gate 摘要显示导出 draft real replay 2/2、并入聚合 Agent Eval 后 135/135。
+```
+
+P11 后续：
+
 - P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条，并继续通过 `--include-real-replay` 进入 release gate。
 
 ## 五、推荐执行顺序

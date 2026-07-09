@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-016：LangChain AI 应用层 P11c real replay 脱敏导出器
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p11c-real-conversation-replay-exporter
+- file: `D:\Project\YunxiBakeBot\scripts\export_real_conversation_replay_fixture.py`; `D:\Project\YunxiBakeBot\tests\fixtures\customer_real_replay_export_records_sample.json`; `D:\Project\YunxiBakeBot\tests\scripts\test_export_real_conversation_replay_fixture.py`; `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replay-draft.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replay-draft-check.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replies-draft.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-exported-real-replay-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay.py -q --no-cov`; `python -m ruff check scripts\export_real_conversation_replay_fixture.py tests\scripts\test_export_real_conversation_replay_fixture.py`; `python -m ruff format --check scripts\export_real_conversation_replay_fixture.py tests\scripts\test_export_real_conversation_replay_fixture.py`; `python scripts\export_real_conversation_replay_fixture.py --input tests\fixtures\customer_real_replay_export_records_sample.json --output reports\agent-eval\real-conversation-replay-draft.json --summary`; `python scripts\check_real_conversation_replay.py --fixture reports\agent-eval\real-conversation-replay-draft.json --json-out reports\agent-eval\real-conversation-replay-draft-check.json --replies-json-out reports\agent-eval\real-conversation-replies-draft.json --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --real-replay-fixture reports\agent-eval\real-conversation-replay-draft.json --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-exported-real-replay-latest.json --summary`; JSON 摘要抽查 `release_summary.real_conversation_replay` 和 `release_summary.agent_eval_with_real_replay`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加真实会话回放脱敏导出器
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮新增输入 fixture 是合成样例，不包含真实客户原文；导出器默认写入 gitignored reports 目录，并在写出后调用 P11a checker 验证手机号、长订单号、UUID、平台 ID、地址标签和 forbidden reply patterns；真实样本接入前仍必须先脱敏并保持输出 metadata `contains_sensitive_data=false`。
+- summary: P11c 新增离线 real replay fixture 导出器，支持 JSON / JSONL 原始记录、字段别名、显式 `golden_case_id` 绑定和敏感文本替换。合成输入样例导出 2/2 通过，导出 draft 再经 P11a checker 2/2 通过，并可作为 P11b `--real-replay-fixture` 输入进入 release gate，门禁 5/5 通过；聚合 Agent Eval 仍为 135/135。
+
 ## E-20260710-015：LangChain AI 应用层 P11b real replay 发布门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

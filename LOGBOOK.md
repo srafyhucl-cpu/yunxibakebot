@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实会话回放脱敏导出器
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P11a/P11b 已有脱敏真实会话 replay 契约、checker 和 release gate，但还缺少把客服或生产导出记录转换成 fixture 草稿的安全入口。
+- **决策**:
+  - 先支持离线 JSON / JSONL 输入，不直接连接生产库或客服系统。
+  - 每条记录必须显式提供 `golden_case_id`，避免脚本猜测敏感场景绑定。
+  - 导出器默认输出到 gitignored `reports/agent-eval/`，并立即复用 P11a checker 校验。
+  - 导出器只做脱敏和格式转换，不调用外部 LLM、不改变客户或员工热路径。
+- **改动**:
+  - `scripts/export_real_conversation_replay_fixture.py` - 新增真实会话 replay fixture 脱敏导出器，支持 JSON / JSONL、字段别名、敏感文本替换、默认校验和 JSON/summary 输出。
+  - `tests/fixtures/customer_real_replay_export_records_sample.json` - 新增合成原始记录输入样例，不包含真实客户原文。
+  - `tests/scripts/test_export_real_conversation_replay_fixture.py` - 覆盖脱敏与校验、JSONL 输入、缺少 `golden_case_id` 失败。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P11c 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay.py -q --no-cov` 通过，8 项失败 0。
+  - `python -m ruff check scripts\export_real_conversation_replay_fixture.py tests\scripts\test_export_real_conversation_replay_fixture.py` 通过。
+  - `python -m ruff format --check scripts\export_real_conversation_replay_fixture.py tests\scripts\test_export_real_conversation_replay_fixture.py` 通过。
+  - `python scripts\export_real_conversation_replay_fixture.py --input tests\fixtures\customer_real_replay_export_records_sample.json --output reports\agent-eval\real-conversation-replay-draft.json --summary` 通过，2 项失败 0。
+  - `python scripts\check_real_conversation_replay.py --fixture reports\agent-eval\real-conversation-replay-draft.json --json-out reports\agent-eval\real-conversation-replay-draft-check.json --replies-json-out reports\agent-eval\real-conversation-replies-draft.json --summary` 通过，2 项失败 0。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --real-replay-fixture reports\agent-eval\real-conversation-replay-draft.json --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-exported-real-replay-latest.json --summary` 通过，5 步失败 0；摘要显示导出 draft real replay 2/2、并入聚合 Agent Eval 后 135/135。
+
 ## [2026-07-10] - feat(eval): 将真实会话回放接入发布门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
