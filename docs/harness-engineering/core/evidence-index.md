@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-009：LangChain AI 应用层 P6b 客户 graph 回复回放探针
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p6b-customer-graph-reply-replay-probe
+- file: `D:\Project\YunxiBakeBot\scripts\probe_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\scripts\check_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_probe_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\customer-reply-replay-probe-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\customer-reply-replay-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python -m ruff check scripts\probe_customer_reply_replay.py scripts\check_customer_reply_replay.py tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\probe_customer_reply_replay.py scripts\check_customer_reply_replay.py tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\probe_customer_reply_replay.py --output reports\agent-eval\customer-reply-replay-probe-latest.json; python scripts\check_customer_reply_replay.py --replies-json reports\agent-eval\customer-reply-replay-probe-latest.json --json-out reports\agent-eval\customer-reply-replay-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P6b 客户 graph 回复回放探针
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 探针使用受控 fake model 和脱敏 fixture，不调用外部 LLM、不访问真实数据库、不记录真实客户原文、订单号、手机号、地址、open_id 或密钥；`reports\agent-eval\customer-reply-replay-*.json` 位于 gitignored reports 目录。
+- summary: P6b 新增客户 LangGraph 回复回放探针，复用 `CustomerAgentGraphService.answer_with_trace()` 生成 30 条事实敏感 case 的 replies JSON，再交给 P6a 禁止输出检查。该切片把“回复文本检查”从默认安全句推进到客户 graph/finalizer 输出形态，同时保持 fake model、离线、可重复和不改热路径。
+
 ## E-20260710-008：LangChain AI 应用层 P6a 客户回复回放安全检查
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

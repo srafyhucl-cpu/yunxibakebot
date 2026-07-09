@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P6b 客户 graph 回复回放探针
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P6a 已能检查外部 `--replies-json` 中的最终回复文本是否命中禁止回复模式；下一步需要让客户 LangGraph 在受控 fake model 下生成回复回放输入，证明检查脚本可以接上真实 graph/finalizer 输出形态。
+- **决策**:
+  - 新增独立 probe 脚本生成 replies JSON，不调用外部 LLM、不访问真实数据库、不接入生产热路径。
+  - 复用客户 `CustomerAgentGraphService.answer_with_trace()`，只 monkeypatch 模型请求和工具注册，保留 graph 节点编排、finalize reply 和 trace 路径。
+  - 生成的 replies JSON 继续交给 P6a `check_customer_reply_replay.py --replies-json` 做禁止输出断言。
+- **改动**:
+  - `scripts/probe_customer_reply_replay.py` - 新增客户 graph fake model 回复回放探针，输出 `reports/agent-eval/customer-reply-replay-*.json`。
+  - `tests/scripts/test_probe_customer_reply_replay.py` - 覆盖探针输出 30 条事实敏感回复，以及输出可被 P6a 检查器消费。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，11 项失败 0。
+  - `python -m ruff check scripts\probe_customer_reply_replay.py scripts\check_customer_reply_replay.py tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check scripts\probe_customer_reply_replay.py scripts\check_customer_reply_replay.py tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python scripts\probe_customer_reply_replay.py --output reports\agent-eval\customer-reply-replay-probe-latest.json; python scripts\check_customer_reply_replay.py --replies-json reports\agent-eval\customer-reply-replay-probe-latest.json --json-out reports\agent-eval\customer-reply-replay-latest.json --summary` 通过，30 条 graph fake model 回复回放 case 失败 0。
+
 ## [2026-07-10] - feat(eval): 增加 P6a 客户回复回放安全检查
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

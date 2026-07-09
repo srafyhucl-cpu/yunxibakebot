@@ -1059,6 +1059,38 @@ P6 后续：
 - P6b 可把客户 graph 的受控 fake model 输出接入 `--replies-json`，验证真实 prompt/finalizer 生成的回复文本，而不调用外部 LLM。
 - P6c 再接入脱敏真实会话或生产 shadow 回复，形成“真实问题 -> 最终回复 -> forbidden pattern 断言”的回归资产。
 
+## 三十、P6b 落地记录
+
+2026-07-10 已完成 P6 客户 graph 回复回放探针：
+
+- 新增 `scripts/probe_customer_reply_replay.py`，复用 `CustomerAgentGraphService.answer_with_trace()` 对 30 条事实敏感客户 case 生成 replies JSON。
+- 探针通过 monkeypatch 客户模型请求为受控 fake model，并禁用客户工具注册；因此不调用外部 LLM、不访问真实数据库、不发送消息。
+- 探针输出可直接作为 P6a `scripts/check_customer_reply_replay.py --replies-json` 输入，完成“客户 graph 输出 -> 最终回复文本 -> forbidden pattern 断言”的离线闭环。
+- 本切片不改变客户机器人线上热路径、RAG、工具调用、转人工或生产配置。
+
+P6b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python -m ruff check scripts\probe_customer_reply_replay.py scripts\check_customer_reply_replay.py tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\probe_customer_reply_replay.py scripts\check_customer_reply_replay.py tests\scripts\test_probe_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py
+python scripts\probe_customer_reply_replay.py --output reports\agent-eval\customer-reply-replay-probe-latest.json; python scripts\check_customer_reply_replay.py --replies-json reports\agent-eval\customer-reply-replay-probe-latest.json --json-out reports\agent-eval\customer-reply-replay-latest.json --summary
+```
+
+P6b 验证结果：
+
+```text
+脚本测试通过：11 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+客户 graph fake model 回复回放生成成功，P6a 检查通过：30 条事实敏感 case 失败 0。
+```
+
+P6 后续：
+
+- P6c 可从脱敏真实客服会话或生产 shadow 输出生成 `--replies-json`，让同一套检查覆盖真实问题分布。
+- P6d 可把 `check_customer_reply_replay.py` 接入聚合 Agent Eval 报告，形成 `customer_reply_replay` agent 维度。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：
