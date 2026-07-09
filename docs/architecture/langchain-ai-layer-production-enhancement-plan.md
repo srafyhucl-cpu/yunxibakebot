@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告和 P17b-prep 真实 replay pool 条目草稿生成器已完成，下一步建议进入 P14c 生产部署重启与 callback 复验，或在等待生产权限期间继续 P17b 首批真实脱敏样本接入。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告和 P17b-prep 真实 replay pool 条目草稿生成器已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已具备外发合规和容量确认，也可并行进入 P18 生产 LangSmith/Trace 灰度打开。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1618,7 +1618,7 @@ python -m ruff format --check scripts\report_langchain_production_callback_failu
 python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary
 ```
 
-P14c 仍未完成的生产动作：
+P14c 当时仍未完成的生产动作：
 
 - 使用具备权限的账号同步并重启生产服务。
 - 让 `scripts\check_langchain_production_runtime_version.py --summary` 通过。
@@ -1626,13 +1626,13 @@ P14c 仍未完成的生产动作：
 
 ## 二十九点一、P14c callback 稳定化本地修复
 
-2026-07-10 已完成 P14c 的本地稳定化修复切片，等待部署到生产后复验：
+2026-07-10 已完成 P14c 的本地稳定化修复切片，并已部署到生产复验：
 
 - `p2c-today-wait-buyer-confirm-list` 暴露出两个问题：生产当天待收货订单可能真实为空，且 planner 曾把“待收货”这类订单状态词当成商品关键词。当前修复把订单状态词纳入 keyword stop words，状态过滤仍保留，商品关键词不再携带状态噪声。
 - callback 语义规则新增显式 `allow_empty_result`，仅允许标记过的 probe 在回复包含“没有查到 / 未查到 / 暂无匹配 / 暂无”这类受控空结果时通过，并继续检查完整订单号、手机号、完整地址等 forbidden terms。
 - `p2c-refund-policy-knowledge` 不再把生产知识缺失伪装成通过；当退款/售后问题没有命中知识源时，员工助手知识工具返回保守治理话术：先核实订单状态、制作进度、发货和售后记录，不承诺退款金额或到账时间，争议场景转人工确认。
 - 本切片不修改业务数据库、不新增生产知识、不调用外部 LLM、不改变客户机器人热路径；它只修正员工助手 planner keyword、callback probe 语义边界和知识缺失兜底。
-- 版本提升为 `0.105.1`，P14c 是否完成仍以生产部署、运行时版本门禁和显式生产 release gate 结果为准。
+- 版本提升为 `0.105.1`，生产已运行该版本，P14c runtime gate、显式生产 release gate、P13b 发布证据门禁和 P14 handoff 均已通过。
 
 P14c callback 稳定化本地验收：
 
@@ -1651,6 +1651,17 @@ python scripts\check_langchain_production_runtime_version.py --summary
 python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary
 python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary
 python scripts\report_langchain_production_sync_handoff.py --ssh-status available --json-out reports\harness\langchain-production-sync-handoff-latest.json --summary
+```
+
+P14c 生产复验结果：
+
+```text
+生产 /health 和 /ready 返回 version=0.105.1。
+langchain_production_runtime_version status=passed failed=0 expected_version=0.105.1 runtime_versions=0.105.1。
+langchain_ai_layer_release_gate status=passed total=7 failed=0。
+langchain_production_observability_release status=passed failed=0 expected_version=0.105.1 production_versions=0.105.1 callback_failed=0 langsmith_enabled=false。
+langchain_production_sync_handoff status=passed blockers=0 target_commit=579a4000a02634774bb3de64e2282351e79dd7cd expected_version=0.105.1 runtime_status=passed callback_failed=0。
+langchain_production_callback_failures status=passed failed=0 runtime_status=passed app_version=0.105.1。
 ```
 
 ## 三十、P15a 真实 replay 样本池脱敏证明准入
@@ -1841,13 +1852,13 @@ docs/harness-engineering/core/evidence-index.md
 
 ## 九、下一步建议
 
-下一步建议进入 P14c：
+下一步建议进入 P17b：
 
 ```text
-目标：拿到生产服务器权限后重启/同步服务，并定位 callback 失败，把 P13b/P14a/P14b 暴露的生产版本漂移和两个语义失败用例收掉。
+目标：接入首批真实脱敏客服会话 replay 样本，让真实样本准备度从 real_sample_ready=false 推进到 strict gate 可通过。
 ```
 
-P14 不应通过放宽 release gate、callback 语义断言或版本检查来制造通过。应先确认生产部署 commit、服务重启和 `/health`、`/ready` 真实版本，再定位 `p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge`；真实脱敏样本池和 LangSmith 线上外发仍是后续增强项。
+P14c 已通过生产 runtime gate、显式生产 release gate、P13b 发布证据门禁和 P14 handoff。后续不再围绕生产版本漂移收口，而是推进真实脱敏样本和线上观测：真实样本应替换或补充当前合成覆盖样例；LangSmith 线上外发仍需先确认合规、采样率和容量影响。
 
 ## 十、P0 落地记录
 

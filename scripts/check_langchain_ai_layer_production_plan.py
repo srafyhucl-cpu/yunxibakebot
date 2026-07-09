@@ -19,8 +19,8 @@ PLAN_PATH = (
 
 REQUIRED_STATUS_PHRASES = (
     "状态：持续执行中",
-    "P0-P14b 已完成",
-    "下一步建议进入 P14c",
+    "P0-P14c 已完成",
+    "下一步建议进入 P17b",
 )
 REQUIRED_ARTIFACTS = (
     "scripts/check_langchain_ai_layer_release_gate.py",
@@ -52,6 +52,8 @@ FORBIDDEN_STALE_PHRASES = (
     "下一步建议进入 P12",
     "下一步建议进入 P14 生产版本同步与 callback 失败定位",
     "下一步建议进入 P14b 生产服务重启与 callback 失败定位",
+    "下一步建议进入 P14c 生产部署重启与 callback 复验",
+    "P0-P14b 已完成",
     "P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条",
 )
 

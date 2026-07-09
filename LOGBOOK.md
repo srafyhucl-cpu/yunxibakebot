@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-10] - ops: 完成 P14c 生产 release gate 收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: `0.105.1` 已提交并推送，生产 `/opt/yunxibakebot` 自动同步到目标 commit。需要用生产 runtime gate、显式生产 release gate、P13b 发布证据门禁和 P14 handoff 证明 P14c 真正完成。
+- **决策**:
+  - 以公网 `/health`、`/ready` 的 `version=0.105.1` 作为运行时版本证据，不只依赖 git push。
+  - 以 `--include-production-smoke --include-observability-evidence` release gate 作为 P14c 主验收。
+  - P13b 发布证据门禁和 P14 handoff 均必须无 blocker；callback failure report 必须显示失败数为 0。
+  - 计划 checker 从 P14c 待复验口径推进到 P14c 已完成、下一步 P17b 口径。
+- **改动**:
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` - 标记 P14c 生产复验通过，下一步转向 P17b 真实脱敏样本接入。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`tests/scripts/test_check_langchain_ai_layer_production_plan.py` - 更新生产增强计划静态门禁。
+  - `docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 登记 P14c 生产收口证据和当前态。
+- **验证结果**:
+  - 生产 `/health` 返回 `status=ok, version=0.105.1`。
+  - 生产 `/ready` 返回 `status=ready, version=0.105.1`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.1`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`callback_failed=0`。
+  - `python scripts\report_langchain_production_sync_handoff.py --ssh-status available --json-out reports\harness\langchain-production-sync-handoff-latest.json --summary` 通过，`blockers=0`。
+  - `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary` 通过，`failed=0`。
+- **后续**:
+  - P17b 接入首批真实脱敏客服会话样本；P18 生产 LangSmith/Trace 灰度需先确认外发合规、采样率和容量影响。
+
 ## [2026-07-10] - fix(ops): 稳定 P14c 生产 callback 失败用例
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

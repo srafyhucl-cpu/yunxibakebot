@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-030：LangChain AI 应用层 P14c 生产 release gate 收口
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: production/p14c-langchain-ai-layer-release-gate-acceptance
+- file: `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json`; `D:\Project\YunxiBakeBot\reports\harness\langchain-production-sync-handoff-latest.json`; `D:\Project\YunxiBakeBot\reports\harness\langchain-production-callback-failures-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/yunxibakebot`
+- command: `ssh -o BatchMode=yes -o ConnectTimeout=8 root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse HEAD && cat VERSION && git status --short && systemctl is-active yunxibakebot"`; `ssh -o BatchMode=yes -o ConnectTimeout=8 root@47.94.102.250 "systemctl restart yunxibakebot && systemctl is-active yunxibakebot"`; `python scripts\check_langchain_production_runtime_version.py --summary`; `curl.exe -s https://yunxifood.cn/health`; `curl.exe -s https://yunxifood.cn/ready`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\report_langchain_production_sync_handoff.py --ssh-status available --json-out reports\harness\langchain-production-sync-handoff-latest.json --summary`; `python scripts\report_langchain_production_callback_failures.py --json-out reports\harness\langchain-production-callback-failures-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - ops: 完成 P14c 生产 release gate 收口
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 报告只记录 release gate、runtime 版本、callback 通过状态、handoff blockers 和观测摘要；不包含 callback token、AES key、密文、客户原文、手机号、完整地址、open_id、完整订单号、服务器密码、私钥或 API key。JSON 报告位于 gitignored reports 目录。
+- summary: P14c 已完成生产收口：生产 `/health` 和 `/ready` 均返回 `0.105.1`，显式生产 release gate `total=7 failed=0`，P13b 发布证据门禁 `failed=0 callback_failed=0`，P14 handoff `blockers=0`，callback failure report `failed=0`。下一步转向 P17b 首批真实脱敏样本接入，P18 生产 LangSmith/Trace 灰度需先完成合规和容量确认。
+
 ## E-20260710-029：LangChain AI 应用层 P14c callback 稳定化本地修复
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

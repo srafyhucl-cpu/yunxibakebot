@@ -22,6 +22,7 @@ def test_langchain_ai_layer_production_plan_detects_stale_status() -> None:
     assert report["status"] == "failed"
     assert "stale.状态：计划冻结，待执行" in report["failed_names"]
     assert "status.状态：持续执行中" in report["failed_names"]
+    assert "status.P0-P14c 已完成" in report["failed_names"]
 
 
 def test_langchain_ai_layer_production_plan_detects_missing_boundary() -> None:
