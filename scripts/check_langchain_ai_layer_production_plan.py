@@ -39,6 +39,7 @@ REQUIRED_ARTIFACTS = (
     "scripts/build_langsmith_production_enablement_packet.py",
     "scripts/check_langchain_ai_layer_capacity.py",
     "scripts/report_rag_shadow_observability.py",
+    "scripts/report_rag_shadow_log_observability.py",
     "tests/fixtures/customer_real_replay_coverage_sample.json",
     "docs/harness-engineering/core/evidence-index.md",
 )

@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-036：LangChain AI 应用层 P19b RAG shadow log 观测输入门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p19b-rag-shadow-log-observability
+- file: `D:\Project\YunxiBakeBot\scripts\report_rag_shadow_log_observability.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_rag_shadow_log_observability.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\report_rag_shadow_log_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\report_rag_shadow_log_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\report_rag_shadow_log_observability.py --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(rag): 增加 RAG shadow log 观测输入门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只新增真实 RAG shadow log 的脱敏输入合同和 readiness/strict gate；默认无输入时不声称真实 shadow log 已准备好。报告默认只输出 query_hash，不输出 query 原文；真实生产日志必须在仓库外脱敏后再作为显式输入。
+- summary: P19b 新增 RAG shadow log 观测输入门禁。默认报告通过但 `shadow_log_ready=false`，strict 模式缺输入失败；该切片不改变客户热路径、不写业务数据库、不调用外部 LLM、不向 LangSmith 外发。生产同步与 runtime gate 结果待本轮发布后补齐。
+
 ## E-20260710-035：LangChain AI 应用层 P19a RAG shadow 观测报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
