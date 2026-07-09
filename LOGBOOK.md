@@ -1,4 +1,20 @@
 ﻿
+## [2026-07-09] - feat(eval): 增加 P2d Agent Eval 分组统计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P2b/P2c 已把客户和员工 eval 扩到双机器人 103 项，但 JSON 报告缺少可直接用于作品集展示的 agent 分布和 case group 覆盖统计。
+- **决策**:
+  - 在通用 eval 模型层生成统计，不让报告脚本各自重复计算。
+  - 每个 agent 报告输出 `case_groups`，聚合报告输出 `agent_totals` 和跨 agent `case_groups`。
+  - 只扩离线 eval 报告结构，不改变客户/员工热路径、planner、RAG 或工具执行。
+- **改动**:
+  - `app/service/agents/evaluation.py` - 新增 case group 与 agent totals 汇总字段。
+  - `tests/service/agents/test_evaluation.py` - 锁定单 agent 和聚合报告统计结构。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py -q --no-cov` 通过，10 项失败 0。
+  - `python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 通过，双机器人 103 项失败 0。
+  - 抽查 `reports/agent-eval/latest.json` 已包含 `agent_totals`、顶层 `case_groups` 和每个 agent 的 `case_groups`。
+
 ## [2026-07-09] - feat(eval): 扩充员工助手 P2c 离线 eval 样本
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

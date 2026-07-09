@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-009：LangChain AI 应用层 P2d Agent Eval 分组统计
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p2d-agent-eval-report-metadata
+- file: `D:\Project\YunxiBakeBot\app\service\agents\evaluation.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_evaluation.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; JSON 抽查 `agent_totals`、顶层 `case_groups` 和每个 agent 的 `case_groups`
+- result: pass
+- related_logbook: 2026-07-09 - feat(eval): 增加 P2d Agent Eval 分组统计
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记 eval 报告结构和分组统计，不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥；`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P2d 为 Agent Eval JSON 增加作品集友好的统计字段：顶层 `agent_totals` 显示 customer 41 项、employee 62 项均通过；顶层 `case_groups` 汇总客户商品咨询、库存、配送、退款售后、转人工、知识未命中、员工 planner 和 capability contracts 等覆盖面；每个 agent 也单独输出 `case_groups`，后续 README/作品集可直接引用，无需人工二次统计。
+
 ## E-20260709-008：LangChain AI 应用层 P2c 员工助手 eval 样本扩容
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

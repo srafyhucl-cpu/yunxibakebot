@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+DEFAULT_CASE_GROUP = "ungrouped"
+
 
 @dataclass(frozen=True)
 class AgentEvalAssertion:
@@ -88,6 +90,7 @@ class AgentEvalResult:
             "failed": self.failed,
             "pass_rate": self.pass_rate,
             "metadata": self.metadata,
+            "case_groups": summarize_eval_cases_by_group(self.cases),
             "cases": [case.to_dict() for case in self.cases],
             "failed_ids": [case.case_id for case in self.cases if not case.passed],
         }
@@ -106,7 +109,56 @@ def combine_agent_eval_results(
         "failed": failed,
         "pass_rate": round((total - failed) / total, 4) if total else 0.0,
         "metadata": metadata or {},
+        "agent_totals": summarize_agent_eval_results(results),
+        "case_groups": summarize_eval_cases_by_group(
+            tuple(case for result in results for case in result.cases)
+        ),
         "agents": [result.to_dict() for result in results],
+    }
+
+
+def summarize_agent_eval_results(
+    results: tuple[AgentEvalResult, ...],
+) -> list[dict[str, object]]:
+    """按 agent 汇总 eval 结果，便于报告展示。"""
+    return [
+        {
+            "agent": result.agent,
+            "status": result.status,
+            "total": result.total,
+            "failed": result.failed,
+            "pass_rate": result.pass_rate,
+        }
+        for result in results
+    ]
+
+
+def summarize_eval_cases_by_group(
+    cases: tuple[AgentEvalCase, ...],
+) -> list[dict[str, object]]:
+    """按 case group 汇总 eval 结果，便于作品集展示覆盖面。"""
+    grouped_cases: dict[str, list[AgentEvalCase]] = {}
+    for case in cases:
+        group_name = case.group or DEFAULT_CASE_GROUP
+        grouped_cases.setdefault(group_name, []).append(case)
+    return [
+        _build_case_group_summary(group_name, tuple(group_cases))
+        for group_name, group_cases in sorted(grouped_cases.items())
+    ]
+
+
+def _build_case_group_summary(
+    group_name: str,
+    cases: tuple[AgentEvalCase, ...],
+) -> dict[str, object]:
+    failed = sum(1 for case in cases if not case.passed)
+    total = len(cases)
+    return {
+        "group": group_name,
+        "total": total,
+        "failed": failed,
+        "passed": total - failed,
+        "pass_rate": round((total - failed) / total, 4) if total else 0.0,
     }
 
 

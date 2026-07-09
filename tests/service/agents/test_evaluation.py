@@ -35,6 +35,15 @@ def test_agent_eval_result_calculates_status_and_pass_rate() -> None:
     assert result.failed == 1
     assert result.pass_rate == 0.5
     assert payload["failed_ids"] == ["fail"]
+    assert payload["case_groups"] == [
+        {
+            "group": "ungrouped",
+            "total": 2,
+            "failed": 1,
+            "passed": 1,
+            "pass_rate": 0.5,
+        }
+    ]
 
 
 def test_combine_agent_eval_results() -> None:
@@ -45,6 +54,7 @@ def test_combine_agent_eval_results() -> None:
                 case_id="customer-ok",
                 agent="customer",
                 query="ok",
+                group="product",
                 assertions=(AgentEvalAssertion("shape", True),),
             ),
         ),
@@ -56,6 +66,7 @@ def test_combine_agent_eval_results() -> None:
                 case_id="employee-ok",
                 agent="employee",
                 query="ok",
+                group="planner",
                 assertions=(AgentEvalAssertion("shape", True),),
             ),
         ),
@@ -66,6 +77,38 @@ def test_combine_agent_eval_results() -> None:
     assert payload["status"] == "passed"
     assert payload["total"] == 2
     assert payload["pass_rate"] == 1.0
+    assert payload["agent_totals"] == [
+        {
+            "agent": "customer",
+            "status": "passed",
+            "total": 1,
+            "failed": 0,
+            "pass_rate": 1.0,
+        },
+        {
+            "agent": "employee",
+            "status": "passed",
+            "total": 1,
+            "failed": 0,
+            "pass_rate": 1.0,
+        },
+    ]
+    assert payload["case_groups"] == [
+        {
+            "group": "planner",
+            "total": 1,
+            "failed": 0,
+            "passed": 1,
+            "pass_rate": 1.0,
+        },
+        {
+            "group": "product",
+            "total": 1,
+            "failed": 0,
+            "passed": 1,
+            "pass_rate": 1.0,
+        },
+    ]
 
 
 def test_filter_agent_eval_result_by_case_id() -> None:

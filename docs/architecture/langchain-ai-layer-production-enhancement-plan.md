@@ -359,7 +359,7 @@ RAG 矩阵在 400 条启用知识、40 条客户标注样本下可跑通；best=
 P2 后续：
 
 - P2c 已完成员工助手 eval 样本扩容，员工 eval 从 49 项推进到 62 项，覆盖查订单、查客户、查发货时间、弱关键词和不支持意图。
-- P2d 可把 expanded customer fixture 的分组统计加入 eval 报告 metadata，方便作品集展示。
+- P2d 已把 expanded customer fixture、员工 planner 和双机器人聚合结果的分组统计加入 eval 报告，方便作品集展示。
 
 ## 十七、P2c 落地记录
 
@@ -400,8 +400,44 @@ P2 当前状态：
 
 - 客户机器人 eval：41 项通过，其中 40 条业务样本。
 - 员工助手 eval：62 项通过，其中 61 条 planner 样本。
-- 双机器人聚合 eval 预期提升到 103 项，下一步应复跑 `python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 并归档当前报告摘要。
-- P2d 可继续把 case group 统计、agent 分布和新增样本摘要加入 eval report metadata，方便作品集展示。
+- 双机器人聚合 eval 已提升到 103 项，`python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 可归档当前报告摘要。
+- P2d 已把 case group 统计、agent 分布和新增样本摘要加入 eval report metadata，方便作品集展示。
+
+## 十八、P2d 落地记录
+
+2026-07-09 已完成 P2 真实业务 Eval 数据集扩容的第四切片：
+
+- `app/service/agents/evaluation.py` 新增 `summarize_agent_eval_results()` 和 `summarize_eval_cases_by_group()`。
+- 单 agent eval JSON 新增 `case_groups`：
+  - 客户机器人可直接展示商品咨询、库存、配送、退款售后、转人工和知识未命中治理覆盖。
+  - 员工助手可直接展示 planner 与 capability contracts 覆盖。
+- 双机器人聚合 eval JSON 新增：
+  - `agent_totals`：customer 41 项、employee 62 项。
+  - 顶层 `case_groups`：跨 agent 的统一覆盖矩阵。
+- 本切片只扩离线 eval 报告结构，不改变客户/员工热路径、planner、RAG、工具执行或业务 service。
+
+P2d 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py -q --no-cov
+python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json
+```
+
+P2d 验证结果：
+
+```text
+Agent Eval 模型和脚本测试通过：10 项失败 0。
+双机器人聚合 eval 通过：agent_eval status=passed total=103 failed=0 pass_rate=1.0。
+JSON 抽查已包含 agent_totals、顶层 case_groups 和每个 agent 的 case_groups。
+```
+
+P2 当前状态：
+
+- P2a eval runner 归档能力完成。
+- P2b 客户机器人业务样本扩容完成。
+- P2c 员工助手样本扩容完成。
+- P2d eval report metadata 完成。
+- 下一阶段建议进入 P3：RAG 热路径灰度增强，先做 feature flag 与 shadow compare，不直接改变线上回复。
 
 ### 阶段 P3：RAG 热路径灰度增强
 
