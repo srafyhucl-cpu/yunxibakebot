@@ -1126,6 +1126,45 @@ P6 后续：
 - P6c/P6e 可继续接入脱敏真实客服会话或生产 shadow replies JSON，让 `customer_reply_replay` 从 fake model 逐步走向真实问题分布。
 - 可在 P10 发布门禁中增加 `report_agent_eval.py --include-reply-replay` 作为加强验收，而不是替代默认 133 项基线。
 
+## 三十二、P10a 落地记录
+
+2026-07-10 已完成 P10 生产级发布门禁的第一切片：
+
+- 新增 `scripts/check_langchain_ai_layer_release_gate.py`，作为 LangChain AI 应用层发布前聚合门禁。
+- 默认门禁串联：
+  - 默认双机器人 Agent Eval，保持 133 项基线。
+  - 客户 graph fake model 回复回放 probe。
+  - 带 `customer_reply_replay` 的扩展 Agent Eval，当前 163 项。
+- 加强门禁通过 `--include-rag-matrix` 额外运行 RAG 检索矩阵，适合发布前或作品集证据刷新。
+- 脚本对子进程输出使用 `errors="replace"`，避免 embedding / jieba / tqdm 等第三方库的控制台编码噪声导致门禁崩溃。
+- 脚本会提前创建报告父目录，避免 RAG 矩阵 JSON 输出目录不存在。
+- 本切片不改客户或员工热路径，不调用线上 LLM，不写业务数据库。
+
+P10a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-rag-matrix --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json --summary
+```
+
+P10a 验证结果：
+
+```text
+脚本测试通过：6 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+默认 release gate 通过：3 步失败 0。
+加强 release gate 通过：4 步失败 0，包含 RAG 检索矩阵。
+```
+
+P10 后续：
+
+- P10b 可把 release gate 输出和生产 `/health`、`/ready`、callback probe 合并成生产同步前门禁。
+- P10c 可在需要时把 `--include-rag-matrix` 的核心指标抽取成结构化 release summary，便于面试或上线报告直接引用。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：

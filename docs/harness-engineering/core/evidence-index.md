@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-011：LangChain AI 应用层 P10a 发布门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p10a-langchain-ai-layer-release-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-rag-matrix --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P10a LangChain AI 应用层发布门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 门禁报告只包含命令、状态、stdout/stderr 摘要和脱敏 fixture 评估指标；reports 目录被 gitignored；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥。
+- summary: P10a 新增一条 LangChain AI 应用层 release gate：默认串联 133 项双机器人 eval、客户 graph 回复回放 probe 和 163 项扩展 eval；加强模式额外运行 RAG 矩阵。脚本已处理子进程非 UTF-8 输出和报告目录不存在问题，默认门禁 3/3 通过，加强门禁 4/4 通过。
+
 ## E-20260710-010：LangChain AI 应用层 P6d 回复回放并入聚合 Agent Eval
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

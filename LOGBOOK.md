@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P10a LangChain AI 应用层发布门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P6d 已把回复回放并入聚合 Agent Eval；后续上线或作品集展示仍需要手动串多个命令，容易漏跑默认 eval、回复回放或 RAG 矩阵。
+- **决策**:
+  - 新增独立 release gate 脚本，只编排已有 eval/probe/RAG 命令，不接管业务逻辑。
+  - 默认门禁跑轻量但关键的 3 步：默认 133 eval、客户 graph 回复回放 probe、扩展 163 eval。
+  - RAG 矩阵通过显式 `--include-rag-matrix` 加入加强门禁，避免每次默认门禁都加载 embedding。
+  - 子进程输出使用 `errors="replace"`，并提前创建报告父目录，防止第三方库进度条编码或缺目录导致门禁误失败。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 LangChain AI 应用层发布门禁脚本，支持 `--summary`、`--json`、`--json-out` 和 `--include-rag-matrix`。
+  - `tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 覆盖默认步骤、RAG 可选步骤、失败短路、输出流容错和目录创建。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，6 项失败 0。
+  - `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary` 通过，默认门禁 3 步失败 0。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-rag-matrix --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json --summary` 通过，加强门禁 4 步失败 0。
+
 ## [2026-07-10] - feat(eval): 将 P6d 回复回放并入聚合 Agent Eval
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
