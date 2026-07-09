@@ -1,4 +1,22 @@
 ﻿
+## [2026-07-10] - feat(ops): 增加 LangChain 生产同步交接报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P13b 已明确生产发布证据未通过，生产接口仍返回 `0.85.2`，目标版本为 `0.99.0`；但当前非交互 SSH 返回 `Permission denied (publickey,password)`，无法直接在生产服务器检查 worktree 或重启服务。
+- **决策**:
+  - 新增 P14a 生产同步交接报告脚本，把本地目标 commit、远端 master 状态、P13b 失败原因、SSH 状态、人工动作和复验命令合并为机器可读报告。
+  - 报告不自动登录服务器、不执行重启、不放宽 release gate 或 callback 语义断言。
+  - 当前 `origin/master`、`server/master` 已完成上一轮推送，生产服务仍需人工用有权限账号检查/重启；本轮提交后以最新 `git rev-parse HEAD` 为同步目标。
+- **改动**:
+  - `scripts/report_langchain_production_sync_handoff.py` - 新增生产同步诊断和交接报告。
+  - `tests/scripts/test_report_langchain_production_sync_handoff.py` - 覆盖生产发布证据失败、SSH 不可用、远端 ref 不一致和通过路径。
+  - `scripts/check_langchain_ai_layer_production_plan.py` - 将计划静态验收推进到 P14a/P14b 口径。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P14a 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_langchain_production_sync_handoff.py -q --no-cov` 通过，4 项失败 0。
+  - `python -m ruff check scripts\report_langchain_production_sync_handoff.py tests\scripts\test_report_langchain_production_sync_handoff.py` 通过。
+  - `python scripts\report_langchain_production_sync_handoff.py --release-report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --ssh-status permission_denied --ssh-detail "Permission denied (publickey,password)" --summary` 按预期 blocked，输出 `production_release_not_ready` 和 `server_ssh_unavailable`。
+
 ## [2026-07-10] - feat(obs): 增加生产观测发布证据门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
@@ -7,7 +25,7 @@
   - 新增独立 P13b 门禁，读取 release gate JSON，不重新访问生产，适合用于报告复核和上线收口。
   - 生产版本以 `/health`、`/ready` detail 中真实返回的 `version` 为准，不能只看 smoke metadata 的本地 `APP_VERSION`。
   - LangSmith 未开启可以通过，但 `langsmith_enabled` 必须在摘要中显式记录。
-  - 当前生产报告应保持失败状态，明确暴露生产版本 `0.85.2` 与本地目标 `0.98.0` 不一致，以及 2 个 callback 语义失败用例。
+  - 当前生产报告应保持失败状态，明确暴露生产版本 `0.85.2` 与本地目标 `0.99.0` 不一致，以及 2 个 callback 语义失败用例。
 - **改动**:
   - `scripts/check_langchain_production_observability_release.py` - 新增生产观测发布证据门禁。
   - `tests/scripts/test_check_langchain_production_observability_release.py` - 覆盖通过报告、当前生产漂移形态、LangSmith 状态缺失和 CLI JSON 输出。
