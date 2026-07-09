@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-023：LangChain AI 应用层 P14b 生产运行时版本门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p14b-production-runtime-version-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_production_runtime_version.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_production_runtime_version.py`; `D:\Project\YunxiBakeBot\scripts\report_langchain_production_sync_handoff.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_langchain_production_sync_handoff.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_production_runtime_version.py tests\scripts\test_report_langchain_production_sync_handoff.py -q --no-cov`; `python -m ruff check scripts\check_langchain_production_runtime_version.py scripts\report_langchain_production_sync_handoff.py tests\scripts\test_check_langchain_production_runtime_version.py tests\scripts\test_report_langchain_production_sync_handoff.py`; `python scripts\check_langchain_production_runtime_version.py --summary`; `python scripts\report_langchain_production_sync_handoff.py --release-report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --ssh-status permission_denied --ssh-detail "Permission denied (publickey,password)" --json-out reports\harness\langchain-production-sync-handoff-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(ops): 增加生产运行时版本门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮门禁只访问公网 `/health` 和 `/ready`，记录状态、版本和失败摘要；不包含客户原文、手机号、地址、open_id、服务器密码、私钥、callback token、AES key 或 API key。runtime 和 handoff 报告保存在 gitignored reports 目录。
+- summary: P14b 新增生产运行时版本门禁，直接把公网 `/health`、`/ready` 的真实 `version` 与本地 `VERSION` 单一来源比对，并接入 P14 handoff blockers。当前门禁按预期失败，生产 runtime_versions=`0.85.2`；handoff blockers 变为 `production_release_not_ready`、`production_runtime_version_mismatch` 和 `server_ssh_unavailable`。后续 P14c 需要具备生产权限的账号同步并重启服务，先让 runtime gate 通过，再复跑 release gate 和 callback probe。
+
 ## E-20260710-022：LangChain AI 应用层 P14a 生产同步交接报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -11,7 +25,7 @@
 - related_adr: 0003-langchain-ai-layer-boundary
 - contains_sensitive_data: no
 - retention_note: 本轮报告只记录 commit、版本、release gate 摘要、SSH 权限状态和人工动作；不包含服务器密码、私钥、callback token、AES key、客户原文、手机号、地址、open_id 或 API key。`reports\harness\langchain-production-sync-handoff-latest.json` 位于 gitignored reports 目录。
-- summary: P14a 新增生产同步诊断和交接报告。当前生产同步目标以本轮最新 `git rev-parse HEAD` 和 `VERSION=0.99.0` 为准；生产 `/health`、`/ready` 仍返回 `0.85.2`，P13b 发布证据未通过，且当前非交互 SSH 为 `Permission denied (publickey,password)`。报告输出 blocked，blockers 为 `production_release_not_ready` 和 `server_ssh_unavailable`，后续需使用具备生产权限的账号检查 `/opt/yunxibakebot`、重启 `yunxibakebot` 并复跑 release gate。
+- summary: P14a 新增生产同步诊断和交接报告。当前生产同步目标以本轮最新 `git rev-parse HEAD` 和仓库 `VERSION` 为准；生产 `/health`、`/ready` 仍返回 `0.85.2`，P13b 发布证据未通过，且当前非交互 SSH 为 `Permission denied (publickey,password)`。报告输出 blocked，blockers 为 `production_release_not_ready` 和 `server_ssh_unavailable`，后续需使用具备生产权限的账号检查 `/opt/yunxibakebot`、重启 `yunxibakebot` 并复跑 release gate。
 
 ## E-20260710-021：LangChain AI 应用层 P13b 生产观测发布证据门禁
 
@@ -25,7 +39,7 @@
 - related_adr: 0003-langchain-ai-layer-boundary
 - contains_sensitive_data: no
 - retention_note: 本轮新增门禁只读取既有 release gate 摘要和 smoke/callback 结果字段；不记录 callback token、AES key、密文、客户原文、手机号、地址、open_id 或 API key。当前生产报告位于 gitignored reports 目录，索引只记录失败摘要。
-- summary: P13b 新增生产观测发布证据门禁，复核显式生产 release gate 是否足以作为上线收口。门禁要求 release gate、生产 smoke、企微员工助手 callback probe 和 LangChain 观测证据包均通过；同时从 `/health`、`/ready` detail 解析生产接口真实版本并与本地目标版本比对，避免只看 smoke metadata。当前报告按预期失败，明确指出 release_gate.failed、production_callback.failed 和 production_version_mismatch：生产接口仍返回 `0.85.2`，本地目标为 `0.99.0`，callback 失败用例为 `p2c-today-wait-buyer-confirm-list`、`p2c-refund-policy-knowledge`。
+- summary: P13b 新增生产观测发布证据门禁，复核显式生产 release gate 是否足以作为上线收口。门禁要求 release gate、生产 smoke、企微员工助手 callback probe 和 LangChain 观测证据包均通过；同时从 `/health`、`/ready` detail 解析生产接口真实版本并与本地目标版本比对，避免只看 smoke metadata。当前报告按预期失败，明确指出 release_gate.failed、production_callback.failed 和 production_version_mismatch：生产接口仍返回 `0.85.2`，本地目标以仓库 `VERSION` 为准，callback 失败用例为 `p2c-today-wait-buyer-confirm-list`、`p2c-refund-policy-knowledge`。
 
 ## E-20260710-020：LangChain AI 应用层 P13 观测证据包
 

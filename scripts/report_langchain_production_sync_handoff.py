@@ -14,6 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from scripts import check_langchain_production_observability_release as release_check  # noqa: E402
+from scripts import check_langchain_production_runtime_version as runtime_check  # noqa: E402
 
 DEFAULT_RELEASE_REPORT_PATH = release_check.DEFAULT_RELEASE_REPORT_PATH
 DEFAULT_TARGET_REMOTE_NAMES = ("origin", "server")
@@ -40,6 +41,7 @@ def build_production_sync_handoff_report(
     release_report_path: Path,
     local_commit: str | None = None,
     remote_refs: tuple[GitRefStatus, ...] | None = None,
+    runtime_report: dict[str, object] | None = None,
     ssh_status: str = "not_checked",
     ssh_detail: str = "",
 ) -> dict[str, object]:
@@ -54,8 +56,14 @@ def build_production_sync_handoff_report(
         release_report_path,
         expected_version=expected_version,
     )
+    current_runtime_report = (
+        runtime_report
+        if runtime_report is not None
+        else asyncio_run_runtime_check(expected_version)
+    )
     blockers = collect_sync_blockers(
         release_report=release_report,
+        runtime_report=current_runtime_report,
         local_commit=current_local_commit,
         remote_refs=current_remote_refs,
         ssh_status=ssh_status,
@@ -69,6 +77,7 @@ def build_production_sync_handoff_report(
         "target_commit": current_local_commit,
         "release_report": str(release_report_path),
         "release_check": release_report,
+        "runtime_check": current_runtime_report,
         "remote_refs": [ref.to_dict() for ref in current_remote_refs],
         "ssh": {
             "status": ssh_status,
@@ -87,6 +96,7 @@ def build_production_sync_handoff_report(
 def collect_sync_blockers(
     *,
     release_report: dict[str, object],
+    runtime_report: dict[str, object],
     local_commit: str,
     remote_refs: tuple[GitRefStatus, ...],
     ssh_status: str,
@@ -107,6 +117,18 @@ def collect_sync_blockers(
                         )
                         if isinstance(finding, dict)
                     ],
+                },
+            }
+        )
+    if runtime_report.get("status") != "passed":
+        blockers.append(
+            {
+                "code": "production_runtime_version_mismatch",
+                "message": "生产 /health 或 /ready 真实版本未切到目标版本。",
+                "detail": {
+                    "expected_version": runtime_report.get("expected_version", ""),
+                    "endpoint_versions": runtime_report.get("endpoint_versions", {}),
+                    "failed_names": runtime_report.get("failed_names", []),
                 },
             }
         )
@@ -166,6 +188,7 @@ def build_manual_actions(
 
 def build_post_sync_verification_commands() -> list[str]:
     return [
+        "python scripts\\check_langchain_production_runtime_version.py --summary",
         "python scripts\\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\\agent-eval\\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary",
         "python scripts\\check_langchain_production_observability_release.py --report reports\\agent-eval\\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary",
         "python scripts\\check_project.py --skip-tests",
@@ -219,6 +242,14 @@ def run_git_command(command: tuple[str, ...]) -> str:
     return completed.stdout.strip()
 
 
+def asyncio_run_runtime_check(expected_version: str) -> dict[str, object]:
+    import asyncio
+
+    return asyncio.run(
+        runtime_check.build_runtime_version_report(expected_version=expected_version)
+    )
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build LangChain production sync handoff report"
@@ -267,11 +298,13 @@ def main(argv: list[str] | None = None) -> int:
 def print_summary(report: dict[str, object]) -> None:
     release_check_report = release_check.dict_value(report, "release_check")
     production = release_check.dict_value(release_check_report, "production")
+    runtime_report = release_check.dict_value(report, "runtime_check")
     print(
         "langchain_production_sync_handoff "
         f"status={report['status']} blockers={len(report['blockers'])} "
         f"target_commit={report['target_commit']} "
         f"expected_version={report['expected_version']} "
+        f"runtime_status={runtime_report.get('status', 'missing')} "
         f"callback_failed={production.get('callback_failed', 0)}"
     )
     for blocker in release_check.list_value(report, "blockers"):

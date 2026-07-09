@@ -1,8 +1,28 @@
 ﻿
+## [2026-07-10] - feat(ops): 增加生产运行时版本门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P14a 交接报告已经能汇总 release gate 和 SSH 状态，但生产版本漂移还依赖 release JSON 或人工 curl 输出；需要一个更小、更直接的公网 live gate 来证明 `/health`、`/ready` 是否已运行目标版本。
+- **决策**:
+  - 新增生产运行时版本门禁，直接访问 `/health` 和 `/ready`，与本地 `VERSION` 单一来源比对。
+  - 将 live runtime gate 接入 P14 生产同步交接报告，让 blockers 同时覆盖 release 证据、运行时版本和 SSH 状态。
+  - 当前 live gate 失败是正确状态：生产仍返回 `0.85.2`，不能视为当前代码已经上线。
+- **改动**:
+  - `scripts/check_langchain_production_runtime_version.py` - 新增生产运行时版本门禁。
+  - `tests/scripts/test_check_langchain_production_runtime_version.py` - 覆盖版本匹配、版本漂移、请求失败和 CLI JSON 输出。
+  - `scripts/report_langchain_production_sync_handoff.py` - 将 live runtime gate 纳入 handoff blockers 和复验命令。
+  - `tests/scripts/test_report_langchain_production_sync_handoff.py` - 更新 runtime blocker 覆盖。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P14b 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_production_runtime_version.py tests\scripts\test_report_langchain_production_sync_handoff.py -q --no-cov` 通过，8 项失败 0。
+  - `python -m ruff check scripts\check_langchain_production_runtime_version.py scripts\report_langchain_production_sync_handoff.py tests\scripts\test_check_langchain_production_runtime_version.py tests\scripts\test_report_langchain_production_sync_handoff.py` 通过。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 按预期失败，输出 `runtime_versions=0.85.2`。
+  - `python scripts\report_langchain_production_sync_handoff.py --release-report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --ssh-status permission_denied --ssh-detail "Permission denied (publickey,password)" --summary` 按预期 blocked，输出 runtime version blocker。
+
 ## [2026-07-10] - feat(ops): 增加 LangChain 生产同步交接报告
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
-- **背景**: P13b 已明确生产发布证据未通过，生产接口仍返回 `0.85.2`，目标版本为 `0.99.0`；但当前非交互 SSH 返回 `Permission denied (publickey,password)`，无法直接在生产服务器检查 worktree 或重启服务。
+- **背景**: P13b 已明确生产发布证据未通过，生产接口仍返回 `0.85.2`，目标版本以仓库 `VERSION` 为准；但当前非交互 SSH 返回 `Permission denied (publickey,password)`，无法直接在生产服务器检查 worktree 或重启服务。
 - **决策**:
   - 新增 P14a 生产同步交接报告脚本，把本地目标 commit、远端 master 状态、P13b 失败原因、SSH 状态、人工动作和复验命令合并为机器可读报告。
   - 报告不自动登录服务器、不执行重启、不放宽 release gate 或 callback 语义断言。
@@ -25,7 +45,7 @@
   - 新增独立 P13b 门禁，读取 release gate JSON，不重新访问生产，适合用于报告复核和上线收口。
   - 生产版本以 `/health`、`/ready` detail 中真实返回的 `version` 为准，不能只看 smoke metadata 的本地 `APP_VERSION`。
   - LangSmith 未开启可以通过，但 `langsmith_enabled` 必须在摘要中显式记录。
-  - 当前生产报告应保持失败状态，明确暴露生产版本 `0.85.2` 与本地目标 `0.99.0` 不一致，以及 2 个 callback 语义失败用例。
+  - 当前生产报告应保持失败状态，明确暴露生产版本 `0.85.2` 与本地目标 `VERSION` 不一致，以及 2 个 callback 语义失败用例。
 - **改动**:
   - `scripts/check_langchain_production_observability_release.py` - 新增生产观测发布证据门禁。
   - `tests/scripts/test_check_langchain_production_observability_release.py` - 覆盖通过报告、当前生产漂移形态、LangSmith 状态缺失和 CLI JSON 输出。

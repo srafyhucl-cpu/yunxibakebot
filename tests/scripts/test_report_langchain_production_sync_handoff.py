@@ -36,6 +36,7 @@ def test_handoff_blocks_on_release_failure_and_ssh_denied(
             handoff.GitRefStatus("origin", "abc123", "ok"),
             handoff.GitRefStatus("server", "abc123", "ok"),
         ),
+        runtime_report=build_runtime_report(status="failed"),
         ssh_status="permission_denied",
         ssh_detail="Permission denied",
     )
@@ -43,6 +44,7 @@ def test_handoff_blocks_on_release_failure_and_ssh_denied(
 
     assert report["status"] == "blocked"
     assert "production_release_not_ready" in blocker_codes
+    assert "production_runtime_version_mismatch" in blocker_codes
     assert "server_ssh_unavailable" in blocker_codes
     assert report["release_check"]["production"]["callback_failed"] == 2
     assert report["manual_actions"][0] == "用具备生产权限的账号登录服务器。"
@@ -65,6 +67,7 @@ def test_handoff_blocks_on_remote_ref_mismatch(tmp_path: Path, monkeypatch) -> N
             handoff.GitRefStatus("origin", "target", "ok"),
             handoff.GitRefStatus("server", "old", "ok"),
         ),
+        runtime_report=build_runtime_report(),
         ssh_status="available",
     )
     blocker_codes = [blocker["code"] for blocker in report["blockers"]]
@@ -94,6 +97,7 @@ def test_handoff_passes_when_release_refs_and_ssh_are_ready(
             handoff.GitRefStatus("origin", "target", "ok"),
             handoff.GitRefStatus("server", "target", "ok"),
         ),
+        runtime_report=build_runtime_report(),
         ssh_status="available",
     )
 
@@ -102,6 +106,9 @@ def test_handoff_passes_when_release_refs_and_ssh_are_ready(
     assert report["post_sync_verification"][-1] == (
         "python scripts\\check_evidence_index.py --summary"
     )
+    assert report["post_sync_verification"][0] == (
+        "python scripts\\check_langchain_production_runtime_version.py --summary"
+    )
 
 
 def test_main_writes_json_and_summary(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -109,6 +116,11 @@ def test_main_writes_json_and_summary(tmp_path: Path, monkeypatch, capsys) -> No
         handoff.release_check, "read_expected_version", lambda: "0.98.0"
     )
     monkeypatch.setattr(handoff, "read_local_commit", lambda: "target")
+    monkeypatch.setattr(
+        handoff,
+        "asyncio_run_runtime_check",
+        lambda _expected_version: build_runtime_report(),
+    )
     monkeypatch.setattr(
         handoff,
         "read_remote_ref",
@@ -186,4 +198,16 @@ def build_release_payload(
                 "langsmith_enabled": False,
             },
         },
+    }
+
+
+def build_runtime_report(status: str = "passed") -> dict[str, object]:
+    is_passed = status == "passed"
+    version = "0.99.0" if is_passed else "0.85.2"
+    return {
+        "status": status,
+        "expected_version": "0.99.0",
+        "endpoint_versions": {"health": version, "ready": version},
+        "failed": 0 if is_passed else 2,
+        "failed_names": [] if is_passed else ["health", "ready"],
     }
