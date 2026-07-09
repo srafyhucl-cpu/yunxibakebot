@@ -134,6 +134,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
         "scripts/check_real_conversation_replay_pool.py",
         "--summary",
     ),
+    (
+        sys.executable,
+        "scripts/report_langchain_observability_evidence.py",
+        "--summary",
+    ),
 )
 
 # ── 洁净代码检查常量 ────────────────────────────────────────────────────────

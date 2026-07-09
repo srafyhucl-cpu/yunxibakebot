@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P11d 已完成；P12 样本池准入门禁已完成，下一步建议进入 P12 真实脱敏样本接入或 P13 生产观测证据收口。
+> 状态：持续执行中，P0-P11d 已完成；P12 样本池准入门禁和 P13a 观测证据包已完成，下一步建议接入真实脱敏样本或生产环境观测证据。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1458,6 +1458,43 @@ P12 后续：
 - 拿到真实客服脱敏导出后，先通过 P11c 导出器或等价脱敏流程生成 fixture，再登记到样本池 manifest，设置 `is_real_customer_data=true` 和对应 evidence id。
 - 真实样本接入验收必须运行 `scripts/check_real_conversation_replay_pool.py --require-real --summary` 和 `scripts/check_langchain_ai_layer_release_gate.py --include-real-replay-pool --require-real-replay-pool --summary`。
 - 当前仓库仍没有真实客服样本池，只有合成样例和准入门禁；不得把 `real_pool_ready=false` 的报告用于证明真实问题分布。
+
+## 二十五、P13a 落地记录
+
+2026-07-10 已完成 P13 生产观测证据收口的第一切片：
+
+- 新增 `scripts/report_langchain_observability_evidence.py`，默认运行受控 fake trace probe，汇总双机器人 trace、LangSmith 配置状态、密钥脱敏状态和冷导入重依赖检查。
+- 观测证据包不访问真实数据库、不调用外部 LLM、不发送企微消息；报告只包含节点名、计数、配置布尔值和冷导入结果。
+- 冷导入检查覆盖 `app.config` 和 `app.service.agents.rag.modes`，要求不加载 `langsmith`、`langchain_openai`、`langgraph`、`langchain_core`。
+- `scripts/check_langchain_ai_layer_release_gate.py` 新增显式 `--include-observability-evidence`，默认 release gate 行为不变。
+- `scripts/check_project.py --skip-tests` 已接入观测证据包，持续证明 trace probe/report 链路可用。
+
+P13a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\report_langchain_observability_evidence.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\report_langchain_observability_evidence.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\report_langchain_observability_evidence.py --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-observability-evidence --summary
+python scripts\check_project.py --skip-tests
+```
+
+P13a 验证结果：
+
+```text
+观测证据包和 release gate 测试通过：33 项失败 0。
+Ruff check 通过。
+观测证据包通过：trace_status=ok，langsmith_enabled=false。
+显式观测 release gate 通过：4 步失败 0。
+check_project.py --skip-tests 已包含 langchain_observability_evidence 业务合约。
+```
+
+P13 后续：
+
+- 若需要线上 LangSmith，下一步应只做生产环境变量注入、容量探针和外发验证，不改变默认本地关闭策略。
+- 若需要生产观测证据，应在生产同步后运行 `scripts/report_langchain_observability_evidence.py --summary` 和显式 `--include-production-smoke --include-observability-evidence` release gate，并把 gitignored reports 摘要登记到 evidence index。
+- 当前 P13a 证明本地/准生产观测链路可用，不等同于 LangSmith 线上外发已经启用。
 
 ## 五、推荐执行顺序
 

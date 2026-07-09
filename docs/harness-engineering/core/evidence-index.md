@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-020：LangChain AI 应用层 P13 观测证据包
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p13-langchain-observability-evidence
+- file: `D:\Project\YunxiBakeBot\scripts\report_langchain_observability_evidence.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_langchain_observability_evidence.py`; `D:\Project\YunxiBakeBot\scripts\probe_agent_traces.py`; `D:\Project\YunxiBakeBot\scripts\report_agent_traces.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\report_langchain_observability_evidence.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\report_langchain_observability_evidence.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\report_langchain_observability_evidence.py --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-observability-evidence --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(obs): 增加 LangChain 观测证据包
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮观测证据包使用受控 fake trace probe，不访问真实数据库、不调用外部 LLM、不发送企微消息；报告只包含节点名、计数、LangSmith 开关状态、密钥是否配置的布尔值和冷导入结果，不包含 API key、客户原文、手机号、地址或 open_id。
+- summary: P13a 新增 LangChain AI 应用层观测证据包。脚本默认运行本地 trace probe 并汇总双机器人 trace，同时检查 LangSmith 默认关闭且密钥不进入报告，并验证 `app.config` 和 `app.service.agents.rag.modes` 冷导入不加载 `langsmith`、`langchain_openai`、`langgraph`、`langchain_core` 等重依赖。release gate 新增显式 `--include-observability-evidence`，项目门禁 `check_project.py --skip-tests` 也接入该检查。
+
 ## E-20260710-019：LangChain AI 应用层 P12 real replay 样本池准入门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

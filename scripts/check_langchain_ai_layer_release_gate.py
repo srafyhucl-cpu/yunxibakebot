@@ -39,6 +39,9 @@ DEFAULT_REAL_POOL_MANIFEST_PATH = (
 DEFAULT_REAL_POOL_REPORT_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replay-pool.json"
 )
+DEFAULT_OBSERVABILITY_EVIDENCE_PATH = (
+    ROOT_DIR / "reports" / "agent-traces" / "langchain-observability-evidence.json"
+)
 DEFAULT_RAG_MATRIX_PATH = ROOT_DIR / "reports" / "rag-eval" / "latest-matrix.json"
 DEFAULT_PRODUCTION_SMOKE_PATH = (
     ROOT_DIR / "reports" / "smoke" / "langchain-prod-smoke-{timestamp}.json"
@@ -89,6 +92,7 @@ def build_gate_steps(
     include_real_replay_coverage: bool = False,
     include_real_replay_pool: bool = False,
     require_real_replay_pool: bool = False,
+    include_observability_evidence: bool = False,
     include_production_smoke: bool = False,
     production_base_url: str = DEFAULT_PRODUCTION_BASE_URL,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
@@ -101,6 +105,7 @@ def build_gate_steps(
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_manifest_path: Path = DEFAULT_REAL_POOL_MANIFEST_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
+    observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     real_replay_min_per_scenario: int = 5,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
@@ -210,6 +215,19 @@ def build_gate_steps(
                 command=tuple(pool_command),
             )
         )
+    if include_observability_evidence:
+        steps.append(
+            GateStep(
+                name="langchain_observability_evidence",
+                command=(
+                    sys.executable,
+                    "scripts/report_langchain_observability_evidence.py",
+                    "--json-out",
+                    str(observability_evidence_path),
+                    "--summary",
+                ),
+            )
+        )
     if include_rag_matrix:
         steps.append(
             GateStep(
@@ -293,6 +311,7 @@ def build_gate_report(
     include_real_replay_coverage: bool,
     include_real_replay_pool: bool = False,
     require_real_replay_pool: bool,
+    include_observability_evidence: bool,
     include_production_smoke: bool,
     production_base_url: str,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
@@ -301,6 +320,7 @@ def build_gate_report(
     real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
+    observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -314,6 +334,7 @@ def build_gate_report(
         "include_real_replay_coverage": include_real_replay_coverage,
         "include_real_replay_pool": include_real_replay_pool,
         "require_real_replay_pool": require_real_replay_pool,
+        "include_observability_evidence": include_observability_evidence,
         "include_production_smoke": include_production_smoke,
         "production_base_url": production_base_url
         if include_production_smoke
@@ -325,6 +346,7 @@ def build_gate_report(
             include_real_replay=include_real_replay,
             include_real_replay_coverage=include_real_replay_coverage,
             include_real_replay_pool=include_real_replay_pool,
+            include_observability_evidence=include_observability_evidence,
             include_production_smoke=include_production_smoke,
             agent_eval_path=agent_eval_path,
             reply_eval_path=reply_eval_path,
@@ -332,6 +354,7 @@ def build_gate_report(
             real_agent_eval_path=real_agent_eval_path,
             real_coverage_path=real_coverage_path,
             real_pool_report_path=real_pool_report_path,
+            observability_evidence_path=observability_evidence_path,
             rag_matrix_path=rag_matrix_path,
             production_smoke_path=production_smoke_path,
             production_callback_path=production_callback_path,
@@ -346,6 +369,7 @@ def build_release_summary(
     include_real_replay: bool,
     include_real_replay_coverage: bool,
     include_real_replay_pool: bool = False,
+    include_observability_evidence: bool = False,
     include_production_smoke: bool,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
     reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
@@ -353,6 +377,7 @@ def build_release_summary(
     real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
+    observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -368,6 +393,7 @@ def build_release_summary(
         "agent_eval_with_real_replay": None,
         "real_conversation_replay_coverage": None,
         "real_conversation_replay_pool": None,
+        "langchain_observability_evidence": None,
         "rag_eval_matrix": None,
         "production_smoke": None,
         "production_employee_callback_probe": None,
@@ -386,6 +412,10 @@ def build_release_summary(
     if include_real_replay_pool:
         summary["real_conversation_replay_pool"] = summarize_replay_pool_report(
             read_json_report(real_pool_report_path)
+        )
+    if include_observability_evidence:
+        summary["langchain_observability_evidence"] = summarize_observability_report(
+            read_json_report(observability_evidence_path)
         )
     if include_rag_matrix:
         summary["rag_eval_matrix"] = summarize_rag_matrix_report(
@@ -487,6 +517,20 @@ def summarize_replay_pool_report(report: dict[str, object]) -> dict[str, object]
     }
 
 
+def summarize_observability_report(report: dict[str, object]) -> dict[str, object]:
+    trace = _dict_value(report, "trace")
+    langsmith = _dict_value(report, "langsmith")
+    return {
+        "status": report.get("status", "missing"),
+        "failed": report.get("failed", 0),
+        "trace_status": trace.get("status", "missing"),
+        "trace_total_runs": trace.get("total_runs", 0),
+        "langsmith_enabled": langsmith.get("enabled", False),
+        "langsmith_project": langsmith.get("project", ""),
+        "cold_imports": report.get("cold_imports", []),
+    }
+
+
 def summarize_named_results(report: dict[str, object]) -> list[dict[str, object]]:
     summaries = []
     for result in _list_value(report, "results"):
@@ -572,6 +616,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="要求样本池至少包含一个通过门禁的真实脱敏条目",
     )
     parser.add_argument(
+        "--include-observability-evidence",
+        action="store_true",
+        help="额外运行 LangChain AI 应用层观测证据包",
+    )
+    parser.add_argument(
         "--include-production-smoke",
         action="store_true",
         help="额外运行生产 /health、/ready、企微员工助手 callback 探针",
@@ -591,6 +640,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay=args.include_real_replay,
         include_real_replay_coverage=args.include_real_replay_coverage,
         include_real_replay_pool=args.include_real_replay_pool,
+        include_observability_evidence=args.include_observability_evidence,
         include_production_smoke=args.include_production_smoke,
     )
     steps = build_gate_steps(
@@ -599,6 +649,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay_coverage=args.include_real_replay_coverage,
         include_real_replay_pool=args.include_real_replay_pool,
         require_real_replay_pool=args.require_real_replay_pool,
+        include_observability_evidence=args.include_observability_evidence,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
         real_replay_fixture_path=args.real_replay_fixture,
@@ -613,6 +664,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay_coverage=args.include_real_replay_coverage,
         include_real_replay_pool=args.include_real_replay_pool,
         require_real_replay_pool=args.require_real_replay_pool,
+        include_observability_evidence=args.include_observability_evidence,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
         agent_eval_path=DEFAULT_AGENT_EVAL_PATH,
@@ -621,6 +673,7 @@ def main(argv: list[str] | None = None) -> int:
         real_agent_eval_path=DEFAULT_REAL_AGENT_EVAL_PATH,
         real_coverage_path=DEFAULT_REAL_COVERAGE_PATH,
         real_pool_report_path=DEFAULT_REAL_POOL_REPORT_PATH,
+        observability_evidence_path=DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
         rag_matrix_path=DEFAULT_RAG_MATRIX_PATH,
         production_smoke_path=DEFAULT_PRODUCTION_SMOKE_PATH,
         production_callback_path=DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -649,6 +702,7 @@ def ensure_output_directories(
     include_real_replay: bool = False,
     include_real_replay_coverage: bool = False,
     include_real_replay_pool: bool = False,
+    include_observability_evidence: bool = False,
     include_production_smoke: bool = False,
 ) -> None:
     DEFAULT_AGENT_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -662,6 +716,8 @@ def ensure_output_directories(
         DEFAULT_REAL_COVERAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_real_replay_pool:
         DEFAULT_REAL_POOL_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if include_observability_evidence:
+        DEFAULT_OBSERVABILITY_EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_rag_matrix:
         DEFAULT_RAG_MATRIX_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_production_smoke:

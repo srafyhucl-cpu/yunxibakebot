@@ -86,6 +86,24 @@ def test_build_gate_steps_can_include_real_replay_pool(tmp_path: Path) -> None:
     assert "--require-real" in pool_step.command
 
 
+def test_build_gate_steps_can_include_observability_evidence(tmp_path: Path) -> None:
+    output_path = tmp_path / "observability.json"
+    steps = release_gate.build_gate_steps(
+        include_observability_evidence=True,
+        observability_evidence_path=output_path,
+    )
+    observability_step = [
+        step for step in steps if step.name == "langchain_observability_evidence"
+    ][0]
+
+    assert (
+        "scripts/report_langchain_observability_evidence.py"
+        in observability_step.command
+    )
+    assert "--json-out" in observability_step.command
+    assert str(output_path) in observability_step.command
+
+
 def test_build_gate_steps_keeps_production_smoke_optional() -> None:
     steps = release_gate.build_gate_steps(include_production_smoke=False)
 
@@ -349,6 +367,47 @@ def test_build_release_summary_extracts_real_replay_pool(tmp_path: Path) -> None
     assert pool["real_pool_ready"] is False
 
 
+def test_build_release_summary_extracts_observability_evidence(
+    tmp_path: Path,
+) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    observability_path = tmp_path / "observability.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    observability_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "failed": 0,
+                "trace": {"status": "ok", "total_runs": 2},
+                "langsmith": {"enabled": False, "project": "yunxi-bakebot"},
+                "cold_imports": [{"module": "app.config", "status": "passed"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_real_replay=False,
+        include_real_replay_coverage=False,
+        include_real_replay_pool=False,
+        include_observability_evidence=True,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        observability_evidence_path=observability_path,
+    )
+
+    observability = summary["langchain_observability_evidence"]
+
+    assert observability["status"] == "passed"
+    assert observability["trace_total_runs"] == 2
+    assert observability["langsmith_enabled"] is False
+    assert observability["cold_imports"][0]["module"] == "app.config"
+
+
 def test_build_release_summary_extracts_rag_and_production_reports(
     tmp_path: Path,
 ) -> None:
@@ -548,6 +607,48 @@ def test_main_records_real_replay_pool_options(
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
 
+def test_main_records_observability_evidence_options(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    captured_steps: list[release_gate.GateStep] = []
+
+    def fake_run_gate_steps(steps):
+        captured_steps.extend(steps)
+        return (
+            release_gate.GateStepResult(
+                name="langchain_observability_evidence",
+                command=(
+                    "python",
+                    "scripts/report_langchain_observability_evidence.py",
+                ),
+                returncode=0,
+                stdout="langchain_observability_evidence status=passed",
+                stderr="",
+            ),
+        )
+
+    monkeypatch.setattr(release_gate, "run_gate_steps", fake_run_gate_steps)
+    output_path = tmp_path / "gate.json"
+
+    exit_code = release_gate.main(
+        [
+            "--include-observability-evidence",
+            "--json-out",
+            str(output_path),
+            "--summary",
+        ]
+    )
+
+    payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert any(
+        step.name == "langchain_observability_evidence" for step in captured_steps
+    )
+    assert payload["include_observability_evidence"] is True
+    assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
+
+
 def test_main_records_production_smoke_options(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
@@ -680,6 +781,39 @@ def test_ensure_output_directories_creates_real_coverage_parent(
     )
 
     assert coverage_path.parent.exists()
+
+
+def test_ensure_output_directories_creates_observability_parent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    observability_path = tmp_path / "agent-traces" / "observability.json"
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_AGENT_EVAL_PATH",
+        tmp_path / "agent-eval" / "latest.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_PROBE_PATH",
+        tmp_path / "agent-eval" / "reply-probe.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_EVAL_PATH",
+        tmp_path / "agent-eval" / "reply-eval.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_OBSERVABILITY_EVIDENCE_PATH",
+        observability_path,
+    )
+
+    release_gate.ensure_output_directories(
+        include_rag_matrix=False,
+        include_observability_evidence=True,
+    )
+
+    assert observability_path.parent.exists()
 
 
 def test_ensure_output_directories_creates_production_report_parents(

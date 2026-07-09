@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加 LangChain 观测证据包
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P1 已完成本地 trace 报告、显式 trace 导出和 fake graph probe，但 P13 还缺少一个可直接用于 release gate 和作品集证据的观测证据包入口。
+- **决策**:
+  - 新增观测证据报告脚本，默认运行受控 fake trace probe，不访问真实数据库、不调用外部 LLM、不发送企微消息。
+  - 报告汇总 trace 摘要、LangSmith 配置状态、密钥脱敏状态和冷导入重依赖检查。
+  - release gate 通过显式 `--include-observability-evidence` 接入，默认门禁行为不变。
+  - 将观测证据脚本接入 `check_project.py --skip-tests`，持续证明 trace 报告链路可用。
+- **改动**:
+  - `scripts/report_langchain_observability_evidence.py` - 新增 LangChain AI 应用层观测证据包。
+  - `tests/scripts/test_report_langchain_observability_evidence.py` - 覆盖 trace input、无 trace 失败、LangSmith 密钥脱敏、冷导入失败和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 `--include-observability-evidence` 和 release summary 摘要。
+  - `scripts/check_project.py` - 将观测证据脚本接入业务合约检查。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，33 项失败 0。
+  - `python -m ruff check scripts\report_langchain_observability_evidence.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_report_langchain_observability_evidence.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\report_langchain_observability_evidence.py --summary` 通过，`trace_status=ok`，`langsmith_enabled=false`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-observability-evidence --summary` 通过，4 步失败 0。
+
 ## [2026-07-10] - feat(eval): 增加真实会话样本池准入门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
