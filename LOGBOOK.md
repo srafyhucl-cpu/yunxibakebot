@@ -23,6 +23,11 @@
   - `python scripts\check_evidence_index.py --summary` 通过。
   - `python scripts\check_project.py --skip-tests` 通过。
   - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+  - 生产 `/opt/yunxibakebot` 已同步到 `0fe2f0298afb911dacaa7c07924d8db1e836da8a`，`VERSION=0.105.5`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.5`。
+  - 生产 `/health` 和 `/ready` 均返回 `version=0.105.5`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - P21b 可进一步接入生产 `/metrics` 或 systemd 只读资源指标；仍需避免在客服高峰期做主动压测。
 
