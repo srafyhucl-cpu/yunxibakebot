@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-10] - feat(eval): 将真实会话回放接入发布门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P11a 已建立脱敏真实会话 replay 契约和聚合 eval 入口，但 release gate 还不能一键把真实 replay 作为上线前显式门禁执行。
+- **决策**:
+  - 默认 release gate 仍保持本地 133 eval、客户 graph 回复回放 probe 和扩展 163 eval，不默认增加真实 replay 成本。
+  - 通过显式 `--include-real-replay` 追加脱敏 replay 契约检查和包含 real replay 的聚合 Agent Eval。
+  - `--real-replay-fixture` 允许后续接入真实脱敏样本文件，不把 fixture 路径写死在门禁逻辑里。
+  - `release_summary` 只抽取 real replay 相关报告指标，不改变门禁通过判定。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 real replay 默认报告路径、`--include-real-replay`、`--real-replay-fixture`、两步门禁编排和 `release_summary` 摘要。
+  - `tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 覆盖默认不跑 real replay、显式运行、summary 提取、CLI 参数记录和输出目录创建。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P11b 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，35 项失败 0。
+  - `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary` 通过，3 步失败 0。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-real-replay-latest.json --summary` 通过，5 步失败 0。
+  - JSON 摘要抽查：默认门禁 Agent Eval 133/133、回复回放扩展 163/163；real replay 门禁脱敏 replay 样例 2/2、并入聚合 Agent Eval 后 135/135。
+
 ## [2026-07-10] - feat(eval): 增加 P11a 脱敏真实会话回放入口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

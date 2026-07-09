@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-015：LangChain AI 应用层 P11b real replay 发布门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p11b-real-conversation-replay-release-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay.py`; `D:\Project\YunxiBakeBot\scripts\report_agent_eval.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_real_conversation_replay.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-real-replay-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replay-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\real-conversation-replies-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest-with-real-conversation-replay.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-real-replay-latest.json --summary`; JSON 摘要抽查 `release_summary.real_conversation_replay` 和 `release_summary.agent_eval_with_real_replay`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 将真实会话回放接入发布门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮 release gate 使用 P11a schema sample，不包含真实客户原文；报告只记录 case id、golden case id、场景标签、断言结果、聚合数量和失败数；`reports\agent-eval\*.json` 位于 gitignored reports 目录，后续接入真实样本前必须先脱敏并保持 `contains_sensitive_data=false`。
+- summary: P11b 将脱敏真实会话 replay 接入 LangChain AI 应用层 release gate。默认门禁仍保持 3 步并通过 3/3；显式 `--include-real-replay` 后追加 replay 契约检查和 `--include-real-replay` 聚合 Agent Eval，门禁 5/5 通过。JSON 摘要显示默认 Agent Eval 133/133、回复回放扩展 163/163、real replay 样例 2/2、并入聚合 Agent Eval 后 135/135。
+
 ## E-20260710-014：LangChain AI 应用层 P11a 脱敏真实会话回放入口
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

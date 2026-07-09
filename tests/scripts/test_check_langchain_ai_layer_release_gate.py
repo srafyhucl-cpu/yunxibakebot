@@ -25,6 +25,32 @@ def test_build_gate_steps_can_include_rag_matrix() -> None:
     assert "scripts/report_retrieval_eval_matrix.py" in steps[-1].command
 
 
+def test_build_gate_steps_keeps_real_replay_optional() -> None:
+    steps = release_gate.build_gate_steps(include_real_replay=False)
+
+    assert "real_conversation_replay" not in [step.name for step in steps]
+    assert "agent_eval_with_real_replay" not in [step.name for step in steps]
+
+
+def test_build_gate_steps_can_include_real_replay(tmp_path: Path) -> None:
+    fixture_path = tmp_path / "real-replay.json"
+    steps = release_gate.build_gate_steps(
+        include_real_replay=True,
+        real_replay_fixture_path=fixture_path,
+    )
+    step_by_name = {step.name: step for step in steps}
+
+    replay_step = step_by_name["real_conversation_replay"]
+    agent_eval_step = step_by_name["agent_eval_with_real_replay"]
+
+    assert "scripts/check_real_conversation_replay.py" in replay_step.command
+    assert "--replies-json-out" in replay_step.command
+    assert str(fixture_path) in replay_step.command
+    assert "scripts/report_agent_eval.py" in agent_eval_step.command
+    assert "--include-real-replay" in agent_eval_step.command
+    assert str(fixture_path) in agent_eval_step.command
+
+
 def test_build_gate_steps_keeps_production_smoke_optional() -> None:
     steps = release_gate.build_gate_steps(include_production_smoke=False)
 
@@ -124,6 +150,7 @@ def test_build_release_summary_extracts_default_agent_eval(tmp_path: Path) -> No
 
     summary = release_gate.build_release_summary(
         include_rag_matrix=False,
+        include_real_replay=False,
         include_production_smoke=False,
         agent_eval_path=agent_eval_path,
         reply_eval_path=reply_eval_path,
@@ -132,8 +159,67 @@ def test_build_release_summary_extracts_default_agent_eval(tmp_path: Path) -> No
     assert summary["agent_eval_default"]["total"] == 133
     assert summary["agent_eval_default"]["app_version"] == "0.90.0"
     assert summary["agent_eval_with_reply_replay"]["total"] == 163
+    assert summary["real_conversation_replay"] is None
+    assert summary["agent_eval_with_real_replay"] is None
     assert summary["rag_eval_matrix"] is None
     assert summary["production_smoke"] is None
+
+
+def test_build_release_summary_extracts_real_replay_reports(
+    tmp_path: Path,
+) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    real_replay_path = tmp_path / "real-replay.json"
+    real_agent_eval_path = tmp_path / "real-agent.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    real_replay_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 2,
+                "failed": 0,
+                "pass_rate": 1.0,
+                "metadata": {"app_version": "0.92.0"},
+                "agent_totals": [{"agent": "real_conversation_replay", "total": 2}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    real_agent_eval_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 135,
+                "failed": 0,
+                "pass_rate": 1.0,
+                "metadata": {"app_version": "0.92.0"},
+                "agent_totals": [
+                    {"agent": "customer", "total": 71},
+                    {"agent": "real_conversation_replay", "total": 2},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_real_replay=True,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        real_replay_path=real_replay_path,
+        real_agent_eval_path=real_agent_eval_path,
+    )
+
+    assert summary["real_conversation_replay"]["total"] == 2
+    assert summary["agent_eval_with_real_replay"]["total"] == 135
+    assert summary["agent_eval_with_real_replay"]["agent_totals"][-1] == {
+        "agent": "real_conversation_replay",
+        "total": 2,
+    }
 
 
 def test_build_release_summary_extracts_rag_and_production_reports(
@@ -197,6 +283,7 @@ def test_build_release_summary_extracts_rag_and_production_reports(
 
     summary = release_gate.build_release_summary(
         include_rag_matrix=True,
+        include_real_replay=False,
         include_production_smoke=True,
         agent_eval_path=agent_eval_path,
         reply_eval_path=reply_eval_path,
@@ -248,6 +335,45 @@ def test_main_writes_json_summary(monkeypatch, tmp_path: Path, capsys) -> None:
     assert output_path.exists()
     payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
     assert "release_summary" in payload
+    assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
+
+
+def test_main_records_real_replay_options(monkeypatch, tmp_path: Path, capsys) -> None:
+    captured_steps: list[release_gate.GateStep] = []
+
+    def fake_run_gate_steps(steps):
+        captured_steps.extend(steps)
+        return (
+            release_gate.GateStepResult(
+                name="real_conversation_replay",
+                command=("python", "scripts/check_real_conversation_replay.py"),
+                returncode=0,
+                stdout="real_conversation_replay status=passed total=2 failed=0",
+                stderr="",
+            ),
+        )
+
+    monkeypatch.setattr(release_gate, "run_gate_steps", fake_run_gate_steps)
+    output_path = tmp_path / "gate.json"
+    fixture_path = tmp_path / "fixture.json"
+
+    exit_code = release_gate.main(
+        [
+            "--include-real-replay",
+            "--real-replay-fixture",
+            str(fixture_path),
+            "--json-out",
+            str(output_path),
+            "--summary",
+        ]
+    )
+
+    payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert any(step.name == "real_conversation_replay" for step in captured_steps)
+    assert any(str(fixture_path) in step.command for step in captured_steps)
+    assert payload["include_real_replay"] is True
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
 
@@ -315,6 +441,45 @@ def test_ensure_output_directories_creates_rag_parent(
     release_gate.ensure_output_directories(include_rag_matrix=True)
 
     assert rag_path.parent.exists()
+
+
+def test_ensure_output_directories_creates_real_replay_parents(
+    tmp_path: Path, monkeypatch
+) -> None:
+    real_replay_path = tmp_path / "agent-eval" / "real-replay.json"
+    real_replies_path = tmp_path / "agent-eval" / "real-replies.json"
+    real_agent_eval_path = tmp_path / "agent-eval" / "real-agent.json"
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_AGENT_EVAL_PATH",
+        tmp_path / "agent-eval" / "latest.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_PROBE_PATH",
+        tmp_path / "agent-eval" / "reply-probe.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_EVAL_PATH",
+        tmp_path / "agent-eval" / "reply-eval.json",
+    )
+    monkeypatch.setattr(release_gate, "DEFAULT_REAL_REPLAY_PATH", real_replay_path)
+    monkeypatch.setattr(release_gate, "DEFAULT_REAL_REPLIES_PATH", real_replies_path)
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REAL_AGENT_EVAL_PATH",
+        real_agent_eval_path,
+    )
+
+    release_gate.ensure_output_directories(
+        include_rag_matrix=False,
+        include_real_replay=True,
+    )
+
+    assert real_replay_path.parent.exists()
+    assert real_replies_path.parent.exists()
+    assert real_agent_eval_path.parent.exists()
 
 
 def test_ensure_output_directories_creates_production_report_parents(

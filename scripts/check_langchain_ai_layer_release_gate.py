@@ -18,6 +18,18 @@ DEFAULT_REPLY_PROBE_PATH = (
 DEFAULT_REPLY_EVAL_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "latest-with-reply-replay.json"
 )
+DEFAULT_REAL_REPLAY_FIXTURE_PATH = (
+    ROOT_DIR / "tests" / "fixtures" / "customer_real_replay_sample.json"
+)
+DEFAULT_REAL_REPLAY_PATH = (
+    ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replay-latest.json"
+)
+DEFAULT_REAL_REPLIES_PATH = (
+    ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replies-latest.json"
+)
+DEFAULT_REAL_AGENT_EVAL_PATH = (
+    ROOT_DIR / "reports" / "agent-eval" / "latest-with-real-conversation-replay.json"
+)
 DEFAULT_RAG_MATRIX_PATH = ROOT_DIR / "reports" / "rag-eval" / "latest-matrix.json"
 DEFAULT_PRODUCTION_SMOKE_PATH = (
     ROOT_DIR / "reports" / "smoke" / "langchain-prod-smoke-{timestamp}.json"
@@ -64,11 +76,16 @@ class GateStepResult:
 def build_gate_steps(
     *,
     include_rag_matrix: bool = False,
+    include_real_replay: bool = False,
     include_production_smoke: bool = False,
     production_base_url: str = DEFAULT_PRODUCTION_BASE_URL,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
     reply_probe_path: Path = DEFAULT_REPLY_PROBE_PATH,
     reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
+    real_replay_fixture_path: Path = DEFAULT_REAL_REPLAY_FIXTURE_PATH,
+    real_replay_path: Path = DEFAULT_REAL_REPLAY_PATH,
+    real_replies_path: Path = DEFAULT_REAL_REPLIES_PATH,
+    real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -109,6 +126,39 @@ def build_gate_steps(
             ),
         ),
     ]
+    if include_real_replay:
+        steps.extend(
+            [
+                GateStep(
+                    name="real_conversation_replay",
+                    command=(
+                        sys.executable,
+                        "scripts/check_real_conversation_replay.py",
+                        "--fixture",
+                        str(real_replay_fixture_path),
+                        "--json-out",
+                        str(real_replay_path),
+                        "--replies-json-out",
+                        str(real_replies_path),
+                        "--summary",
+                    ),
+                ),
+                GateStep(
+                    name="agent_eval_with_real_replay",
+                    command=(
+                        sys.executable,
+                        "scripts/report_agent_eval.py",
+                        "--latest",
+                        "--include-real-replay",
+                        "--real-replay-fixture",
+                        str(real_replay_fixture_path),
+                        "--json-out",
+                        str(real_agent_eval_path),
+                        "--summary",
+                    ),
+                ),
+            ]
+        )
     if include_rag_matrix:
         steps.append(
             GateStep(
@@ -188,10 +238,13 @@ def build_gate_report(
     results: tuple[GateStepResult, ...],
     *,
     include_rag_matrix: bool,
+    include_real_replay: bool,
     include_production_smoke: bool,
     production_base_url: str,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
     reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
+    real_replay_path: Path = DEFAULT_REAL_REPLAY_PATH,
+    real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -201,6 +254,7 @@ def build_gate_report(
         "status": "passed" if failed == 0 else "failed",
         "generated_at": _utc_now(),
         "include_rag_matrix": include_rag_matrix,
+        "include_real_replay": include_real_replay,
         "include_production_smoke": include_production_smoke,
         "production_base_url": production_base_url
         if include_production_smoke
@@ -209,9 +263,12 @@ def build_gate_report(
         "failed": failed,
         "release_summary": build_release_summary(
             include_rag_matrix=include_rag_matrix,
+            include_real_replay=include_real_replay,
             include_production_smoke=include_production_smoke,
             agent_eval_path=agent_eval_path,
             reply_eval_path=reply_eval_path,
+            real_replay_path=real_replay_path,
+            real_agent_eval_path=real_agent_eval_path,
             rag_matrix_path=rag_matrix_path,
             production_smoke_path=production_smoke_path,
             production_callback_path=production_callback_path,
@@ -223,9 +280,12 @@ def build_gate_report(
 def build_release_summary(
     *,
     include_rag_matrix: bool,
+    include_real_replay: bool,
     include_production_smoke: bool,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
     reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
+    real_replay_path: Path = DEFAULT_REAL_REPLAY_PATH,
+    real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
     production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
     production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -237,10 +297,19 @@ def build_release_summary(
         "agent_eval_with_reply_replay": summarize_agent_eval_report(
             read_json_report(reply_eval_path)
         ),
+        "real_conversation_replay": None,
+        "agent_eval_with_real_replay": None,
         "rag_eval_matrix": None,
         "production_smoke": None,
         "production_employee_callback_probe": None,
     }
+    if include_real_replay:
+        summary["real_conversation_replay"] = summarize_agent_eval_report(
+            read_json_report(real_replay_path)
+        )
+        summary["agent_eval_with_real_replay"] = summarize_agent_eval_report(
+            read_json_report(real_agent_eval_path)
+        )
     if include_rag_matrix:
         summary["rag_eval_matrix"] = summarize_rag_matrix_report(
             read_json_report(rag_matrix_path)
@@ -364,6 +433,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="额外运行 RAG 检索矩阵，耗时较长",
     )
     parser.add_argument(
+        "--include-real-replay",
+        action="store_true",
+        help="额外运行脱敏真实会话 replay 契约检查和聚合 eval",
+    )
+    parser.add_argument(
+        "--real-replay-fixture",
+        type=Path,
+        default=DEFAULT_REAL_REPLAY_FIXTURE_PATH,
+        help="脱敏真实会话 replay fixture 路径",
+    )
+    parser.add_argument(
         "--include-production-smoke",
         action="store_true",
         help="额外运行生产 /health、/ready、企微员工助手 callback 探针",
@@ -380,21 +460,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     ensure_output_directories(
         include_rag_matrix=args.include_rag_matrix,
+        include_real_replay=args.include_real_replay,
         include_production_smoke=args.include_production_smoke,
     )
     steps = build_gate_steps(
         include_rag_matrix=args.include_rag_matrix,
+        include_real_replay=args.include_real_replay,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
+        real_replay_fixture_path=args.real_replay_fixture,
     )
     results = run_gate_steps(steps)
     report = build_gate_report(
         results,
         include_rag_matrix=args.include_rag_matrix,
+        include_real_replay=args.include_real_replay,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
         agent_eval_path=DEFAULT_AGENT_EVAL_PATH,
         reply_eval_path=DEFAULT_REPLY_EVAL_PATH,
+        real_replay_path=DEFAULT_REAL_REPLAY_PATH,
+        real_agent_eval_path=DEFAULT_REAL_AGENT_EVAL_PATH,
         rag_matrix_path=DEFAULT_RAG_MATRIX_PATH,
         production_smoke_path=DEFAULT_PRODUCTION_SMOKE_PATH,
         production_callback_path=DEFAULT_PRODUCTION_CALLBACK_PATH,
@@ -420,11 +506,16 @@ def main(argv: list[str] | None = None) -> int:
 def ensure_output_directories(
     *,
     include_rag_matrix: bool,
+    include_real_replay: bool = False,
     include_production_smoke: bool = False,
 ) -> None:
     DEFAULT_AGENT_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
     DEFAULT_REPLY_PROBE_PATH.parent.mkdir(parents=True, exist_ok=True)
     DEFAULT_REPLY_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if include_real_replay:
+        DEFAULT_REAL_REPLAY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_REAL_REPLIES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_REAL_AGENT_EVAL_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_rag_matrix:
         DEFAULT_RAG_MATRIX_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_production_smoke:

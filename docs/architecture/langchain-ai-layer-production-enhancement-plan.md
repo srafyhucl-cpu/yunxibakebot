@@ -1284,8 +1284,54 @@ Ruff format --check 通过。
 
 P11 后续：
 
-- P11b 可增加真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
-- P11c 可把真实 replay 数量扩到每类事实敏感场景至少 5 条，并在 release gate 增加显式 `--include-real-replay`。
+- P11b 已完成 release gate 显式 `--include-real-replay` 接入。
+- P11c 可增加真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
+- P11d 可把真实 replay 数量扩到每类事实敏感场景至少 5 条。
+
+## 三十六、P11b 落地记录
+
+2026-07-10 已完成 P11 真实会话脱敏回放的第二切片：
+
+- `scripts/check_langchain_ai_layer_release_gate.py` 新增显式 `--include-real-replay`。
+- `scripts/check_langchain_ai_layer_release_gate.py` 新增 `--real-replay-fixture`，可指定脱敏真实会话 replay fixture。
+- 默认 release gate 仍保持 3 步：
+  - 默认 133 项 Agent Eval。
+  - 客户 graph 回复回放 probe。
+  - 带 `customer_reply_replay` 的 163 项扩展 Agent Eval。
+- 显式 `--include-real-replay` 后追加 2 步：
+  - `scripts/check_real_conversation_replay.py` 检查脱敏 replay 契约，并导出 replies-json。
+  - `scripts/report_agent_eval.py --include-real-replay` 将 real replay 并入聚合 Agent Eval。
+- release gate 顶层 `release_summary` 新增：
+  - `real_conversation_replay`
+  - `agent_eval_with_real_replay`
+- 本切片不访问生产、不导出真实明文、不调用外部 LLM、不改变客户或员工热路径。
+
+P11b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python -m ruff check scripts\check_langchain_ai_layer_release_gate.py scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py scripts\check_real_conversation_replay.py scripts\report_agent_eval.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_agent_eval_scripts.py
+python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-real-replay-latest.json --summary
+```
+
+P11b 验证结果：
+
+```text
+release gate / real replay / agent eval 脚本测试通过：35 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+默认 release gate 通过：3 步失败 0。
+显式 real replay release gate 通过：5 步失败 0。
+默认门禁摘要显示 Agent Eval 133/133、回复回放扩展 163/163。
+real replay 门禁摘要显示脱敏 replay 样例 2/2、并入聚合 Agent Eval 后 135/135。
+```
+
+P11 后续：
+
+- P11c 增加真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
+- P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条，并继续通过 `--include-real-replay` 进入 release gate。
 
 ## 五、推荐执行顺序
 
