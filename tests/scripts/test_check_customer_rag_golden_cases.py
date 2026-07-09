@@ -39,9 +39,11 @@ def test_customer_rag_golden_fixture_requires_all_groups() -> None:
         if check.name.startswith("group.") and not check.passed
     ]
     assert {check.name for check in missing_group_checks} == {
+        "group.inventory",
         "group.delivery",
         "group.refund_after_sales",
         "group.human_transfer",
+        "group.knowledge_no_match",
     }
 
 

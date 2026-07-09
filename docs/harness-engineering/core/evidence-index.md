@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-007：LangChain AI 应用层 P2b 客户 eval 样本扩容
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p2b-customer-eval-fixture-expansion
+- file: `D:\Project\YunxiBakeBot\tests\fixtures\customer_rag_golden_cases.json`; `D:\Project\YunxiBakeBot\scripts\check_customer_rag_golden_cases.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_customer_rag_golden_cases.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py::test_customer_eval_result_uses_golden_cases -q --no-cov`; `python scripts\check_customer_rag_golden_cases.py --summary`; `python scripts\eval_customer_agent.py --summary`; `python scripts\report_agent_eval.py --agent customer --summary`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python scripts\report_retrieval_eval_matrix.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5`
+- result: pass
+- related_logbook: 2026-07-09 - feat(eval): 扩充客户机器人 P2b 脱敏 eval 样本
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: fixture 使用脱敏、合成化客户问法和治理断言，不包含真实客户原文、订单号、手机号、地址、open_id 或密钥；`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P2b 将客户 RAG golden cases 从 8 条业务样本扩充到 40 条业务样本，新增 `inventory` 与 `knowledge_no_match` required groups。客户 eval 当前 `passed total=41 failed=0`，双机器人聚合 eval 当前 `passed total=90 failed=0`。RAG 检索矩阵在 400 条启用知识、40 条客户标注样本下可跑通，best=hybrid，Recall@5=0.975，MRR=0.9437；这比旧小样本 1.0 更接近真实回归基线。
+
 ## E-20260709-006：LangChain AI 应用层 P2a eval runner 参数与 JSON 归档
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

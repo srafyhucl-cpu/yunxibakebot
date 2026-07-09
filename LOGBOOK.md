@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-09] - feat(eval): 扩充客户机器人 P2b 脱敏 eval 样本
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P2a 已补齐 eval runner 的 case filter、fail-fast 和 JSON 归档能力；P2 下一步需要把客户机器人 eval 从工程 smoke 推进到更接近真实业务回归资产。
+- **决策**:
+  - 先扩客户机器人 fixture 到 40 条业务样本，满足 P2 完成标准中的客户侧数量要求。
+  - 新增 `inventory` 和 `knowledge_no_match` 两个 required group，覆盖实时库存和资料不足治理场景。
+  - `knowledge_no_match` 不设计成不可评估的空 relevant，而是要求命中人工客服、转人工或食品安全治理知识，避免后续 RAG 检索矩阵失去可评估性。
+- **改动**:
+  - `tests/fixtures/customer_rag_golden_cases.json` - 从 8 条业务 case 扩充到 40 条，覆盖商品咨询、库存、配送、退款售后、转人工和知识未命中治理。
+  - `scripts/check_customer_rag_golden_cases.py` - required groups 增加 `inventory`、`knowledge_no_match`。
+  - `tests/scripts/test_check_customer_rag_golden_cases.py` - 同步 required groups 缺失断言。
+  - `tests/scripts/test_agent_eval_scripts.py` - 客户 eval 总数预期从 9 更新为 41。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_check_customer_rag_golden_cases.py tests/scripts/test_agent_eval_scripts.py::test_customer_eval_result_uses_golden_cases -q --no-cov` 通过，5 项失败 0。
+  - `python scripts/check_customer_rag_golden_cases.py --summary` 通过，47 项失败 0。
+  - `python scripts/eval_customer_agent.py --summary` 通过，41 项失败 0。
+  - `python scripts/report_agent_eval.py --agent customer --summary` 通过，41 项失败 0。
+  - `python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 通过，双机器人 90 项失败 0，报告位于 gitignored reports 目录。
+  - `python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5` 通过；400 条启用知识、40 条客户标注样本下 best=hybrid，Recall@5=0.975，MRR=0.9437。
+
 ## [2026-07-09] - feat(eval): 完成 P2a eval runner 参数与 JSON 归档
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

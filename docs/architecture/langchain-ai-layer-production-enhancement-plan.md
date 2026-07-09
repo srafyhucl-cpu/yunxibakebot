@@ -319,8 +319,47 @@ employee case filter 可输出 employee.capability_contracts 单 case JSON。
 
 P2 后续：
 
-- P2b 扩充客户机器人脱敏 eval fixture，目标从当前 9 项推进到至少 40 项，覆盖商品咨询、库存咨询、配送时间、退款售后、转人工和知识未命中。
 - P2c 扩充员工助手 eval 样本，目标保持或超过 60 项，并强化查订单、查客户、查发货时间、弱关键词和不支持意图。
+
+## 十六、P2b 落地记录
+
+2026-07-09 已完成 P2 真实业务 Eval 数据集扩容的第二切片：
+
+- `tests/fixtures/customer_rag_golden_cases.json` 从 8 条业务 case 扩充到 40 条业务 case。
+- 客户 eval 总数从 9 项提升到 41 项，其中 1 项为 fixture governance，40 项为客户业务样本。
+- 样本覆盖：
+  - 商品咨询：10 条。
+  - 库存咨询：8 条。
+  - 配送时间 / 配送范围 / 自提：7 条。
+  - 退款售后 / 改单 / 配送异常：7 条。
+  - 转人工 / 过敏 / 定制 / 查订单：4 条。
+  - 知识未命中治理：4 条。
+- 新增 `inventory` 和 `knowledge_no_match` 两个 required group；`knowledge_no_match` 不写成无 relevant 的假空样本，而是要求命中人工客服 / 转人工 / 食品安全等治理知识，避免破坏 retrieval eval 的可评估性。
+
+P2b 验收：
+
+```powershell
+python -m pytest tests/scripts/test_check_customer_rag_golden_cases.py tests/scripts/test_agent_eval_scripts.py::test_customer_eval_result_uses_golden_cases -q --no-cov
+python scripts/check_customer_rag_golden_cases.py --summary
+python scripts/eval_customer_agent.py --summary
+python scripts/report_agent_eval.py --agent customer --summary
+python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json
+python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+```
+
+P2b 验证结果：
+
+```text
+客户 fixture 结构校验通过：customer_rag_golden_cases status=passed total=47 failed=0。
+客户 eval 通过：customer_agent_eval status=passed total=41 failed=0 pass_rate=1.0。
+双机器人聚合 eval 通过：agent_eval status=passed total=90 failed=0 pass_rate=1.0。
+RAG 矩阵在 400 条启用知识、40 条客户标注样本下可跑通；best=hybrid，Recall@5=0.975，MRR=0.9437。
+```
+
+P2 后续：
+
+- P2c 扩充员工助手 eval 样本，目标从当前 49 项推进到至少 60 项，重点覆盖查订单、查客户、查发货时间、弱关键词和不支持意图。
+- P2d 可把 expanded customer fixture 的分组统计加入 eval 报告 metadata，方便作品集展示。
 
 ### 阶段 P3：RAG 热路径灰度增强
 

@@ -19,7 +19,7 @@ def test_customer_eval_result_uses_golden_cases() -> None:
     result = eval_customer_agent.build_customer_eval_result()
 
     assert result.status == "passed"
-    assert result.total == 9
+    assert result.total == 41
     assert {case.group for case in result.cases} >= {
         "product_consultation",
         "delivery",

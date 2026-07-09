@@ -13,9 +13,11 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 FIXTURE_PATH = ROOT_DIR / "tests" / "fixtures" / "customer_rag_golden_cases.json"
 REQUIRED_GROUPS = (
     "product_consultation",
+    "inventory",
     "delivery",
     "refund_after_sales",
     "human_transfer",
+    "knowledge_no_match",
 )
 REQUIRED_CASE_FIELDS = ("id", "group", "query", "intent", "relevant", "guardrails")
 
