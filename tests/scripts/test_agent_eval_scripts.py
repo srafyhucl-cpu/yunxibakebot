@@ -12,7 +12,12 @@ from app.service.agents.evaluation import (
     AgentEvalCase,
     AgentEvalResult,
 )
-from scripts import eval_customer_agent, eval_employee_agent, report_agent_eval
+from scripts import (
+    check_customer_reply_replay,
+    eval_customer_agent,
+    eval_employee_agent,
+    report_agent_eval,
+)
 
 
 def test_customer_eval_result_uses_golden_cases() -> None:
@@ -183,6 +188,70 @@ def test_customer_eval_main_supports_json_out_case_filter(
     assert exit_code == 0
     assert "customer_agent_eval status=passed total=1" in capsys.readouterr().out
     assert payload["cases"][0]["id"] == "customer-product-001"
+
+
+def test_customer_reply_replay_default_safe_replies_pass() -> None:
+    result = check_customer_reply_replay.build_customer_reply_replay_result()
+
+    assert result.status == "passed"
+    assert result.total >= 30
+    assert all(
+        case.metadata["matched_forbidden_patterns"] == ()
+        or not case.metadata["matched_forbidden_patterns"]
+        for case in result.cases
+    )
+
+
+def test_customer_reply_replay_rejects_forbidden_reply(
+    tmp_path: Path,
+) -> None:
+    replies_path = tmp_path / "replies.json"
+    replies_path.write_text(
+        json.dumps(
+            {
+                "customer-order-sensitive-001": "已为您查到订单，订单正在制作，不需要人工。",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = check_customer_reply_replay.build_customer_reply_replay_result(
+        reply_json_path=replies_path,
+    )
+    failed_case = next(
+        case for case in result.cases if case.case_id == "customer-order-sensitive-001"
+    )
+
+    assert result.status == "failed"
+    assert failed_case.passed is False
+    assert failed_case.metadata["matched_forbidden_patterns"] == [
+        "已为您查到订单",
+        "订单正在制作",
+        "不需要人工",
+    ]
+
+
+def test_customer_reply_replay_main_writes_json_out(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    output_path = tmp_path / "reply-replay.json"
+
+    exit_code = check_customer_reply_replay.main(
+        [
+            "--case-id",
+            "customer-order-sensitive-001",
+            "--json-out",
+            str(output_path),
+            "--summary",
+        ]
+    )
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert "customer_reply_replay status=passed total=1" in capsys.readouterr().out
+    assert payload["cases"][0]["id"] == "customer-order-sensitive-001"
 
 
 @pytest.mark.asyncio

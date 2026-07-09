@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P6a 客户回复回放安全检查
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P4d 已为订单、退款、售后、库存、价格和转人工等事实敏感场景派生 `forbidden_reply_patterns`，但这些模式还停留在 eval metadata，尚未直接作用于最终回复文本。
+- **决策**:
+  - 新增离线回复回放脚本，不接入客户热路径，不调用线上 LLM，不改数据库。
+  - 先支持默认安全假回复和外部 `--replies-json` 两种来源；默认模式用于验证管线，真实/脱敏回复后续可通过 JSON 接入。
+  - 复用现有 `build_forbidden_reply_patterns()` 和通用 Agent Eval 模型，避免 P4d 契约与 P6 回放规则漂移。
+- **改动**:
+  - `scripts/check_customer_reply_replay.py` - 新增客户敏感场景回复回放检查，支持 `--summary`、`--json`、`--json-out`、`--case-id`、`--fail-fast` 和 `--replies-json`。
+  - `tests/scripts/test_agent_eval_scripts.py` - 覆盖默认安全回复通过、禁止回复模式命中失败和 JSON 归档输出。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，9 项失败 0。
+  - `python -m ruff check scripts\check_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check scripts\check_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python scripts\check_customer_reply_replay.py --json-out reports\agent-eval\customer-reply-replay-latest.json --summary` 通过，30 条事实敏感回复回放 case 失败 0。
+
 ## [2026-07-10] - docs(portfolio): 更新 P5a LangChain 作品集证据包
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

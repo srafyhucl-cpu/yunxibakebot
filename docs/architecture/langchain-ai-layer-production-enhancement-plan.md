@@ -1025,6 +1025,40 @@ P5 后续：
 - P5b 可按需补一页式 PDF/Markdown 摘要，但仓库内作品集入口已经可从 README 追溯到代码路径、eval、RAG 和事实敏感治理证据。
 - 下一阶段建议进入 P6：真实或 fake 客户回复回放，把 P4d 的 `forbidden_reply_patterns` 应用于最终回复文本，验证“不当承诺/编造”不会出现在输出中。
 
+## 二十九、P6a 落地记录
+
+2026-07-10 已完成 P6 客户回复回放安全检查的第一切片：
+
+- 新增 `scripts/check_customer_reply_replay.py`，读取客户 RAG golden cases 中带 `sensitive_scenarios` 的事实敏感 case，并复用 P4d 的 `build_forbidden_reply_patterns()` 检查最终回复文本。
+- 脚本支持默认安全假回复和外部 `--replies-json` 两种来源：
+  - 默认安全假回复用于验证离线回放管线、报告结构和门禁脚本。
+  - 外部 JSON 可接入后续真实脱敏回复、模型输出或生产回放结果。
+- 报告继续使用通用 Agent Eval 模型，支持 `--summary`、`--json`、`--json-out`、`--case-id` 和 `--fail-fast`。
+- 本切片不接入客户热路径，不调用线上 LLM，不写数据库，不改变 RAG、工具调用、转人工或生产配置。
+
+P6a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python -m ruff check scripts\check_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\check_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py
+python scripts\check_customer_reply_replay.py --json-out reports\agent-eval\customer-reply-replay-latest.json --summary
+```
+
+P6a 验证结果：
+
+```text
+脚本测试通过：9 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+客户回复回放安全检查通过：30 条事实敏感 case 失败 0。
+```
+
+P6 后续：
+
+- P6b 可把客户 graph 的受控 fake model 输出接入 `--replies-json`，验证真实 prompt/finalizer 生成的回复文本，而不调用外部 LLM。
+- P6c 再接入脱敏真实会话或生产 shadow 回复，形成“真实问题 -> 最终回复 -> forbidden pattern 断言”的回归资产。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：

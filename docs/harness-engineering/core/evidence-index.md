@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-008：LangChain AI 应用层 P6a 客户回复回放安全检查
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p6a-customer-reply-replay-safety-check
+- file: `D:\Project\YunxiBakeBot\scripts\check_customer_reply_replay.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\customer-reply-replay-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python -m ruff check scripts\check_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\check_customer_reply_replay.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\check_customer_reply_replay.py --json-out reports\agent-eval\customer-reply-replay-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P6a 客户回复回放安全检查
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮默认使用安全假回复验证回放管线，并只登记 case id、敏感场景标签、禁止回复模式和匹配结果；`reports\agent-eval\customer-reply-replay-latest.json` 位于 gitignored reports 目录；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥。
+- summary: P6a 将 P4d 的 `forbidden_reply_patterns` 从 eval metadata 推进到最终回复文本断言。新增回放脚本可读取外部 `--replies-json`，对 30 条事实敏感客户 case 检查禁止承诺、编造订单状态、乱报退款、承诺库存、私自报价或拒绝转人工等模式；默认安全回放 30/30 通过，并有单测证明命中禁止短语时会失败。
+
 ## E-20260710-007：LangChain AI 应用层 P5a 作品集证据包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
