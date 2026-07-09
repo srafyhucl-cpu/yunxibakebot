@@ -24,6 +24,12 @@
   - `python scripts\check_evidence_index.py --summary` 通过，`failed=0`。
   - `python scripts\check_project.py --skip-tests` 通过。
   - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+  - 本地 commit `a76922c4827c1604179bde810e5c2d8a84feb212` 已推送到 `origin/master` 和 `server/master`。
+  - 生产 `/opt/yunxibakebot` 已同步到 `a76922c4827c1604179bde810e5c2d8a84feb212`，`VERSION=0.105.7`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.7`。
+  - 生产 `/health` 和 `/ready` 均返回 `version=0.105.7`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - 接入仓库外真实脱敏检索日志后，运行 `python scripts\report_rag_shadow_log_observability.py --input <path> --require-input --summary`，再讨论 planned-hybrid 热路径灰度。
 
