@@ -15,6 +15,11 @@ SENSITIVE_METADATA_KEY_PARTS = (
     "history",
     "profile",
     "tool_result",
+    "open_id",
+    "openid",
+    "phone",
+    "mobile",
+    "address",
 )
 
 
@@ -100,11 +105,25 @@ def get_agent_tracing_config(config: Any | None = None) -> AgentTracingConfig:
 
 
 def _safe_trace_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in metadata.items()
-        if not _is_sensitive_metadata_key(key)
-    }
+    return safe_trace_payload(metadata)
+
+
+def safe_trace_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """过滤 trace payload 中的敏感字段。"""
+    safe_payload: dict[str, Any] = {}
+    for key, value in payload.items():
+        if _is_sensitive_metadata_key(key):
+            continue
+        if isinstance(value, dict):
+            safe_payload[key] = safe_trace_payload(value)
+        elif isinstance(value, list):
+            safe_payload[key] = [
+                safe_trace_payload(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            safe_payload[key] = value
+    return safe_payload
 
 
 def _is_sensitive_metadata_key(key: str) -> bool:

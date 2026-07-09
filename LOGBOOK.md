@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-09] - feat(observability): 完成 P1a 本地 Agent trace 报告切片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P0 生产验证闭环已完成；按 `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` 进入 P1 线上 Trace 与 LangSmith 观测。现有客户和员工 graph 已产出 `trace_events`，但缺少统一脱敏、聚合和可执行报告脚本。
+- **决策**:
+  - 先做只读 P1a 报告切片，不改客户/员工 graph 热路径，不写业务表，不打开 LangSmith 外发。
+  - 新增独立 `trace_report` 模块承接聚合职责，避免继续往 graph node 文件追加报告逻辑。
+  - 脱敏口径统一下沉到 `observability.safe_trace_payload()`，报告和 LangSmith metadata 共用同一套敏感字段过滤。
+- **改动**:
+  - `app/service/agents/trace_report.py` - 新增 Agent trace run、summary、report 模型，支持按 agent 聚合 node/event/fallback/tool/RAG 命中和平均耗时。
+  - `app/service/agents/observability.py` - 新增递归脱敏函数，并扩展敏感 key 覆盖 `open_id`、手机号、地址等客服敏感字段。
+  - `scripts/report_agent_traces.py` - 新增本地 trace 报告 CLI，支持 `--input`、`--latest`、`--summary`、`--json`。
+  - `tests/service/agents/test_trace_report.py`、`tests/scripts/test_report_agent_traces.py`、`tests/service/agents/test_observability.py` - 覆盖聚合、脱敏和 CLI。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` - 追加 P1a 落地记录和 P1b/P1c 后续。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_observability.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py -q --no-cov` 通过，18 项失败 0。
+  - `python -m ruff check app/service/agents/observability.py app/service/agents/trace_report.py scripts/report_agent_traces.py tests/service/agents/test_observability.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py` 通过。
+  - `python -m ruff format --check app/service/agents/observability.py app/service/agents/trace_report.py scripts/report_agent_traces.py tests/service/agents/test_observability.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py` 通过。
+  - `python scripts/report_agent_traces.py --latest --summary` 稳定输出 `agent_traces status=no_traces total_runs=0 agents=0`，说明无本地 trace JSON 时报告脚本不阻断流程。
+
 ## [2026-07-09] - fix(verification): 生产 callback 探针适配实时库存变化并完成 P0 验证
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

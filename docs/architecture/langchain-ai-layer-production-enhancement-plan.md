@@ -523,3 +523,37 @@ P0 后续：
 
 - 当前 P0 已证明生产运行版本和员工助手回调探针通过。
 - 下一阶段应进入 P1：线上 Trace 与 LangSmith 观测。
+
+## 十一、P1a 落地记录
+
+2026-07-09 已完成 P1 线上 Trace 与 LangSmith 观测的第一切片：
+
+- 新增 `app/service/agents/trace_report.py`，把本地 `trace_events` 聚合为双机器人 Agent trace 报告，统计 agent、node、event、fallback、tool call、knowledge hit 和平均耗时。
+- 扩展 `app/service/agents/observability.py`，新增递归脱敏函数 `safe_trace_payload()`，统一过滤 `open_id`、`phone`、`mobile`、`address`、token、密钥、消息原文、历史记录、客户画像和工具结果等敏感字段。
+- 新增 `scripts/report_agent_traces.py`，支持 `--input` 读取指定 trace JSON、`--latest` 读取 `reports/agent-traces/` 最新 JSON、`--summary` 和 `--json` 两种输出。
+- 新增 `tests/service/agents/test_trace_report.py` 和 `tests/scripts/test_report_agent_traces.py`，覆盖客户机器人和员工助手双 agent 摘要、fallback 计数、工具调用计数、RAG 命中计数、敏感字段脱敏和 CLI 输出。
+- 本切片不改客户/员工 graph 热路径，不写业务表，不引入 LangSmith 外发，不导入 `langchain_openai`、`langgraph` 或 `langsmith`。
+
+P1a 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_observability.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py -q --no-cov
+python -m ruff check app/service/agents/observability.py app/service/agents/trace_report.py scripts/report_agent_traces.py tests/service/agents/test_observability.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py
+python -m ruff format --check app/service/agents/observability.py app/service/agents/trace_report.py scripts/report_agent_traces.py tests/service/agents/test_observability.py tests/service/agents/test_trace_report.py tests/scripts/test_report_agent_traces.py
+python scripts/report_agent_traces.py --latest --summary
+```
+
+P1a 验证结果：
+
+```text
+18 项 targeted tests 通过。
+Ruff check 通过。
+Ruff format --check 通过。
+当前本地 reports/agent-traces/ 暂无 trace JSON 时，脚本稳定输出：agent_traces status=no_traces total_runs=0 agents=0。
+```
+
+P1 后续：
+
+- P1b 应把真实 graph 运行后的 `trace_events` 以脱敏 JSON 形式写入 `reports/agent-traces/` 或现有结构化日志，使 `python scripts/report_agent_traces.py --latest --summary` 能在本地运行后看到客户机器人和员工助手节点级摘要。
+- P1c 再补客户和员工节点字段完整度：`trace_id`、`conversation_id`、`channel`、`agent`、`model`、`tool_name`、`knowledge_entry_ids`、`latency_ms`、`fallback_reason`、`final_status`。
+- LangSmith 仍保持可选开关，未配置 key 时不得影响主流程。

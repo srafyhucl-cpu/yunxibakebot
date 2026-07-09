@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-002：LangChain AI 应用层 P1a 本地 Agent trace 报告
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p1a-agent-trace-report
+- file: `D:\Project\YunxiBakeBot\app\service\agents\observability.py`; `D:\Project\YunxiBakeBot\app\service\agents\trace_report.py`; `D:\Project\YunxiBakeBot\scripts\report_agent_traces.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_observability.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_trace_report.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_agent_traces.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_observability.py tests\service\agents\test_trace_report.py tests\scripts\test_report_agent_traces.py -q --no-cov`; `python -m ruff check app\service\agents\observability.py app\service\agents\trace_report.py scripts\report_agent_traces.py tests\service\agents\test_observability.py tests\service\agents\test_trace_report.py tests\scripts\test_report_agent_traces.py`; `python -m ruff format --check app\service\agents\observability.py app\service\agents\trace_report.py scripts\report_agent_traces.py tests\service\agents\test_observability.py tests\service\agents\test_trace_report.py tests\scripts\test_report_agent_traces.py`; `python scripts\report_agent_traces.py --latest --summary`
+- result: pass
+- related_logbook: 2026-07-09 - feat(observability): 完成 P1a 本地 Agent trace 报告切片
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记代码路径、测试命令和脚本摘要；新增报告器默认过滤 open_id、手机号、地址、token、密钥、消息原文、历史记录、客户画像和工具结果，不包含真实客户原文或订单明细。
+- summary: P1a 建立本地 Agent trace 报告闭环，新增只读聚合模块和 CLI，可从指定 JSON 或 `reports\agent-traces\` 最新 JSON 输出双机器人节点级摘要；当前未改 graph 热路径、未写业务表、未打开 LangSmith 外发。无 trace JSON 时脚本返回 `agent_traces status=no_traces total_runs=0 agents=0`，为 P1b 接入真实运行 trace 落盘预留稳定入口。
+
 ## E-20260709-001：LangChain AI 应用层 P0 生产验证闭环
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

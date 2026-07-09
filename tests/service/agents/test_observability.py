@@ -9,6 +9,7 @@ from app.service.agents.observability import (
     append_trace_event,
     build_node_trace_event,
     get_agent_tracing_config,
+    safe_trace_payload,
 )
 
 
@@ -124,6 +125,26 @@ def test_agent_tracing_config_filters_sensitive_metadata_keys() -> None:
         "langsmith_enabled": True,
         "langchain_project": "yunxi-bakebot",
         "tool_count": 2,
+    }
+
+
+def test_safe_trace_payload_filters_nested_customer_sensitive_fields() -> None:
+    payload = safe_trace_payload(
+        {
+            "node": "load_session_context",
+            "open_id": "secret-open-id",
+            "customer": {
+                "phone": "13800000000",
+                "safe_label": "vip",
+            },
+            "items": [{"address": "hidden"}, {"title": "伯牙绝弦"}],
+        }
+    )
+
+    assert payload == {
+        "node": "load_session_context",
+        "customer": {"safe_label": "vip"},
+        "items": [{}, {"title": "伯牙绝弦"}],
     }
 
 
