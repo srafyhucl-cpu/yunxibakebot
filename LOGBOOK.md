@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加生产只读资源观测门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P21a 已回答本地 LangChain AI 层轻量容量边界，但“服务器是否支撑得住”还需要生产只读资源证据。该切片不能做压测，不能读取业务数据库，不能调用外部 LLM，也不能改变线上热路径。
+- **决策**:
+  - 扩展 `scripts/check_langchain_ai_layer_capacity.py`，新增显式 `--include-production-runtime` 开关。
+  - 默认模式继续不访问生产，只运行本地 fake trace probe、冷导入和 LangSmith 默认关闭态检查。
+  - 生产模式只读 SSH 获取服务 active 状态、生产 VERSION、本机 `/health` / `/ready` 版本、进程 RSS、线程数、可用内存和 load1。
+  - 生产阈值先设为 RSS 不超过 `512MB`、可用内存不低于 `128MB`、load1 不超过 `4.0`，后续可按真实观测收紧。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_capacity.py` - 增加生产只读资源观测、阈值断言、summary 标记和缺失动作。
+  - `tests/scripts/test_check_langchain_ai_layer_capacity.py` - 覆盖默认跳过生产、生产指标通过、版本漂移失败和 SSH 失败。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P21b 追溯记录和版本 `0.105.8`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_capacity.py -q --no-cov` 通过，8 项失败 0。
+  - `python -m ruff check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_capacity.py` 通过。
+  - `python scripts\check_langchain_ai_layer_capacity.py --summary` 通过，默认 `production_runtime=skipped`。
+  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 在本地版本 `0.105.8` 尚未部署到生产时按设计失败 1 项，原因是生产仍为上一版；部署后必须复验为通过。
+- **后续**:
+  - P21c 可把生产资源指标纳入显式 release gate 加强模式，但仍不做主动压测。
+
 ## [2026-07-10] - feat(rag): 增加 RAG shadow log 观测输入门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
