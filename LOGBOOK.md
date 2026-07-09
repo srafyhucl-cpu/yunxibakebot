@@ -22,6 +22,11 @@
   - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
   - `python scripts\check_evidence_index.py --summary` 通过。
   - `python scripts\check_project.py --skip-tests` 通过。
+  - 生产 `/opt/yunxibakebot` 已同步到 `0822b6e09ddeabc4db94d5aa628876693142d4fd`，`VERSION=0.105.3`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.3`。
+  - 生产 `/health` 和 `/ready` 均返回 `version=0.105.3`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=7 failed=0`。
 - **后续**:
   - 若要进入 P18b，需先在生产环境注入 LangSmith key/project/tracing 开关，并完成外发合规确认；再用 `--require-enabled --external-export-approved --sample-rate 0.05` 这类小流量参数复验。
 
