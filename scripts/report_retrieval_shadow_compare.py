@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +22,22 @@ DEFAULT_CANDIDATES = (
     eval_matrix.EvalScenario(eval_retrieval.MODE_PLANNED_HYBRID),
     eval_matrix.EvalScenario(eval_retrieval.MODE_PLANNED_HYBRID, rerank=True),
 )
+SCENARIO_ALIASES = {
+    eval_retrieval.MODE_HYBRID: eval_matrix.EvalScenario(
+        eval_retrieval.MODE_HYBRID,
+    ),
+    eval_retrieval.MODE_PLANNED_HYBRID: eval_matrix.EvalScenario(
+        eval_retrieval.MODE_PLANNED_HYBRID,
+    ),
+    "planned-hybrid-rerank": eval_matrix.EvalScenario(
+        eval_retrieval.MODE_PLANNED_HYBRID,
+        rerank=True,
+    ),
+    "planned-hybrid+rerank": eval_matrix.EvalScenario(
+        eval_retrieval.MODE_PLANNED_HYBRID,
+        rerank=True,
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -71,6 +88,7 @@ def run_shadow_compare(
             "k": k,
             "corpus_size": len(corpus),
             "total_cases": len(cases),
+            "configured_rag_retrieval_mode": _current_rag_retrieval_mode(),
             "baseline": baseline.name,
             "candidates": [candidate.name for candidate in candidates],
         },
@@ -86,6 +104,19 @@ def run_shadow_compare(
             candidate_results,
         ),
     }
+
+
+def parse_shadow_scenario(value: str) -> eval_matrix.EvalScenario:
+    normalized_value = value.strip().lower()
+    if normalized_value in SCENARIO_ALIASES:
+        return SCENARIO_ALIASES[normalized_value]
+    allowed_values = ", ".join(sorted(SCENARIO_ALIASES))
+    msg = f"未知 shadow compare 检索模式: {value}；可选值: {allowed_values}"
+    raise argparse.ArgumentTypeError(msg)
+
+
+def _current_rag_retrieval_mode() -> str:
+    return os.getenv("RAG_RETRIEVAL_MODE", eval_retrieval.MODE_HYBRID).strip().lower()
 
 
 def _run_shadow_scenario(
@@ -210,6 +241,7 @@ def print_shadow_summary(payload: dict[str, Any]) -> None:
         f"db={metadata['db']} fixture={metadata['fixture']} "
         f"k={metadata['k']} corpus={metadata['corpus_size']}"
     )
+    print(f"configured_rag_retrieval_mode={metadata['configured_rag_retrieval_mode']}")
     baseline = payload["baseline"]
     print(
         "baseline "
@@ -245,12 +277,30 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=eval_retrieval.DEFAULT_RERANK_CANDIDATE_MULTIPLIER,
         help="rerank 场景候选池倍数，默认 3",
     )
+    parser.add_argument(
+        "--baseline-mode",
+        type=parse_shadow_scenario,
+        default=DEFAULT_BASELINE,
+        help="baseline 检索模式，默认 hybrid",
+    )
+    parser.add_argument(
+        "--candidate-mode",
+        type=parse_shadow_scenario,
+        action="append",
+        default=None,
+        help=(
+            "候选检索模式，可重复传入；"
+            "支持 planned-hybrid、planned-hybrid-rerank、planned-hybrid+rerank"
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     parser.add_argument("--json-out", default="", help="可选：写入 JSON 文件")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     args = parse_args(sys.argv[1:] if argv is None else argv)
     db_path = eval_retrieval.resolve_db_path(args.db)
     if not db_path.exists():
@@ -262,6 +312,8 @@ def main(argv: list[str] | None = None) -> int:
             fixture_path=Path(args.fixture),
             k=args.k,
             rerank_candidate_multiplier=args.rerank_candidate_multiplier,
+            baseline=args.baseline_mode,
+            candidates=tuple(args.candidate_mode or DEFAULT_CANDIDATES),
         )
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)

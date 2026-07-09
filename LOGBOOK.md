@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - feat(rag): 增强 P3d 检索 shadow compare 显式探针
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P3c 已提供 `RAG_RETRIEVAL_MODE` 到 LangChain retriever adapter 参数的只读 strategy/helper；进入 P3d 前需要把 shadow compare 做成可显式指定 baseline/candidate 的运维探针，并把当前配置模式写入报告，继续不接入客户热路径。
+- **决策**:
+  - `report_retrieval_shadow_compare.py` 增加 `--baseline-mode` 和可重复的 `--candidate-mode`，支持单独比较 `planned-hybrid` 或 `planned-hybrid-rerank`。
+  - 报告 metadata 新增 `configured_rag_retrieval_mode`，用于并排展示当前生产配置与离线候选模式。
+  - 修复 Windows GBK 控制台下 `--json` 输出可能因知识标题特殊符号失败的问题，脚本启动时将 stdout 设为 UTF-8。
+  - 本切片仍只做离线/运维探针，不改变线上回复，不热启 rerank。
+- **改动**:
+  - `scripts/report_retrieval_shadow_compare.py` - 新增 shadow scenario 解析、baseline/candidate 参数、配置模式 metadata 和 UTF-8 JSON 输出保护。
+  - `tests/scripts/test_report_retrieval_shadow_compare.py` - 覆盖显式模式、环境配置 metadata 和非法模式拒绝。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_retrieval_shadow_compare.py tests\service\agents\test_rag_retriever.py -q --no-cov` 通过，17 项失败 0。
+  - `python -m ruff check scripts\report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_shadow_compare.py` 通过。
+  - `python -m ruff format --check scripts\report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_shadow_compare.py` 通过。
+  - `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json` 通过；400 条启用知识、40 条可评估客户样本下 baseline hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375。
+  - `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --candidate-mode planned-hybrid-rerank --json` 通过，验证单候选 JSON 输出不再因 Windows 控制台编码失败。
+
 ## [2026-07-09] - feat(rag): 增加 P3c 检索模式策略 helper
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

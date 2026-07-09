@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-001：LangChain AI 应用层 P3d RAG shadow compare 显式探针
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p3d-rag-shadow-compare-probe
+- file: `D:\Project\YunxiBakeBot\scripts\report_retrieval_shadow_compare.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_retrieval_shadow_compare.py`; `D:\Project\YunxiBakeBot\reports\retrieval-shadow\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_retrieval_shadow_compare.py tests\service\agents\test_rag_retriever.py -q --no-cov`; `python -m ruff check scripts\report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_shadow_compare.py`; `python -m ruff format --check scripts\report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_shadow_compare.py`; `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json`; `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --candidate-mode planned-hybrid-rerank --json`
+- result: pass
+- related_logbook: 2026-07-10 - feat(rag): 增强 P3d 检索 shadow compare 显式探针
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: shadow compare 使用脱敏 fixture 和本地 SQLite 知识语料，仅登记 case id、query、group、top-k key/title、配置模式和汇总指标；不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥；`reports\retrieval-shadow\latest.json` 位于 gitignored reports 目录。
+- summary: P3d 将 RAG shadow compare 升级为显式运维探针，支持 `--baseline-mode` 和可重复 `--candidate-mode`，报告 metadata 记录当前 `RAG_RETRIEVAL_MODE`。真实 embedding 路径下，400 条启用知识、40 条客户样本的 baseline hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375。当前证据仍不支持热启 rerank。
+
 ## E-20260709-012：LangChain AI 应用层 P3c RAG 检索模式策略 helper
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

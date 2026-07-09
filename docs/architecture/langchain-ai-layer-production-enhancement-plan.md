@@ -605,8 +605,49 @@ Ruff format --check 通过。
 
 P3 后续：
 
-- P3d 可新增显式 shadow logging/probe，把当前稳定检索结果与 `RAG_RETRIEVAL_MODE` 候选策略并排输出。
-- 只有当 shadow compare 连续证明候选不低于 baseline，才考虑把 helper 接入客户热路径。
+- P3d 已新增显式 shadow compare 运维探针，把当前稳定检索结果与候选策略并排输出，并把当前 `RAG_RETRIEVAL_MODE` 写入报告 metadata。
+- P3e 再考虑将 `RAG_RETRIEVAL_MODE` 接入客户 RAG 热路径；默认仍保持 `hybrid`，且只有当 shadow compare 连续证明候选不低于 baseline，才考虑打开 planned/rerank。
+
+## 二十二、P3d 落地记录
+
+2026-07-10 已完成 P3 RAG 热路径灰度增强的第四切片：
+
+- `scripts/report_retrieval_shadow_compare.py` 新增 `--baseline-mode`，可显式选择 baseline 检索模式。
+- `scripts/report_retrieval_shadow_compare.py` 新增可重复的 `--candidate-mode`，支持只比较一个候选模式，也支持继续使用默认候选：
+  - `planned-hybrid`
+  - `planned-hybrid-rerank`
+  - `planned-hybrid+rerank`
+- shadow compare 报告 metadata 新增 `configured_rag_retrieval_mode`，用于并排展示当前运行配置与离线候选模式。
+- Windows 控制台下 `--json` 输出改为 UTF-8 stdout，避免知识标题含特殊符号时触发 GBK 编码失败。
+- 本切片仍不接入客户 graph、context builder 或线上回复；只增强显式运维探针和离线证据。
+
+P3d 验收：
+
+```powershell
+python -m pytest tests\scripts\test_report_retrieval_shadow_compare.py tests\service\agents\test_rag_retriever.py -q --no-cov
+python -m ruff check scripts\report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_shadow_compare.py
+python -m ruff format --check scripts\report_retrieval_shadow_compare.py tests\scripts\test_report_retrieval_shadow_compare.py
+python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json
+python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --candidate-mode planned-hybrid-rerank --json
+```
+
+P3d 验证结果：
+
+```text
+RAG shadow compare 与 mode strategy 测试通过：17 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+真实 embedding 路径下，语料库 data\bot.db 400 条启用知识，客户 fixture 40 条可评估样本。
+baseline hybrid: Recall@5=0.975, MRR=0.9437。
+planned-hybrid: Recall@5=0.975, MRR=0.9437，delta_recall=0.0，delta_mrr=0.0。
+planned-hybrid+rerank: Recall@5=0.95, MRR=0.9375，delta_recall=-0.025，delta_mrr=-0.0062。
+显式单候选 `--candidate-mode planned-hybrid-rerank --json` 通过，不再因 Windows 控制台编码失败。
+```
+
+P3 后续：
+
+- P3e 可把 `RAG_RETRIEVAL_MODE` 接入客户 RAG 热路径，但默认必须保持 `hybrid`，并继续用 P3d shadow compare 报告证明候选模式不退化。
+- 当前数据仍不支持热启 `planned-hybrid-rerank`。
 
 ### 阶段 P4：事实敏感场景治理增强
 
