@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-035：LangChain AI 应用层 P19a RAG shadow 观测报告
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p19a-rag-shadow-observability
+- file: `D:\Project\YunxiBakeBot\scripts\report_rag_shadow_observability.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_rag_shadow_observability.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\report_rag_shadow_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\report_rag_shadow_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\report_rag_shadow_observability.py --summary`; `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(rag): 增加 RAG shadow 观测报告
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只读取本地 `data/bot.db` 启用知识和客户 RAG golden fixture 生成 shadow 观测；不改变线上 RAG 模式、不写业务数据库、不调用外部 LLM。默认报告不输出 query 原文，只输出指标、delta、case 变更数量和 group 汇总；完整 case diff 仅在显式 `--include-case-diffs` 时输出到 gitignored reports。
+- summary: P19a 新增 RAG shadow 观测报告。当前客户 golden cases 下 hybrid baseline Recall@5 `0.9857`、MRR `0.8881`；planned-hybrid 与 baseline 持平，可作为受控灰度候选；planned-hybrid+rerank Recall@5 下降 `-0.0143`，继续保持 shadow-only。
+
 ## E-20260710-034：LangChain AI 应用层 P21a 容量门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

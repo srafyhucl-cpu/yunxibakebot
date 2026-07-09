@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包和 P21a LangChain AI 层容量门禁已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告和 P21a LangChain AI 层容量门禁已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1873,6 +1873,28 @@ python -m ruff check scripts\check_langchain_ai_layer_capacity.py scripts\check_
 python -m ruff format --check scripts\check_langchain_ai_layer_capacity.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_check_langchain_ai_layer_capacity.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
 python scripts\check_langchain_ai_layer_capacity.py --summary
 python scripts\check_langsmith_production_rollout.py --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
+```
+
+## 三十八、P19a RAG shadow 观测报告
+
+2026-07-10 已完成 P19 的第一个 RAG 生产增强观测切片：
+
+- 新增 `scripts/report_rag_shadow_observability.py`，复用既有 `report_retrieval_shadow_compare.run_shadow_compare()` 生成发布/运维视角的 RAG shadow 观测报告。
+- 默认使用 `data/bot.db` 和 `tests/fixtures/customer_rag_golden_cases.json`，避免旧 `retrieval_eval_set.json` 让结论偏乐观。
+- 报告默认不输出 case query 原文，只输出 baseline、候选模式指标、delta、changed case 数、按 group 汇总和热路径建议；需要排障时才用 `--include-case-diffs` 显式输出完整 case diff。
+- 当前真实 BGE 路径下，`hybrid` baseline 为 Recall@5 `0.9857`、MRR `0.8881`；`planned-hybrid` 与 baseline 持平，标记为 `eligible_for_controlled_gray_release`；`planned-hybrid+rerank` Recall@5 下降 `-0.0143`，继续标记为 `keep_shadow_only`。
+- 本切片不改变 `RAG_RETRIEVAL_MODE`，不改客户热路径，不写业务数据库，不调用外部 LLM；它只把 shadow compare 结论固化成项目门禁和发布证据。
+- `scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入该报告，防止 RAG 灰度观测从生产增强计划中丢失。
+
+P19a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
+python -m ruff check scripts\report_rag_shadow_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\report_rag_shadow_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\report_rag_shadow_observability.py --summary
+python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json
 python scripts\check_langchain_ai_layer_production_plan.py --summary
 ```
 

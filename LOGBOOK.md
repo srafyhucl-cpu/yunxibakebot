@@ -1,4 +1,31 @@
 ﻿
+## [2026-07-10] - feat(rag): 增加 RAG shadow 观测报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P3 已具备 RAG shadow compare 和 `RAG_RETRIEVAL_MODE` 热路径 feature flag，但发布/运维层还缺一份不泄露 query 原文、能直接说明 planned-hybrid / rerank 是否可灰度的观测报告。P21a 已补容量门禁，下一步适合补 RAG 灰度证据。
+- **决策**:
+  - 新增 P19a RAG shadow 观测报告，复用 `report_retrieval_shadow_compare.run_shadow_compare()`，不重新实现检索评测。
+  - 默认使用 `data/bot.db` 和 `tests/fixtures/customer_rag_golden_cases.json`，避免旧 `retrieval_eval_set.json` 让结论偏乐观。
+  - 默认不输出 case query 原文，只输出指标、delta、changed case 数、group 汇总和热路径建议；排障时才显式 `--include-case-diffs`。
+  - planned-hybrid 指标不低于 baseline 时标记为受控灰度候选；planned-hybrid+rerank 若 Recall@5 低于 baseline，则标记为 `keep_shadow_only`。
+- **改动**:
+  - `scripts/report_rag_shadow_observability.py` - 新增 RAG shadow 观测报告和 CLI。
+  - `tests/scripts/test_report_rag_shadow_observability.py` - 覆盖默认不泄露 query、候选决策、baseline 失败和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_production_plan.py`、`scripts/check_project.py` - 将 P19a 观测报告纳入计划门禁和项目业务合约。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P19a 追溯记录和版本 `0.105.6`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\report_rag_shadow_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\report_rag_shadow_observability.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_report_rag_shadow_observability.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\report_rag_shadow_observability.py --summary` 通过，输出 `baseline=hybrid candidates=2`。
+  - `python scripts\report_retrieval_shadow_compare.py --db data\bot.db --fixture tests\fixtures\customer_rag_golden_cases.json --k 5 --json-out reports\retrieval-shadow\latest.json` 通过，hybrid Recall@5 `0.9857`、MRR `0.8881`；planned-hybrid 持平；planned-hybrid+rerank Recall@5 下降 `-0.0143`、MRR 提升 `0.0255`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过。
+  - `git diff --check` 通过，仅提示 Windows 换行转换 warning。
+- **后续**:
+  - P19b 可接入真实检索日志或生产 shadow 输入，继续保持不改变线上回复；只有连续证据证明候选不低于 baseline 后再讨论热启。
+
 ## [2026-07-10] - feat(obs): 增加 LangChain AI 层容量门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
