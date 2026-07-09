@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-021：LangChain AI 应用层 P13b 生产观测发布证据门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p13b-production-observability-release-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_production_observability_release.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_production_observability_release.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_production_observability_release.py -q --no-cov`; `python -m ruff check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py`; `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(obs): 增加生产观测发布证据门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮新增门禁只读取既有 release gate 摘要和 smoke/callback 结果字段；不记录 callback token、AES key、密文、客户原文、手机号、地址、open_id 或 API key。当前生产报告位于 gitignored reports 目录，索引只记录失败摘要。
+- summary: P13b 新增生产观测发布证据门禁，复核显式生产 release gate 是否足以作为上线收口。门禁要求 release gate、生产 smoke、企微员工助手 callback probe 和 LangChain 观测证据包均通过；同时从 `/health`、`/ready` detail 解析生产接口真实版本并与本地目标版本比对，避免只看 smoke metadata。当前报告按预期失败，明确指出 release_gate.failed、production_callback.failed 和 production_version_mismatch：生产接口仍返回 `0.85.2`，本地目标为 `0.98.0`，callback 失败用例为 `p2c-today-wait-buyer-confirm-list`、`p2c-refund-policy-knowledge`。
+
 ## E-20260710-020：LangChain AI 应用层 P13 观测证据包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

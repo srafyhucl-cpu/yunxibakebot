@@ -19,14 +19,15 @@ PLAN_PATH = (
 
 REQUIRED_STATUS_PHRASES = (
     "状态：持续执行中",
-    "P0-P11d 已完成",
-    "下一步建议进入 P12",
+    "P0-P13b 已完成",
+    "下一步建议进入 P14",
 )
 REQUIRED_ARTIFACTS = (
     "scripts/check_langchain_ai_layer_release_gate.py",
     "scripts/check_real_conversation_replay.py",
     "scripts/export_real_conversation_replay_fixture.py",
     "scripts/check_real_conversation_replay_coverage.py",
+    "scripts/check_langchain_production_observability_release.py",
     "tests/fixtures/customer_real_replay_coverage_sample.json",
     "docs/harness-engineering/core/evidence-index.md",
 )
@@ -35,10 +36,12 @@ REQUIRED_BOUNDARIES = (
     "不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径",
     "真实样本应替换或补充当前合成覆盖样例",
     "LangSmith 仍保持可选配置能力",
+    "生产接口真实版本必须与本地目标版本一致",
 )
 FORBIDDEN_STALE_PHRASES = (
     "状态：计划冻结，待执行",
     "下一步建议直接进入阶段 P0",
+    "下一步建议进入 P12",
     "P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条",
 )
 

@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - feat(obs): 增加生产观测发布证据门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: 显式生产 release gate 已能同时运行本地 eval、观测证据包、生产 smoke 和企微员工助手 callback probe，但还缺少一个机器门禁来判断这份组合报告是否足以作为生产观测发布证据。
+- **决策**:
+  - 新增独立 P13b 门禁，读取 release gate JSON，不重新访问生产，适合用于报告复核和上线收口。
+  - 生产版本以 `/health`、`/ready` detail 中真实返回的 `version` 为准，不能只看 smoke metadata 的本地 `APP_VERSION`。
+  - LangSmith 未开启可以通过，但 `langsmith_enabled` 必须在摘要中显式记录。
+  - 当前生产报告应保持失败状态，明确暴露生产版本 `0.85.2` 与本地目标 `0.98.0` 不一致，以及 2 个 callback 语义失败用例。
+- **改动**:
+  - `scripts/check_langchain_production_observability_release.py` - 新增生产观测发布证据门禁。
+  - `tests/scripts/test_check_langchain_production_observability_release.py` - 覆盖通过报告、当前生产漂移形态、LangSmith 状态缺失和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_production_plan.py` - 将计划静态验收推进到 P13b/P14 口径。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P13b 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_production_observability_release.py -q --no-cov` 通过，4 项失败 0。
+  - `python -m ruff check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py` 通过。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 按预期失败，输出 `failed=3`、`production_versions=0.85.2`、`callback_failed=2`、`langsmith_enabled=false`。
+
 ## [2026-07-10] - feat(obs): 增加 LangChain 观测证据包
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P11d 已完成；P12 样本池准入门禁和 P13a 观测证据包已完成，下一步建议接入真实脱敏样本或生产环境观测证据。
+> 状态：持续执行中，P0-P13b 已完成；P12 样本池准入门禁、P13a 观测证据包和 P13b 生产观测发布证据门禁已完成，下一步建议进入 P14 生产版本同步与 callback 失败定位。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1199,7 +1199,7 @@ Ruff format --check 通过。
 
 P10b 残余风险：
 
-- 本次显式生产门禁访问到的线上 `/health` 和 `/ready` 版本为 `0.85.2`，低于本地当前 `0.89.0`；因此 callback 语义失败不能视为当前代码部署后的最终结论。
+- 本次显式生产门禁访问到的线上 `/health` 和 `/ready` 版本为 `0.85.2`，低于本地当前 `0.98.0`；因此 callback 语义失败不能视为当前代码部署后的最终结论。
 - 失败 case 为 `p2c-today-wait-buyer-confirm-list` 和 `p2c-refund-policy-knowledge`：前者受生产当天待收货订单数据波动影响，后者暴露生产员工知识库退款规则未命中或旧版本检索行为不足。
 - 后续完成部署或生产知识补齐后，应复跑 `--include-production-smoke`，并将通过报告登记为正式发布证据。
 
@@ -1496,6 +1496,40 @@ P13 后续：
 - 若需要生产观测证据，应在生产同步后运行 `scripts/report_langchain_observability_evidence.py --summary` 和显式 `--include-production-smoke --include-observability-evidence` release gate，并把 gitignored reports 摘要登记到 evidence index。
 - 当前 P13a 证明本地/准生产观测链路可用，不等同于 LangSmith 线上外发已经启用。
 
+## 二十六、P13b 落地记录
+
+2026-07-10 已完成 P13 生产观测证据收口的第二切片：
+
+- 新增 `scripts/check_langchain_production_observability_release.py`，读取显式 `--include-production-smoke --include-observability-evidence` 生成的 release gate JSON。
+- 门禁同时检查 release gate 顶层状态、生产 smoke、企微员工助手 callback probe、LangChain 观测证据包、LangSmith 开关显式记录和生产接口真实版本。
+- 生产接口真实版本从 smoke 的 `/health`、`/ready` detail 中解析，不能只信 smoke metadata 的本地 `APP_VERSION`。
+- 当前报告明确失败：release gate 顶层 failed、生产 callback 失败 2 项、生产 `/health` 和 `/ready` 返回 `0.85.2`，与本地目标版本 `0.98.0` 不一致。
+- 升级 `scripts/check_langchain_ai_layer_production_plan.py`，把本计划状态推进到 `P0-P13b 已完成` 和 `下一步建议进入 P14`，防止计划门禁继续要求旧的 P12 口径。
+
+P13b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_langchain_production_observability_release.py -q --no-cov
+python -m ruff check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py
+python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary
+```
+
+P13b 验证结果：
+
+```text
+生产观测发布证据门禁测试通过：4 项失败 0。
+Ruff check 通过。
+当前生产观测发布证据门禁按预期失败：failed=3，production_versions=0.85.2，callback_failed=2，langsmith_enabled=false。
+失败项为 release_gate.failed、production_callback.failed、production_version_mismatch。
+```
+
+P14 后续：
+
+- 先确认 `origin/master`、`server/master` 和生产服务器实际部署 commit 是否一致。
+- 重启生产服务后复验 `/health`、`/ready`，生产接口真实版本必须与本地目标版本一致。
+- 继续定位 `p2c-today-wait-buyer-confirm-list` 和 `p2c-refund-policy-knowledge` 两个 callback 失败用例，不得通过放宽语义断言掩盖问题。
+- 生产同步后重新运行 `scripts/check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`，再用 P13b 门禁验收。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：
@@ -1560,13 +1594,13 @@ docs/harness-engineering/core/evidence-index.md
 
 ## 九、下一步建议
 
-下一步建议进入 P12：
+下一步建议进入 P14：
 
 ```text
-目标：接入真实脱敏客服样本池或生产观测证据，把 P11 的 schema sample / 合成覆盖样例推进为真实问题分布回归资产。
+目标：同步生产版本并定位 callback 失败，把 P13b 暴露的生产版本漂移和两个语义失败用例收掉。
 ```
 
-P12 不应让脚本直接读取生产明文。应先通过 P11c 导出器或等价脱敏流程生成 `contains_sensitive_data=false` 的 replay fixture，再登记到样本池 manifest，并用 `--include-real-replay --include-real-replay-coverage`、`--include-real-replay-pool --require-real-replay-pool` release gate 做准入检查。
+P14 不应通过放宽 release gate、callback 语义断言或版本检查来制造通过。应先确认生产部署 commit、服务重启和 `/health`、`/ready` 真实版本，再定位 `p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge`；真实脱敏样本池和 LangSmith 线上外发仍是后续增强项。
 
 ## 十、P0 落地记录
 
