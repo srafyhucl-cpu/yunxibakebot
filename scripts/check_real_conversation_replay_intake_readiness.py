@@ -25,6 +25,7 @@ REQUIRED_ARTIFACTS = (
     "scripts/check_real_conversation_replay.py",
     "scripts/export_real_conversation_replay_fixture.py",
     "scripts/check_real_conversation_replay_coverage.py",
+    "scripts/build_real_conversation_replay_intake_packet.py",
     "scripts/prepare_real_conversation_replay_pool_entry.py",
     "scripts/check_real_conversation_replay_pool.py",
     "tests/fixtures/customer_real_replay_pool_manifest_sample.json",

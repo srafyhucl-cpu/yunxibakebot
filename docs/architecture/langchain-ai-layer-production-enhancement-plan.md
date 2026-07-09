@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告和 P17b-prep 真实 replay pool 条目草稿生成器已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已具备外发合规和容量确认，也可并行进入 P18 生产 LangSmith/Trace 灰度打开。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器和 P17b-intake 外部接入操作包已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已具备外发合规和容量确认，也可并行进入 P18 生产 LangSmith/Trace 灰度打开。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1786,6 +1786,28 @@ python -m ruff check scripts\prepare_real_conversation_replay_pool_entry.py scri
 python -m ruff format --check scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
 python scripts\check_langchain_ai_layer_production_plan.py --summary
 python scripts\check_real_conversation_replay_intake_readiness.py --summary
+```
+
+## 三十四、P17b-intake 外部真实 replay 接入操作包
+
+2026-07-10 已完成 P17b 的外部接入操作包切片：
+
+- 新增 `scripts/build_real_conversation_replay_intake_packet.py`，用于生成给真实客服记录持有人执行的接入包。
+- 操作包列出原始记录必须包含的字段、六类事实敏感场景覆盖目标、脱敏要求、人工审核要求和完整命令链。
+- 命令链覆盖导出脱敏 fixture、检查 replay 契约、检查场景覆盖、生成 pool entry 草稿、严格检查 pool manifest 和严格检查 intake readiness。
+- 操作包报告明确 `raw_customer_conversation_read=false`、`real_customer_data_committed=false`、`business_database_read=false` 和 `external_llm_called=false`；脚本不读取真实原始记录，只生成执行说明和门禁命令。
+- `scripts/check_real_conversation_replay_intake_readiness.py`、`scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入该脚本，防止真实样本接入入口丢失。
+- 当前仓库仍未接入真实客服样本，`real_sample_ready=false` 仍是正确状态；本切片不把合成样例算作真实样本。
+
+P17b-intake 验收：
+
+```powershell
+python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
+python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\build_real_conversation_replay_intake_packet.py --summary
+python scripts\check_real_conversation_replay_intake_readiness.py --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
 ```
 
 ## 五、推荐执行顺序

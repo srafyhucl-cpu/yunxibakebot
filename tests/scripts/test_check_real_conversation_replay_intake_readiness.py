@@ -18,6 +18,8 @@ def test_intake_readiness_passes_for_default_synthetic_contract_pool() -> None:
         "collect_real_customer_conversations_outside_repo" in report["missing_actions"]
     )
     assert report["boundaries"]["real_customer_data_committed"] is False
+    artifact_paths = [item["path"] for item in report["artifacts"]]
+    assert "scripts/build_real_conversation_replay_intake_packet.py" in artifact_paths
 
 
 def test_intake_readiness_require_real_fails_without_real_pool() -> None:

@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-031：LangChain AI 应用层 P17b-intake 外部真实 replay 接入操作包
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p17b-real-replay-intake-packet
+- file: `D:\Project\YunxiBakeBot\scripts\build_real_conversation_replay_intake_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_real_conversation_replay_intake_packet.py`; `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay_intake_readiness.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\build_real_conversation_replay_intake_packet.py --summary`; `python scripts\check_real_conversation_replay_intake_readiness.py --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加真实 replay 外部接入操作包
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只生成外部接入操作包和测试；不读取原始客服记录、不访问业务数据库、不提交真实客户对话、不包含手机号、地址、open_id、完整订单号、token、密钥或 API key。生成的操作包 JSON 默认位于 gitignored reports 目录。
+- summary: P17b-intake 新增真实 replay 外部接入操作包，固定原始记录字段、脱敏审核要求、事实敏感场景覆盖目标和从导出到 strict gate 的命令链。当前仓库仍未接入真实脱敏客户样本，`real_sample_ready=false` 仍是正确状态；该操作包用于让具备权限的人在仓库外完成真实样本准备后再进入 manifest 接入。
+
 ## E-20260710-030：LangChain AI 应用层 P14c 生产 release gate 收口
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

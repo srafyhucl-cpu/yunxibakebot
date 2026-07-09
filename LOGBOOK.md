@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实 replay 外部接入操作包
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P14c 已完成生产收口，下一步进入 P17b 首批真实脱敏客服会话样本接入。但仓库当前没有真实客服样本，且不能用合成样例冒充真实业务分布证据。需要给具备真实记录权限的人一个固定接入包，明确字段、脱敏、审核和后续门禁命令。
+- **决策**:
+  - 新增只读 P17b-intake 操作包生成器，不读取原始客服记录、不访问业务库、不调用外部 LLM。
+  - 操作包固定六类事实敏感场景覆盖目标，并复用客户 golden fixture 中的场景定义。
+  - 操作包输出从脱敏导出、replay 契约检查、coverage 检查、entry 草稿生成到 strict pool/intake gate 的命令链。
+  - `real_sample_ready=false` 仍是当前正确状态；本切片只补外部接入入口，不提交真实客户数据。
+- **改动**:
+  - `scripts/build_real_conversation_replay_intake_packet.py` - 新增真实 replay 外部接入操作包报告和 CLI。
+  - `tests/scripts/test_build_real_conversation_replay_intake_packet.py` - 覆盖命令链、边界声明、目标样本数断言和 CLI JSON 输出。
+  - `scripts/check_real_conversation_replay_intake_readiness.py`、`scripts/check_langchain_ai_layer_production_plan.py`、`scripts/check_project.py` - 将操作包脚本纳入 readiness、计划门禁和项目业务合约。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P17b-intake 追溯记录和版本 `0.105.2`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\build_real_conversation_replay_intake_packet.py --summary` 通过，输出 `real_conversation_replay_intake_packet status=passed failed=0 target_count=30`。
+  - `python scripts\check_real_conversation_replay_intake_readiness.py --summary` 通过，仍正确输出 `real_sample_ready=false`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过。
+  - `python scripts\check_project.py --skip-tests` 通过。
+- **后续**:
+  - 由具备权限的人在仓库外提供真实客服记录，按操作包导出脱敏 fixture、人工审核后生成 manifest 条目；随后运行 `--require-real` 门禁。
+
 ## [2026-07-10] - ops: 完成 P14c 生产 release gate 收口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
