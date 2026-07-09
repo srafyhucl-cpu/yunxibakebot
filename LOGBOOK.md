@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P10c 发布摘要结构化
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P10a/P10b 已把本地 eval、回复回放、RAG 矩阵和生产 smoke/callback 编排进 release gate；但 JSON 报告仍主要是 step 命令和 stdout/stderr，作品集或上线记录要人工翻多个报告文件。
+- **决策**:
+  - 在 release gate 顶层新增 `release_summary`，只抽取已有 JSON 报告中的关键指标，不重新实现 eval、RAG 或生产探针逻辑。
+  - 保持门禁通过判定不变：是否通过仍由 step returncode 决定，摘要只做展示和追溯索引。
+  - `{timestamp}` 生产报告路径按文件名选择最新报告，避免重复运行后误读旧 smoke/callback 证据。
+- **改动**:
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 `build_release_summary()`、JSON 报告读取、Agent Eval/RAG/smoke/callback 摘要抽取。
+  - `tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 覆盖默认摘要、RAG/生产摘要和 timestamp 报告解析。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，13 项失败 0。
+  - `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary` 通过，默认门禁 3 步失败 0。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-rag-matrix --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json --summary` 通过，加强门禁 4 步失败 0。
+  - JSON 抽查：`release_summary.agent_eval_default.total=133`、`release_summary.agent_eval_with_reply_replay.total=163`、`release_summary.rag_eval_matrix.best.name=hybrid`、Recall@5=0.9857、MRR=0.8881。
+
 ## [2026-07-10] - feat(eval): 增加 P10b 生产 smoke/callback 可选门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

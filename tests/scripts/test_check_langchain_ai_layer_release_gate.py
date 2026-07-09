@@ -91,6 +91,142 @@ def test_gate_step_result_tolerates_missing_streams() -> None:
     assert payload["stderr"] == ""
 
 
+def test_build_release_summary_extracts_default_agent_eval(tmp_path: Path) -> None:
+    agent_eval_path = tmp_path / "latest.json"
+    reply_eval_path = tmp_path / "latest-with-reply-replay.json"
+    agent_eval_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 133,
+                "failed": 0,
+                "pass_rate": 1.0,
+                "metadata": {"app_version": "0.90.0"},
+                "agent_totals": [{"agent": "customer", "total": 71}],
+                "sensitive_scenarios": [{"scenario": "refund", "total": 6}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    reply_eval_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 163,
+                "failed": 0,
+                "pass_rate": 1.0,
+                "metadata": {"app_version": "0.90.0"},
+                "agent_totals": [{"agent": "customer_reply_replay", "total": 30}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+    )
+
+    assert summary["agent_eval_default"]["total"] == 133
+    assert summary["agent_eval_default"]["app_version"] == "0.90.0"
+    assert summary["agent_eval_with_reply_replay"]["total"] == 163
+    assert summary["rag_eval_matrix"] is None
+    assert summary["production_smoke"] is None
+
+
+def test_build_release_summary_extracts_rag_and_production_reports(
+    tmp_path: Path,
+) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    rag_path = tmp_path / "rag.json"
+    smoke_path = tmp_path / "smoke.json"
+    callback_path = tmp_path / "callback.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    rag_path.write_text(
+        release_gate.json.dumps(
+            {
+                "metadata": {"corpus_size": 400, "total_cases": 70, "k": 5},
+                "best": {"name": "hybrid", "recall_at_k": 0.9857, "mrr": 0.8881},
+                "results": [
+                    {
+                        "name": "hybrid",
+                        "recall_at_k": 0.9857,
+                        "mrr": 0.8881,
+                        "evaluable": 70,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    smoke_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 3,
+                "failed": 0,
+                "metadata": {
+                    "server_base_url": "https://example.com:443",
+                    "app_version": "0.90.0",
+                },
+                "failed_names": [],
+                "results": [{"name": "健康检查接口", "passed": True, "detail": "ok"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    callback_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "failed",
+                "total": 61,
+                "failed": 2,
+                "metadata": {
+                    "base_url": "https://example.com",
+                    "app_version": "0.85.2",
+                },
+                "failed_names": ["case-a", "case-b"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=True,
+        include_production_smoke=True,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        rag_matrix_path=rag_path,
+        production_smoke_path=smoke_path,
+        production_callback_path=callback_path,
+    )
+
+    assert summary["rag_eval_matrix"]["best"]["name"] == "hybrid"
+    assert summary["rag_eval_matrix"]["corpus_size"] == 400
+    assert summary["production_smoke"]["status"] == "passed"
+    assert summary["production_smoke"]["checks"][0]["name"] == "健康检查接口"
+    assert summary["production_employee_callback_probe"]["failed"] == 2
+    assert summary["production_employee_callback_probe"]["failed_names"] == [
+        "case-a",
+        "case-b",
+    ]
+
+
+def test_read_json_report_resolves_latest_timestamp_report(tmp_path: Path) -> None:
+    old_path = tmp_path / "smoke-20260710-010000.json"
+    latest_path = tmp_path / "smoke-20260710-020000.json"
+    old_path.write_text('{"status": "old"}', encoding="utf-8")
+    latest_path.write_text('{"status": "latest"}', encoding="utf-8")
+
+    payload = release_gate.read_json_report(tmp_path / "smoke-{timestamp}.json")
+
+    assert payload["status"] == "latest"
+
+
 def test_main_writes_json_summary(monkeypatch, tmp_path: Path, capsys) -> None:
     def fake_run_gate_steps(_steps):
         return (
@@ -110,6 +246,8 @@ def test_main_writes_json_summary(monkeypatch, tmp_path: Path, capsys) -> None:
 
     assert exit_code == 0
     assert output_path.exists()
+    payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
+    assert "release_summary" in payload
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
 

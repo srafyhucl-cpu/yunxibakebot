@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-013：LangChain AI 应用层 P10c 发布摘要结构化
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p10c-langchain-ai-layer-release-summary
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-rag-matrix --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json --summary`; JSON 抽查 `release_summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P10c 发布摘要结构化
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: `release_summary` 只抽取既有报告中的状态、总数、失败数、app version、RAG 指标、failed names 和检查名称；不包含真实客户原文、订单号、手机号、地址、open_id、token、AES key 或密文；reports 目录被 gitignored。
+- summary: P10c 在 LangChain AI 应用层 release gate 顶层新增 `release_summary`，把默认 133 eval、扩展 163 eval、RAG matrix、生产 http-only smoke 和生产 callback probe 的关键结果抽成结构化摘要。默认门禁和 RAG 加强门禁均通过；当前摘要显示默认 eval 133/133、扩展 eval 163/163、RAG best=hybrid，Recall@5=0.9857，MRR=0.8881。摘要不改变门禁判定，只降低上线报告和作品集证据整理成本。
+
 ## E-20260710-012：LangChain AI 应用层 P10b 生产 smoke/callback 可选门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

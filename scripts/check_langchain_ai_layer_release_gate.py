@@ -29,6 +29,7 @@ DEFAULT_PRODUCTION_CALLBACK_PATH = (
     / "langchain-prod-callback-{timestamp}.json"
 )
 DEFAULT_PRODUCTION_BASE_URL = "https://yunxifood.cn"
+OUTPUT_TIMESTAMP_PLACEHOLDER = "{timestamp}"
 
 
 @dataclass(frozen=True)
@@ -189,6 +190,11 @@ def build_gate_report(
     include_rag_matrix: bool,
     include_production_smoke: bool,
     production_base_url: str,
+    agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
+    reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
+    rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
+    production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
+    production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
 ) -> dict[str, object]:
     failed = sum(1 for result in results if not result.passed)
     return {
@@ -201,8 +207,150 @@ def build_gate_report(
         else None,
         "total": len(results),
         "failed": failed,
+        "release_summary": build_release_summary(
+            include_rag_matrix=include_rag_matrix,
+            include_production_smoke=include_production_smoke,
+            agent_eval_path=agent_eval_path,
+            reply_eval_path=reply_eval_path,
+            rag_matrix_path=rag_matrix_path,
+            production_smoke_path=production_smoke_path,
+            production_callback_path=production_callback_path,
+        ),
         "steps": [result.to_dict() for result in results],
     }
+
+
+def build_release_summary(
+    *,
+    include_rag_matrix: bool,
+    include_production_smoke: bool,
+    agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
+    reply_eval_path: Path = DEFAULT_REPLY_EVAL_PATH,
+    rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
+    production_smoke_path: Path = DEFAULT_PRODUCTION_SMOKE_PATH,
+    production_callback_path: Path = DEFAULT_PRODUCTION_CALLBACK_PATH,
+) -> dict[str, object]:
+    summary: dict[str, object] = {
+        "agent_eval_default": summarize_agent_eval_report(
+            read_json_report(agent_eval_path)
+        ),
+        "agent_eval_with_reply_replay": summarize_agent_eval_report(
+            read_json_report(reply_eval_path)
+        ),
+        "rag_eval_matrix": None,
+        "production_smoke": None,
+        "production_employee_callback_probe": None,
+    }
+    if include_rag_matrix:
+        summary["rag_eval_matrix"] = summarize_rag_matrix_report(
+            read_json_report(rag_matrix_path)
+        )
+    if include_production_smoke:
+        summary["production_smoke"] = summarize_smoke_report(
+            read_json_report(production_smoke_path)
+        )
+        summary["production_employee_callback_probe"] = summarize_callback_report(
+            read_json_report(production_callback_path)
+        )
+    return summary
+
+
+def summarize_agent_eval_report(report: dict[str, object]) -> dict[str, object]:
+    metadata = _dict_value(report, "metadata")
+    return {
+        "status": report.get("status", "missing"),
+        "total": report.get("total", 0),
+        "failed": report.get("failed", 0),
+        "pass_rate": report.get("pass_rate", 0.0),
+        "app_version": metadata.get("app_version", ""),
+        "agent_totals": report.get("agent_totals", []),
+        "sensitive_scenarios": report.get("sensitive_scenarios", []),
+    }
+
+
+def summarize_rag_matrix_report(report: dict[str, object]) -> dict[str, object]:
+    metadata = _dict_value(report, "metadata")
+    result_summaries = []
+    for result in _list_value(report, "results"):
+        if not isinstance(result, dict):
+            continue
+        result_summaries.append(
+            {
+                "name": result.get("name", ""),
+                "recall_at_k": result.get("recall_at_k", 0.0),
+                "mrr": result.get("mrr", 0.0),
+                "evaluable": result.get("evaluable", 0),
+            }
+        )
+    return {
+        "status": "available" if report else "missing",
+        "corpus_size": metadata.get("corpus_size", 0),
+        "total_cases": metadata.get("total_cases", 0),
+        "k": metadata.get("k", 0),
+        "best": report.get("best", {}),
+        "results": result_summaries,
+    }
+
+
+def summarize_smoke_report(report: dict[str, object]) -> dict[str, object]:
+    metadata = _dict_value(report, "metadata")
+    return {
+        "status": report.get("status", "missing"),
+        "total": report.get("total", 0),
+        "failed": report.get("failed", 0),
+        "server_base_url": metadata.get("server_base_url", ""),
+        "app_version": metadata.get("app_version", ""),
+        "failed_names": report.get("failed_names", []),
+        "checks": summarize_named_results(report),
+    }
+
+
+def summarize_callback_report(report: dict[str, object]) -> dict[str, object]:
+    metadata = _dict_value(report, "metadata")
+    return {
+        "status": report.get("status", "missing"),
+        "total": report.get("total", 0),
+        "failed": report.get("failed", 0),
+        "base_url": metadata.get("base_url", ""),
+        "app_version": metadata.get("app_version", ""),
+        "failed_names": report.get("failed_names", []),
+    }
+
+
+def summarize_named_results(report: dict[str, object]) -> list[dict[str, object]]:
+    summaries = []
+    for result in _list_value(report, "results"):
+        if not isinstance(result, dict):
+            continue
+        summaries.append(
+            {
+                "name": result.get("name", ""),
+                "passed": result.get("passed", False),
+                "detail": result.get("detail", ""),
+            }
+        )
+    return summaries
+
+
+def read_json_report(path: Path) -> dict[str, object]:
+    resolved_path = resolve_existing_report_path(path)
+    if resolved_path is None:
+        return {}
+    try:
+        payload = json.loads(resolved_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def resolve_existing_report_path(path: Path) -> Path | None:
+    if OUTPUT_TIMESTAMP_PLACEHOLDER not in str(path):
+        return path if path.exists() else None
+    glob_pattern = path.name.replace(OUTPUT_TIMESTAMP_PLACEHOLDER, "*")
+    candidates = [candidate for candidate in path.parent.glob(glob_pattern)]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda candidate: candidate.name)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -245,6 +393,11 @@ def main(argv: list[str] | None = None) -> int:
         include_rag_matrix=args.include_rag_matrix,
         include_production_smoke=args.include_production_smoke,
         production_base_url=args.production_base_url,
+        agent_eval_path=DEFAULT_AGENT_EVAL_PATH,
+        reply_eval_path=DEFAULT_REPLY_EVAL_PATH,
+        rag_matrix_path=DEFAULT_RAG_MATRIX_PATH,
+        production_smoke_path=DEFAULT_PRODUCTION_SMOKE_PATH,
+        production_callback_path=DEFAULT_PRODUCTION_CALLBACK_PATH,
     )
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
@@ -293,6 +446,16 @@ def _utc_now() -> str:
     return (
         datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
+
+
+def _dict_value(payload: dict[str, object], key: str) -> dict[str, object]:
+    value = payload.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _list_value(payload: dict[str, object], key: str) -> list[object]:
+    value = payload.get(key)
+    return value if isinstance(value, list) else []
 
 
 if __name__ == "__main__":

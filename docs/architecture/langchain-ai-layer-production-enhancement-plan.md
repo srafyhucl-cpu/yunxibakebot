@@ -1203,6 +1203,42 @@ P10b 残余风险：
 - 失败 case 为 `p2c-today-wait-buyer-confirm-list` 和 `p2c-refund-policy-knowledge`：前者受生产当天待收货订单数据波动影响，后者暴露生产员工知识库退款规则未命中或旧版本检索行为不足。
 - 后续完成部署或生产知识补齐后，应复跑 `--include-production-smoke`，并将通过报告登记为正式发布证据。
 
+## 三十四、P10c 落地记录
+
+2026-07-10 已完成 P10 生产级发布门禁的第三切片：
+
+- `scripts/check_langchain_ai_layer_release_gate.py` 的 JSON 报告新增顶层 `release_summary`。
+- `release_summary` 从门禁步骤刚生成的 JSON 报告中抽取关键指标，而不是重新实现 eval、RAG 或生产探针逻辑。
+- 当前摘要覆盖：
+  - 默认 Agent Eval：状态、总数、失败数、通过率、app version、agent totals、事实敏感场景汇总。
+  - 扩展 Agent Eval：状态、总数、失败数、通过率、app version、包含 `customer_reply_replay` 的 agent totals。
+  - RAG matrix：corpus size、case 数、k、best mode、各检索模式 Recall@K / MRR / evaluable。
+  - 生产 http-only smoke：服务根地址、app version、失败项、`/health` 和 `/ready` 检查摘要。
+  - 生产 callback probe：base url、app version、总数、失败数和 failed names。
+- `{timestamp}` 报告路径会按文件名选择最新报告，避免重复运行生产 smoke/callback 时误读旧证据。
+- 本切片不改变 release gate 的通过判定；是否通过仍以各 step returncode 为准，`release_summary` 只作为上线报告和作品集展示索引。
+
+P10c 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-rag-matrix --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-rag-latest.json --summary
+```
+
+P10c 验证结果：
+
+```text
+release gate 脚本测试通过：13 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+默认 release gate 通过：3 步失败 0。
+RAG 加强 release gate 通过：4 步失败 0。
+`release_summary.agent_eval_default.total=133`，`release_summary.agent_eval_with_reply_replay.total=163`，`release_summary.rag_eval_matrix.best.name=hybrid`，Recall@5=0.9857，MRR=0.8881。
+```
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：
