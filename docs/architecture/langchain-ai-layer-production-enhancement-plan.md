@@ -1,0 +1,508 @@
+# LangChain AI 应用层生产增强计划书
+
+> trace_id: `20260709-langchain-ai-layer-production-enhancement`
+> 日期：2026-07-09
+> 状态：计划冻结，待执行
+> 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
+> 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
+
+## 一、目标
+
+当前项目已经完成 LangChain / LangGraph 对 AI 应用层的接管。下一阶段不再以“继续扩大框架覆盖率”为主要目标，而是把现有能力推进到可上线、可观测、可评估、可展示的工程状态。
+
+本计划的核心目标是：
+
+```text
+把 LangChain / LangGraph 迁移成果转化为生产证据、持续评估体系、线上观测能力和作品集表达。
+```
+
+后续增强优先服务四件事：
+
+1. 真实上线可验证。
+2. 线上问题可追踪。
+3. 效果改进可量化。
+4. 面试展示可讲清。
+
+## 二、当前基线
+
+截至 2026-07-09，项目当前基线如下：
+
+| 能力 | 当前状态 | 证据入口 |
+|---|---|---|
+| 客户机器人编排 | 已由 LangGraph 接管 | `app/service/agents/customer/graph.py` |
+| 客户模型调用 | 已有 LangChain model adapter | `app/service/agents/customer/model.py` |
+| 客户工具 | 已注册为 LangChain tools | `app/service/agents/tools/customer.py` |
+| RAG adapter | 已接入 LangChain Retriever 形态 | `app/service/agents/rag/retriever.py` |
+| RAG query plan / rerank | 已有离线 eval 路径 | `app/service/agents/rag/query.py`、`app/service/agents/rag/rerank.py` |
+| 员工助手编排 | 已由 LangGraph 接管 | `app/service/agents/employee/graph.py` |
+| 员工 planner | 已接入 LangChain structured output fallback | `app/service/agents/employee/structured_planner.py` |
+| Agent Eval | 已有双机器人离线聚合报告 | `scripts/report_agent_eval.py` |
+| 作品集说明 | 已有当前版架构说明 | `docs/architecture/langchain-ai-layer-portfolio.md` |
+
+已验证的关键结果：
+
+```text
+agent_eval status=passed total=58 failed=0 pass_rate=1.0
+真实 BGE embedding 路径下 hybrid / planned-hybrid / planned-hybrid+rerank 均达到 Recall@5=1.0、MRR=1.0
+```
+
+当前主要缺口：
+
+1. 生产部署与回调探针证据尚未作为本轮 LangChain 接管的正式收口资产归档。
+2. LangSmith / trace 观测入口已有配置基础，但缺少生产级运行报告闭环。
+3. Eval 仍以 fixture 和离线脚本为主，真实业务回放样本不足。
+4. planned-hybrid / rerank 尚未进入灰度热路径。
+5. 面试材料已有文本说明，但缺少一套“一页讲清”的证据包。
+
+## 三、边界原则
+
+### 3.1 继续坚持的边界
+
+LangChain / LangGraph 继续负责：
+
+1. 模型调用。
+2. 工具绑定。
+3. Agent 节点编排。
+4. Retriever adapter。
+5. structured output。
+6. tracing config。
+7. eval 报告。
+
+项目业务层继续负责：
+
+1. 订单、商品、库存、退款、售后事实。
+2. 客户主档和客户线索。
+3. 知识发布状态。
+4. SQLite repository 和 migration。
+5. 有赞、企微、后台 API 的业务处理。
+
+### 3.2 后续增强不做什么
+
+本计划不把以下事项作为近期目标：
+
+1. 不为了“更彻底”而让 LangChain 直接读写业务数据库。
+2. 不把员工助手最终回复交给 LLM 自由润色。
+3. 不在没有真实 eval 对照前打开 planned/rerank 热路径。
+4. 不把观测、报告、作品集文档和业务逻辑混成一次大改。
+
+## 四、阶段路线
+
+### 阶段 P0：生产上线验证闭环
+
+目标：确认当前 LangChain AI 应用层接管成果在生产服务器可运行，并形成可追溯证据。
+
+改动范围：
+
+- 原则上不改运行时代码。
+- 必要时只补充探针脚本参数、报告输出和文档索引。
+- 不引入新的 AI 行为。
+
+执行步骤：
+
+1. 确认本地工作区干净，记录当前 commit、VERSION 和依赖版本。
+2. 推送 `origin/master` 和 `server/master`。
+3. 在生产服务器确认 `/opt/yunxibakebot` fast-forward 到目标 commit。
+4. 重启 `yunxibakebot` 服务。
+5. 检查 `/health` 和 `/ready`。
+6. 运行企微员工助手 callback probe。
+7. 运行客户机器人最小 RAG 正向探针。
+8. 运行员工助手订单查询正向探针。
+9. 将生产验证输出登记到 evidence index 或 LOGBOOK。
+
+验收命令：
+
+```powershell
+git status -sb
+git rev-parse HEAD
+git push origin master
+git push server master
+git ls-remote origin master
+git ls-remote server master
+python scripts/report_agent_eval.py --latest
+python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+python scripts/check_project.py --skip-tests
+python scripts/check_evidence_index.py --summary
+```
+
+生产侧验收：
+
+```powershell
+curl.exe https://yunxifood.cn/health
+curl.exe https://yunxifood.cn/ready
+python scripts/check_wecom_employee_agent_callback.py --json --output reports/wecom-employee-agent/langchain-prod-callback.json
+```
+
+完成标准：
+
+- 生产 `/health` 和 `/ready` 均通过。
+- 企微 callback probe 有可读 JSON 证据。
+- 至少一个客户机器人 RAG 正向问题和一个员工助手订单查询正向问题通过。
+- LOGBOOK 或 evidence index 能追溯 commit、命令、结果和报告路径。
+
+回滚策略：
+
+- 若服务启动失败，回退到上一个已知健康 commit 并重启。
+- 若 callback probe 失败但 `/health`、`/ready` 正常，先保留服务运行，定位企微入口或环境变量。
+- 若客户 RAG 或员工助手行为失败，关闭相关 feature flag 或回退本次 commit。
+
+### 阶段 P1：线上 Trace 与 LangSmith 观测
+
+目标：让每次 AI 回复可以追踪模型、工具、RAG、耗时、失败回退和最终结果。
+
+改动范围：
+
+- `app/service/agents/observability.py`
+- 客户 graph 节点 trace 输出。
+- 员工 graph 节点 trace 输出。
+- 本地 trace events 与 LangSmith 配置桥接。
+- 运行报告脚本。
+
+建议改动：
+
+1. 明确统一 trace 字段：
+   - `trace_id`
+   - `conversation_id`
+   - `channel`
+   - `agent`
+   - `node`
+   - `model`
+   - `tool_name`
+   - `knowledge_entry_ids`
+   - `latency_ms`
+   - `fallback_reason`
+   - `final_status`
+2. 新增 LangSmith 开关：
+   - 默认本地关闭。
+   - 生产可通过环境变量打开。
+   - 缺少 key 时不得影响主流程。
+3. 为客户机器人补齐：
+   - model 节点耗时。
+   - tool 调用次数。
+   - RAG 命中条目。
+   - fallback 回复原因。
+4. 为员工助手补齐：
+   - rule-first 命中或 structured planner 命中。
+   - 工具计划。
+   - deterministic finalizer 状态。
+5. 新增只读报告脚本：
+   - 汇总最近一段 trace。
+   - 输出失败率、平均耗时、工具调用分布、RAG 命中分布。
+
+验收命令：
+
+```powershell
+python -m pytest tests/service/agents -q --no-cov
+python scripts/report_agent_eval.py --latest
+python scripts/check_project.py --skip-tests
+```
+
+建议新增验收：
+
+```powershell
+python scripts/report_agent_traces.py --latest --summary
+python scripts/report_agent_traces.py --latest --json
+```
+
+完成标准：
+
+- LangSmith 未配置时主流程不失败。
+- 本地 trace 报告能看到客户机器人和员工助手的节点级摘要。
+- 至少覆盖成功、工具失败、RAG 未命中、fallback 四类事件。
+- 观测字段不包含手机号、地址、open_id 等未脱敏敏感信息。
+
+### 阶段 P2：真实业务 Eval 数据集扩容
+
+目标：把 eval 从工程 smoke 扩展为真实业务回归资产。
+
+改动范围：
+
+- `tests/fixtures/`
+- `scripts/eval_customer_agent.py`
+- `scripts/eval_employee_agent.py`
+- `scripts/report_agent_eval.py`
+- `docs/harness-engineering/core/evidence-index.md`
+
+执行步骤：
+
+1. 定义脱敏样本格式：
+   - 用户问题。
+   - 期望命中知识或工具。
+   - 禁止出现的回复。
+   - 必须出现的事实。
+   - 允许转人工的条件。
+2. 扩充客户机器人样本：
+   - 商品咨询。
+   - 库存咨询。
+   - 配送时间。
+   - 退款售后。
+   - 转人工。
+   - 知识未命中。
+3. 扩充员工助手样本：
+   - 查订单。
+   - 查客户。
+   - 查发货时间。
+   - 弱关键词。
+   - 不支持意图。
+4. 给 eval 报告增加：
+   - `--json-out`
+   - `--fail-fast`
+   - `--case-id`
+   - `--agent customer|employee|all`
+5. 把 eval 结果归档到 `reports/agent-eval/`，并在 evidence index 登记关键版本。
+
+验收命令：
+
+```powershell
+python scripts/eval_customer_agent.py --summary
+python scripts/eval_employee_agent.py --summary
+python scripts/report_agent_eval.py --latest
+python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json
+python scripts/check_evidence_index.py --summary
+```
+
+完成标准：
+
+- 客户机器人 eval cases 从当前 9 项扩到至少 40 项。
+- 员工助手 eval cases 保持或超过 60 项。
+- 每个 case 有稳定 `case_id`。
+- eval 失败能定位到 agent、case、断言和实际输出。
+- 报告可作为作品集证据引用。
+
+### 阶段 P3：RAG 热路径灰度增强
+
+目标：把 planned-hybrid / rerank 从离线评估能力推进到可灰度的线上候选能力。
+
+改动范围：
+
+- `app/service/agents/rag/retriever.py`
+- `app/service/agents/rag/query.py`
+- `app/service/agents/rag/rerank.py`
+- 客户机器人 RAG 调用入口。
+- retrieval logs。
+- RAG eval matrix 脚本。
+
+执行步骤：
+
+1. 增加 feature flag：
+   - `RAG_RETRIEVAL_MODE=hybrid`
+   - `RAG_RETRIEVAL_MODE=planned-hybrid`
+   - `RAG_RETRIEVAL_MODE=planned-hybrid-rerank`
+2. 默认生产仍保持当前稳定模式。
+3. 新增 shadow compare：
+   - 主链路仍用稳定结果。
+   - 后台并行计算 planned/rerank 候选。
+   - 记录排序差异，不影响用户回复。
+4. 增加检索日志字段：
+   - query plan。
+   - vector top-k。
+   - BM25 top-k。
+   - RRF 后 top-k。
+   - rerank 后 top-k。
+   - final injected context。
+5. 连续收集真实问题差异报告后再决定是否灰度打开。
+
+验收命令：
+
+```powershell
+python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+python scripts/check_knowledge_retrieval_logs_smoke.py --json
+python scripts/check_knowledge_audience_governance_smoke.py --json
+python -m pytest tests/service/agents/test_rag_retriever.py tests/scripts/test_report_retrieval_eval_matrix.py -q --no-cov
+```
+
+建议新增验收：
+
+```powershell
+python scripts/report_retrieval_shadow_compare.py --latest --summary
+```
+
+完成标准：
+
+- feature flag 默认值不改变现有生产行为。
+- shadow compare 能输出稳定模式与候选模式的差异。
+- planned/rerank 候选在真实样本上不低于稳定模式。
+- RAG 日志能解释“为什么命中这条知识”。
+
+### 阶段 P4：事实敏感场景治理增强
+
+目标：强化订单、售后、退款、库存、转人工等高风险场景的可控性。
+
+改动范围：
+
+- 客户机器人 guard。
+- RAG context builder。
+- transfer / handoff 策略。
+- golden cases。
+- eval scripts。
+
+执行步骤：
+
+1. 定义事实敏感场景清单：
+   - 订单状态。
+   - 退款规则。
+   - 售后承诺。
+   - 实时库存。
+   - 价格。
+   - 转人工。
+2. 为每类场景定义回复策略：
+   - 必须来自工具。
+   - 必须来自知识。
+   - 必须转人工。
+   - 可以一般性说明。
+3. 增加禁止行为断言：
+   - 不编造订单。
+   - 不承诺未配置退款。
+   - 不输出过期库存。
+   - 不泄露客户隐私。
+4. 对库存继续坚持动静分离：
+   - embedding 文本保留静态语义。
+   - 在线 context 注入实时库存。
+5. 增加敏感场景 eval cases。
+
+验收命令：
+
+```powershell
+python scripts/report_agent_eval.py --latest
+python scripts/check_customer_rag_golden_cases.py --summary
+python scripts/check_knowledge_audience_governance_smoke.py --json
+python scripts/check_project.py --skip-tests
+```
+
+完成标准：
+
+- 每类事实敏感场景至少 5 个 eval cases。
+- 对订单、退款、库存、转人工有明确断言。
+- 回复策略能在作品集里讲成“AI 客服治理能力”，而不是单纯 prompt 约束。
+
+### 阶段 P5：作品集证据包
+
+目标：把项目整理成求职可展示材料，不只是代码仓库。
+
+改动范围：
+
+- `docs/architecture/langchain-ai-layer-portfolio.md`
+- `README.md`
+- `docs/README.md`
+- `reports/`
+- 架构图或 Mermaid 图。
+
+执行步骤：
+
+1. 增加一页式项目说明：
+   - 项目背景。
+   - 技术栈。
+   - LangChain 接管边界。
+   - 业务事实边界。
+   - eval 结果。
+   - 生产验证结果。
+2. 增加“迁移前后对比”：
+   - 自研工具循环。
+   - LangGraph 编排。
+   - LangChain tools。
+   - Retriever adapter。
+   - structured output。
+3. 增加“我少写了什么代码”：
+   - 模型消息适配。
+   - 工具 schema。
+   - structured output 解析。
+   - graph 状态流转。
+   - retriever 标准接口。
+   - eval 报告结构。
+4. 增加“为什么没有让 LangChain 接管业务层”：
+   - 数据真实性。
+   - 可追溯性。
+   - 订单/库存/退款风险。
+   - repository 分层边界。
+5. 增加面试问答版：
+   - 为什么选 LangChain 而不是 LlamaIndex。
+   - 为什么用了 LangGraph。
+   - RAG 是什么范式。
+   - 如何做 eval。
+   - 如何保证客服回复可控。
+
+验收命令：
+
+```powershell
+python scripts/report_agent_eval.py --latest
+python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5
+python scripts/check_text_encoding.py README.md docs/README.md docs/architecture/langchain-ai-layer-portfolio.md docs/architecture/langchain-ai-layer-production-enhancement-plan.md
+git diff --check
+```
+
+完成标准：
+
+- 面试官 3 分钟内能看懂项目价值。
+- 技术栈不是堆名词，而是能映射到代码路径和验证命令。
+- 每个关键能力都有证据：代码入口、eval 输出、生产探针或文档决策。
+
+## 五、推荐执行顺序
+
+推荐顺序如下：
+
+```text
+P0 生产上线验证闭环
+  -> P1 线上 Trace 与 LangSmith 观测
+  -> P2 真实业务 Eval 数据集扩容
+  -> P3 RAG 热路径灰度增强
+  -> P4 事实敏感场景治理增强
+  -> P5 作品集证据包
+```
+
+理由：
+
+1. 先证明能在线上跑，再继续增强。
+2. 先有 trace，后面才能解释线上问题。
+3. 先有真实 eval，再灰度 RAG 高级能力。
+4. 先治理事实敏感场景，再包装作品集，避免只有表面材料。
+
+## 六、验收矩阵
+
+| 阶段 | 最低验收 | 加强验收 | 是否改热路径 |
+|---|---|---|---|
+| P0 | `/health`、`/ready`、callback probe | 客户 RAG 与员工助手正向探针 | 否 |
+| P1 | trace 报告可生成 | LangSmith 可选接入且不影响主流程 | 低风险 |
+| P2 | eval cases 扩容并可定位失败 | report 支持 JSON 归档和 case filter | 否 |
+| P3 | shadow compare 可运行 | planned/rerank 灰度优于稳定模式 | 是，需 feature flag |
+| P4 | 敏感场景断言通过 | 每类场景至少 5 个真实脱敏 cases | 是，需回滚策略 |
+| P5 | 作品集文档完整 | 有生产证据、eval 证据和架构图 | 否 |
+
+## 七、风险与控制
+
+| 风险 | 控制方式 |
+|---|---|
+| LangChain / LangSmith 依赖增加生产内存压力 | 继续保持懒加载；每次生产前运行 capacity probe |
+| RAG 高级模式影响线上回复 | 默认关闭；先 shadow compare，再灰度 |
+| Eval 样本过少导致虚高 | 引入真实脱敏问题，按业务场景扩容 |
+| Trace 泄露敏感信息 | 统一脱敏字段；报告默认不输出手机号、地址、open_id |
+| 作品集只像包装 | 每个亮点必须对应代码路径和验收命令 |
+
+## 八、每阶段收口格式
+
+每个阶段完成后按固定格式追加到 LOGBOOK：
+
+```text
+## [日期] - feat/docs/ops(...): 阶段名称
+- trace_id:
+- 背景:
+- 决策:
+- 改动:
+- 验证结果:
+- 证据路径:
+- 后续:
+```
+
+需要生产证据时，同时登记到：
+
+```text
+docs/harness-engineering/core/evidence-index.md
+```
+
+## 九、下一步建议
+
+下一步建议直接进入阶段 P0：
+
+```text
+目标：把当前 LangChain AI 应用层接管成果同步到生产，并完成 health / ready / callback / 客户 RAG / 员工助手正向探针。
+```
+
+P0 不应再扩功能。它的价值是把“代码已经完成”变成“真实服务器已经验证”的证据。

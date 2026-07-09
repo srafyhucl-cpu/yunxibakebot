@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-09] - docs(langchain): 拆分 AI 应用层生产增强可执行计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: LangChain / LangGraph AI 应用层接管计划已完成并提交；后续需要把成果推进到生产验证、线上观测、真实 eval、RAG 灰度和作品集证据包，而不是继续单纯追求框架覆盖率。
+- **决策**:
+  - 新增独立增强计划书，保留上一份接管计划作为已完成迁移记录。
+  - 后续增强按 P0-P5 拆分：生产上线验证闭环、线上 Trace / LangSmith 观测、真实业务 Eval 扩容、RAG 热路径灰度、事实敏感场景治理、作品集证据包。
+  - 继续坚持 LangChain / LangGraph 接管 AI 应用层，不接管订单、库存、退款、客户主档、知识发布状态等业务事实层。
+- **改动**:
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` - 新增后续增强可执行计划书。
+- **验证结果**:
+  - `python scripts/check_logbook.py` 通过。
+  - `python scripts/check_text_encoding.py docs/architecture/langchain-ai-layer-production-enhancement-plan.md LOGBOOK.md` 通过。
+  - `git diff --check` 通过。
+  - `python scripts/report_agent_eval.py --latest` 通过，双机器人总计 58 项，失败 0，pass_rate=1.0。
+  - `python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/fixtures/customer_rag_golden_cases.json --k 5` 通过；400 条启用知识，`hybrid` / `planned-hybrid` / `planned-hybrid+rerank` 均为 Recall@5=1.0、MRR=1.0。
+  - `python scripts/check_project.py --skip-tests` 通过；7 类业务合约通过，红线检查通过。
+  - `python scripts/check_evidence_index.py --summary` 通过，169 项失败 0。
+
 ## [2026-07-09] - docs(langchain): 收口 AI 应用层接管文档、ADR 和作品集说明
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
