@@ -4,9 +4,9 @@ from typing import Any
 
 from app.service.agents.customer.nodes import (
     CustomerAgentNodes,
-    CustomerGraphDependencies,
     route_after_model,
 )
+from app.service.agents.customer.contracts import CustomerGraphDependencies
 from app.service.agents.customer.state import CustomerAgentState
 
 
@@ -38,4 +38,6 @@ def build_customer_agent_graph(dependencies: CustomerGraphDependencies) -> Any:
     graph.add_edge("finalize_reply", "record_trace")
     graph.add_edge("tool_round_limit", "record_trace")
     graph.add_edge("record_trace", END)
+    if dependencies.checkpointer is not None:
+        return graph.compile(checkpointer=dependencies.checkpointer)
     return graph.compile()

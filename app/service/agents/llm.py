@@ -27,6 +27,7 @@ def get_langchain_chat_model(
             temperature=temperature,
             timeout=timeout_seconds or settings.MIMO_TIMEOUT_SECONDS,
             http_client=httpx.Client(trust_env=False),
+            http_async_client=httpx.AsyncClient(trust_env=False),
             default_headers={"api-key": settings.MIMO_API_KEY},
         )
 
@@ -37,4 +38,5 @@ def get_langchain_chat_model(
         temperature=temperature,
         timeout=timeout_seconds or settings.DEEPSEEK_TIMEOUT_SECONDS,
         http_client=httpx.Client(trust_env=False),
+        http_async_client=httpx.AsyncClient(trust_env=False),
     )

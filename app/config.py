@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     ENABLE_HYBRID_RETRIEVAL: bool = False
     RRF_K: int = 60
     ENABLE_CUSTOMER_MEMORY: bool = True
+    LANGCHAIN_TRACING_ENABLED: bool = False
+    LANGCHAIN_PROJECT: str = "yunxi-bakebot"
+    LANGSMITH_API_KEY: str = ""
+    AGENT_LOCAL_TRACE_ENABLED: bool = True
     ENABLE_REPLY_GUARD: bool = False
     ENABLE_OFFLINE_REVIEW: bool = False
     OFFLINE_REVIEW_NIGHT_START_HOUR: int = 22

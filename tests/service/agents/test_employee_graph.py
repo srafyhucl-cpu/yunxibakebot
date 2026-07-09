@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from app.models.employee_agent import AgentIntent, AgentPlan
+from app.service.agents.employee.graph import build_employee_agent_graph
 from app.service.agents.employee.nodes import EmployeeGraphDependencies
 from app.service.agents.employee.service import EmployeeAgentGraphService
 
@@ -77,6 +78,34 @@ async def test_employee_graph_returns_deterministic_tool_reply() -> None:
 
     assert "草莓蛋糕还有库存吗｜库存 6" in reply
     assert "下一步：库存和价格以小程序商品数据为准。" in reply
+
+
+@pytest.mark.asyncio
+async def test_employee_graph_trace_events_use_observability_shape() -> None:
+    graph = build_employee_agent_graph(
+        EmployeeGraphDependencies(
+            business_tool_service=_FakeBusinessToolService(),
+            ops_tool_service=_FakeOpsToolService(),
+            status_tool_service=_FakeStatusToolService(),
+            planner=_FakePlanner(),
+        )
+    )
+
+    result = await graph.ainvoke({"query": "草莓蛋糕还有库存吗"})
+
+    trace_events = result["trace_events"]
+    assert [event["node"] for event in trace_events] == [
+        "load_employee_context",
+        "plan_intent",
+        "select_tools",
+        "execute_tools",
+        "validate_tool_facts",
+        "deterministic_finalizer",
+        "record_trace",
+    ]
+    assert all(event["event"] == "node" for event in trace_events)
+    assert trace_events[1]["intent"] == "product_query"
+    assert trace_events[3]["count"] == 1
 
 
 def test_employee_service_import_does_not_import_langgraph() -> None:

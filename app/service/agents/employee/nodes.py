@@ -6,6 +6,10 @@ import json
 
 from app.models.employee_agent import AgentIntent, AgentPlan, ToolResult
 from app.service.agents.employee.state import EmployeeAgentState
+from app.service.agents.observability import (
+    append_trace_event,
+    build_node_trace_event,
+)
 from app.service.agents.tools.employee import (
     DEFAULT_EMPLOYEE_TOOL_LIMIT,
     EmployeeToolContext,
@@ -48,7 +52,7 @@ class EmployeeAgentNodes:
         return {
             **state,
             "query": query,
-            "trace_events": [{"node": "load_employee_context"}],
+            "trace_events": [build_node_trace_event("load_employee_context")],
         }
 
     async def plan_intent(self, state: EmployeeAgentState) -> EmployeeAgentState:
@@ -57,14 +61,12 @@ class EmployeeAgentNodes:
         return {
             **state,
             "plan": plan,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {
-                    "node": "plan_intent",
-                    "intent": plan.intent.value,
-                    "tools": list(plan.tools),
-                },
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "plan_intent",
+                intent=plan.intent.value,
+                tools=list(plan.tools),
+            ),
         }
 
     async def select_tools(self, state: EmployeeAgentState) -> EmployeeAgentState:
@@ -74,10 +76,11 @@ class EmployeeAgentNodes:
         return {
             **state,
             "selected_tools": selected_tools,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "select_tools", "tools": list(selected_tools)},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "select_tools",
+                tools=list(selected_tools),
+            ),
         }
 
     async def execute_tools(self, state: EmployeeAgentState) -> EmployeeAgentState:
@@ -92,10 +95,11 @@ class EmployeeAgentNodes:
         return {
             **state,
             "tool_results": results,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "execute_tools", "count": len(results)},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "execute_tools",
+                count=len(results),
+            ),
         }
 
     async def validate_tool_facts(
@@ -106,10 +110,11 @@ class EmployeeAgentNodes:
         ok_count = sum(1 for result in state.get("tool_results", []) if result.ok)
         return {
             **state,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "validate_tool_facts", "ok_count": ok_count},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "validate_tool_facts",
+                ok_count=ok_count,
+            ),
         }
 
     async def deterministic_finalizer(
@@ -125,20 +130,20 @@ class EmployeeAgentNodes:
         return {
             **state,
             "reply": reply,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "deterministic_finalizer"},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "deterministic_finalizer",
+            ),
         }
 
     async def record_trace(self, state: EmployeeAgentState) -> EmployeeAgentState:
         """结束前记录本地 trace 事件。"""
         return {
             **state,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "record_trace"},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "record_trace",
+            ),
         }
 
     async def _execute_tool(

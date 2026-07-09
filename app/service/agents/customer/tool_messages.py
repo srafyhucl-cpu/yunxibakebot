@@ -37,6 +37,30 @@ def parse_tool_arguments(tool_name: str, raw_arguments: str) -> dict:
     return {}
 
 
+def get_tool_call_id(tool_call: Any) -> str:
+    """读取 LangChain 或 OpenAI SDK tool call ID。"""
+    if isinstance(tool_call, dict):
+        return str(tool_call.get("id", ""))
+    return str(tool_call.id)
+
+
+def get_tool_call_name(tool_call: Any) -> str:
+    """读取 LangChain 或 OpenAI SDK tool call 名称。"""
+    if isinstance(tool_call, dict):
+        return str(tool_call.get("name", ""))
+    return str(tool_call.function.name)
+
+
+def get_tool_call_args(tool_call: Any) -> dict:
+    """读取 LangChain 或 OpenAI SDK tool call 参数。"""
+    if isinstance(tool_call, dict):
+        args = tool_call.get("args")
+        return args if isinstance(args, dict) else {}
+    return parse_tool_arguments(
+        str(tool_call.function.name), tool_call.function.arguments
+    )
+
+
 def append_tool_result_messages(
     messages: list[dict],
     tool_call: Any,
@@ -51,7 +75,7 @@ def append_tool_result_messages(
             "content": None,
             "tool_calls": [
                 {
-                    "id": tool_call.id,
+                    "id": get_tool_call_id(tool_call),
                     "type": "function",
                     "function": {
                         "name": tool_name,
@@ -64,7 +88,7 @@ def append_tool_result_messages(
     messages.append(
         {
             "role": "tool",
-            "tool_call_id": tool_call.id,
+            "tool_call_id": get_tool_call_id(tool_call),
             "content": result,
         }
     )

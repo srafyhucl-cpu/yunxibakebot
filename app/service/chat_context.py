@@ -14,8 +14,13 @@ from app.service.chat_context_budget import (
 from app.service.chat_intent import build_history_text
 from app.service.chat_multimodal import apply_multimodal_image_message
 from app.service.knowledge_retriever import KnowledgeRetriever
+from app.service.agents.customer.prompts import (
+    build_customer_context_messages,
+    build_customer_system_prompt,
+    build_guard_source_text,
+    extract_product_titles,
+)
 from app.service.llm.intent import IntentType
-from app.service.llm.prompt import build_system_prompt
 from app.service.llm.query_rewriter import rewrite_query
 from app.service.session_manager import SessionManager
 
@@ -23,7 +28,6 @@ logger = setup_logger()
 
 DEFAULT_SEARCH_QUERY = "芸熙烘焙 产品 价格"
 KNOWLEDGE_SEARCH_LIMIT = 8
-SESSION_SUMMARY_SECTION_TITLE = "【本会话早期摘要】"
 
 
 @dataclass(frozen=True)
@@ -90,22 +94,17 @@ async def prepare_chat_context(
         history_text=history_text,
         intent=intent,
     )
-    system_prompt = _append_conversation_summary(
-        build_system_prompt(knowledge_entries, customer_profile),
+    system_prompt = build_customer_system_prompt(
+        knowledge_entries,
+        customer_profile,
         conversation_summary_text,
     )
-    messages: list[dict] = [
-        {
-            "role": "system",
-            "content": system_prompt,
-        },
-    ]
-    messages.extend(history)
+    messages = build_customer_context_messages(system_prompt, history)
     return ChatContext(
         messages=messages,
         rag_ms=round((time.monotonic() - started_at) * 1000),
-        product_titles=_extract_product_titles(knowledge_entries),
-        guard_source_text=_build_guard_source_text(knowledge_entries),
+        product_titles=extract_product_titles(knowledge_entries),
+        guard_source_text=build_guard_source_text(knowledge_entries),
         context_budget=build_chat_context_budget_snapshot(
             system_prompt=system_prompt,
             history=history,
@@ -135,22 +134,3 @@ async def load_knowledge_entries(
     except Exception as exc:
         logger.error("知识库检索失败，使用空上下文继续: %s", exc)
         return []
-
-
-def _extract_product_titles(entries: list[KnowledgeEntry]) -> tuple[str, ...]:
-    return tuple(entry.title for entry in entries if entry.category == "product")
-
-
-def _build_guard_source_text(entries: list[KnowledgeEntry]) -> str:
-    return "\n".join(f"{entry.title}\n{entry.content}" for entry in entries)
-
-
-def _append_conversation_summary(system_prompt: str, summary_text: str) -> str:
-    summary = summary_text.strip()
-    if not summary:
-        return system_prompt
-    return (
-        f"{system_prompt}\n\n{SESSION_SUMMARY_SECTION_TITLE}\n"
-        f"{summary}\n"
-        "以上摘要只用于理解本会话早期上下文；订单、库存、配送、价格仍以工具和知识库为准。"
-    )

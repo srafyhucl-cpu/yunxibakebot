@@ -26,3 +26,12 @@ def test_settings_defaults_enable_customer_memory_without_env() -> None:
     loaded_settings = Settings(_env_file=None)
 
     assert loaded_settings.ENABLE_CUSTOMER_MEMORY is True
+
+
+def test_settings_defaults_keep_langsmith_tracing_disabled() -> None:
+    loaded_settings = Settings(_env_file=None)
+
+    assert loaded_settings.LANGCHAIN_TRACING_ENABLED is False
+    assert loaded_settings.LANGCHAIN_PROJECT == "yunxi-bakebot"
+    assert loaded_settings.LANGSMITH_API_KEY == ""
+    assert loaded_settings.AGENT_LOCAL_TRACE_ENABLED is True

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import os
 
 from app.logger import setup_logger
 
@@ -12,15 +11,6 @@ logger = setup_logger()
 EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
 MIN_SIMILARITY_SCORE = 0.35
-
-# 尝试导入 sklearn NearestNeighbors，未安装时回退到线性扫描
-try:
-    from sklearn.neighbors import NearestNeighbors
-
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
-    NearestNeighbors = None  # type: ignore[assignment, misc]
 
 
 class _FallbackSentenceTransformer:

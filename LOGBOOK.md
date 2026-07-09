@@ -1,4 +1,193 @@
 ﻿
+## [2026-07-09] - feat(rag): 增加 LangChain Retriever multi-query 规划入口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 2 已建立 `KnowledgeRetriever -> LangChain Retriever` adapter；阶段 6 开始做 Advanced RAG 基础能力，但不能直接改变客户热路径。
+- **决策**:
+  - 新增保守规则版 `RagQueryPlan`，先作为可选能力接入 LangChain retriever adapter。
+  - 默认仍是单查询；只有显式传入 `query_planner` 时才启用 multi-query。
+  - multi-query 结果按知识条目稳定 key 去重，并在 Document metadata 中记录原始查询、实际检索查询、变体序号和变体原因。
+  - 本阶段不改变 `KnowledgeRetriever`、向量搜索、audience 过滤、实时库存注入或检索日志。
+- **改动**:
+  - `app/service/agents/rag/query.py` - 新增 RAG query plan / variant 和客户问题规则扩展。
+  - `app/service/agents/rag/retriever.py` - 增加可选 query planner、多查询检索和去重。
+  - `app/service/agents/rag/documents.py` - 支持追加 Document extra metadata。
+  - `tests/service/agents/test_rag_retriever.py` - 覆盖查询规划、multi-query 调用顺序、去重和 metadata。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_rag_retriever.py tests/service/test_knowledge_retriever.py tests/service/test_embedding_search.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/agents/rag/query.py app/service/agents/rag/documents.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py` 通过。
+  - `python -m ruff format --check app/service/agents/rag/query.py app/service/agents/rag/documents.py app/service/agents/rag/retriever.py tests/service/agents/test_rag_retriever.py` 通过；仅 `.ruff_cache` 写入权限警告。
+
+## [2026-07-09] - feat(observability): 增加 LangChain tracing 配置边界
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 5 已统一客户与员工 graph 本地 trace event；继续补齐 LangChain / LangSmith tracing 的配置边界，但默认不启用外发。
+- **决策**:
+  - 新增配置字段 `LANGCHAIN_TRACING_ENABLED`、`LANGCHAIN_PROJECT`、`LANGSMITH_API_KEY`、`AGENT_LOCAL_TRACE_ENABLED`。
+  - LangSmith 外发默认关闭；本地 trace 默认开启。
+  - 客户模型调用只向 LangChain `RunnableConfig` 传入脱敏 metadata，不包含 prompt、客户画像、会话摘要、工具结果或 API key。
+  - `AgentTracingConfig` 过滤敏感 metadata key，且默认读取实时 `settings`，不在函数定义期捕获配置对象。
+  - 不导入 `langsmith`，不改变 `app.main` 冷导入约束。
+- **改动**:
+  - `app/config.py` - 增加 Agent tracing 配置字段。
+  - `app/service/agents/observability.py` - 增加 `AgentTracingConfig`、LangSmith env 映射、敏感 metadata 过滤和脱敏 `RunnableConfig` helper。
+  - `app/service/agents/customer/model.py` - LangChain `ainvoke()` 增加 `run_name`、`tags` 和安全 metadata。
+  - `tests/test_config.py`、`tests/service/agents/test_observability.py`、`tests/service/agents/test_customer_model.py` - 覆盖默认关闭、密钥不进入 RunnableConfig 和客户模型配置传递。
+- **验证结果**:
+  - `python -m pytest tests/test_config.py tests/service/agents/test_observability.py tests/service/agents/test_customer_model.py -q --no-cov` 通过，18 项失败 0。
+  - `python -m ruff check app/config.py app/service/agents/observability.py app/service/agents/customer/model.py tests/test_config.py tests/service/agents/test_observability.py tests/service/agents/test_customer_model.py` 通过。
+  - `python -m ruff format --check app/config.py app/service/agents/observability.py app/service/agents/customer/model.py tests/test_config.py tests/service/agents/test_observability.py tests/service/agents/test_customer_model.py` 通过。
+
+## [2026-07-09] - feat(observability): 统一员工助手 graph trace event
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 客户 graph 已在 Phase 5 首版迁到统一本地 trace event；继续把员工助手 graph 迁到同一 helper，避免双机器人观测口径分叉。
+- **决策**:
+  - 只替换员工助手 `trace_events` 构造方式，不改 planner、工具选择、工具执行或确定性回复。
+  - 继续保留 `node` 顶层字段，并新增 `event=node` 字段。
+  - 不启用 LangSmith，不新增配置，不外发员工查询或工具结果。
+- **改动**:
+  - `app/service/agents/employee/nodes.py` - 员工 graph 节点 trace event 改为通过 `append_trace_event()` / `build_node_trace_event()` 生成。
+  - `tests/service/agents/test_employee_graph.py` - 覆盖员工 graph trace 节点顺序、`event=node` 和关键属性。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_employee_graph.py tests/service/agents/test_observability.py -q --no-cov` 通过。
+  - `python scripts/check_wecom_employee_agent_plans.py --json` 通过，48 项失败 0。
+  - `python scripts/check_employee_agent_capability_contracts.py --summary` 通过，66 项失败 0。
+  - `ruff check` 针对员工 graph trace 相关文件通过。
+
+## [2026-07-09] - feat(observability): 标准化客户 graph 本地 trace event
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 4 已建立客户 graph thread_id/config 和 read-only memory block；阶段 5 先做本地观测事件标准化，不接 LangSmith 外发。
+- **决策**:
+  - 新增轻量 `AgentTraceEvent`，继续输出 dict，保留现有 `node` 顶层字段以兼容当前 graph state。
+  - 客户 graph 的 `trace_events` 统一通过 helper 生成，并补 `event=node` 字段，方便后续接本地报告或 LangSmith metadata。
+  - 本阶段不新增配置、不写数据库、不外发敏感上下文。
+- **改动**:
+  - `app/service/agents/observability.py` - 新增本地 trace event 模型和 append helper。
+  - `app/service/agents/customer/nodes.py` - 客户 graph 节点 trace event 改为通过 observability helper 生成。
+  - `tests/service/agents/test_observability.py` - 覆盖 trace event 字典兼容性和不可变追加。
+  - `tests/service/agents/test_customer_graph.py` - 覆盖客户 graph trace event shape。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_observability.py tests/service/agents/test_customer_graph.py tests/service/agents/test_checkpoints.py tests/service/agents/test_customer_memory.py tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `ruff check` 针对 Phase 5 文件通过。
+
+## [2026-07-09] - feat(memory): 接入客户 graph read-only memory 与 thread config
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 1-3 已完成客户模型调用、RAG adapter 和 Prompt 组件化；阶段 4 先做 Memory / Checkpoint 最小切片，不默认启用生产持久 checkpoint。
+- **决策**:
+  - 新增客户 read-only memory block，只聚合 active 会话摘要和已加载客户画像，不写 `conversation_summaries` 或 `customer_profiles`。
+  - 客户 graph 每次 `ainvoke()` 传入稳定 `configurable.thread_id=customer:<session_id>`，为后续 LangGraph checkpoint 留接口。
+  - `MemorySaver` 只通过 helper 懒加载且可选注入，默认生产热路径不启用，避免进程内 checkpoint 积累和 state 序列化风险。
+  - 将客户 graph 契约从 `nodes.py` 拆到 `contracts.py`，避免节点文件继续膨胀。
+- **改动**:
+  - `app/service/agents/checkpoints.py` - 新增 thread_id、客户 graph config 和内存 checkpointer 懒加载 helper。
+  - `app/service/agents/customer/memory.py` - 新增 `CustomerMemoryBlock` 和只读 memory 加载入口。
+  - `app/service/agents/customer/contracts.py` - 承载 graph dependencies、request 和 initial state。
+  - `app/service/agents/customer/graph.py`、`service.py`、`nodes.py` - 接入可选 checkpointer、thread config 和 memory block。
+  - `tests/service/agents/test_checkpoints.py`、`test_customer_memory.py`、`test_customer_graph.py` - 覆盖 thread config、懒加载、memory 注入和可选 checkpointer。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_checkpoints.py tests/service/agents/test_customer_memory.py tests/service/agents/test_customer_graph.py tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python -c "import sys; import app.main; print({name: (name in sys.modules) for name in ['langchain_core.tools','langchain_openai','langgraph']})"` 输出均为 `False`。
+  - `ruff check` 与 `ruff format --check` 针对 Phase 4 代码和测试通过。
+
+## [2026-07-09] - feat(prompt): 拆出客户 Prompt 组件
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 1/2 已分别完成客户模型 LangChain 化和知识库 Retriever adapter；阶段 3 按计划先做 Prompt / context 组件化，不同时改 Memory、RAG 热路径或业务 service。
+- **决策**:
+  - 新增客户 Prompt 组件模块，`chat_context.py` 继续作为热路径 facade，避免一次性改动消息结构。
+  - 会话摘要仍只作为短期只读上下文追加到 system prompt，不写入长期画像。
+  - RAG 检索、context budget、图片消息处理和 guard source 行为保持不变。
+- **改动**:
+  - `app/service/agents/customer/prompts.py` - 新增客户 system prompt、会话摘要注入、上下文 messages、商品标题和 guard source 组件。
+  - `app/service/chat_context.py` - 改为调用客户 Prompt 组件，移除本地私有 prompt helper。
+  - `tests/service/agents/test_customer_prompts.py` - 覆盖摘要只读注入、客户画像提示、system message 顺序、商品标题和 guard source。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 补充阶段 3 落地记录。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_customer_prompts.py tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python scripts/check_customer_rag_golden_cases.py --summary` 通过，13 项失败 0。
+  - `ruff check` 与 `ruff format --check` 针对 Prompt 组件文件通过。
+
+## [2026-07-09] - feat(rag): 新增 LangChain 知识库 Retriever 适配器
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 阶段 1 已完成客户模型调用 LangChain 化；阶段 2 按计划先建立 `KnowledgeRetriever -> LangChain Retriever` 包装层，不接入客户热路径，避免同时改 RAG、Prompt 和 Memory。
+- **决策**:
+  - 只新增 adapter，不重写 `KnowledgeRetriever`、`KnowledgeRepo`、向量检索或知识治理逻辑。
+  - `KnowledgeEntry` 转 LangChain `Document` 时保留 audience、review_status、category、youzan_item_id、有效期和同步来源等 metadata，方便后续 trace / eval / rerank。
+  - 本阶段不改变客户 graph 的在线 RAG 行为，底层检索日志和实时数据注入仍由原服务负责。
+- **改动**:
+  - `app/service/agents/rag/documents.py` - 新增 `KnowledgeEntry -> Document` 转换。
+  - `app/service/agents/rag/retriever.py` - 新增 LangChain `BaseRetriever` 异步适配器，底层调用 `KnowledgeRetriever.search()`。
+  - `tests/service/agents/test_rag_retriever.py` - 覆盖 Document metadata 保真和 retriever async 调用。
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 补充阶段 2 落地记录。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_rag_retriever.py tests/service/test_knowledge_retriever.py -q --no-cov` 通过。
+  - `python scripts/check_knowledge_audience_governance_smoke.py --json` 通过，5 项失败 0。
+  - `python scripts/check_knowledge_retrieval_logs_smoke.py --json` 通过，4 项失败 0。
+  - `ruff check` 与 `ruff format --check` 针对 RAG adapter 文件通过。
+
+## [2026-07-09] - feat(agent): 完成客户模型调用 LangChain 化阶段 1
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: `langchain-ecosystem-ai-layer-takeover-plan.md` 已冻结第二轮目标，首个切片要求客户 `model_with_tools` 从项目内 `request_llm_choice()` 迁向 LangChain chat model adapter，并通过 `bind_tools()` 绑定客户工具。
+- **决策**:
+  - 新增客户模型调用 adapter，不把 LangChain 模型请求逻辑继续塞进已接近警戒线的 `customer/nodes.py`。
+  - 使用 LangChain 官方 `convert_to_messages()` 转换项目内 OpenAI dict messages，避免自研 message parser。
+  - 客户工具在单次请求内构造并复用，避免 compiled graph 复用时保留旧 session 工具上下文。
+  - `request_llm_choice()` 暂保留为回退和兼容测试对象，稳定后再进入退场候选。
+- **改动**:
+  - `app/service/agents/customer/model.py` - 新增客户 LangChain 模型 adapter，封装 `ChatOpenAI.bind_tools()`、finish_reason、fallback、latency 和失败告警。
+  - `app/service/agents/messages.py` - 新增 OpenAI dict messages 到 LangChain messages 的转换入口。
+  - `app/service/agents/customer/nodes.py` - `model_with_tools` 改为调用新 adapter，工具执行兼容 LangChain tool call dict。
+  - `app/service/agents/customer/tool_messages.py` - 增加 tool call ID、名称和参数读取辅助，兼容 LangChain / OpenAI SDK 两种形态。
+  - `app/service/agents/llm.py` - 为 LangChain `ChatOpenAI` 同步和异步 client 均配置 `trust_env=False`。
+  - `tests/service/agents/test_customer_model.py`、`tests/service/agents/test_customer_graph.py` - 覆盖 `bind_tools()`、LangChain tool call、fallback 和旧 wrapper 退场保护。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_llm_factory.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/test_chat_refactor.py -q --no-cov` 通过。
+  - `python scripts/check_customer_rag_golden_cases.py --summary` 通过，13 项失败 0。
+  - `python scripts/probe_langchain_capacity.py --include-app-import` 通过；本地 `langchain_openai` 冷导入 RSS 增量约 316.83MB，最小 graph 增量约 0.4MB。
+  - 干净进程导入 `app.main` 后，`langchain_core.tools=False`、`langchain_openai=False`、`langgraph=False`。
+  - `ruff check` 与 `ruff format --check` 针对本阶段改动文件通过。
+
+## [2026-07-09] - docs(architecture): 冻结 LangChain 生态接管 AI 应用层计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ecosystem-ai-layer-takeover
+- **背景**: 第一轮 LangChain / LangGraph 迁移已让双机器人主编排和工具注册进入框架口径，但模型调用、RAG Retriever、Prompt 组件、Memory / Checkpoint、Tracing / Eval 仍以项目内适配为主。用户希望从长期维护、设计合理性和求职展示出发，评估并规划更彻底的 LangChain 生态化。
+- **决策**:
+  - 继续推进，但定义为“LangChain / LangGraph / LangSmith 生态全面接管 AI 应用层”，不是让 LangChain 接管订单、商品、客户、售后、数据库和领域 service。
+  - 保持 `api -> service -> repository -> models` 业务分层，LangChain 生态接管 Agent 编排、模型调用、工具绑定、Retriever、Prompt、Memory、Tracing 和 Eval。
+  - 首个执行切片建议聚焦客户模型调用 LangChain 化和 `bind_tools()`，不同时改 RAG、Prompt、Memory 和业务 service。
+- **改动**:
+  - `docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` - 新增可执行计划书，覆盖阶段 0-9、目标目录、验收命令、回退策略、容量约束和求职展示口径。
+- **验证结果**:
+  - `python scripts/check_text_encoding.py docs/architecture/langchain-ecosystem-ai-layer-takeover-plan.md` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过。
+
+## [2026-07-09] - refactor(rag): 统一向量相似度契约
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-embedding-exact-dot-product
+- **背景**: `EmbeddingSearcher` 同时存在 sklearn cosine distance 路径和归一化点积路径，ANN 路径的 `1 - distance / 2` 会抬高低相关分数，导致 `MIN_SIMILARITY_SCORE` 阈值语义不一致。
+- **决策**:
+  - 当前知识库规模适合使用 exact normalized dot product，统一将分数定义为归一化向量点积，数学语义等价 cosine similarity。
+  - 移除 sklearn `NearestNeighbors` ANN 分支，后续如需规模化检索，应以明确的向量索引后端和 recall eval 重新引入。
+  - 将向量归一化和 Top-K 排序抽到独立数学模块，避免 `EmbeddingSearcher` 同时承担模型、索引、数学工具职责。
+- **改动**:
+  - `app/service/embedding_search.py` - 删除 ANN 分支，`search()` 只走归一化点积，`build()` / `upsert_one()` 保证内存向量归一化。
+  - `app/service/embedding_vector_math.py` - 新增向量归一化和 Top-K 排序工具。
+  - `app/service/embedding_io.py` - 加载旧缓存时自动归一化，兼容历史未归一化向量。
+  - `app/service/embedding_model.py` - 移除不再使用的 sklearn 检索依赖导出。
+  - `tests/service/test_embedding_search.py` - 新增回归测试，锁定 exact normalized dot product、增量 upsert 归一化和旧缓存归一化。
+- **验证结果**:
+  - `python -m pytest tests/service/test_embedding_search.py tests/service/test_embedding_io.py tests/service/test_knowledge_retriever.py -q --no-cov` 通过。
+  - `python -m ruff check app/service/embedding_search.py app/service/embedding_model.py app/service/embedding_io.py app/service/embedding_vector_math.py tests/service/test_embedding_search.py` 通过。
+  - `python -m ruff format --check app/service/embedding_search.py app/service/embedding_model.py app/service/embedding_io.py app/service/embedding_vector_math.py tests/service/test_embedding_search.py` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过。
+  - `python scripts/check_evidence_index.py --summary`、`python scripts/check_logbook.py`、`python scripts/check_mistake_ledger.py` 通过。
+  - `git diff --check` 通过（仅 CRLF 提示，退出码为 0）。
+
 ## [2026-07-09] - refactor(rag): 商品向量化动静分离
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-product-rag-static-embedding

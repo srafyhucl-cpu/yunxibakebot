@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from app.models.session import Session
 from app.models.customer_profile import CustomerProfile
 from app.repository.session_repo import SessionRepo
-from app.service.agents.customer.nodes import (
+from app.service.agents.customer.contracts import (
     CustomerGraphDependencies,
     CustomerGraphRequest,
 )

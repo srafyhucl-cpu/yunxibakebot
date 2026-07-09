@@ -1,7 +1,8 @@
 """客户机器人 LangGraph application adapter。"""
 
+from app.service.agents.checkpoints import build_customer_graph_config
 from app.service.agents.customer.graph import build_customer_agent_graph
-from app.service.agents.customer.nodes import (
+from app.service.agents.customer.contracts import (
     CustomerGraphDependencies,
     CustomerGraphRequest,
     initial_customer_state,
@@ -17,7 +18,10 @@ class CustomerAgentGraphService:
 
     async def answer(self, request: CustomerGraphRequest) -> str:
         """执行客户机器人 LangGraph 并返回回复。"""
-        result = await self._compiled_graph().ainvoke(initial_customer_state(request))
+        result = await self._compiled_graph().ainvoke(
+            initial_customer_state(request),
+            config=build_customer_graph_config(request.session),
+        )
         return str(result.get("reply", ""))
 
     def _compiled_graph(self):

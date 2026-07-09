@@ -1,14 +1,12 @@
 """客户机器人 LangGraph 节点。"""
 
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from typing import Any
 import json
 
-from app.models.customer_profile import CustomerProfile
-from app.models.session import Session
+from app.service.agents.customer.contracts import CustomerGraphDependencies
 from app.service.agents.customer.state import CustomerAgentState
 from app.service.agents.customer.constants import CUSTOMER_TOOL_ROUND_LIMIT
+from app.service.agents.customer.memory import load_customer_memory_block
 from app.service.agents.tools.customer import CustomerToolContext
 from app.service.agents.tools.registry import build_tools
 from app.service.agents.customer.support import (
@@ -19,53 +17,21 @@ from app.service.agents.customer.support import (
 )
 from app.service.chat_context import prepare_ai_conversation_messages
 from app.service.chat_context_budget import record_tool_context_budget_delta
-from app.service.chat_llm_request import (
-    LlmRequestContext,
-    request_llm_choice,
+from app.service.agents.customer.model import (
+    CustomerModelRequest,
+    request_customer_model_with_tools,
+)
+from app.service.agents.observability import (
+    append_trace_event,
+    build_node_trace_event,
 )
 from app.service.agents.customer.tool_messages import (
     ToolExecutionContext,
     append_tool_result_messages,
-    parse_tool_arguments,
+    get_tool_call_args,
+    get_tool_call_name,
 )
-from app.service.conversation_summary_memory import (
-    ConversationSummaryReader,
-    load_active_conversation_summary_text,
-)
-from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.llm.intent import IntentType
-from app.service.session_manager import SessionManager
-from app.service.transfer_manager import TransferManager
-from app.service.youzan.client import YouzanClient
-
-
-@dataclass(frozen=True)
-class CustomerGraphDependencies:
-    """客户机器人 graph 运行依赖。"""
-
-    session_mgr: SessionManager
-    knowledge: KnowledgeRetriever
-    transfer_mgr: TransferManager
-    session_repo: Any
-    youzan_client: YouzanClient
-    fallback_reply: str
-    timeout_reply: str
-    failure_alerter: Callable[[str], Awaitable[None]]
-    conversation_summary_repo: ConversationSummaryReader | None = None
-
-
-@dataclass(frozen=True)
-class CustomerGraphRequest:
-    """客户机器人 graph 单次请求。"""
-
-    session: Session
-    user_query: str = ""
-    intent: IntentType = IntentType.PRODUCT_CONSULTATION
-    timing: dict[str, Any] | None = None
-    history: list[dict] | None = None
-    history_text: str = ""
-    image_base64: str | None = None
-    customer_profile: CustomerProfile | None = None
 
 
 class CustomerAgentNodes:
@@ -79,9 +45,10 @@ class CustomerAgentNodes:
         state: CustomerAgentState,
     ) -> CustomerAgentState:
         """加载会话上下文、RAG 上下文和工具上下文。"""
-        conversation_summary_text = await load_active_conversation_summary_text(
-            self._dependencies.conversation_summary_repo,
-            state["session"].id,
+        memory_block = await load_customer_memory_block(
+            summary_repo=self._dependencies.conversation_summary_repo,
+            session_id=state["session"].id,
+            customer_profile=state.get("customer_profile"),
         )
         messages, history_text = await prepare_ai_conversation_messages(
             session_mgr=self._dependencies.session_mgr,
@@ -93,8 +60,8 @@ class CustomerAgentNodes:
             history=state.get("history"),
             history_text=state.get("history_text", ""),
             image_base64=state.get("image_base64"),
-            customer_profile=state.get("customer_profile"),
-            conversation_summary_text=conversation_summary_text,
+            customer_profile=memory_block.customer_profile,
+            conversation_summary_text=memory_block.conversation_summary_text,
         )
         tool_context = ToolExecutionContext(
             session=state["session"],
@@ -108,6 +75,7 @@ class CustomerAgentNodes:
             **state,
             "messages": messages,
             "history_text": history_text,
+            "memory_block": memory_block,
             "tool_context": tool_context,
             "has_image": bool(state.get("image_base64")),
             "fallback_reply": self._dependencies.fallback_reply,
@@ -115,7 +83,7 @@ class CustomerAgentNodes:
             "failure_alerter": self._dependencies.failure_alerter,
             "first_llm_started_at": None,
             "tool_round": 0,
-            "trace_events": [{"node": "load_session_context"}],
+            "trace_events": [_build_memory_trace_event(memory_block)],
         }
 
     async def model_with_tools(
@@ -123,9 +91,11 @@ class CustomerAgentNodes:
         state: CustomerAgentState,
     ) -> CustomerAgentState:
         """请求模型并记录本轮 finish_reason。"""
-        llm_result = await request_llm_choice(
-            LlmRequestContext(
+        tools_by_name = self._tools_by_name(state)
+        llm_result = await request_customer_model_with_tools(
+            CustomerModelRequest(
                 messages=state["messages"],
+                tools=list(tools_by_name.values()),
                 timing=state.get("timing"),
                 first_llm_started_at=state.get("first_llm_started_at"),
                 has_image=state["has_image"],
@@ -138,25 +108,25 @@ class CustomerAgentNodes:
                 **state,
                 "reply": llm_result.fallback_reply,
                 "first_llm_started_at": llm_result.first_llm_started_at,
-                "trace_events": [
-                    *state.get("trace_events", []),
-                    {"node": "model_with_tools", "finish_reason": "fallback"},
-                ],
+                "trace_events": append_trace_event(
+                    state.get("trace_events"),
+                    "model_with_tools",
+                    finish_reason="fallback",
+                ),
             }
-        choice = llm_result.choice
         message = llm_result.message
-        assert choice is not None
         assert message is not None
-        finish_reason = choice.finish_reason or "stop"
         return {
             **state,
-            "finish_reason": finish_reason,
+            "finish_reason": llm_result.finish_reason,
             "llm_message": message,
+            "tools_by_name": tools_by_name,
             "first_llm_started_at": llm_result.first_llm_started_at,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "model_with_tools", "finish_reason": finish_reason},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "model_with_tools",
+                finish_reason=llm_result.finish_reason,
+            ),
         }
 
     async def execute_tools(self, state: CustomerAgentState) -> CustomerAgentState:
@@ -172,10 +142,11 @@ class CustomerAgentNodes:
         return {
             **state,
             "tool_round": tool_round,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "execute_tools", "tool_round": tool_round},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "execute_tools",
+                tool_round=tool_round,
+            ),
         }
 
     async def finalize_reply(self, state: CustomerAgentState) -> CustomerAgentState:
@@ -188,10 +159,10 @@ class CustomerAgentNodes:
         return {
             **state,
             "reply": reply,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "finalize_reply"},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "finalize_reply",
+            ),
         }
 
     async def tool_round_limit(
@@ -204,10 +175,10 @@ class CustomerAgentNodes:
         return {
             **state,
             "reply": state["timeout_reply"],
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "tool_round_limit"},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "tool_round_limit",
+            ),
         }
 
     async def record_trace(self, state: CustomerAgentState) -> CustomerAgentState:
@@ -218,10 +189,10 @@ class CustomerAgentNodes:
         )
         return {
             **state,
-            "trace_events": [
-                *state.get("trace_events", []),
-                {"node": "record_trace"},
-            ],
+            "trace_events": append_trace_event(
+                state.get("trace_events"),
+                "record_trace",
+            ),
         }
 
     async def _execute_tool_call(
@@ -229,9 +200,9 @@ class CustomerAgentNodes:
         tool_call: Any,
         state: CustomerAgentState,
     ) -> None:
-        tool_name = tool_call.function.name
-        tool_args = parse_tool_arguments(tool_name, tool_call.function.arguments)
-        tool = self._tools(state["tool_context"]).get(tool_name)
+        tool_name = get_tool_call_name(tool_call)
+        tool_args = get_tool_call_args(tool_call)
+        tool = self._tools_by_name(state).get(tool_name)
         if tool is None:
             result = json.dumps(
                 {"status": "error", "message": f"未知工具: {tool_name}"},
@@ -247,7 +218,13 @@ class CustomerAgentNodes:
             str(result),
         )
 
-    def _tools(self, tool_context: ToolExecutionContext) -> dict[str, Any]:
+    def _tools_by_name(self, state: CustomerAgentState) -> dict[str, Any]:
+        tools_by_name = state.get("tools_by_name")
+        if tools_by_name is not None:
+            return tools_by_name
+        return self._build_tools(state["tool_context"])
+
+    def _build_tools(self, tool_context: ToolExecutionContext) -> dict[str, Any]:
         context = CustomerToolContext(
             session=tool_context.session,
             knowledge_retriever=tool_context.knowledge,
@@ -274,15 +251,11 @@ def route_after_model(state: CustomerAgentState) -> str:
     return "limit"
 
 
-def initial_customer_state(request: CustomerGraphRequest) -> CustomerAgentState:
-    """把请求转换为 LangGraph 初始状态。"""
-    return {
-        "session": request.session,
-        "user_query": request.user_query,
-        "intent": request.intent,
-        "timing": request.timing,
-        "history": request.history,
-        "history_text": request.history_text,
-        "image_base64": request.image_base64,
-        "customer_profile": request.customer_profile,
-    }
+def _build_memory_trace_event(memory_block: Any) -> dict[str, Any]:
+    return build_node_trace_event(
+        "load_session_context",
+        memory={
+            "conversation_summary": memory_block.has_conversation_summary,
+            "customer_profile": memory_block.has_customer_profile,
+        },
+    )

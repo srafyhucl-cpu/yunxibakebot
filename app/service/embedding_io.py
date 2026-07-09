@@ -9,6 +9,7 @@ from pathlib import Path
 
 from app.logger import setup_logger
 from app.readiness import resolve_embedding_path
+from app.service.embedding_vector_math import normalize_matrix
 
 logger = setup_logger()
 
@@ -83,7 +84,10 @@ async def load_index(
             searcher._doc_keys = meta["doc_keys"]  # type: ignore[union-attr]
             searcher._ready = meta["ready"]  # type: ignore[union-attr]
             searcher._data_hash = meta.get("data_hash", "")  # type: ignore[union-attr]
-            searcher._embeddings = np.load(npy_path)  # type: ignore[union-attr]
+            loaded_embeddings = np.load(npy_path)
+            searcher._embeddings = normalize_matrix(  # type: ignore[union-attr]
+                loaded_embeddings
+            )
             if searcher._embeddings.size == 0:  # type: ignore[union-attr]
                 searcher._embeddings = None  # type: ignore[union-attr]
 

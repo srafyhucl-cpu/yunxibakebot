@@ -5,6 +5,7 @@ from typing import Any, TypedDict
 
 from app.models.customer_profile import CustomerProfile
 from app.models.session import Session
+from app.service.agents.customer.memory import CustomerMemoryBlock
 from app.service.agents.customer.tool_messages import ToolExecutionContext
 from app.service.llm.intent import IntentType
 
@@ -20,8 +21,10 @@ class CustomerAgentState(TypedDict, total=False):
     history_text: str
     image_base64: str | None
     customer_profile: CustomerProfile | None
+    memory_block: CustomerMemoryBlock
     messages: list[dict]
     tool_context: ToolExecutionContext
+    tools_by_name: dict[str, Any]
     has_image: bool
     fallback_reply: str
     timeout_reply: str
