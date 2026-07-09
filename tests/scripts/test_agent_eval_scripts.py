@@ -41,7 +41,9 @@ def test_customer_eval_result_uses_golden_cases() -> None:
     assert {assertion.name for assertion in order_case.assertions} >= {
         "sensitive_policy.order",
         "sensitive_policy.human_transfer",
+        "forbidden_reply_patterns.present",
     }
+    assert "已为您查到订单" in order_case.metadata["forbidden_reply_patterns"]
 
 
 @pytest.mark.asyncio

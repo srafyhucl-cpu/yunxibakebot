@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加 P4d 禁止回复模式输出契约
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P4c 已能在 eval 报告中汇总事实敏感场景；下一步需要把“不能输出什么”固化为离线输出契约，为后续真实回复回放和自动断言做准备。
+- **决策**:
+  - 在客户 golden cases 检查脚本集中维护 `SENSITIVE_SCENARIO_FORBIDDEN_REPLY_PATTERNS`，按订单、退款、售后、库存、价格、转人工 6 类派生禁止回复模式。
+  - 不要求每条 fixture 重复手写禁止短语，避免维护噪音；由 `sensitive_scenarios` 自动派生。
+  - 客户 eval case metadata 输出 `forbidden_reply_patterns`，并增加 `forbidden_reply_patterns.present` 断言。
+- **改动**:
+  - `scripts/check_customer_rag_golden_cases.py` - 新增禁止回复模式常量、`build_forbidden_reply_patterns()` 和敏感输出策略配置检查。
+  - `scripts/eval_customer_agent.py` - 为敏感 case 输出 `forbidden_reply_patterns` metadata，并增加存在性断言。
+  - `tests/scripts/test_check_customer_rag_golden_cases.py`、`tests/scripts/test_agent_eval_scripts.py` - 覆盖禁止回复模式派生和 eval 输出。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，13 项失败 0。
+  - `python scripts\check_customer_rag_golden_cases.py --summary` 通过，136 项失败 0。
+  - `python scripts\eval_customer_agent.py --summary` 通过，71 项失败 0。
+  - `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json` 通过，双机器人 133 项失败 0。
+  - JSON 抽查 customer 敏感 case 已包含派生的 `forbidden_reply_patterns`。
+
 ## [2026-07-10] - feat(eval): 增加 P4c 事实敏感场景报告汇总
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

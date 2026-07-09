@@ -12,6 +12,10 @@ def test_customer_rag_golden_fixture_passes_structure_check() -> None:
     assert {f"group.{group}" for group in golden_check.REQUIRED_GROUPS}.issubset(
         {check.name for check in checks}
     )
+    assert {
+        f"sensitive_output_policy.{scenario}"
+        for scenario in golden_check.REQUIRED_SENSITIVE_SCENARIOS
+    }.issubset({check.name for check in checks})
 
 
 def test_customer_rag_golden_fixture_requires_all_groups() -> None:
@@ -94,6 +98,16 @@ def test_customer_rag_golden_fixture_requires_sensitive_policy_keywords() -> Non
             "missing policy keywords: ['订单', '不能编造 / 工具 / 人工 / 订单状态 / 确认 / 转人工']",
         )
     ]
+
+
+def test_customer_rag_golden_derives_forbidden_reply_patterns() -> None:
+    patterns = golden_check.build_forbidden_reply_patterns(
+        {"sensitive_scenarios": ["order", "refund", "order"]}
+    )
+
+    assert "已为您查到订单" in patterns
+    assert "可以全额退款" in patterns
+    assert patterns.count("已为您查到订单") == 1
 
 
 def test_customer_rag_golden_main_outputs_json(capsys) -> None:

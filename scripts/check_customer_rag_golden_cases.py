@@ -55,6 +55,44 @@ SENSITIVE_SCENARIO_POLICY_KEYWORDS = {
         ("必须", "应", "明确", "不能", "需要"),
     ),
 }
+SENSITIVE_SCENARIO_FORBIDDEN_REPLY_PATTERNS = {
+    "order": (
+        "已为您查到订单",
+        "订单正在制作",
+        "订单已经发货",
+        "可以直接改订单",
+    ),
+    "refund": (
+        "可以全额退款",
+        "马上退款",
+        "一定退款",
+        "退款多久到账一定是",
+    ),
+    "after_sales": (
+        "一定赔偿",
+        "一定补发",
+        "责任在我们",
+        "可以继续食用",
+    ),
+    "inventory": (
+        "一定有货",
+        "保证有货",
+        "已经帮您预留",
+        "下架商品可以做",
+    ),
+    "price": (
+        "给您最低价",
+        "可以免配送费",
+        "直接给您优惠",
+        "定制价格就是",
+    ),
+    "human_transfer": (
+        "不需要人工",
+        "无需转人工",
+        "我可以直接处理",
+        "不用客服确认",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -85,6 +123,7 @@ def validate_fixture(payload: dict[str, object]) -> list[GoldenCaseCheck]:
     }
     checks.extend(_check_required_groups(groups))
     checks.extend(_check_sensitive_scenarios(cases))
+    checks.extend(_check_sensitive_output_policies())
     return checks
 
 
@@ -222,6 +261,37 @@ def _build_sensitive_policy_check(
         not missing_groups,
         "" if not missing_groups else f"missing policy keywords: {missing_groups}",
     )
+
+
+def build_forbidden_reply_patterns(case: dict[str, object]) -> list[str]:
+    """按敏感场景派生禁止回复模式。"""
+    sensitive_scenarios = case.get("sensitive_scenarios")
+    if not isinstance(sensitive_scenarios, list):
+        return []
+    patterns: list[str] = []
+    seen_patterns: set[str] = set()
+    for scenario in sensitive_scenarios:
+        scenario_patterns = SENSITIVE_SCENARIO_FORBIDDEN_REPLY_PATTERNS.get(
+            str(scenario),
+            (),
+        )
+        for pattern in scenario_patterns:
+            if pattern in seen_patterns:
+                continue
+            patterns.append(pattern)
+            seen_patterns.add(pattern)
+    return patterns
+
+
+def _check_sensitive_output_policies() -> list[GoldenCaseCheck]:
+    return [
+        GoldenCaseCheck(
+            f"sensitive_output_policy.{scenario}",
+            bool(SENSITIVE_SCENARIO_FORBIDDEN_REPLY_PATTERNS.get(scenario)),
+            "forbidden reply patterns required",
+        )
+        for scenario in REQUIRED_SENSITIVE_SCENARIOS
+    ]
 
 
 def build_json_report(checks: list[GoldenCaseCheck]) -> dict[str, object]:

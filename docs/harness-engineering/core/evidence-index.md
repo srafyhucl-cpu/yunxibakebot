@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-006：LangChain AI 应用层 P4d 禁止回复模式输出契约
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p4d-forbidden-reply-output-contract
+- file: `D:\Project\YunxiBakeBot\scripts\check_customer_rag_golden_cases.py`; `D:\Project\YunxiBakeBot\scripts\eval_customer_agent.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_customer_rag_golden_cases.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python scripts\check_customer_rag_golden_cases.py --summary`; `python scripts\eval_customer_agent.py --summary`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python -m ruff check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check scripts\check_customer_rag_golden_cases.py scripts\eval_customer_agent.py tests\scripts\test_check_customer_rag_golden_cases.py tests\scripts\test_agent_eval_scripts.py`; JSON 抽查 `forbidden_reply_patterns`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加 P4d 禁止回复模式输出契约
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 禁止回复模式为合成化治理短语，用于检测不当承诺或编造；不包含真实客户原文、订单号、手机号、地址、open_id 或密钥；`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P4d 为订单、退款、售后、库存、价格和转人工 6 类事实敏感场景新增派生式禁止回复模式。客户 eval case metadata 输出 `forbidden_reply_patterns`，并通过 `forbidden_reply_patterns.present` 断言保证敏感 case 具备后续真实回复回放所需的禁止输出契约。客户 golden cases 检查通过 136/136，客户 eval 通过 71/71，双机器人聚合 eval 通过 133/133。
+
 ## E-20260710-005：LangChain AI 应用层 P4c 事实敏感场景报告汇总
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

@@ -24,6 +24,7 @@ from app.service.agents.evaluation import (  # noqa: E402
 from scripts.check_customer_rag_golden_cases import (  # noqa: E402
     FIXTURE_PATH,
     REQUIRED_GROUPS,
+    build_forbidden_reply_patterns,
     build_sensitive_policy_checks,
     load_fixture,
     validate_fixture,
@@ -60,6 +61,7 @@ def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
     relevant = case.get("relevant")
     guardrails = case.get("guardrails")
     sensitive_scenarios = case.get("sensitive_scenarios")
+    forbidden_reply_patterns = build_forbidden_reply_patterns(case)
     group = str(case.get("group", ""))
     return AgentEvalCase(
         case_id=str(case.get("id", "")),
@@ -85,6 +87,11 @@ def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
                 "guardrails.present",
                 _has_text_list(guardrails),
             ),
+            AgentEvalAssertion(
+                "forbidden_reply_patterns.present",
+                not isinstance(sensitive_scenarios, list)
+                or bool(forbidden_reply_patterns),
+            ),
             *(
                 AgentEvalAssertion(
                     _sensitive_policy_assertion_name(check.name),
@@ -100,6 +107,7 @@ def _build_eval_case(case: dict[str, Any]) -> AgentEvalCase:
             "sensitive_scenarios": sensitive_scenarios
             if isinstance(sensitive_scenarios, list)
             else [],
+            "forbidden_reply_patterns": forbidden_reply_patterns,
         },
     )
 
