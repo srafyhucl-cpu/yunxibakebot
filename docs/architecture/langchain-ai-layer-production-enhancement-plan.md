@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P15a 真实 replay 样本池脱敏证明准入和 P16a LangSmith 运行时配置预检已完成，下一步建议进入 P14c 生产服务重启与 callback 复验，或在等待生产权限期间继续 P17 真实脱敏回放样本接入。
+> 状态：持续执行中，P0-P14b 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检和 P17a 真实脱敏回放样本接入准备度报告已完成，下一步建议进入 P14c 生产服务重启与 callback 复验，或在等待生产权限期间继续 P17b 首批真实脱敏样本接入。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1688,6 +1688,44 @@ P16 后续：
 
 - 若要真正打开线上 LangSmith，先在生产环境注入 key/project/tracing 开关，再运行 `python scripts\check_langsmith_runtime_config.py --require-enabled --summary`。
 - 生产打开 LangSmith 前仍需额外确认外发合规、容量影响和采样策略；本切片只证明配置与 metadata 脱敏边界。
+
+## 三十二、P17a 真实脱敏回放样本接入准备度报告
+
+2026-07-10 已完成 P17 真实脱敏回放样本接入的第一切片：
+
+- 新增 `scripts/check_real_conversation_replay_intake_readiness.py`，汇总真实 replay 接入前的机器准备度。
+- readiness 报告检查导出器、replay checker、coverage checker、pool checker 和样本池 manifest 是否存在，并复用 `build_real_replay_pool_report()` 汇总当前池状态。
+- 默认模式用于日常门禁：当前合成 contract pool 通过，报告明确 `real_sample_ready=false` 和后续动作，不把合成样例算作真实样本。
+- 显式 `--require-real` 用于上线或作品集严格证据：当前仓库没有真实脱敏样本时按预期失败。
+- release gate 新增显式 `--include-real-replay-intake-readiness`，默认发布门禁不变；`check_project.py --skip-tests` 已把 readiness 脚本纳入业务合约。
+- 本切片不读取原始客户会话、不访问业务数据库、不调用外部 LLM、不提交真实客户数据，只把真实样本接入通道和缺口变成可追踪报告。
+
+P17a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_release_gate.py scripts\check_project.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_release_gate.py scripts\check_project.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\check_real_conversation_replay_intake_readiness.py --summary
+python scripts\check_real_conversation_replay_intake_readiness.py --require-real --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-intake-readiness --summary
+```
+
+P17a 验证结果：
+
+```text
+真实 replay intake readiness 和 release gate 相关测试通过。
+Ruff check 通过。
+Ruff format --check 通过。
+默认 readiness 通过：real_conversation_replay_intake status=passed real_sample_ready=false。
+严格真实样本模式按预期失败：当前仓库仍未接入真实脱敏客户会话。
+显式 intake readiness release gate 通过。
+```
+
+P17 后续：
+
+- P17b 需要由人工或具备权限的流程提供仓库外原始客服记录，先用 `scripts/export_real_conversation_replay_fixture.py` 脱敏导出到 gitignored reports，再审核后补 manifest 真实条目。
+- 真实条目通过 `--require-real` 后，才能把 `real_sample_ready=true` 作为上线和作品集证据。
 
 ## 五、推荐执行顺序
 

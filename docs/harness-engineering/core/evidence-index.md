@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-027：LangChain AI 应用层 P17a 真实 replay 接入准备度报告
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p17a-real-replay-intake-readiness
+- file: `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay_intake_readiness.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_real_conversation_replay_intake_readiness.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_release_gate.py scripts\check_project.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_release_gate.py scripts\check_project.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_real_conversation_replay_intake_readiness.py --summary`; expected-fail `python scripts\check_real_conversation_replay_intake_readiness.py --require-real --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-intake-readiness --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加真实 replay 接入准备度报告
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只检查导出器、replay/coverage/pool 门禁和 manifest 准备度；不读取原始客服记录、不提交真实客户对话、不包含手机号、地址、open_id、订单明细、token 或 API key。生成的 readiness JSON 位于 gitignored reports 目录。
+- summary: P17a 新增真实脱敏 replay 接入准备度报告。默认报告通过并明确 `real_sample_ready=false`，因为当前只有合成 contract pool；严格 `--require-real` 按预期失败。release gate 新增显式 `--include-real-replay-intake-readiness`，日常项目门禁也会运行 readiness 默认检查，防止后续把合成样例误当真实业务分布证据。
+
 ## E-20260710-026：LangChain AI 应用层 P16a LangSmith 运行时配置预检
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

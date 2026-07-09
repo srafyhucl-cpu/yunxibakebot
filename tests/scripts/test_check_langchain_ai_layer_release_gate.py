@@ -86,6 +86,32 @@ def test_build_gate_steps_can_include_real_replay_pool(tmp_path: Path) -> None:
     assert "--require-real" in pool_step.command
 
 
+def test_build_gate_steps_can_include_real_replay_intake_readiness(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "pool.json"
+    output_path = tmp_path / "intake.json"
+    steps = release_gate.build_gate_steps(
+        include_real_replay_intake_readiness=True,
+        real_pool_manifest_path=manifest_path,
+        real_intake_readiness_path=output_path,
+    )
+    intake_step = [
+        step
+        for step in steps
+        if step.name == "real_conversation_replay_intake_readiness"
+    ][0]
+
+    assert (
+        "scripts/check_real_conversation_replay_intake_readiness.py"
+        in intake_step.command
+    )
+    assert "--manifest" in intake_step.command
+    assert str(manifest_path) in intake_step.command
+    assert "--json-out" in intake_step.command
+    assert str(output_path) in intake_step.command
+
+
 def test_build_gate_steps_can_include_observability_evidence(tmp_path: Path) -> None:
     output_path = tmp_path / "observability.json"
     langsmith_path = tmp_path / "langsmith.json"
@@ -375,6 +401,51 @@ def test_build_release_summary_extracts_real_replay_pool(tmp_path: Path) -> None
     assert pool["real_pool_ready"] is False
 
 
+def test_build_release_summary_extracts_real_replay_intake_readiness(
+    tmp_path: Path,
+) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    intake_path = tmp_path / "intake.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    intake_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "failed": 0,
+                "real_sample_ready": False,
+                "missing_actions": ["collect_real_customer_conversations_outside_repo"],
+                "pool": {
+                    "status": "passed",
+                    "real_entries": 0,
+                    "synthetic_entries": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_real_replay=False,
+        include_real_replay_coverage=False,
+        include_real_replay_pool=False,
+        include_real_replay_intake_readiness=True,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        real_intake_readiness_path=intake_path,
+    )
+
+    intake = summary["real_conversation_replay_intake_readiness"]
+
+    assert intake["status"] == "passed"
+    assert intake["real_sample_ready"] is False
+    assert intake["pool_status"] == "passed"
+    assert intake["synthetic_entries"] == 1
+
+
 def test_build_release_summary_extracts_observability_evidence(
     tmp_path: Path,
 ) -> None:
@@ -637,6 +708,49 @@ def test_main_records_real_replay_pool_options(
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
 
+def test_main_records_real_replay_intake_readiness_options(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    captured_steps: list[release_gate.GateStep] = []
+
+    def fake_run_gate_steps(steps):
+        captured_steps.extend(steps)
+        return (
+            release_gate.GateStepResult(
+                name="real_conversation_replay_intake_readiness",
+                command=(
+                    "python",
+                    "scripts/check_real_conversation_replay_intake_readiness.py",
+                ),
+                returncode=0,
+                stdout="real_conversation_replay_intake status=passed",
+                stderr="",
+            ),
+        )
+
+    monkeypatch.setattr(release_gate, "run_gate_steps", fake_run_gate_steps)
+    output_path = tmp_path / "gate.json"
+
+    exit_code = release_gate.main(
+        [
+            "--include-real-replay-intake-readiness",
+            "--json-out",
+            str(output_path),
+            "--summary",
+        ]
+    )
+
+    payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert any(
+        step.name == "real_conversation_replay_intake_readiness"
+        for step in captured_steps
+    )
+    assert payload["include_real_replay_intake_readiness"] is True
+    assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
+
+
 def test_main_records_observability_evidence_options(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
@@ -812,6 +926,39 @@ def test_ensure_output_directories_creates_real_coverage_parent(
     )
 
     assert coverage_path.parent.exists()
+
+
+def test_ensure_output_directories_creates_real_intake_parent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    intake_path = tmp_path / "agent-eval" / "intake.json"
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_AGENT_EVAL_PATH",
+        tmp_path / "agent-eval" / "latest.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_PROBE_PATH",
+        tmp_path / "agent-eval" / "reply-probe.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_EVAL_PATH",
+        tmp_path / "agent-eval" / "reply-eval.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REAL_INTAKE_READINESS_PATH",
+        intake_path,
+    )
+
+    release_gate.ensure_output_directories(
+        include_rag_matrix=False,
+        include_real_replay_intake_readiness=True,
+    )
+
+    assert intake_path.parent.exists()
 
 
 def test_ensure_output_directories_creates_observability_parent(

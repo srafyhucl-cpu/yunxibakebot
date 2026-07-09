@@ -39,6 +39,9 @@ DEFAULT_REAL_POOL_MANIFEST_PATH = (
 DEFAULT_REAL_POOL_REPORT_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replay-pool.json"
 )
+DEFAULT_REAL_INTAKE_READINESS_PATH = (
+    ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replay-intake.json"
+)
 DEFAULT_OBSERVABILITY_EVIDENCE_PATH = (
     ROOT_DIR / "reports" / "agent-traces" / "langchain-observability-evidence.json"
 )
@@ -94,6 +97,7 @@ def build_gate_steps(
     include_real_replay: bool = False,
     include_real_replay_coverage: bool = False,
     include_real_replay_pool: bool = False,
+    include_real_replay_intake_readiness: bool = False,
     require_real_replay_pool: bool = False,
     include_observability_evidence: bool = False,
     include_production_smoke: bool = False,
@@ -108,6 +112,7 @@ def build_gate_steps(
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_manifest_path: Path = DEFAULT_REAL_POOL_MANIFEST_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
+    real_intake_readiness_path: Path = DEFAULT_REAL_INTAKE_READINESS_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
     real_replay_min_per_scenario: int = 5,
@@ -219,6 +224,21 @@ def build_gate_steps(
                 command=tuple(pool_command),
             )
         )
+    if include_real_replay_intake_readiness:
+        steps.append(
+            GateStep(
+                name="real_conversation_replay_intake_readiness",
+                command=(
+                    sys.executable,
+                    "scripts/check_real_conversation_replay_intake_readiness.py",
+                    "--manifest",
+                    str(real_pool_manifest_path),
+                    "--json-out",
+                    str(real_intake_readiness_path),
+                    "--summary",
+                ),
+            )
+        )
     if include_observability_evidence:
         steps.extend(
             [
@@ -326,6 +346,7 @@ def build_gate_report(
     include_real_replay: bool,
     include_real_replay_coverage: bool,
     include_real_replay_pool: bool = False,
+    include_real_replay_intake_readiness: bool = False,
     require_real_replay_pool: bool,
     include_observability_evidence: bool,
     include_production_smoke: bool,
@@ -336,6 +357,7 @@ def build_gate_report(
     real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
+    real_intake_readiness_path: Path = DEFAULT_REAL_INTAKE_READINESS_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
@@ -350,6 +372,7 @@ def build_gate_report(
         "include_real_replay": include_real_replay,
         "include_real_replay_coverage": include_real_replay_coverage,
         "include_real_replay_pool": include_real_replay_pool,
+        "include_real_replay_intake_readiness": include_real_replay_intake_readiness,
         "require_real_replay_pool": require_real_replay_pool,
         "include_observability_evidence": include_observability_evidence,
         "include_production_smoke": include_production_smoke,
@@ -363,6 +386,7 @@ def build_gate_report(
             include_real_replay=include_real_replay,
             include_real_replay_coverage=include_real_replay_coverage,
             include_real_replay_pool=include_real_replay_pool,
+            include_real_replay_intake_readiness=include_real_replay_intake_readiness,
             include_observability_evidence=include_observability_evidence,
             include_production_smoke=include_production_smoke,
             agent_eval_path=agent_eval_path,
@@ -371,6 +395,7 @@ def build_gate_report(
             real_agent_eval_path=real_agent_eval_path,
             real_coverage_path=real_coverage_path,
             real_pool_report_path=real_pool_report_path,
+            real_intake_readiness_path=real_intake_readiness_path,
             observability_evidence_path=observability_evidence_path,
             langsmith_runtime_config_path=langsmith_runtime_config_path,
             rag_matrix_path=rag_matrix_path,
@@ -387,6 +412,7 @@ def build_release_summary(
     include_real_replay: bool,
     include_real_replay_coverage: bool,
     include_real_replay_pool: bool = False,
+    include_real_replay_intake_readiness: bool = False,
     include_observability_evidence: bool = False,
     include_production_smoke: bool,
     agent_eval_path: Path = DEFAULT_AGENT_EVAL_PATH,
@@ -395,6 +421,7 @@ def build_release_summary(
     real_agent_eval_path: Path = DEFAULT_REAL_AGENT_EVAL_PATH,
     real_coverage_path: Path = DEFAULT_REAL_COVERAGE_PATH,
     real_pool_report_path: Path = DEFAULT_REAL_POOL_REPORT_PATH,
+    real_intake_readiness_path: Path = DEFAULT_REAL_INTAKE_READINESS_PATH,
     observability_evidence_path: Path = DEFAULT_OBSERVABILITY_EVIDENCE_PATH,
     langsmith_runtime_config_path: Path = DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH,
     rag_matrix_path: Path = DEFAULT_RAG_MATRIX_PATH,
@@ -412,6 +439,7 @@ def build_release_summary(
         "agent_eval_with_real_replay": None,
         "real_conversation_replay_coverage": None,
         "real_conversation_replay_pool": None,
+        "real_conversation_replay_intake_readiness": None,
         "langchain_observability_evidence": None,
         "langsmith_runtime_config": None,
         "rag_eval_matrix": None,
@@ -432,6 +460,12 @@ def build_release_summary(
     if include_real_replay_pool:
         summary["real_conversation_replay_pool"] = summarize_replay_pool_report(
             read_json_report(real_pool_report_path)
+        )
+    if include_real_replay_intake_readiness:
+        summary["real_conversation_replay_intake_readiness"] = (
+            summarize_replay_intake_readiness_report(
+                read_json_report(real_intake_readiness_path)
+            )
         )
     if include_observability_evidence:
         summary["langsmith_runtime_config"] = summarize_langsmith_runtime_config_report(
@@ -540,6 +574,21 @@ def summarize_replay_pool_report(report: dict[str, object]) -> dict[str, object]
     }
 
 
+def summarize_replay_intake_readiness_report(
+    report: dict[str, object],
+) -> dict[str, object]:
+    pool = _dict_value(report, "pool")
+    return {
+        "status": report.get("status", "missing"),
+        "failed": report.get("failed", 0),
+        "real_sample_ready": report.get("real_sample_ready", False),
+        "missing_actions": report.get("missing_actions", []),
+        "pool_status": pool.get("status", "missing"),
+        "real_entries": pool.get("real_entries", 0),
+        "synthetic_entries": pool.get("synthetic_entries", 0),
+    }
+
+
 def summarize_observability_report(report: dict[str, object]) -> dict[str, object]:
     trace = _dict_value(report, "trace")
     langsmith = _dict_value(report, "langsmith")
@@ -644,6 +693,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="额外检查脱敏真实会话 replay 样本池 manifest",
     )
     parser.add_argument(
+        "--include-real-replay-intake-readiness",
+        action="store_true",
+        help="额外检查真实脱敏会话 replay 接入准备度",
+    )
+    parser.add_argument(
         "--real-replay-pool-manifest",
         type=Path,
         default=DEFAULT_REAL_POOL_MANIFEST_PATH,
@@ -679,6 +733,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay=args.include_real_replay,
         include_real_replay_coverage=args.include_real_replay_coverage,
         include_real_replay_pool=args.include_real_replay_pool,
+        include_real_replay_intake_readiness=args.include_real_replay_intake_readiness,
         include_observability_evidence=args.include_observability_evidence,
         include_production_smoke=args.include_production_smoke,
     )
@@ -687,6 +742,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay=args.include_real_replay,
         include_real_replay_coverage=args.include_real_replay_coverage,
         include_real_replay_pool=args.include_real_replay_pool,
+        include_real_replay_intake_readiness=args.include_real_replay_intake_readiness,
         require_real_replay_pool=args.require_real_replay_pool,
         include_observability_evidence=args.include_observability_evidence,
         include_production_smoke=args.include_production_smoke,
@@ -702,6 +758,7 @@ def main(argv: list[str] | None = None) -> int:
         include_real_replay=args.include_real_replay,
         include_real_replay_coverage=args.include_real_replay_coverage,
         include_real_replay_pool=args.include_real_replay_pool,
+        include_real_replay_intake_readiness=args.include_real_replay_intake_readiness,
         require_real_replay_pool=args.require_real_replay_pool,
         include_observability_evidence=args.include_observability_evidence,
         include_production_smoke=args.include_production_smoke,
@@ -741,6 +798,7 @@ def ensure_output_directories(
     include_real_replay: bool = False,
     include_real_replay_coverage: bool = False,
     include_real_replay_pool: bool = False,
+    include_real_replay_intake_readiness: bool = False,
     include_observability_evidence: bool = False,
     include_production_smoke: bool = False,
 ) -> None:
@@ -755,6 +813,8 @@ def ensure_output_directories(
         DEFAULT_REAL_COVERAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_real_replay_pool:
         DEFAULT_REAL_POOL_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if include_real_replay_intake_readiness:
+        DEFAULT_REAL_INTAKE_READINESS_PATH.parent.mkdir(parents=True, exist_ok=True)
     if include_observability_evidence:
         DEFAULT_OBSERVABILITY_EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
         DEFAULT_LANGSMITH_RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)

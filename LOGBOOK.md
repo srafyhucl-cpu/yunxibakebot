@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实 replay 接入准备度报告
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P15a 已强化真实 replay pool 的脱敏证明准入，但当前仓库仍没有真实客服样本；如果直接推进 P17，容易把合成覆盖样例误当成真实业务分布证据。需要一个只读 readiness 报告，把真实样本接入通道、当前缺口和严格模式状态固定下来。
+- **决策**:
+  - 新增 P17a readiness 报告，默认检查接入通道可用但不要求真实样本存在。
+  - `real_sample_ready=false` 是当前正确状态；合成样例只证明门禁形状，不作为真实样本证据。
+  - 显式 `--require-real` 用于上线或作品集强证据，当前无真实脱敏样本时按预期失败。
+  - 将 readiness 报告接入 release gate 显式开关和 `check_project.py --skip-tests` 业务合约。
+- **改动**:
+  - `scripts/check_real_conversation_replay_intake_readiness.py` - 新增真实脱敏会话 replay 接入准备度报告。
+  - `tests/scripts/test_check_real_conversation_replay_intake_readiness.py` - 覆盖默认合成池、严格真实模式、真实池通过和 CLI JSON 输出。
+  - `scripts/check_langchain_ai_layer_release_gate.py`、`tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 新增显式 `--include-real-replay-intake-readiness` 门禁和 release summary。
+  - `scripts/check_project.py` - 将 readiness 报告纳入业务合约。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`scripts/check_langchain_ai_layer_production_plan.py`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P17a 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过。
+  - `python -m ruff check scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_release_gate.py scripts\check_project.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_release_gate.py scripts\check_project.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_real_conversation_replay_intake_readiness.py --summary` 通过，输出 `real_sample_ready=false`。
+  - `python scripts\check_real_conversation_replay_intake_readiness.py --require-real --summary` 按预期失败。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-intake-readiness --summary` 通过。
+- **后续**:
+  - P17b 需要先在仓库外收集原始客服记录，脱敏导出并人工审核后，才可补真实 manifest 条目并让 `--require-real` 通过。
+
 ## [2026-07-10] - feat(obs): 增加 LangSmith 运行时配置预检
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
