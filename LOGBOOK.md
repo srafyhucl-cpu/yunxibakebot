@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-09] - refactor(rag): 商品向量化动静分离
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-product-rag-static-embedding
+- **背景**: 商品 RAG 内容包含实时库存数字，库存频繁变化时会让向量化文本携带高频动态事实，增加重复向量更新和上下文事实冲突风险。
+- **决策**:
+  - 新增商品 RAG 文本构造模块，区分“给 LLM 展示的商品内容”和“用于 Embedding 的静态语义文本”。
+  - 知识库正文继续保留库存展示，命中后仍由 `prepend_live_data()` 注入最新价格与库存。
+  - 商品向量化文本去除具体库存数字，仅保留商品名称、状态、规格、价格、定制项、标签、链接和描述。
+- **改动**:
+  - `app/service/youzan/product_rag_text.py` - 新增商品展示文本与静态向量文本构造函数。
+  - `app/service/youzan/product_sync.py` - 商品 RAG 同步时，知识库正文使用展示文本，向量 upsert 使用静态语义文本。
+  - `tests/service/youzan/test_product_rag_text.py` - 新增回归测试，确认向量文本不包含实时库存数字，知识库正文仍保留库存展示。
+- **验证结果**:
+  - `python -m pytest tests/service/youzan/test_product_rag_text.py tests/service/youzan/test_full_chain_e2e.py::test_e2e_item_info_create tests/service/youzan/test_product_name_change.py::test_product_name_change_prevents_residue -q --no-cov` 通过。
+  - `python -m ruff check app/service/youzan/product_rag_text.py app/service/youzan/product_sync.py tests/service/youzan/test_product_rag_text.py` 通过。
+  - `python -m ruff format --check app/service/youzan/product_rag_text.py app/service/youzan/product_sync.py tests/service/youzan/test_product_rag_text.py` 通过。
+
 ## [2026-07-08] - fix(runtime): 兼容生产 Python 3.10 启动
 - **操作人**: AI (Codex)
 - **trace_id**: 20260708-langchain-langgraph-agent-migration

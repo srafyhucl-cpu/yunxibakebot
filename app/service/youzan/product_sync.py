@@ -14,7 +14,11 @@ import re
 from app.logger import setup_logger
 from app.models.content_change_history import WriteResult
 from app.service.knowledge_admin import DEFAULT_PRIORITY
-from app.service.youzan.event_item import _extract_item_tags, _build_rag_content
+from app.service.youzan.event_item import _extract_item_tags
+from app.service.youzan.product_rag_text import (
+    build_product_embedding_text,
+    build_product_rag_content,
+)
 
 logger = setup_logger()
 
@@ -129,7 +133,7 @@ async def sync_product_to_rag(
     knowledge_repo = KnowledgeProductRepo(db)
 
     if is_active == 1:
-        content_md = _build_rag_content(
+        content_md = build_product_rag_content(
             title,
             parsed["alias"],
             status_label,
@@ -141,6 +145,16 @@ async def sync_product_to_rag(
             tags_str,
             item_id=item_id,
             image=parsed["image"],
+        )
+        embedding_text = build_product_embedding_text(
+            title,
+            parsed["alias"],
+            status_label,
+            parsed["skus"],
+            parsed["item_props"],
+            parsed["price_fen"],
+            parsed["desc_clean"],
+            tags_str,
         )
         result = await knowledge_repo.upsert_product_knowledge(
             youzan_item_id=str(item_id),
@@ -157,7 +171,7 @@ async def sync_product_to_rag(
             vector = (
                 vs._get_model()
                 .encode(
-                    [f"{title} {content_md}"],
+                    [embedding_text],
                     normalize_embeddings=True,
                 )[0]
                 .tolist()
