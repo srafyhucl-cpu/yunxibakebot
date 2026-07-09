@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实会话回放场景覆盖门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P11a/P11b/P11c 已建立脱敏 replay 契约、release gate 和导出器，但还缺少“每类事实敏感场景至少 5 条”的机械覆盖门禁。
+- **决策**:
+  - 新增独立 coverage checker，默认读取客户 golden fixture 的 `required_sensitive_scenarios`。
+  - 默认要求每类场景至少 5 条 replay case，显式参数可调整。
+  - 新增合成脱敏覆盖样例用于验证门禁形状，但不把它声明为真实客户样本池。
+  - release gate 通过显式 `--include-real-replay-coverage` 接入覆盖率检查，默认门禁行为不变。
+- **改动**:
+  - `scripts/check_real_conversation_replay_coverage.py` - 新增脱敏真实会话 replay 场景覆盖率检查。
+  - `tests/fixtures/customer_real_replay_coverage_sample.json` - 新增 30 条合成脱敏覆盖样例，覆盖 order、refund、after_sales、inventory、price、human_transfer 六类场景。
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 `--include-real-replay-coverage`、`--real-replay-min-per-scenario`、coverage gate step 和 `release_summary.real_conversation_replay_coverage`。
+  - `tests/scripts/test_check_real_conversation_replay_coverage.py`、`tests/scripts/test_check_langchain_ai_layer_release_gate.py` - 覆盖 coverage checker、阈值失败、CLI JSON 输出、release gate step 和 summary。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md` - 同步 P11d 追溯记录。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_real_conversation_replay_coverage.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_agent_eval_scripts.py -q --no-cov` 通过，41 项失败 0。
+  - `python -m ruff check scripts\check_real_conversation_replay_coverage.py scripts\check_real_conversation_replay.py scripts\check_langchain_ai_layer_release_gate.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay_coverage.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check scripts\check_real_conversation_replay_coverage.py scripts\check_real_conversation_replay.py scripts\check_langchain_ai_layer_release_gate.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay_coverage.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_agent_eval_scripts.py` 通过。
+  - `python scripts\check_real_conversation_replay.py --fixture tests\fixtures\customer_real_replay_coverage_sample.json --json-out reports\agent-eval\real-conversation-replay-coverage-sample-check.json --summary` 通过，30 项失败 0。
+  - `python scripts\check_real_conversation_replay_coverage.py --fixture tests\fixtures\customer_real_replay_coverage_sample.json --json-out reports\agent-eval\real-conversation-replay-coverage.json --summary` 通过，6 类场景失败 0。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --include-real-replay-coverage --real-replay-fixture tests\fixtures\customer_real_replay_coverage_sample.json --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-real-replay-coverage-latest.json --summary` 通过，6 步失败 0。
+  - JSON 摘要抽查：order=6、refund=6、after_sales=8、inventory=5、price=6、human_transfer=16。
+- **残余风险**:
+  - 当前 30 条覆盖样例为合成脱敏样例，不是实际客服会话；后续接入真实脱敏样本池时，应使用同一 coverage gate 作为准入门禁。
+
 ## [2026-07-10] - feat(eval): 增加真实会话回放脱敏导出器
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

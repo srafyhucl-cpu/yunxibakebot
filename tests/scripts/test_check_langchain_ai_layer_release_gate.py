@@ -51,6 +51,24 @@ def test_build_gate_steps_can_include_real_replay(tmp_path: Path) -> None:
     assert str(fixture_path) in agent_eval_step.command
 
 
+def test_build_gate_steps_can_include_real_replay_coverage(tmp_path: Path) -> None:
+    fixture_path = tmp_path / "real-replay.json"
+    steps = release_gate.build_gate_steps(
+        include_real_replay=True,
+        include_real_replay_coverage=True,
+        real_replay_fixture_path=fixture_path,
+        real_replay_min_per_scenario=5,
+    )
+    coverage_step = [
+        step for step in steps if step.name == "real_conversation_replay_coverage"
+    ][0]
+
+    assert "scripts/check_real_conversation_replay_coverage.py" in coverage_step.command
+    assert "--min-per-scenario" in coverage_step.command
+    assert "5" in coverage_step.command
+    assert str(fixture_path) in coverage_step.command
+
+
 def test_build_gate_steps_keeps_production_smoke_optional() -> None:
     steps = release_gate.build_gate_steps(include_production_smoke=False)
 
@@ -151,6 +169,7 @@ def test_build_release_summary_extracts_default_agent_eval(tmp_path: Path) -> No
     summary = release_gate.build_release_summary(
         include_rag_matrix=False,
         include_real_replay=False,
+        include_real_replay_coverage=False,
         include_production_smoke=False,
         agent_eval_path=agent_eval_path,
         reply_eval_path=reply_eval_path,
@@ -161,6 +180,7 @@ def test_build_release_summary_extracts_default_agent_eval(tmp_path: Path) -> No
     assert summary["agent_eval_with_reply_replay"]["total"] == 163
     assert summary["real_conversation_replay"] is None
     assert summary["agent_eval_with_real_replay"] is None
+    assert summary["real_conversation_replay_coverage"] is None
     assert summary["rag_eval_matrix"] is None
     assert summary["production_smoke"] is None
 
@@ -207,6 +227,7 @@ def test_build_release_summary_extracts_real_replay_reports(
     summary = release_gate.build_release_summary(
         include_rag_matrix=False,
         include_real_replay=True,
+        include_real_replay_coverage=False,
         include_production_smoke=False,
         agent_eval_path=agent_eval_path,
         reply_eval_path=reply_eval_path,
@@ -220,6 +241,55 @@ def test_build_release_summary_extracts_real_replay_reports(
         "agent": "real_conversation_replay",
         "total": 2,
     }
+
+
+def test_build_release_summary_extracts_real_replay_coverage(
+    tmp_path: Path,
+) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    real_replay_path = tmp_path / "real-replay.json"
+    real_agent_eval_path = tmp_path / "real-agent.json"
+    real_coverage_path = tmp_path / "real-coverage.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    real_replay_path.write_text("{}", encoding="utf-8")
+    real_agent_eval_path.write_text("{}", encoding="utf-8")
+    real_coverage_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 6,
+                "failed": 0,
+                "min_per_scenario": 5,
+                "replay_total": 30,
+                "replay_failed": 0,
+                "scenario_coverage": [
+                    {"scenario": "order", "total": 5, "required": 5, "passed": True}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_real_replay=True,
+        include_real_replay_coverage=True,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        real_replay_path=real_replay_path,
+        real_agent_eval_path=real_agent_eval_path,
+        real_coverage_path=real_coverage_path,
+    )
+
+    coverage = summary["real_conversation_replay_coverage"]
+
+    assert coverage["status"] == "passed"
+    assert coverage["min_per_scenario"] == 5
+    assert coverage["replay_total"] == 30
+    assert coverage["scenario_coverage"][0]["scenario"] == "order"
 
 
 def test_build_release_summary_extracts_rag_and_production_reports(
@@ -284,6 +354,7 @@ def test_build_release_summary_extracts_rag_and_production_reports(
     summary = release_gate.build_release_summary(
         include_rag_matrix=True,
         include_real_replay=False,
+        include_real_replay_coverage=False,
         include_production_smoke=True,
         agent_eval_path=agent_eval_path,
         reply_eval_path=reply_eval_path,
@@ -480,6 +551,35 @@ def test_ensure_output_directories_creates_real_replay_parents(
     assert real_replay_path.parent.exists()
     assert real_replies_path.parent.exists()
     assert real_agent_eval_path.parent.exists()
+
+
+def test_ensure_output_directories_creates_real_coverage_parent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    coverage_path = tmp_path / "agent-eval" / "coverage.json"
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_AGENT_EVAL_PATH",
+        tmp_path / "agent-eval" / "latest.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_PROBE_PATH",
+        tmp_path / "agent-eval" / "reply-probe.json",
+    )
+    monkeypatch.setattr(
+        release_gate,
+        "DEFAULT_REPLY_EVAL_PATH",
+        tmp_path / "agent-eval" / "reply-eval.json",
+    )
+    monkeypatch.setattr(release_gate, "DEFAULT_REAL_COVERAGE_PATH", coverage_path)
+
+    release_gate.ensure_output_directories(
+        include_rag_matrix=False,
+        include_real_replay_coverage=True,
+    )
+
+    assert coverage_path.parent.exists()
 
 
 def test_ensure_output_directories_creates_production_report_parents(

@@ -1331,7 +1331,7 @@ real replay 门禁摘要显示脱敏 replay 样例 2/2、并入聚合 Agent Eval
 P11 后续：
 
 - P11c 已完成真实导出适配器，把生产或客服记录先脱敏到 P11a fixture 格式，再进入同一套检查。
-- P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条，并继续通过 `--include-real-replay` 进入 release gate。
+- P11d 已完成每类事实敏感场景至少 5 条的覆盖率门禁和合成脱敏覆盖样例；真实客户样本池接入仍需外部脱敏数据。
 
 ## 三十七、P11c 落地记录
 
@@ -1373,7 +1373,53 @@ release gate 摘要显示导出 draft real replay 2/2、并入聚合 Agent Eval 
 
 P11 后续：
 
-- P11d 把真实 replay 数量扩到每类事实敏感场景至少 5 条，并继续通过 `--include-real-replay` 进入 release gate。
+- P11d 已完成覆盖率门禁和合成脱敏覆盖样例；后续接入真实客户样本池时直接复用同一门禁。
+
+## 三十八、P11d 落地记录
+
+2026-07-10 已完成 P11 真实会话脱敏回放的第四切片：
+
+- 新增 `scripts/check_real_conversation_replay_coverage.py`，检查脱敏 replay fixture 是否覆盖客户 golden fixture 中的事实敏感场景。
+- 默认从 `tests/fixtures/customer_rag_golden_cases.json` 的 `required_sensitive_scenarios` 读取必需场景：
+  - `order`
+  - `refund`
+  - `after_sales`
+  - `inventory`
+  - `price`
+  - `human_transfer`
+- 默认要求每类场景至少 5 条 replay case，可通过 `--min-per-scenario` 调整。
+- 新增合成脱敏覆盖样例 `tests/fixtures/customer_real_replay_coverage_sample.json`，包含 30 条样例，不包含真实客户原文。
+- `scripts/check_langchain_ai_layer_release_gate.py` 新增显式 `--include-real-replay-coverage` 和 `--real-replay-min-per-scenario`。
+- 显式覆盖率门禁需要配合 `--include-real-replay` 使用；默认 release gate 行为不变。
+- release gate 顶层 `release_summary` 新增 `real_conversation_replay_coverage` 摘要。
+- 本切片不访问生产、不读取业务数据库、不调用外部 LLM、不改变客户或员工热路径。
+
+P11d 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_real_conversation_replay_coverage.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_agent_eval_scripts.py -q --no-cov
+python -m ruff check scripts\check_real_conversation_replay_coverage.py scripts\check_real_conversation_replay.py scripts\check_langchain_ai_layer_release_gate.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay_coverage.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_agent_eval_scripts.py
+python -m ruff format --check scripts\check_real_conversation_replay_coverage.py scripts\check_real_conversation_replay.py scripts\check_langchain_ai_layer_release_gate.py scripts\report_agent_eval.py tests\scripts\test_check_real_conversation_replay_coverage.py tests\scripts\test_check_real_conversation_replay.py tests\scripts\test_check_langchain_ai_layer_release_gate.py tests\scripts\test_agent_eval_scripts.py
+python scripts\check_real_conversation_replay.py --fixture tests\fixtures\customer_real_replay_coverage_sample.json --json-out reports\agent-eval\real-conversation-replay-coverage-sample-check.json --summary
+python scripts\check_real_conversation_replay_coverage.py --fixture tests\fixtures\customer_real_replay_coverage_sample.json --json-out reports\agent-eval\real-conversation-replay-coverage.json --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --include-real-replay-coverage --real-replay-fixture tests\fixtures\customer_real_replay_coverage_sample.json --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-real-replay-coverage-latest.json --summary
+```
+
+P11d 验证结果：
+
+```text
+real replay coverage / checker / release gate / agent eval 脚本测试通过：41 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+合成覆盖样例通过 P11a checker：30 项失败 0。
+覆盖率检查通过：6 类场景失败 0，min_per_scenario=5。
+显式覆盖率 release gate 通过：6 步失败 0。
+release gate 摘要显示 order=6、refund=6、after_sales=8、inventory=5、price=6、human_transfer=16。
+```
+
+P11 后续：
+
+- 接入真实脱敏客服样本池时，把导出结果交给 `--include-real-replay --include-real-replay-coverage` 门禁；真实样本应替换或补充当前合成覆盖样例，而不是把合成样例当作真实业务证据。
 
 ## 五、推荐执行顺序
 
