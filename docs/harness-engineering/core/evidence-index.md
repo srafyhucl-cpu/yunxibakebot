@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-019：LangChain AI 应用层 P12 real replay 样本池准入门禁
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p12-real-conversation-replay-pool-gate
+- file: `D:\Project\YunxiBakeBot\scripts\check_real_conversation_replay_pool.py`; `D:\Project\YunxiBakeBot\tests\fixtures\customer_real_replay_pool_manifest_sample.json`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_real_conversation_replay_pool.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\check_real_conversation_replay_pool.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\check_real_conversation_replay_pool.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_real_conversation_replay_pool.py --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加真实会话样本池准入门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮 manifest 样例只引用合成脱敏覆盖样例，不包含真实客户原文；`real_pool_ready=false` 明确不能作为真实问题分布证据。真实样本接入时必须先脱敏并登记 evidence id，再启用 `--require-real-replay-pool`。
+- summary: P12 增加 real replay 样本池 manifest 准入门禁。样例 manifest 通过 replay 和 coverage 检查，但因 `is_real_customer_data=false`，报告显示 `real_entries=0`、`real_pool_ready=false`。release gate 新增显式 `--include-real-replay-pool` 和 `--require-real-replay-pool`，默认行为不变；强制真实模式可阻断只有合成样例的伪真实样本池。
+
 ## E-20260710-018：LangChain AI 应用层生产增强计划状态门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

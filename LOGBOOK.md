@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实会话样本池准入门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P11 已有 replay schema、脱敏导出器和覆盖率门禁，但还缺少样本池级别的准入清单，容易把合成覆盖样例误当成真实客服样本池。
+- **决策**:
+  - 新增 replay pool manifest 门禁，显式区分真实脱敏客服样本和合成样例。
+  - 样例 manifest 只登记合成覆盖样例，`real_pool_ready=false`，不能作为真实问题分布证据。
+  - release gate 通过显式参数接入样本池检查，默认门禁行为不变。
+  - `--require-real-replay-pool` 只在真实脱敏样本接入时启用，用于阻断只有合成样例的伪真实样本池。
+- **改动**:
+  - `scripts/check_real_conversation_replay_pool.py` - 新增 replay 样本池 manifest 准入检查。
+  - `tests/fixtures/customer_real_replay_pool_manifest_sample.json` - 新增合成样本池 manifest 样例。
+  - `tests/scripts/test_check_real_conversation_replay_pool.py` - 覆盖样例通过、强制真实失败、真实条目就绪、敏感 fixture 拒绝和 JSON 输出。
+  - `scripts/check_langchain_ai_layer_release_gate.py` - 新增 `--include-real-replay-pool`、`--real-replay-pool-manifest`、`--require-real-replay-pool` 和 release summary 摘要。
+  - `scripts/check_project.py` - 将样本池 manifest 检查接入业务合约检查。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov` 通过，29 项失败 0。
+  - `python -m ruff check scripts\check_real_conversation_replay_pool.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python -m ruff format --check scripts\check_real_conversation_replay_pool.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py` 通过。
+  - `python scripts\check_real_conversation_replay_pool.py --summary` 通过，1 个条目失败 0，`real_entries=0`，`real_ready=false`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --summary` 通过，4 步失败 0。
+
 ## [2026-07-10] - chore(harness): 增加 LangChain 生产增强计划状态门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

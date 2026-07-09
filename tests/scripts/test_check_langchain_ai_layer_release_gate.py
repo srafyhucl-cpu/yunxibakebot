@@ -69,6 +69,23 @@ def test_build_gate_steps_can_include_real_replay_coverage(tmp_path: Path) -> No
     assert str(fixture_path) in coverage_step.command
 
 
+def test_build_gate_steps_can_include_real_replay_pool(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "pool.json"
+    steps = release_gate.build_gate_steps(
+        include_real_replay_pool=True,
+        require_real_replay_pool=True,
+        real_pool_manifest_path=manifest_path,
+    )
+    pool_step = [
+        step for step in steps if step.name == "real_conversation_replay_pool"
+    ][0]
+
+    assert "scripts/check_real_conversation_replay_pool.py" in pool_step.command
+    assert "--manifest" in pool_step.command
+    assert str(manifest_path) in pool_step.command
+    assert "--require-real" in pool_step.command
+
+
 def test_build_gate_steps_keeps_production_smoke_optional() -> None:
     steps = release_gate.build_gate_steps(include_production_smoke=False)
 
@@ -292,6 +309,46 @@ def test_build_release_summary_extracts_real_replay_coverage(
     assert coverage["scenario_coverage"][0]["scenario"] == "order"
 
 
+def test_build_release_summary_extracts_real_replay_pool(tmp_path: Path) -> None:
+    agent_eval_path = tmp_path / "agent.json"
+    reply_eval_path = tmp_path / "reply.json"
+    pool_path = tmp_path / "pool-report.json"
+    agent_eval_path.write_text("{}", encoding="utf-8")
+    reply_eval_path.write_text("{}", encoding="utf-8")
+    pool_path.write_text(
+        release_gate.json.dumps(
+            {
+                "status": "passed",
+                "total": 1,
+                "failed": 0,
+                "real_entries": 0,
+                "synthetic_entries": 1,
+                "real_pool_ready": False,
+                "manifest": "tests/fixtures/customer_real_replay_pool_manifest_sample.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = release_gate.build_release_summary(
+        include_rag_matrix=False,
+        include_real_replay=False,
+        include_real_replay_coverage=False,
+        include_real_replay_pool=True,
+        include_production_smoke=False,
+        agent_eval_path=agent_eval_path,
+        reply_eval_path=reply_eval_path,
+        real_pool_report_path=pool_path,
+    )
+
+    pool = summary["real_conversation_replay_pool"]
+
+    assert pool["status"] == "passed"
+    assert pool["real_entries"] == 0
+    assert pool["synthetic_entries"] == 1
+    assert pool["real_pool_ready"] is False
+
+
 def test_build_release_summary_extracts_rag_and_production_reports(
     tmp_path: Path,
 ) -> None:
@@ -445,6 +502,49 @@ def test_main_records_real_replay_options(monkeypatch, tmp_path: Path, capsys) -
     assert any(step.name == "real_conversation_replay" for step in captured_steps)
     assert any(str(fixture_path) in step.command for step in captured_steps)
     assert payload["include_real_replay"] is True
+    assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
+
+
+def test_main_records_real_replay_pool_options(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    captured_steps: list[release_gate.GateStep] = []
+
+    def fake_run_gate_steps(steps):
+        captured_steps.extend(steps)
+        return (
+            release_gate.GateStepResult(
+                name="real_conversation_replay_pool",
+                command=("python", "scripts/check_real_conversation_replay_pool.py"),
+                returncode=0,
+                stdout="real_conversation_replay_pool status=passed",
+                stderr="",
+            ),
+        )
+
+    monkeypatch.setattr(release_gate, "run_gate_steps", fake_run_gate_steps)
+    output_path = tmp_path / "gate.json"
+    manifest_path = tmp_path / "pool.json"
+
+    exit_code = release_gate.main(
+        [
+            "--include-real-replay-pool",
+            "--require-real-replay-pool",
+            "--real-replay-pool-manifest",
+            str(manifest_path),
+            "--json-out",
+            str(output_path),
+            "--summary",
+        ]
+    )
+
+    payload = release_gate.json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert any(step.name == "real_conversation_replay_pool" for step in captured_steps)
+    assert any("--require-real" in step.command for step in captured_steps)
+    assert payload["include_real_replay_pool"] is True
+    assert payload["require_real_replay_pool"] is True
     assert "langchain_ai_layer_release_gate status=passed" in capsys.readouterr().out
 
 

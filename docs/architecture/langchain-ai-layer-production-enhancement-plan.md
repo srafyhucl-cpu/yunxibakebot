@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P11d 已完成；下一步建议进入 P12 真实脱敏样本池接入与生产观测证据收口。
+> 状态：持续执行中，P0-P11d 已完成；P12 样本池准入门禁已完成，下一步建议进入 P12 真实脱敏样本接入或 P13 生产观测证据收口。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1423,6 +1423,42 @@ P11 后续：
 - 合成覆盖样例不等同真实客服样本池；它只用于验证门禁形状和覆盖统计，不能作为真实问题分布证据。
 - LangSmith 仍保持可选配置能力，未完成生产环境变量注入和外发验证前，不作为默认上线依赖。
 
+## 二十四、P12a/P12b 落地记录
+
+2026-07-10 已完成 P12 真实脱敏样本池接入的前置准入门禁：
+
+- P12a 新增 `scripts/check_langchain_ai_layer_production_plan.py`，把本计划的执行状态、关键脚本引用、真实样本边界和 stale phrase 变成静态门禁，并接入 `scripts/check_project.py --skip-tests`。
+- P12b 新增 `scripts/check_real_conversation_replay_pool.py`，用 manifest 显式登记 replay fixture 是否为真实脱敏客服样本、是否启用、最小场景覆盖阈值和证据 ID。
+- 新增样例 manifest `tests/fixtures/customer_real_replay_pool_manifest_sample.json`，只登记合成覆盖样例，`is_real_customer_data=false`，用于验证门禁形状，不作为真实业务证据。
+- `scripts/check_langchain_ai_layer_release_gate.py` 新增显式 `--include-real-replay-pool`、`--real-replay-pool-manifest` 和 `--require-real-replay-pool`；默认 release gate 行为不变。
+- `--require-real-replay-pool` 会拒绝只有合成样例的 manifest，后续接入真实脱敏样本后可作为 P12 准入开关。
+
+P12b 验收：
+
+```powershell
+python -m pytest tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov
+python -m ruff check scripts\check_real_conversation_replay_pool.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python -m ruff format --check scripts\check_real_conversation_replay_pool.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_check_real_conversation_replay_pool.py tests\scripts\test_check_langchain_ai_layer_release_gate.py
+python scripts\check_real_conversation_replay_pool.py --summary
+python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay-pool --summary
+```
+
+P12b 验证结果：
+
+```text
+样本池准入和 release gate 测试通过：29 项失败 0。
+Ruff check 通过。
+Ruff format --check 通过。
+样例 manifest 检查通过：1 个条目失败 0，real_entries=0，real_ready=false。
+显式样本池 release gate 通过：4 步失败 0。
+```
+
+P12 后续：
+
+- 拿到真实客服脱敏导出后，先通过 P11c 导出器或等价脱敏流程生成 fixture，再登记到样本池 manifest，设置 `is_real_customer_data=true` 和对应 evidence id。
+- 真实样本接入验收必须运行 `scripts/check_real_conversation_replay_pool.py --require-real --summary` 和 `scripts/check_langchain_ai_layer_release_gate.py --include-real-replay-pool --require-real-replay-pool --summary`。
+- 当前仓库仍没有真实客服样本池，只有合成样例和准入门禁；不得把 `real_pool_ready=false` 的报告用于证明真实问题分布。
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：
@@ -1493,7 +1529,7 @@ docs/harness-engineering/core/evidence-index.md
 目标：接入真实脱敏客服样本池或生产观测证据，把 P11 的 schema sample / 合成覆盖样例推进为真实问题分布回归资产。
 ```
 
-P12 不应让脚本直接读取生产明文。应先通过 P11c 导出器或等价脱敏流程生成 `contains_sensitive_data=false` 的 replay fixture，再用 `--include-real-replay --include-real-replay-coverage` release gate 做准入检查。
+P12 不应让脚本直接读取生产明文。应先通过 P11c 导出器或等价脱敏流程生成 `contains_sensitive_data=false` 的 replay fixture，再登记到样本池 manifest，并用 `--include-real-replay --include-real-replay-coverage`、`--include-real-replay-pool --require-real-replay-pool` release gate 做准入检查。
 
 ## 十、P0 落地记录
 
