@@ -4,7 +4,9 @@ from app.service.agents.evaluation import (
     AgentEvalAssertion,
     AgentEvalCase,
     AgentEvalResult,
+    apply_fail_fast,
     combine_agent_eval_results,
+    filter_agent_eval_result,
 )
 
 
@@ -64,3 +66,59 @@ def test_combine_agent_eval_results() -> None:
     assert payload["status"] == "passed"
     assert payload["total"] == 2
     assert payload["pass_rate"] == 1.0
+
+
+def test_filter_agent_eval_result_by_case_id() -> None:
+    result = AgentEvalResult(
+        agent="sample",
+        cases=(
+            AgentEvalCase(
+                case_id="keep",
+                agent="sample",
+                query="keep",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+            AgentEvalCase(
+                case_id="drop",
+                agent="sample",
+                query="drop",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+        ),
+    )
+
+    filtered = filter_agent_eval_result(result, ("keep",))
+
+    assert [case.case_id for case in filtered.cases] == ["keep"]
+    assert filtered.metadata["case_filter"] == ["keep"]
+
+
+def test_apply_fail_fast_keeps_cases_until_first_failure() -> None:
+    result = AgentEvalResult(
+        agent="sample",
+        cases=(
+            AgentEvalCase(
+                case_id="ok",
+                agent="sample",
+                query="ok",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+            AgentEvalCase(
+                case_id="fail",
+                agent="sample",
+                query="fail",
+                assertions=(AgentEvalAssertion("shape", False),),
+            ),
+            AgentEvalCase(
+                case_id="later",
+                agent="sample",
+                query="later",
+                assertions=(AgentEvalAssertion("shape", True),),
+            ),
+        ),
+    )
+
+    filtered = apply_fail_fast(result)
+
+    assert [case.case_id for case in filtered.cases] == ["ok", "fail"]
+    assert filtered.metadata["fail_fast"] is True

@@ -1,4 +1,28 @@
 ﻿
+## [2026-07-09] - feat(eval): 完成 P2a eval runner 参数与 JSON 归档
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P1 trace 闭环已完成；按 `docs/architecture/langchain-ai-layer-production-enhancement-plan.md` 进入 P2 真实业务 Eval 数据集扩容。直接扩样本前，现有 eval runner 缺 `--json-out`、`--case-id`、`--agent`、`--fail-fast`，后续样本变多时失败定位和报告归档会不够稳。
+- **决策**:
+  - 先做 P2a runner 能力切片，不扩真实业务样本数量。
+  - case 过滤、fail-fast 和 JSON 写文件抽到 `app/service/agents/evaluation.py`，客户、员工和聚合报告复用同一套逻辑。
+  - 报告归档写入 gitignored `reports/agent-eval/`，仓库只登记路径、命令和摘要，不强行提交报告 JSON。
+- **改动**:
+  - `app/service/agents/evaluation.py` - 新增 `filter_agent_eval_result()`、`apply_fail_fast()`、`write_json_report()`。
+  - `scripts/eval_customer_agent.py` - 新增 `--case-id`、`--fail-fast`、`--json-out`。
+  - `scripts/eval_employee_agent.py` - 新增 `--case-id`、`--fail-fast`、`--json-out`。
+  - `scripts/report_agent_eval.py` - 新增 `--agent customer|employee|all`、`--case-id`、`--fail-fast`、`--json-out`。
+  - `tests/service/agents/test_evaluation.py`、`tests/scripts/test_agent_eval_scripts.py` - 增加过滤、fail-fast 和 JSON 归档回归。
+- **验证结果**:
+  - `python -m pytest tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py -q --no-cov` 通过，10 项失败 0。
+  - `python -m ruff check app/service/agents/evaluation.py scripts/eval_customer_agent.py scripts/eval_employee_agent.py scripts/report_agent_eval.py tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py` 通过。
+  - `python -m ruff format --check app/service/agents/evaluation.py scripts/eval_customer_agent.py scripts/eval_employee_agent.py scripts/report_agent_eval.py tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py` 通过。
+  - `python scripts/eval_customer_agent.py --summary` 通过，9 项失败 0。
+  - `python scripts/eval_employee_agent.py --summary` 通过，49 项失败 0。
+  - `python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json` 通过，58 项失败 0，JSON 报告位于 gitignored reports 目录。
+  - `python scripts/report_agent_eval.py --agent customer --case-id customer-product-001 --summary` 可收敛到 1 项。
+  - `python scripts/report_agent_eval.py --agent employee --case-id employee.capability_contracts --json` 可输出单员工 governance case JSON。
+
 ## [2026-07-09] - feat(observability): 完成 P1d 本地 trace probe 闭环
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

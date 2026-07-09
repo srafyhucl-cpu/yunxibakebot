@@ -268,6 +268,60 @@ python scripts/check_evidence_index.py --summary
 - eval 失败能定位到 agent、case、断言和实际输出。
 - 报告可作为作品集证据引用。
 
+## 十五、P2a 落地记录
+
+2026-07-09 已完成 P2 真实业务 Eval 数据集扩容的第一切片：
+
+- `app/service/agents/evaluation.py` 新增通用 eval helper：
+  - `filter_agent_eval_result()` 支持按稳定 `case_id` 过滤。
+  - `apply_fail_fast()` 支持保留到首个失败 case。
+  - `write_json_report()` 支持写入 UTF-8 JSON 报告，并自动创建父目录。
+- `scripts/eval_customer_agent.py` 新增：
+  - `--case-id`
+  - `--fail-fast`
+  - `--json-out`
+- `scripts/eval_employee_agent.py` 新增：
+  - `--case-id`
+  - `--fail-fast`
+  - `--json-out`
+- `scripts/report_agent_eval.py` 新增：
+  - `--agent customer|employee|all`
+  - `--case-id`
+  - `--fail-fast`
+  - `--json-out`
+- 本切片不扩真实样本数量，先补齐 runner 能力，避免后续客户 40+、员工 60+ 样本扩容后无法快速定位失败。
+
+P2a 验收：
+
+```powershell
+python -m pytest tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py -q --no-cov
+python -m ruff check app/service/agents/evaluation.py scripts/eval_customer_agent.py scripts/eval_employee_agent.py scripts/report_agent_eval.py tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py
+python -m ruff format --check app/service/agents/evaluation.py scripts/eval_customer_agent.py scripts/eval_employee_agent.py scripts/report_agent_eval.py tests/service/agents/test_evaluation.py tests/scripts/test_agent_eval_scripts.py
+python scripts/eval_customer_agent.py --summary
+python scripts/eval_employee_agent.py --summary
+python scripts/report_agent_eval.py --latest --json-out reports/agent-eval/latest.json
+python scripts/report_agent_eval.py --agent customer --case-id customer-product-001 --summary
+python scripts/report_agent_eval.py --agent employee --case-id employee.capability_contracts --json
+```
+
+P2a 验证结果：
+
+```text
+10 项 targeted tests 通过。
+Ruff check 通过。
+Ruff format --check 通过。
+customer_agent_eval status=passed total=9 failed=0 pass_rate=1.0。
+employee_agent_eval status=passed total=49 failed=0 pass_rate=1.0。
+agent_eval JSON 归档到 reports/agent-eval/latest.json，summary 为 passed 58/58。
+customer case filter 可收敛到 total=1。
+employee case filter 可输出 employee.capability_contracts 单 case JSON。
+```
+
+P2 后续：
+
+- P2b 扩充客户机器人脱敏 eval fixture，目标从当前 9 项推进到至少 40 项，覆盖商品咨询、库存咨询、配送时间、退款售后、转人工和知识未命中。
+- P2c 扩充员工助手 eval 样本，目标保持或超过 60 项，并强化查订单、查客户、查发货时间、弱关键词和不支持意图。
+
 ### 阶段 P3：RAG 热路径灰度增强
 
 目标：把 planned-hybrid / rerank 从离线评估能力推进到可灰度的线上候选能力。

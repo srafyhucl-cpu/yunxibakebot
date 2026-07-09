@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -106,3 +108,41 @@ def combine_agent_eval_results(
         "metadata": metadata or {},
         "agents": [result.to_dict() for result in results],
     }
+
+
+def filter_agent_eval_result(
+    result: AgentEvalResult,
+    case_ids: tuple[str, ...] = (),
+) -> AgentEvalResult:
+    """按稳定 case_id 过滤 eval 结果。"""
+    if not case_ids:
+        return result
+    selected_ids = set(case_ids)
+    return AgentEvalResult(
+        agent=result.agent,
+        cases=tuple(case for case in result.cases if case.case_id in selected_ids),
+        metadata={**result.metadata, "case_filter": list(case_ids)},
+    )
+
+
+def apply_fail_fast(result: AgentEvalResult) -> AgentEvalResult:
+    """保留到首个失败 case，便于快速定位。"""
+    kept_cases: list[AgentEvalCase] = []
+    for case in result.cases:
+        kept_cases.append(case)
+        if not case.passed:
+            break
+    return AgentEvalResult(
+        agent=result.agent,
+        cases=tuple(kept_cases),
+        metadata={**result.metadata, "fail_fast": True},
+    )
+
+
+def write_json_report(payload: dict[str, object], output_path: Path) -> None:
+    """写入 UTF-8 JSON 报告，父目录不存在时自动创建。"""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )

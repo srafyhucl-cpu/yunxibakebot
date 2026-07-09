@@ -17,6 +17,9 @@ from app.service.agents.evaluation import (  # noqa: E402
     AgentEvalAssertion,
     AgentEvalCase,
     AgentEvalResult,
+    apply_fail_fast,
+    filter_agent_eval_result,
+    write_json_report,
 )
 from scripts.check_customer_rag_golden_cases import (  # noqa: E402
     FIXTURE_PATH,
@@ -129,6 +132,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Eval customer agent offline cases")
     parser.add_argument("--json", action="store_true", help="输出 JSON 报告")
     parser.add_argument("--summary", action="store_true", help="只输出摘要")
+    parser.add_argument("--json-out", type=Path, help="写入 JSON 报告路径")
+    parser.add_argument(
+        "--case-id",
+        action="append",
+        default=[],
+        help="只运行指定 case_id，可重复传入",
+    )
+    parser.add_argument("--fail-fast", action="store_true", help="首个失败后停止报告")
     parser.add_argument(
         "--fixture", default=str(FIXTURE_PATH), help="客户 eval fixture"
     )
@@ -138,7 +149,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     result = build_customer_eval_result(Path(args.fixture))
+    result = filter_agent_eval_result(result, tuple(args.case_id))
+    if args.fail_fast:
+        result = apply_fail_fast(result)
     payload = result.to_dict()
+    if args.json_out is not None:
+        write_json_report(payload, args.json_out)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif args.summary:

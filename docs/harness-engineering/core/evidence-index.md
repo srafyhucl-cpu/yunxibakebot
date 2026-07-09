@@ -1,4 +1,18 @@
 ﻿
+## E-20260709-006：LangChain AI 应用层 P2a eval runner 参数与 JSON 归档
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-09
+- evidence_type: local/p2a-agent-eval-runner
+- file: `D:\Project\YunxiBakeBot\app\service\agents\evaluation.py`; `D:\Project\YunxiBakeBot\scripts\eval_customer_agent.py`; `D:\Project\YunxiBakeBot\scripts\eval_employee_agent.py`; `D:\Project\YunxiBakeBot\scripts\report_agent_eval.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_evaluation.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_agent_eval_scripts.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py -q --no-cov`; `python -m ruff check app\service\agents\evaluation.py scripts\eval_customer_agent.py scripts\eval_employee_agent.py scripts\report_agent_eval.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py`; `python -m ruff format --check app\service\agents\evaluation.py scripts\eval_customer_agent.py scripts\eval_employee_agent.py scripts\report_agent_eval.py tests\service\agents\test_evaluation.py tests\scripts\test_agent_eval_scripts.py`; `python scripts\eval_customer_agent.py --summary`; `python scripts\eval_employee_agent.py --summary`; `python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\latest.json`; `python scripts\report_agent_eval.py --agent customer --case-id customer-product-001 --summary`; `python scripts\report_agent_eval.py --agent employee --case-id employee.capability_contracts --json`
+- result: pass
+- related_logbook: 2026-07-09 - feat(eval): 完成 P2a eval runner 参数与 JSON 归档
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只登记离线 eval case id、断言名、分组、工具名、报告摘要和 gitignored JSON 路径；不包含真实客户原文、订单明细、手机号、地址、open_id 或密钥。`reports\agent-eval\latest.json` 位于 gitignored reports 目录。
+- summary: P2a 为客户、员工和双机器人聚合 eval runner 增加 `--case-id`、`--fail-fast`、`--json-out`，并为聚合报告增加 `--agent customer|employee|all`。`reports\agent-eval\latest.json` 归档结果为 `passed total=58 failed=0 pass_rate=1.0`，case filter 可将客户或员工报告收敛到单 case，后续 P2b/P2c 扩真实业务样本时可快速定位失败 case 与断言。
+
 ## E-20260709-005：LangChain AI 应用层 P1d 本地 trace probe 闭环
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
