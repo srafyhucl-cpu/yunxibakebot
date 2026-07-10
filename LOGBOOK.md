@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-10] - ops: 完成 P23a 外部证据交接汇总包生产同步
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: `090317a / 0.105.17` 已新增 P23a 外部证据交接汇总包，需要同步双远端和生产运行时，并刷新生产发布、观测、容量、作品集与交接汇总证据。
+- **操作**:
+  - 推送 `origin/master` 与 `server/master`，确认两端 `refs/heads/master` 均为 `090317ac9938ed9873998b24d5bd92e25257104b`。
+  - 确认生产 `/opt/yunxibakebot` 为同一提交、`VERSION=0.105.17` 且工作树干净，重启 `yunxibakebot`。
+  - 复核公网 `/health`、`/ready`、运行时版本门禁、加强 release gate、P13b 生产观测发布复核、生产容量、严格 release packet、严格 portfolio 工程证据和 P23a 外部证据交接汇总包。
+- **验证结果**:
+  - `/health` 返回 `ok / 0.105.17`，`/ready` 返回 `ready / 0.105.17`，运行时版本门禁通过。
+  - 加强 release gate `total=8 failed=0`，P13b `failed=0 callback_failed=0 production_versions=0.105.17 capacity_runtime=ok`。
+  - 生产容量 `production_runtime=ok`，严格 release packet `packet_ready=true`，严格 portfolio 工程证据 `verified_evidence_ready=true`。
+  - P23a 交接汇总包 `status=passed failed=0 external_evidence_complete=false portfolio_complete=false`。
+- **边界**:
+  - 本轮生产同步不接入真实 replay、不读取真实 RAG shadow log、不启用 LangSmith、不改变生产 RAG `hybrid` 模式。
+  - `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false`、`external_evidence_complete=false`、`portfolio_complete=false` 仍是正确状态。
+
 ## [2026-07-10] - feat(portfolio): 增加外部证据交接汇总包
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
