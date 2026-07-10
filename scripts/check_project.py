@@ -184,6 +184,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
         "scripts/report_langchain_observability_evidence.py",
         "--summary",
     ),
+    (
+        sys.executable,
+        "scripts/build_langchain_release_evidence_packet.py",
+        "--summary",
+    ),
 )
 
 # ── 洁净代码检查常量 ────────────────────────────────────────────────────────

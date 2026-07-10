@@ -1,4 +1,29 @@
 ﻿
+## [2026-07-10] - feat(ops): 增加 LangChain 发布证据包
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: 生产增强计划已经有 release gate、runtime gate、callback probe、观测证据、容量门禁和 P13b 生产观测发布复核，但发布收口时证据仍分散在多个命令和报告里。需要一个固定证据包入口，把这些结果和回滚命令汇总成可归档、可复盘的机器报告。
+- **决策**:
+  - 新增 `scripts/build_langchain_release_evidence_packet.py`，默认只读已有 release gate JSON 和本地 git refs，不访问业务数据库、不调用外部 LLM、不修改生产。
+  - 默认模式缺少或版本过期的 release JSON 时不阻断普通开发门禁，但明确 `packet_ready=false`。
+  - 严格模式 `--require-production-evidence` 要求生产 release gate 和 P13b 生产观测发布复核通过，适合上线收口。
+  - 证据包汇总 LangSmith 状态、RAG 模式、真实 replay candidate/intake readiness 和回滚命令。
+- **改动**:
+  - `scripts/build_langchain_release_evidence_packet.py` - 新增发布证据包构建脚本和 CLI。
+  - `tests/scripts/test_build_langchain_release_evidence_packet.py` - 覆盖默认 readiness、严格模式缺证据失败、有效 release 报告、失败 release 报告和 CLI 写 JSON。
+  - `scripts/check_project.py`、`scripts/check_langchain_ai_layer_production_plan.py`、`tests/scripts/test_check_langchain_ai_layer_production_plan.py` - 接入默认门禁和计划静态验收。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P22a 追溯记录和版本 `0.105.13`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_build_langchain_release_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过，10 项失败 0。
+  - `python -m ruff check scripts\build_langchain_release_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_release_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\build_langchain_release_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_release_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\build_langchain_release_evidence_packet.py --summary` 通过，当前因本地版本已升到 `0.105.13` 而最新 release JSON 仍是 `0.105.12`，输出 `packet_ready=false`。
+  - `python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary` 按预期失败，等待 `0.105.13` 部署后的生产 release evidence。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`total=41 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，默认业务合约包含 `langchain_release_evidence_packet status=passed packet_ready=false failed=0`。
+- **后续**:
+  - 提交推送并部署 `0.105.13` 后，复跑加强 release gate、P13b 生产观测发布复核和 `build_langchain_release_evidence_packet.py --require-production-evidence --summary`，让 `packet_ready=true`。
+
 ## [2026-07-10] - fix(ops): 允许待发货 callback 探针受控空结果
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

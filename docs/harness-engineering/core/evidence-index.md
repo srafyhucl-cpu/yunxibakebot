@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-042：LangChain AI 应用层 P22a 发布证据包
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p22a-langchain-release-evidence-packet
+- file: `D:\Project\YunxiBakeBot\scripts\build_langchain_release_evidence_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_langchain_release_evidence_packet.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_build_langchain_release_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\build_langchain_release_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_release_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\build_langchain_release_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_release_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\build_langchain_release_evidence_packet.py --summary`; `python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(ops): 增加 LangChain 发布证据包
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只新增发布证据包聚合入口，默认只读已有 release gate JSON、本地 git refs 和 readiness 报告；不读取业务数据库、不调用外部 LLM、不修改生产。生成的证据包位于 gitignored reports 目录。
+- summary: P22a 新增 `build_langchain_release_evidence_packet.py`。默认模式用于 readiness，不把缺失或过期 release JSON 伪装成生产就绪；严格模式用于上线收口，要求生产 release gate 和 P13b 生产观测发布复核通过。当前本地版本已升到 `0.105.13`，最新生产 release JSON 仍为上一版，因此默认 `packet_ready=false`，严格模式按预期失败，等待部署后复验。
+
 ## E-20260710-041：LangChain AI 应用层待发货 callback 受控空结果探针修正
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
