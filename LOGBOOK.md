@@ -1,4 +1,20 @@
 ﻿
+## [2026-07-10] - ops: 完成 P19c shadow log 接入增强生产验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: `dbf3bb2 / 0.105.16` 已包含 P19c 真实 RAG shadow log 外部交接与来源证明增强，需要用当前生产运行时重新生成发布、观测、容量和作品集工程证据。
+- **操作**:
+  - 复核公网 `/health`、`/ready`、员工助手 callback 和生产只读容量状态。
+  - 重新生成加强 release gate，并执行 P13b 生产观测发布复核、严格 release packet 和严格 portfolio packet。
+  - 将后续增强执行计划和项目进度基线更新到 `dbf3bb2 / 0.105.16`。
+- **验证结果**:
+  - 加强 release gate `total=8 failed=0`，默认 Agent Eval `133/133`、扩展回复回放 `163/163`、生产 callback `61/61` 均通过。
+  - P13b `failed=0 callback_failed=0 production_versions=0.105.16 capacity_runtime=ok`；生产容量门禁通过。
+  - 严格 release packet `packet_ready=true`；严格 portfolio 工程证据 `verified_evidence_ready=true`。
+- **边界**:
+  - 本轮只验证已部署版本，不读取或提交真实客户日志，不启用 LangSmith，不改变生产 RAG `hybrid` 模式。
+  - `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false`、`external_evidence_complete=false`、`portfolio_complete=false` 仍是正确状态。
+
 ## [2026-07-10] - feat(rag): 增加真实 shadow log 外部交接与来源证明
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

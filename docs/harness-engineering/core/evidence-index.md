@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-051：P19c shadow log 接入增强生产验证
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: production/p19c-rag-shadow-log-intake-release-verification
+- file: `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json`; `D:\Project\YunxiBakeBot\reports\harness\langchain-release-evidence-packet.json`; `D:\Project\YunxiBakeBot\reports\portfolio\langchain-ai-layer-evidence-packet.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/yunxibakebot`
+- command: `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary`; `python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary`; `python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary`
+- result: pass
+- related_logbook: 2026-07-10 - ops: 完成 P19c shadow log 接入增强生产验证
+- related_adr: 0003-langchain-ai-layer-boundary; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 生产报告只记录版本、服务状态、容量、callback 汇总、release/portfolio readiness 布尔值和缺失动作；不包含客户原文、query 原文、手机号、地址、open_id、订单明细、API key、callback token、AES key、服务器密码或私钥。JSON 位于 gitignored reports 目录。
+- summary: `dbf3bb2 / 0.105.16` 已在生产运行。公网 `/health`、`/ready`、加强 release gate `8/8`、P13b、生产容量、严格 release packet 和严格 portfolio 工程证据均通过；默认 Agent Eval `133/133`、扩展回复回放 `163/163`、生产 callback `61/61`。`verified_evidence_ready=true`，但没有仓库外真实 replay、真实 RAG shadow log、planned-hybrid 灰度或 LangSmith 外发证据，`external_evidence_complete=false`、`portfolio_complete=false` 保持不变。
+
 ## E-20260710-050：P19c 真实 RAG shadow log 外部交接与来源证明
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
