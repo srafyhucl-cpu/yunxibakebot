@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-10
-> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入）
+> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E6a 证据清单已完成，但 E6 完整态仍依赖 E1-E5）
 > 上游计划：[LangChain AI 应用层生产增强计划书](./langchain-ai-layer-production-enhancement-plan.md)
 
 ## 一、目标
@@ -324,6 +324,15 @@ python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --
 
 把工程成果整理成能在面试中讲清楚的证据链，而不是只说“用了 LangChain”。
 
+### 当前进度
+
+1. P5a 已有作品集说明、Mermaid 架构图、代码路径、Agent Eval、RAG 矩阵和事实敏感治理证据。
+2. E6a 新增 `scripts\build_langchain_portfolio_evidence_packet.py`，统一聚合当前版本 Agent Eval、RAG shadow、trace、严格生产 release packet 和 E1-E5 readiness。
+3. 清单分别输出 `verified_evidence_ready`、`external_evidence_complete` 和 `portfolio_complete`；默认生成清单不会把缺失外部证据算作失败，但严格 `--require-complete` 会阻断。
+4. E4 不能只凭 LangSmith key 或 tracing 开关完成；还必须有同版本、人工外发批准、受控采样率和实际 trace 验证报告。
+5. E5 必须使用真实样本池对应的事实敏感 coverage 报告；`tests/fixtures` 下的合成覆盖样例不能让该阶段 ready。
+6. 当前工程证据可复核，E1-E5 外部证据仍未完成，因此 `verified_evidence_ready=true`、`external_evidence_complete=false`、`portfolio_complete=false` 是正确状态。
+
 ### 输出物
 
 1. 一页架构图。
@@ -342,6 +351,8 @@ python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\portf
 python scripts\report_rag_shadow_observability.py --summary
 python scripts\report_langchain_observability_evidence.py --summary
 python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary
+python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary
+python scripts\build_langchain_portfolio_evidence_packet.py --require-complete --summary
 python scripts\check_project.py --skip-tests
 ```
 
@@ -350,6 +361,7 @@ python scripts\check_project.py --skip-tests
 1. 每个作品集亮点都能对应代码路径。
 2. 每个效果结论都有命令或报告证据。
 3. 文档能解释长期维护边界，而不是把 LangChain 当作业务框架。
+4. `portfolio_complete=true` 只能在 E1-E5 的真实外部证据全部完成后出现；当前 `--require-complete` 预期失败。
 
 ## 十一、推荐执行顺序
 

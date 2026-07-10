@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-048：LangChain AI 应用层 P5b / E6a 作品集证据真值清单
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p5b-e6a-langchain-portfolio-evidence-packet
+- file: `D:\Project\YunxiBakeBot\scripts\build_langchain_portfolio_evidence_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_langchain_portfolio_evidence_packet.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-portfolio.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov`; `python -m ruff check scripts\build_langchain_portfolio_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\build_langchain_portfolio_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary`; `python scripts\build_langchain_portfolio_evidence_packet.py --require-complete --summary`; `python scripts\check_file_sizes.py`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - feat(portfolio): 增加 LangChain 作品集证据真值清单
+- related_adr: 0003-langchain-ai-layer-boundary; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 聚合器只读取 gitignored 的结构化评估、观测和发布报告，不读取原始客户会话、不访问业务数据库、不调用外部 LLM。报告只保留状态、汇总指标、代码路径和缺失动作，不提交真实客户数据、query 原文、手机号、地址、open_id、完整订单号或密钥。
+- summary: E6a 把当前可展示工程证据与 E1-E5 外部完成度拆成独立真值。当前 `verified_evidence_ready=true`，但真实 replay、真实 RAG shadow log、planned-hybrid 灰度、LangSmith 外发和真实事实敏感覆盖尚未完成，因此 `external_evidence_complete=false`、`portfolio_complete=false`；完整性严格门禁退出 1 是预期结果，不视为实现失败。
+
 ## E-20260710-047：P17b 工具链增强与 Harness 治理生产收口
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

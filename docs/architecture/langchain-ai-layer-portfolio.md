@@ -66,6 +66,23 @@ flowchart TD
 | Agent Eval 模型 | `app/service/agents/evaluation.py` |
 | 客户事实敏感 eval | `tests/fixtures/customer_rag_golden_cases.json`、`scripts/check_customer_rag_golden_cases.py` |
 
+## 当前证据真值
+
+作品集清单通过 `scripts/build_langchain_portfolio_evidence_packet.py` 统一读取既有 Agent Eval、RAG shadow、trace 和生产发布证据。清单把“当前工程证据可复核”和“依赖外部输入的增强阶段已完成”拆成两个状态，避免把合成样例、无输入 readiness 或 LangSmith 安全关闭态包装成真实生产效果。
+
+| 状态 | 当前值 | 含义 |
+|---|---|---|
+| `verified_evidence_ready` | `true` | 当前版本的 Agent Eval、RAG shadow、trace 和严格生产发布证据可复核 |
+| `external_evidence_complete` | `false` | E1-E5 仍缺真实脱敏 replay、真实 RAG shadow log、灰度和经人工批准的实际 LangSmith trace 外发证据 |
+| `portfolio_complete` | `false` | 作品集已有可展示工程证据，但不能声称后续生产增强计划全部完成 |
+
+```powershell
+python scripts/build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary
+python scripts/build_langchain_portfolio_evidence_packet.py --require-complete --summary
+```
+
+第一条用于验证当前可展示证据，当前应通过。第二条是完整性严格门禁，在 E1-E5 的真实外部证据齐全前应失败。
+
 ## 可执行评估证据
 
 当前离线评估入口：
@@ -179,4 +196,4 @@ planned-hybrid+rerank: Recall@5=0.9714, MRR=0.9136
 | 为什么不是 LlamaIndex？ | 当前核心不是复杂文档解析，而是客服 Agent、工具、RAG、业务事实和评估闭环；LangChain / LangGraph 更适合接管 AI 应用层编排。 |
 | 为什么不让 LangChain 接管数据库？ | 订单、库存、退款、客户主档是业务事实，必须走 service/repository 和现有审计边界；LangChain 只做 AI 编排和 adapter。 |
 | RAG 是什么范式？ | Modular RAG：SQLite 业务知识 + 商品 RAG + vector/BM25/RRF hybrid + query planning/rerank shadow + eval matrix。 |
-| 如何证明不是 demo？ | 有生产 health/ready/callback 证据、133 项双机器人 eval、70 条客户业务样本、事实敏感治理矩阵和 RAG shadow compare。 |
+| 如何证明不是 demo？ | 有生产 health/ready/callback 证据、133 项双机器人 eval、70 条客户业务样本、事实敏感治理矩阵和 RAG shadow compare；同时用作品集证据清单明确标出尚未完成的真实样本、真实 shadow log、灰度和 LangSmith 外发。 |

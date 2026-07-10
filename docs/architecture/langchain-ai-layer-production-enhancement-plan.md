@@ -2028,6 +2028,30 @@ python scripts\report_rag_shadow_log_observability.py --require-input --summary
 python scripts\check_langchain_ai_layer_production_plan.py --summary
 ```
 
+## 四十、P5b / E6a 作品集证据清单
+
+2026-07-10 已完成 E6 作品集证据包升级的机器可复核切片：
+
+- 新增 `scripts/build_langchain_portfolio_evidence_packet.py`，只读聚合 Agent Eval、RAG shadow、真实 shadow log readiness、trace 观测、真实 replay coverage 和 P22a 严格发布证据包。
+- 清单固定输出 `verified_evidence_ready`、`external_evidence_complete` 和 `portfolio_complete`，把“现有工程证据可展示”与“E1-E5 外部增强阶段完成”分开。
+- 默认模式允许缺少外部输入但明确输出未完成动作；`--require-verified-evidence` 要求当前版本 eval、RAG shadow、trace 和生产 release packet 可复核；`--require-complete` 还要求 E1-E5 全部完成。
+- E4 只有在 LangSmith 开关已启用且存在同版本、人工批准、受控采样率和实际 trace 已验证的生产外发报告时才会 ready，不能只靠本地 key 或开关制造完成。
+- E5 必须同时满足真实样本池 ready 和非 `tests/fixtures` 合成来源的事实敏感 coverage 报告，不能复用 P11d 的合成覆盖样例制造完成。
+- 当前严格工程证据通过，但真实 replay、真实 RAG shadow log、planned-hybrid 灰度、LangSmith 外发和真实事实敏感覆盖仍未完成，因此 `portfolio_complete=false`，完整性严格门禁按预期失败。
+- `scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入默认清单，防止作品集证据入口与生产增强计划脱节。
+
+P5b / E6a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov
+python -m ruff check scripts\build_langchain_portfolio_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\build_langchain_portfolio_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary
+python scripts\build_langchain_portfolio_evidence_packet.py --require-complete --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
+python scripts\check_project.py --skip-tests
+```
+
 ## 五、推荐执行顺序
 
 推荐顺序如下：

@@ -42,6 +42,7 @@ REQUIRED_ARTIFACTS = (
     "scripts/report_rag_shadow_observability.py",
     "scripts/report_rag_shadow_log_observability.py",
     "scripts/build_langchain_release_evidence_packet.py",
+    "scripts/build_langchain_portfolio_evidence_packet.py",
     "tests/fixtures/customer_real_replay_coverage_sample.json",
     "docs/harness-engineering/core/evidence-index.md",
 )

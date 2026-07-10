@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-10] - feat(portfolio): 增加 LangChain 作品集证据真值清单
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: E1-E5 仍受真实脱敏样本、真实 RAG shadow log、灰度证据和人工 LangSmith 外发审批约束，但 E6 已有的 P5a 作品集文档缺少机器可复核的当前证据清单，容易把“工程证据可展示”和“后续增强全部完成”混为一谈。
+- **决策**:
+  - 新增只读作品集证据聚合器，复用现有 Agent Eval、RAG shadow、trace 和 release evidence，不重复定义业务通过标准。
+  - 分别输出 `verified_evidence_ready`、`external_evidence_complete` 和 `portfolio_complete`；默认生成成功不代表 E1-E5 完成。
+  - `--require-verified-evidence` 保护当前版本工程证据，`--require-complete` 保护 E1-E5 全部真实证据边界。
+  - 文件职责评审为 `keep_cohesive_with_review`：脚本虽包含多个来源摘要 helper，但只有“作品集证据包合同”一个变化原因；拆成 CLI 壳和碎片 helper 会增加状态传递与跨文件跳转。
+- **改动**:
+  - `scripts/build_langchain_portfolio_evidence_packet.py` - 新增 E6a 作品集证据清单、阶段 readiness 和两级严格门禁。
+  - `tests/scripts/test_build_langchain_portfolio_evidence_packet.py` - 覆盖缺报告、工程证据齐全、严格工程证据和完整外部证据合同。
+  - 两份 LangChain 增强计划、作品集说明、项目进度清单和项目门禁同步 E6a 状态。
+- **验证结果**:
+  - 聚焦测试 12 项通过，Ruff check 通过。
+  - `--require-verified-evidence` 通过：`verified_evidence_ready=true`。
+  - `--require-complete` 按预期退出 1：`external_evidence_complete=false`、`portfolio_complete=false`。
+  - `check_file_sizes.py`、计划静态合同、证据索引和 `check_project.py --skip-tests` 全部通过；总门禁实际执行并通过新作品集清单。
+- **边界**:
+  - 本切片不读取业务数据库、不调用外部 LLM、不读取原始客户会话、不修改生产配置。
+  - `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false` 和生产 RAG `hybrid` 状态均不改变。
+
 ## [2026-07-10] - ops: 完成 P17b 工具链增强与 Harness 治理生产收口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
