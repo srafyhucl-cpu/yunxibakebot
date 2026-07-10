@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-10
-> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E2 交接工具链已增强，等待仓库外真实脱敏 RAG shadow log；E6a 证据清单已完成；P23a 外部证据交接汇总包已完成，但 E6 完整态仍依赖 E1-E5）
+> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E2 交接工具链已增强，等待仓库外真实脱敏 RAG shadow log；E6a 证据清单已完成；P23a 外部证据交接汇总包已完成，P23b 已补交接动作分类，P23c 已补提交前自检摘要，P23d 已补计划层交接合同门禁，P23e 已补 readiness 真值汇总，P23f 已补 Markdown 可发送交接包，但 E6 完整态仍依赖 E1-E5）
 > 上游计划：[LangChain AI 应用层生产增强计划书](./langchain-ai-layer-production-enhancement-plan.md)
 
 ## 一、目标
@@ -179,10 +179,11 @@ python scripts\report_agent_eval.py --latest --include-real-replay --real-replay
 
 ### 当前进度
 
-1. `scripts\build_rag_shadow_log_intake_packet.py` 已提供仓库外交接模板、必填字段、脱敏要求和可执行命令链。
+1. `scripts\build_rag_shadow_log_intake_packet.py` 已提供仓库外交接模板、必填字段、脱敏要求、提交前自检清单和可执行命令链。
 2. `scripts\report_rag_shadow_log_observability.py` 的严格输入合同已要求真实来源类型、脱敏方法、审核人、ISO 审核日期、原始来源不入仓和 evidence ID，并机械拦截 query 中明显的手机号、长数字和 open_id 形态。
 3. 交接模板中的审核人和 evidence ID 可由命令参数预填，脱敏方法与审核日期保留为必须人工填写的字段。
-4. 当前仍没有仓库外真实脱敏日志，因此 `shadow_log_ready=false`，E2 尚未完成。
+4. 提交前自检清单要求外部日志持有人/脱敏审核人/仓库维护者确认真实来源、原始日志不入仓、query 脱敏、metadata 证明字段和 evidence ID 登记。
+5. 当前仍没有仓库外真实脱敏日志，因此 `shadow_log_ready=false`，E2 尚未完成。
 
 ### 输入合同
 
@@ -347,7 +348,7 @@ python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --
 3. 清单分别输出 `verified_evidence_ready`、`external_evidence_complete` 和 `portfolio_complete`；默认生成清单不会把缺失外部证据算作失败，但严格 `--require-complete` 会阻断。
 4. E4 不能只凭 LangSmith key 或 tracing 开关完成；还必须有同版本、人工外发批准、受控采样率和实际 trace 验证报告。
 5. E5 必须使用真实样本池对应的事实敏感 coverage 报告；`tests/fixtures` 下的合成覆盖样例不能让该阶段 ready。
-6. `scripts\build_langchain_external_evidence_handoff_packet.py` 已把 E1 真实 replay 接入包、E2 真实 RAG shadow log 接入包和 E6 作品集缺口聚合成统一交接汇总，输出 `required_external_inputs`、可填写模板、命令链和边界声明，供人工/仓库外记录持有人按一份清单准备真实脱敏输入。
+6. `scripts\build_langchain_external_evidence_handoff_packet.py` 已把 E1 真实 replay 接入包、E2 真实 RAG shadow log 接入包和 E6 作品集缺口聚合成统一交接汇总，输出 `required_external_inputs`、`action_groups`、`action_group_details`、可填写模板、P17b/P19c 提交前自检清单、顶层 `pre_submission_checklist_summary`、`readiness_truth`、命令链、摘要动作计数和边界声明，并可通过 `--markdown-out` 生成 `LangChain 外部证据交接包` Markdown 文档，供人工/仓库外记录持有人按一份可发送清单准备真实脱敏输入，并先完成对应提交前自检；生产增强计划静态门禁已要求这些交接合同字段持续存在。
 7. 当前工程证据可复核，E1-E5 外部证据仍未完成，因此 `verified_evidence_ready=true`、`external_evidence_complete=false`、`portfolio_complete=false` 是正确状态。
 
 ### 输出物
@@ -368,6 +369,7 @@ python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\portf
 python scripts\report_rag_shadow_observability.py --summary
 python scripts\report_langchain_observability_evidence.py --summary
 python scripts\build_langchain_external_evidence_handoff_packet.py --summary
+python scripts\build_langchain_external_evidence_handoff_packet.py --markdown-out reports\harness\langchain-external-evidence-handoff.md --summary
 python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary
 python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary
 python scripts\build_langchain_portfolio_evidence_packet.py --require-complete --summary

@@ -78,6 +78,17 @@ def test_langchain_ai_layer_production_plan_detects_missing_boundary() -> None:
         "artifact.scripts/build_langchain_external_evidence_handoff_packet.py"
         in report["failed_names"]
     )
+    assert "external_handoff_contract.action_groups" in report["failed_names"]
+    assert "external_handoff_contract.action_group_details" in report["failed_names"]
+    assert (
+        "external_handoff_contract.pre_submission_checklist_summary"
+        in report["failed_names"]
+    )
+    assert "external_handoff_contract.precheck_items=10" in report["failed_names"]
+    assert "external_handoff_contract.--markdown-out" in report["failed_names"]
+    assert (
+        "external_handoff_contract.LangChain 外部证据交接包" in report["failed_names"]
+    )
 
 
 def test_langchain_ai_layer_production_plan_main_outputs_json(capsys) -> None:

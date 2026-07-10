@@ -63,6 +63,19 @@ def test_intake_packet_contains_external_operator_command_chain() -> None:
     )
     assert "--json-out" in audit_command
 
+    checklist = report["pre_submission_checklist"]
+    checklist_ids = {item["id"] for item in checklist}
+    assert checklist_ids == {
+        "source_is_real_customer_conversation",
+        "raw_source_kept_outside_repo",
+        "sensitive_fields_redacted",
+        "coverage_target_reviewed",
+        "evidence_id_registered",
+    }
+    assert all("owner" in item for item in checklist)
+    assert all("human_input_required" in item for item in checklist)
+    assert report["boundaries"]["readiness_changed"] is False
+
 
 def test_handoff_template_matches_exporter_input_contract(tmp_path: Path) -> None:
     report = intake_packet.build_real_replay_intake_packet()

@@ -24,6 +24,7 @@ def test_intake_packet_contains_handoff_contract_and_command_chain() -> None:
     assert report["status"] == "passed"
     assert report["readiness"]["shadow_log_ready"] is False
     assert report["boundaries"]["missing_external_input_treated_as_ready"] is False
+    assert report["boundaries"]["readiness_changed"] is False
     metadata = report["handoff_template"]["metadata"]
     assert metadata["source_type"] == "real_customer_rag_shadow_log"
     assert metadata["contains_sensitive_data"] is False
@@ -41,6 +42,19 @@ def test_intake_packet_contains_handoff_contract_and_command_chain() -> None:
         "verify_production_plan",
     ]
     assert "--require-input" in report["commands"][0]["command"]
+    checklist_ids = {item["id"] for item in report["pre_submission_checklist"]}
+    assert checklist_ids == {
+        "source_is_real_rag_shadow_log",
+        "raw_shadow_log_kept_outside_repo",
+        "query_text_redacted",
+        "metadata_proof_fields_present",
+        "evidence_id_registered",
+    }
+    assert all(item["owner"] for item in report["pre_submission_checklist"])
+    assert all(
+        item["human_input_required"] is True
+        for item in report["pre_submission_checklist"]
+    )
 
 
 def test_filled_handoff_template_passes_strict_input_contract(

@@ -1,4 +1,17 @@
-﻿
+﻿## E-20260710-054：外部证据接入成本增强最终收口审查
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/external-evidence-intake-friction-final-review
+- file: `D:\Project\YunxiBakeBot\scripts\build_real_conversation_replay_intake_packet.py`; `D:\Project\YunxiBakeBot\scripts\build_rag_shadow_log_intake_packet.py`; `D:\Project\YunxiBakeBot\scripts\build_langchain_external_evidence_handoff_packet.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_real_conversation_replay_intake_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_rag_shadow_log_intake_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_langchain_external_evidence_handoff_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov`; `python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\build_rag_shadow_log_intake_packet.py scripts\build_langchain_external_evidence_handoff_packet.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\build_rag_shadow_log_intake_packet.py scripts\build_langchain_external_evidence_handoff_packet.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\build_langchain_external_evidence_handoff_packet.py --markdown-out reports\harness\langchain-external-evidence-handoff.md --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - review(langchain): 外部证据接入成本增强最终收口审查
+- related_adr: 0003-langchain-ai-layer-boundary; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 仅登记本地收口审查、验证命令和 readiness 边界；不包含客户原文、query 原文、生产日志、手机号、地址、open_id、订单明细、API key、callback token、AES key、服务器密码或私钥。
+- summary: 本轮最终收口只保留 P17b/P19c 提交前自检、P23b-P23f 外部证据交接汇总的最小可用增强，并清理 LOGBOOK/evidence-index 的微切片记录和非语义换行重写。该收口不接入真实数据、不访问生产、不改变 `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false`、`external_evidence_complete=false` 或 `portfolio_complete=false`。
+
 ## E-20260710-053：P23a 外部证据交接汇总包生产同步验证
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

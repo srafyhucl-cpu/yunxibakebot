@@ -94,6 +94,38 @@ INTAKE_HANDOFF_DECLARATION_TEMPLATE = {
     "raw_source_retention": RAW_SOURCE_RETENTION_NOT_COMMITTED,
     "evidence_id": "<evidence-index-id>",
 }
+PRE_SUBMISSION_CHECKLIST = (
+    {
+        "id": "source_is_real_customer_conversation",
+        "owner": "external_record_holder",
+        "human_input_required": True,
+        "description": "确认来源是真实客服会话导出，不是 tests/fixtures 合成样例",
+    },
+    {
+        "id": "raw_source_kept_outside_repo",
+        "owner": "external_record_holder",
+        "human_input_required": True,
+        "description": "确认原始客服记录只保存在仓库外，不提交到 git 或 reports",
+    },
+    {
+        "id": "sensitive_fields_redacted",
+        "owner": "redaction_reviewer",
+        "human_input_required": True,
+        "description": "确认手机号、地址、open_id、union_id、客户姓名和完整订单号已脱敏",
+    },
+    {
+        "id": "coverage_target_reviewed",
+        "owner": "redaction_reviewer",
+        "human_input_required": True,
+        "description": "确认六类事实敏感场景目标覆盖，每类至少 5 条",
+    },
+    {
+        "id": "evidence_id_registered",
+        "owner": "repo_maintainer",
+        "human_input_required": False,
+        "description": "确认 evidence ID 将登记到 harness evidence-index",
+    },
+)
 
 
 def build_real_replay_intake_packet(
@@ -134,6 +166,7 @@ def build_real_replay_intake_packet(
             field: list(aliases) for field, aliases in RAW_RECORD_FIELD_ALIASES.items()
         },
         "redaction_requirements": list(REDACTION_REQUIREMENTS),
+        "pre_submission_checklist": build_pre_submission_checklist(),
         "handoff_template": build_handoff_template(),
         "commands": build_command_plan(
             draft_fixture_path=draft_fixture_path,
@@ -148,12 +181,17 @@ def build_real_replay_intake_packet(
             "business_database_read": False,
             "external_llm_called": False,
             "synthetic_samples_count_as_real": False,
+            "readiness_changed": False,
         },
         "next_gate": (
             "python scripts\\check_real_conversation_replay_intake_readiness.py "
             "--require-real --summary"
         ),
     }
+
+
+def build_pre_submission_checklist() -> list[dict[str, object]]:
+    return [dict(item) for item in PRE_SUBMISSION_CHECKLIST]
 
 
 def build_packet_assertions(

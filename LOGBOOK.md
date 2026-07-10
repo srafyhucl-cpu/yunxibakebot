@@ -1,4 +1,20 @@
-﻿
+﻿## [2026-07-10] - review(langchain): 外部证据接入成本增强最终收口审查
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: 本轮仅审查当前未提交工作区，不恢复或继续原 LangChain goal，不新增功能；目标是保留 P17b、P19c、P23b-P23f 中确实降低外部证据接入成本的最小实现，并清理非语义 diff 与过度治理记录。
+- **保留改动**:
+  - P17b 真实 replay intake packet 增加 `pre_submission_checklist` 和 `boundaries.readiness_changed=false`，明确真实来源、原始数据不入仓、脱敏、覆盖目标和 evidence ID 登记。
+  - P19c RAG shadow log intake packet 增加 `pre_submission_checklist` 和 `boundaries.readiness_changed=false`，明确真实日志来源、原始日志不入仓、query 脱敏、metadata 证明字段和 evidence ID 登记。
+  - P23b-P23f 保留动作分组、自检摘要、readiness 真值、计划静态合同和 `--markdown-out`，用于把外部记录持有人、脱敏审核人和仓库维护者要做的事集中到一份可发送交接包。
+- **删除/整理**:
+  - 将本轮 LOGBOOK 与 evidence-index 的多条微切片记录压缩为一条最终收口记录，避免为了治理而治理。
+  - 还原 `docs/harness-engineering/core/evidence-index.md` 的原有混合行尾，不保留整文件换行重写；移除生产增强计划文件误加的 BOM。
+- **边界**:
+  - 本轮不读取真实客服记录、不读取真实 RAG shadow log、不访问业务数据库、不调用外部 LLM、不修改生产服务、不提交、不推送、不部署。
+  - `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false`、`external_evidence_complete=false`、`portfolio_complete=false` 不变。
+- **验证结果**:
+  - 本轮最终集中验证见对话收口输出；不会在每个微整理后重复运行重型检查。
+
 ## [2026-07-10] - ops: 完成 P23a 外部证据交接汇总包生产同步
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

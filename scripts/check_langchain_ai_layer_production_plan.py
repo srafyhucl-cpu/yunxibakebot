@@ -57,6 +57,14 @@ REQUIRED_BOUNDARIES = (
     "不得通过放宽 release gate、callback 语义断言或版本检查来制造通过",
     "公网 /health 和 /ready 运行时版本必须单独验收",
 )
+REQUIRED_EXTERNAL_HANDOFF_CONTRACTS = (
+    "action_groups",
+    "action_group_details",
+    "pre_submission_checklist_summary",
+    "precheck_items=10",
+    "--markdown-out",
+    "LangChain 外部证据交接包",
+)
 FORBIDDEN_STALE_PHRASES = (
     "状态：计划冻结，待执行",
     "下一步建议直接进入阶段 P0",
@@ -90,6 +98,11 @@ def validate_plan(content: str) -> list[PlanCheck]:
         *_check_required_items("status", REQUIRED_STATUS_PHRASES, content),
         *_check_required_items("artifact", REQUIRED_ARTIFACTS, content),
         *_check_required_items("boundary", REQUIRED_BOUNDARIES, content),
+        *_check_required_items(
+            "external_handoff_contract",
+            REQUIRED_EXTERNAL_HANDOFF_CONTRACTS,
+            content,
+        ),
         *_check_forbidden_stale_phrases(content),
         _check_no_placeholders(content),
     ]

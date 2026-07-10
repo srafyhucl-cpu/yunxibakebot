@@ -29,6 +29,47 @@ DEFAULT_OBSERVABILITY_OUTPUT_PATH = (
 )
 DEFAULT_RECOMMENDED_RECORD_COUNT = 30
 OPTIONAL_RECORD_FIELDS = ("group",)
+PRE_SUBMISSION_CHECKLIST = (
+    {
+        "id": "source_is_real_rag_shadow_log",
+        "owner": "external_log_holder",
+        "human_input_required": True,
+        "check": (
+            "确认输入来自真实用户 RAG 检索 shadow log，"
+            "不是 golden case、合成样例或手写示例。"
+        ),
+    },
+    {
+        "id": "raw_shadow_log_kept_outside_repo",
+        "owner": "external_log_holder",
+        "human_input_required": True,
+        "check": "确认原始生产检索日志只保存在仓库外，提交物仅包含已脱敏副本。",
+    },
+    {
+        "id": "query_text_redacted",
+        "owner": "redaction_reviewer",
+        "human_input_required": True,
+        "check": (
+            "确认 records[].query 已移除手机号、地址、open_id、客户姓名、"
+            "完整订单号和其他可识别个人或订单的信息。"
+        ),
+    },
+    {
+        "id": "metadata_proof_fields_present",
+        "owner": "redaction_reviewer",
+        "human_input_required": True,
+        "check": (
+            "确认 metadata.source_type、redaction_method、redaction_reviewer、"
+            "redaction_reviewed_at、raw_source_retention 和 evidence_id 已填写。"
+        ),
+    },
+    {
+        "id": "evidence_id_registered",
+        "owner": "repo_maintainer",
+        "human_input_required": True,
+        "check": "确认 evidence_id 已登记到 docs/harness-engineering/core/evidence-index.md。",
+    },
+)
 HANDOFF_METADATA_TEMPLATE = {
     "source_type": REAL_SHADOW_LOG_SOURCE_TYPE,
     "contains_sensitive_data": False,
@@ -78,6 +119,7 @@ def build_rag_shadow_log_intake_packet(
             operator=operator,
             evidence_id=evidence_id,
         ),
+        "pre_submission_checklist": build_pre_submission_checklist(),
         "commands": build_command_plan(observability_output_path),
         "assertions": assertions,
         "boundaries": build_boundaries(),
@@ -118,6 +160,10 @@ def build_handoff_template(
         "metadata": metadata,
         "records": [dict(HANDOFF_RECORD_TEMPLATE)],
     }
+
+
+def build_pre_submission_checklist() -> list[dict[str, object]]:
+    return [dict(item) for item in PRE_SUBMISSION_CHECKLIST]
 
 
 def build_command_plan(
@@ -171,6 +217,7 @@ def build_boundaries() -> dict[str, bool]:
         "external_llm_called": False,
         "production_hot_path_changed": False,
         "rag_retrieval_mode_changed": False,
+        "readiness_changed": False,
         "missing_external_input_treated_as_ready": False,
     }
 
