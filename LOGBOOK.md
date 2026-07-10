@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-10] - ops: 完成 E6a 作品集证据清单生产验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: `90a284f / 0.105.15` 已完成 E6a 实现提交，需要同步双远端和生产运行时，并用新版本报告验证作品集工程证据真值。
+- **操作**:
+  - 推送 `origin/master`、`server/master`，确认生产工作树自动同步且干净。
+  - 重启 `yunxibakebot`，复核 `/health`、`/ready`、生产 runtime、容量和 callback。
+  - 重新生成加强 release gate、P13b 复核、严格 release packet 和严格 portfolio packet。
+- **验证结果**:
+  - 本地、双远端和生产工作树均为 `90a284ff62158cd9200e51864cc2e503823ea9b2`，生产 `VERSION=0.105.15`，服务 active。
+  - `/health` 返回 `ok / 0.105.15`，`/ready` 返回 `ready / 0.105.15`；runtime version gate 通过。
+  - 加强 release gate `total=8 failed=0`，P13b `failed=0 callback_failed=0 capacity_runtime=ok`，生产容量门禁通过。
+  - 严格 release packet `packet_ready=true`；严格 portfolio 工程证据 `verified_evidence_ready=true`。
+- **边界**:
+  - `external_evidence_complete=false`、`portfolio_complete=false` 仍是正确状态；本次没有真实 replay、真实 RAG shadow log、planned-hybrid 灰度或 LangSmith 外发。
+  - 生产 RAG 继续为 `hybrid`，`candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false` 不变。
+
 ## [2026-07-10] - feat(portfolio): 增加 LangChain 作品集证据真值清单
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
