@@ -17,8 +17,13 @@ class _FakeSearcher:
 def _input_payload() -> dict[str, object]:
     return {
         "metadata": {
-            "source_type": "production_knowledge_retrieval_logs",
+            "source_type": log_observability.REAL_SHADOW_LOG_SOURCE_TYPE,
             "contains_sensitive_data": False,
+            "redaction_method": "tool_redaction_plus_manual_review",
+            "redaction_reviewer": "reviewer_a",
+            "redaction_reviewed_at": "2026-07-10",
+            "raw_source_retention": "not_committed",
+            "evidence_id": "E-RAG-SHADOW-001",
         },
         "records": [
             {
@@ -132,6 +137,80 @@ def test_invalid_input_requires_desensitized_metadata(tmp_path: Path) -> None:
     assert report["status"] == "failed"
     assert report["assertions"]["metadata.contains_sensitive_data_false"] is False
     assert "mark_shadow_log_input_as_desensitized" in report["missing_actions"]
+
+
+def test_invalid_input_requires_redaction_proof(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.json"
+    payload = _input_payload()
+    payload["metadata"]["redaction_reviewer"] = "<脱敏审核人>"
+    payload["metadata"]["redaction_reviewed_at"] = "not-a-date"
+    input_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    report = log_observability.build_rag_shadow_log_observability_report(
+        input_path=input_path,
+        db_path=tmp_path / "bot.db",
+    )
+
+    assert report["status"] == "failed"
+    assert report["shadow_log_ready"] is False
+    assert report["assertions"]["metadata.redaction_reviewer.present"] is False
+    assert report["assertions"]["metadata.redaction_reviewed_at.iso_date"] is False
+    assert "provide_shadow_log_redaction_reviewer" in report["missing_actions"]
+    assert (
+        "provide_shadow_log_redaction_reviewed_at_iso_date" in report["missing_actions"]
+    )
+
+
+def test_invalid_input_rejects_non_object_metadata_and_non_list_records(
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "input.json"
+    input_path.write_text(
+        json.dumps({"metadata": [], "records": {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    report = log_observability.build_rag_shadow_log_observability_report(
+        input_path=input_path,
+        db_path=tmp_path / "bot.db",
+    )
+
+    assert report["status"] == "failed"
+    assert report["shadow_log_ready"] is False
+    assert report["assertions"]["records.present"] is False
+    assert "provide_redacted_rag_shadow_log_input" in report["missing_actions"]
+
+
+def test_invalid_input_rejects_obvious_sensitive_query(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.json"
+    payload = _input_payload()
+    payload["records"][0]["query"] = "请联系手机号 13800138000 查询订单"
+    input_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    report = log_observability.build_rag_shadow_log_observability_report(
+        input_path=input_path,
+        db_path=tmp_path / "bot.db",
+    )
+
+    assert report["status"] == "failed"
+    assert report["shadow_log_ready"] is False
+    assert report["assertions"]["records.no_obvious_sensitive_patterns"] is False
+    assert "redact_shadow_log_query_sensitive_patterns" in report["missing_actions"]
+    assert "13800138000" not in json.dumps(report, ensure_ascii=False)
+
+
+def test_invalid_json_returns_structured_failure(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.json"
+    input_path.write_text("{broken-json", encoding="utf-8")
+
+    report = log_observability.build_rag_shadow_log_observability_report(
+        input_path=input_path,
+        db_path=tmp_path / "bot.db",
+    )
+
+    assert report["status"] == "failed"
+    assert report["shadow_log_ready"] is False
+    assert report["assertions"]["records.present"] is False
 
 
 def test_shadow_log_cli_writes_json(monkeypatch, tmp_path: Path) -> None:

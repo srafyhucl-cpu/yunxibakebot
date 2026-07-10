@@ -1,4 +1,25 @@
 ﻿
+## [2026-07-10] - feat(rag): 增加真实 shadow log 外部交接与来源证明
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: E2 已有真实 RAG shadow log 复算入口，但外部日志持有人缺少可填写模板，严格合同也只检查来源非空和脱敏布尔值，无法证明脱敏审核与原始来源不入仓。
+- **决策**:
+  - 新增独立交接包脚本，负责外部模板、脱敏要求和命令链；现有观测器继续只负责输入验证、候选复算和脱敏报告。
+  - 严格输入必须声明真实来源类型、脱敏方法、审核人、ISO 审核日期、原始来源不入仓和 evidence ID。
+  - 文件职责评审结论为 `split_by_responsibility`：外部交接指导与检索复算具有不同使用者和变化原因，独立脚本可单测且不产生状态穿透。
+  - 既有观测器职责评审为 `keep_cohesive_with_review`：输入校验、候选复算和脱敏输出属于同一条观测流水线，内部已用独立 helper 隔离，不按行数拆成薄壳。
+- **改动**:
+  - `scripts/build_rag_shadow_log_intake_packet.py` - 新增 E2 仓库外交接模板和可执行命令链。
+  - `scripts/report_rag_shadow_log_observability.py` - 加强来源/脱敏证明、明显敏感 query 扫描和损坏输入结构化失败。
+  - 新增交接包测试并扩展 shadow log 观测测试；同步计划、作品集入口、项目门禁与进度清单。
+- **验证结果**:
+  - E2 交接包、严格观测和计划合同组合测试 19 项通过，Ruff check 通过。
+  - 默认交接包和无输入观测均通过 readiness 检查，但明确 `shadow_log_ready=false`。
+  - `--require-input` 在没有仓库外日志时按预期退出 1；`check_file_sizes.py`、证据索引和 `check_project.py --skip-tests` 全部通过。
+- **边界**:
+  - 本轮没有读取或提交真实日志，不访问业务数据库，不调用外部 LLM，不改变生产 RAG 模式。
+  - E2 仍等待仓库外真实脱敏输入，E3 灰度前置条件尚未满足。
+
 ## [2026-07-10] - ops: 完成 E6a 作品集证据清单生产验证
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

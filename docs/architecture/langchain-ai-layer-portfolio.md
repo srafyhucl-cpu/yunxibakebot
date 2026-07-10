@@ -60,6 +60,7 @@ flowchart TD
 | RAG query plan | `app/service/agents/rag/query.py` |
 | RAG rerank adapter | `app/service/agents/rag/rerank.py` |
 | RAG retrieval mode gate | `app/config.py`、`app/service/agents/rag/modes.py`、`app/service/chat_context.py` |
+| 真实 RAG shadow log 交接与严格观测 | `scripts/build_rag_shadow_log_intake_packet.py`、`scripts/report_rag_shadow_log_observability.py` |
 | 员工 LangGraph | `app/service/agents/employee/graph.py` |
 | 员工 structured planner | `app/service/agents/employee/structured_planner.py` |
 | 员工 LangChain tools | `app/service/agents/tools/employee.py` |
@@ -82,6 +83,14 @@ python scripts/build_langchain_portfolio_evidence_packet.py --require-complete -
 ```
 
 第一条用于验证当前可展示证据，当前应通过。第二条是完整性严格门禁，在 E1-E5 的真实外部证据齐全前应失败。
+
+E2 的外部交接入口为：
+
+```powershell
+python scripts/build_rag_shadow_log_intake_packet.py --summary
+```
+
+该命令只生成脱敏交接模板，不会把缺少真实日志的状态包装成完成；当前 `shadow_log_ready=false`。
 
 ## 可执行评估证据
 

@@ -2028,6 +2028,29 @@ python scripts\report_rag_shadow_log_observability.py --require-input --summary
 python scripts\check_langchain_ai_layer_production_plan.py --summary
 ```
 
+## 三十九点一、P19c 真实 RAG shadow log 外部交接包与来源证明
+
+2026-07-10 已完成 E2 输入准备的第三个切片：
+
+- 新增 `scripts/build_rag_shadow_log_intake_packet.py`，输出仓库外日志持有人可填写的 metadata/records 模板、脱敏要求、推荐记录数和严格验证命令链。
+- 交接 metadata 固定要求 `source_type=real_customer_rag_shadow_log`、`contains_sensitive_data=false`、脱敏方法、审核人、ISO 审核日期、`raw_source_retention=not_committed` 和 evidence ID。
+- `scripts/report_rag_shadow_log_observability.py` 已把上述来源证明纳入 `shadow_log_ready` 判定；未填写审核字段、错误日期、损坏 JSON、非对象 metadata、非数组 records 或 query 中明显的手机号/长数字/open_id 形态都会返回结构化失败和修复动作。
+- 交接包只生成模板，不读取原始生产日志、不访问业务数据库、不调用外部 LLM、不改变生产热路径或 `RAG_RETRIEVAL_MODE`。
+- 当前仍没有真实脱敏 RAG shadow log，`shadow_log_ready=false` 保持不变；只有外部输入通过严格合同和候选复算后，E2 才能完成并评估 E3。
+- `scripts/check_langchain_ai_layer_production_plan.py`、`scripts/check_project.py --skip-tests` 和作品集代码路径检查已接入新入口。
+
+P19c 验收：
+
+```powershell
+python -m pytest tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov
+python -m ruff check scripts\report_rag_shadow_log_observability.py scripts\build_rag_shadow_log_intake_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py scripts\build_langchain_portfolio_evidence_packet.py tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\report_rag_shadow_log_observability.py scripts\build_rag_shadow_log_intake_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py scripts\build_langchain_portfolio_evidence_packet.py tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\build_rag_shadow_log_intake_packet.py --summary
+python scripts\report_rag_shadow_log_observability.py --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
+python scripts\check_project.py --skip-tests
+```
+
 ## 四十、P5b / E6a 作品集证据清单
 
 2026-07-10 已完成 E6 作品集证据包升级的机器可复核切片：

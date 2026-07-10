@@ -181,6 +181,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
     ),
     (
         sys.executable,
+        "scripts/build_rag_shadow_log_intake_packet.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
         "scripts/report_langchain_observability_evidence.py",
         "--summary",
     ),

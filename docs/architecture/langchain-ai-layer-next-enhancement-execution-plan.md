@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-10
-> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E6a 证据清单已完成，但 E6 完整态仍依赖 E1-E5）
+> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E2 交接工具链已增强，等待仓库外真实脱敏 RAG shadow log；E6a 证据清单已完成，但 E6 完整态仍依赖 E1-E5）
 > 上游计划：[LangChain AI 应用层生产增强计划书](./langchain-ai-layer-production-enhancement-plan.md)
 
 ## 一、目标
@@ -177,11 +177,23 @@ python scripts\report_agent_eval.py --latest --include-real-replay --real-replay
 2. 默认不输出 query 原文。
 3. `metadata.contains_sensitive_data=false` 必须为真。
 
+### 当前进度
+
+1. `scripts\build_rag_shadow_log_intake_packet.py` 已提供仓库外交接模板、必填字段、脱敏要求和可执行命令链。
+2. `scripts\report_rag_shadow_log_observability.py` 的严格输入合同已要求真实来源类型、脱敏方法、审核人、ISO 审核日期、原始来源不入仓和 evidence ID，并机械拦截 query 中明显的手机号、长数字和 open_id 形态。
+3. 交接模板中的审核人和 evidence ID 可由命令参数预填，脱敏方法与审核日期保留为必须人工填写的字段。
+4. 当前仍没有仓库外真实脱敏日志，因此 `shadow_log_ready=false`，E2 尚未完成。
+
 ### 输入合同
 
 ```text
 metadata.source_type
 metadata.contains_sensitive_data
+metadata.redaction_method
+metadata.redaction_reviewer
+metadata.redaction_reviewed_at
+metadata.raw_source_retention
+metadata.evidence_id
 records[].id
 records[].query
 records[].baseline_top_keys
@@ -190,15 +202,17 @@ records[].group
 
 ### 执行步骤
 
-1. 用默认模式确认当前没有真实输入时仍明确 `shadow_log_ready=false`。
-2. 接入仓库外脱敏 shadow log。
-3. 运行严格模式，复算 planned / rerank 候选差异。
-4. 输出按 group 的 changed cases、recall delta、排序差异。
-5. 给出是否允许 E3 灰度的机器结论。
+1. 运行交接包生成器，向日志持有人提供可填写模板和脱敏声明。
+2. 用默认模式确认当前没有真实输入时仍明确 `shadow_log_ready=false`。
+3. 在仓库外完成 query 脱敏和人工审核，原始生产日志不得入仓。
+4. 接入仓库外脱敏 shadow log，并运行严格模式复算 planned / rerank 候选差异。
+5. 输出按 group 的 changed cases、recall delta、排序差异。
+6. 给出是否允许 E3 灰度的机器结论。
 
 ### 验收命令
 
 ```powershell
+python scripts\build_rag_shadow_log_intake_packet.py --summary
 python scripts\report_rag_shadow_log_observability.py --summary
 python scripts\report_rag_shadow_log_observability.py --input <redacted-shadow-log-path> --require-input --summary
 python scripts\report_rag_shadow_log_observability.py --input <redacted-shadow-log-path> --require-input --json-out reports\retrieval-shadow\rag-shadow-log-latest.json
@@ -211,6 +225,7 @@ python scripts\check_langchain_ai_layer_production_plan.py --summary
 2. 报告默认只输出 `query_hash`，不输出 query 原文。
 3. `planned-hybrid` 不低于 baseline 时才可进入 E3。
 4. `planned-hybrid+rerank` 若 recall 仍低于 baseline，继续 shadow-only。
+5. `source_type=real_customer_rag_shadow_log`、脱敏审核字段、`raw_source_retention=not_committed` 和 evidence ID 必须齐全。
 
 ## 七、阶段 E3：RAG planned-hybrid 小流量灰度
 

@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-050：P19c 真实 RAG shadow log 外部交接与来源证明
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p19c-rag-shadow-log-intake-provenance-gate
+- file: `D:\Project\YunxiBakeBot\scripts\build_rag_shadow_log_intake_packet.py`; `D:\Project\YunxiBakeBot\scripts\report_rag_shadow_log_observability.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_rag_shadow_log_intake_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_report_rag_shadow_log_observability.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\scripts\build_langchain_portfolio_evidence_packet.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-portfolio.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov`; `python -m ruff check scripts\report_rag_shadow_log_observability.py scripts\build_rag_shadow_log_intake_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py scripts\build_langchain_portfolio_evidence_packet.py tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\report_rag_shadow_log_observability.py scripts\build_rag_shadow_log_intake_packet.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py scripts\build_langchain_portfolio_evidence_packet.py tests\scripts\test_report_rag_shadow_log_observability.py tests\scripts\test_build_rag_shadow_log_intake_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\build_rag_shadow_log_intake_packet.py --summary`; `python scripts\report_rag_shadow_log_observability.py --summary`; `python scripts\report_rag_shadow_log_observability.py --require-input --summary`; `python scripts\check_file_sizes.py`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - feat(rag): 增加真实 shadow log 外部交接与来源证明
+- related_adr: 0003-langchain-ai-layer-boundary; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 本轮只生成空白交接模板并验证合成测试输入，不读取或提交真实 query、生产日志、手机号、地址、open_id、完整订单号、客户姓名或密钥。运行报告位于 gitignored reports 目录。
+- summary: P19c 为 E2 增加仓库外交接模板和来源证明门禁。模板可被严格观测器直接消费；未填写审核字段、错误日期、损坏 JSON、非对象 metadata、非数组 records 和 query 中明显敏感模式都会结构化失败。当前没有真实脱敏日志，`shadow_log_ready=false` 保持不变。
+
 ## E-20260710-049：E6a 作品集证据清单生产验证
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

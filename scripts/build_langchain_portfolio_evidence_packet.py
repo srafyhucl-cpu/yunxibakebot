@@ -30,6 +30,7 @@ PORTFOLIO_CODE_PATHS = (
     "scripts/report_agent_eval.py",
     "scripts/report_rag_shadow_observability.py",
     "scripts/report_langchain_observability_evidence.py",
+    "scripts/build_rag_shadow_log_intake_packet.py",
     "scripts/build_langchain_release_evidence_packet.py",
 )
 
