@@ -15,8 +15,16 @@
   - `python -m pytest tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过，38 项失败 0。
   - `python -m ruff check scripts\wecom_employee_agent_probe_cases.py tests\scripts\test_check_wecom_employee_agent_callback.py scripts\audit_real_conversation_replay_candidate.py tests\scripts\test_audit_real_conversation_replay_candidate.py` 通过。
   - `python -m ruff format --check scripts\wecom_employee_agent_probe_cases.py tests\scripts\test_check_wecom_employee_agent_callback.py scripts\audit_real_conversation_replay_candidate.py tests\scripts\test_audit_real_conversation_replay_candidate.py` 通过。
+  - 本地 commit `2e9537aa8784c80c61c886c4153047044367651b` 已推送到 `origin/master` 和 `server/master`。
+  - 生产 `/opt/yunxibakebot` 已同步到 `2e9537aa8784c80c61c886c4153047044367651b`，`VERSION=0.105.12`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.12`。
+  - `python scripts\check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json --output reports\wecom-employee-agent\langchain-prod-callback-0.105.12.json` 通过，`total=61 failed=0`。
+  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 通过，`production_runtime=ok`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=8 failed=0`。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`production_versions=0.105.12`、`callback_failed=0`、`capacity_runtime=ok`。
 - **后续**:
-  - 重新提交、推送、同步生产到 `0.105.12` 后复跑 runtime gate、生产 callback probe、加强 release gate 和 P13b 生产观测发布证据门禁。
+  - 下一步继续推进 P17b 首批真实脱敏样本接入；没有真实样本前继续保持 `candidate_ready=false` 和 `real_sample_ready=false`。
 
 ## [2026-07-10] - feat(eval): 增加真实 replay 候选样本准入审计
 - **操作人**: AI (Codex)
