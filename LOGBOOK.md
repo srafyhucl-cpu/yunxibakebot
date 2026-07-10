@@ -1,4 +1,21 @@
 ﻿
+## [2026-07-10] - docs(architecture): 增加 LangChain 后续增强可执行计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: `0.105.13` 的 P22a 发布证据包已经完成生产复验并输出 `packet_ready=true`。后续工作不应继续在大计划里松散追加，需要一个能直接承接 P17b 真实样本、真实 RAG shadow log、RAG 灰度、LangSmith 外发、事实敏感真实样本强化和作品集证据包的执行入口。
+- **决策**:
+  - 新增 `docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md`，作为生产增强计划剩余阶段的可执行计划书。
+  - 保持真实样本、真实 shadow log 和 LangSmith 外发的 readiness 边界：没有外部真实脱敏输入或人工合规确认时，不把状态伪装成 ready。
+  - 明确 `planned-hybrid` 只有在真实 shadow 证据不低于 baseline 后才能灰度，`planned-hybrid+rerank` 继续 shadow-only。
+- **改动**:
+  - `docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md` - 新增 E0-E6 阶段、前置条件、输入合同、执行步骤、验收命令、完成标准、回滚/暂停条件。
+- **验证结果**:
+  - `python scripts\check_evidence_index.py --summary` 通过，`total=224 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，默认业务合约包含 `langchain_release_evidence_packet status=passed packet_ready=true failed=0`。
+  - `git diff --check` 通过。
+- **后续**:
+  - 下一步进入 E1 / P17b 首批真实脱敏样本接入；如果暂时没有真实样本，只能准备输入包和严格门禁，不能把 `candidate_ready` 或 `real_sample_ready` 改成 true。
+
 ## [2026-07-10] - feat(ops): 增加 LangChain 发布证据包
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-043：LangChain AI 应用层后续增强可执行计划
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/next-enhancement-execution-plan
+- file: `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\evidence-index.md`
+- command: `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - docs(architecture): 增加 LangChain 后续增强可执行计划
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只新增后续增强执行计划和追溯记录，不接入真实客户样本、不读取业务数据库、不调用外部 LLM、不修改生产配置。
+- summary: 新增 `langchain-ai-layer-next-enhancement-execution-plan.md`，把 P22a 之后的剩余增强拆成 E0-E6：生产证据基线复核、P17b 首批真实脱敏样本接入、真实 RAG shadow log 接入、RAG planned-hybrid 小流量灰度、LangSmith 生产小流量外发、事实敏感场景真实样本强化和作品集证据包升级。计划明确无真实脱敏输入、无真实 shadow log、无人工外发合规确认时不得把 readiness 状态改为 ready。
+
 ## E-20260710-042：LangChain AI 应用层 P22a 发布证据包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
