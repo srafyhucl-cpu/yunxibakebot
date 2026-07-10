@@ -915,6 +915,7 @@ def _p2c_employee_eval_expansion_probe_cases(
             expected_keyword="",
             required_all_terms=("尾号", "待发货"),
             forbidden_terms=("完整订单号", "手机号", "完整地址"),
+            allow_empty_result=True,
         ),
         EmployeeAgentProbeCase(
             "p2c-morning-pending-orders",

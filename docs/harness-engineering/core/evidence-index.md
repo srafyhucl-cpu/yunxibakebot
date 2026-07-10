@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-041：LangChain AI 应用层待发货 callback 受控空结果探针修正
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local-production/p17b-candidate-callback-empty-result-contract
+- file: `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\wecom_employee_agent_probe_cases.py tests\scripts\test_check_wecom_employee_agent_callback.py scripts\audit_real_conversation_replay_candidate.py tests\scripts\test_audit_real_conversation_replay_candidate.py`; `python -m ruff format --check scripts\wecom_employee_agent_probe_cases.py tests\scripts\test_check_wecom_employee_agent_callback.py scripts\audit_real_conversation_replay_candidate.py tests\scripts\test_audit_real_conversation_replay_candidate.py`
+- result: pass
+- related_logbook: 2026-07-10 - fix(ops): 允许待发货 callback 探针受控空结果
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只修正生产 callback 探针的显式语义合同；不改客户或员工助手热路径，不读取业务数据库，不调用外部 LLM。生产探针报告位于 gitignored reports 目录。
+- summary: P17b-candidate 生产验证时发现 `p2c-today-wait-seller-send-list` 在当天无待发货订单时返回受控空结果，但 callback probe 未允许该 case 走空结果分支。已仅对该 probe 增加 `allow_empty_result=True`，并补回归测试；全局语义规则和隐私/禁用词约束不变。
+
 ## E-20260710-040：LangChain AI 应用层 P17b-candidate 真实 replay 候选样本准入审计
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - fix(ops): 允许待发货 callback 探针受控空结果
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P17b-candidate 部署到生产 `0.105.11` 后，runtime gate 和容量门禁通过，但加强 release gate 中 `production_employee_callback_probe` 有 1 项失败：`p2c-today-wait-seller-send-list` 在当天没有待发货订单时返回受控空结果。既有 `p2c-today-wait-buyer-confirm-list` 已允许同类受控空结果，待发货 case 缺少同等口径。
+- **决策**:
+  - 只给 `p2c-today-wait-seller-send-list` 增加 `allow_empty_result=True`，不放宽全局 callback 语义规则。
+  - 增加待发货受控空结果回归测试，确保只有显式标记的 case 可通过空结果分支。
+  - 保持完整订单号、手机号、完整地址等 privacy/forbidden 约束不变。
+- **改动**:
+  - `scripts/wecom_employee_agent_probe_cases.py` - 待发货 P2c callback probe 允许受控空结果。
+  - `tests/scripts/test_check_wecom_employee_agent_callback.py` - 增加待发货空结果通过测试。
+  - `项目进度与配置清单.md`、`VERSION` - 同步版本 `0.105.12` 和生产验证口径。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_wecom_employee_agent_callback.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过，38 项失败 0。
+  - `python -m ruff check scripts\wecom_employee_agent_probe_cases.py tests\scripts\test_check_wecom_employee_agent_callback.py scripts\audit_real_conversation_replay_candidate.py tests\scripts\test_audit_real_conversation_replay_candidate.py` 通过。
+  - `python -m ruff format --check scripts\wecom_employee_agent_probe_cases.py tests\scripts\test_check_wecom_employee_agent_callback.py scripts\audit_real_conversation_replay_candidate.py tests\scripts\test_audit_real_conversation_replay_candidate.py` 通过。
+- **后续**:
+  - 重新提交、推送、同步生产到 `0.105.12` 后复跑 runtime gate、生产 callback probe、加强 release gate 和 P13b 生产观测发布证据门禁。
+
 ## [2026-07-10] - feat(eval): 增加真实 replay 候选样本准入审计
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

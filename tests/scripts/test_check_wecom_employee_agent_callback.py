@@ -559,6 +559,33 @@ def test_evaluate_reply_accepts_explicit_controlled_empty_result() -> None:
     assert result.semantic_safe is True
 
 
+def test_evaluate_reply_accepts_wait_seller_send_empty_result() -> None:
+    probe = callback_check.CallbackProbe(
+        "p2c-today-wait-seller-send-list",
+        "今天待发货订单有哪些",
+        required_all_terms=("尾号", "待发货"),
+        forbidden_terms=("完整订单号", "手机号", "完整地址"),
+        allow_empty_result=True,
+    )
+
+    result = callback_check.evaluate_reply(
+        probe,
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "今天待发货订单有哪些：没有查到下单日期 2026-07-10、待发货的订单。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is True
+    assert result.semantic_safe is True
+
+
 def test_evaluate_reply_rejects_markdown_decorations() -> None:
     result = callback_check.evaluate_reply(
         callback_check.CallbackProbe("plain-text", "今天哪个商品卖得多"),
