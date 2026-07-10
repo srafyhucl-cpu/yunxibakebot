@@ -1,4 +1,23 @@
 ﻿
+## [2026-07-10] - feat(portfolio): 增加外部证据交接汇总包
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: E1 真实 replay、E2 真实 RAG shadow log 和 E6 作品集完整态仍依赖仓库外真实脱敏输入与人工合规动作；已有单项交接包和作品集缺口清单，但缺少给外部记录持有人/审核人的统一清单。
+- **决策**:
+  - 新增只读外部证据交接汇总包，聚合 E1/E2 交接模板、命令链、E6 缺失动作和下一道完整性门禁。
+  - 文件职责评审为 `split_by_responsibility`：交接汇总的使用者和变化原因独立于 replay 导出、RAG shadow log 复算和作品集严格评估；拆分边界按功能责任确定，不是为了满足体量阈值而硬拆。
+  - 汇总包固定声明不读取真实客户记录、不读取真实 RAG shadow log、不访问业务数据库、不调用外部 LLM、不改变生产或 readiness。
+- **改动**:
+  - `scripts/build_langchain_external_evidence_handoff_packet.py` - 新增 P23a 外部证据交接汇总包。
+  - `tests/scripts/test_build_langchain_external_evidence_handoff_packet.py` - 覆盖 E1/E2/E6 聚合、缺失外部输入、边界声明和 CLI JSON 输出。
+  - 生产增强计划、后续执行计划、作品集说明、项目进度清单、作品集证据路径和计划静态门禁同步 P23a。
+- **验证结果**:
+  - 聚焦测试、Ruff、交接汇总 CLI、计划静态合同、证据索引、文件体量和项目门禁在本轮收口时执行。
+  - 当前 `external_evidence_complete=false`、`portfolio_complete=false` 仍是正确状态；严格完整性门禁必须等待真实外部证据。
+- **边界**:
+  - 本轮不读取或提交真实客服记录、真实 RAG shadow log、手机号、地址、open_id、订单明细或密钥。
+  - 不启用 LangSmith，不打开 planned-hybrid 热路径，不修改生产服务。
+
 ## [2026-07-10] - ops: 完成 P19c shadow log 接入增强生产验证
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

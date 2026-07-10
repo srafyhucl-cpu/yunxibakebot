@@ -32,6 +32,7 @@ PORTFOLIO_CODE_PATHS = (
     "scripts/report_langchain_observability_evidence.py",
     "scripts/build_rag_shadow_log_intake_packet.py",
     "scripts/build_langchain_release_evidence_packet.py",
+    "scripts/build_langchain_external_evidence_handoff_packet.py",
 )
 
 

@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-10
-> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E2 交接工具链已增强，等待仓库外真实脱敏 RAG shadow log；E6a 证据清单已完成，但 E6 完整态仍依赖 E1-E5）
+> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入；E2 交接工具链已增强，等待仓库外真实脱敏 RAG shadow log；E6a 证据清单已完成；P23a 外部证据交接汇总包已完成，但 E6 完整态仍依赖 E1-E5）
 > 上游计划：[LangChain AI 应用层生产增强计划书](./langchain-ai-layer-production-enhancement-plan.md)
 
 ## 一、目标
@@ -347,7 +347,8 @@ python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --
 3. 清单分别输出 `verified_evidence_ready`、`external_evidence_complete` 和 `portfolio_complete`；默认生成清单不会把缺失外部证据算作失败，但严格 `--require-complete` 会阻断。
 4. E4 不能只凭 LangSmith key 或 tracing 开关完成；还必须有同版本、人工外发批准、受控采样率和实际 trace 验证报告。
 5. E5 必须使用真实样本池对应的事实敏感 coverage 报告；`tests/fixtures` 下的合成覆盖样例不能让该阶段 ready。
-6. 当前工程证据可复核，E1-E5 外部证据仍未完成，因此 `verified_evidence_ready=true`、`external_evidence_complete=false`、`portfolio_complete=false` 是正确状态。
+6. `scripts\build_langchain_external_evidence_handoff_packet.py` 已把 E1 真实 replay 接入包、E2 真实 RAG shadow log 接入包和 E6 作品集缺口聚合成统一交接汇总，输出 `required_external_inputs`、可填写模板、命令链和边界声明，供人工/仓库外记录持有人按一份清单准备真实脱敏输入。
+7. 当前工程证据可复核，E1-E5 外部证据仍未完成，因此 `verified_evidence_ready=true`、`external_evidence_complete=false`、`portfolio_complete=false` 是正确状态。
 
 ### 输出物
 
@@ -366,6 +367,7 @@ python scripts\check_langchain_ai_layer_release_gate.py --include-real-replay --
 python scripts\report_agent_eval.py --latest --json-out reports\agent-eval\portfolio-latest.json
 python scripts\report_rag_shadow_observability.py --summary
 python scripts\report_langchain_observability_evidence.py --summary
+python scripts\build_langchain_external_evidence_handoff_packet.py --summary
 python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary
 python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-evidence --summary
 python scripts\build_langchain_portfolio_evidence_packet.py --require-complete --summary

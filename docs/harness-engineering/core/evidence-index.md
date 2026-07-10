@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-052：P23a 外部证据交接汇总包
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p23a-external-evidence-handoff-packet
+- file: `D:\Project\YunxiBakeBot\scripts\build_langchain_external_evidence_handoff_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_langchain_external_evidence_handoff_packet.py`; `D:\Project\YunxiBakeBot\scripts\build_langchain_portfolio_evidence_packet.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-portfolio.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov`; `python -m ruff check scripts\build_langchain_external_evidence_handoff_packet.py scripts\build_langchain_portfolio_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\build_langchain_external_evidence_handoff_packet.py scripts\build_langchain_portfolio_evidence_packet.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_build_langchain_portfolio_evidence_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\build_langchain_external_evidence_handoff_packet.py --summary`; `python scripts\check_file_sizes.py`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - feat(portfolio): 增加外部证据交接汇总包
+- related_adr: 0003-langchain-ai-layer-boundary; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 汇总包只记录交接模板、命令链、缺失动作、readiness 布尔值和边界声明；不读取或提交真实客户原文、真实 query、手机号、地址、open_id、订单明细、API key、callback token、AES key、服务器密码或私钥。JSON 位于 gitignored reports 目录。
+- summary: P23a 将 E1 真实 replay 接入包、E2 真实 RAG shadow log 接入包和 E6 作品集缺口聚合成统一外部证据交接清单。当前只证明交接入口和边界可复核，不代表外部证据完成；`candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`external_evidence_complete=false`、`portfolio_complete=false` 保持不变。
+
 ## E-20260710-051：P19c shadow log 接入增强生产验证
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

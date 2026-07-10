@@ -92,6 +92,14 @@ python scripts/build_rag_shadow_log_intake_packet.py --summary
 
 该命令只生成脱敏交接模板，不会把缺少真实日志的状态包装成完成；当前 `shadow_log_ready=false`。
 
+E1/E2/E6 的统一外部证据交接入口为：
+
+```powershell
+python scripts/build_langchain_external_evidence_handoff_packet.py --summary
+```
+
+该命令聚合真实 replay 接入包、真实 RAG shadow log 接入包和作品集缺口清单，只输出可填写模板、命令链、缺失动作和边界声明。它不读取原始客户会话、不读取真实 RAG shadow log、不访问业务数据库、不调用外部 LLM、不修改生产服务，也不会把 `external_evidence_complete` 或 `portfolio_complete` 改成 `true`。
+
 ## 可执行评估证据
 
 当前离线评估入口：

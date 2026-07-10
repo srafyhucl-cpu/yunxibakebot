@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包及可填写模板增强、P17b-candidate 真实 replay 候选样本准入审计、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告、P19b 真实 RAG shadow log 观测输入门禁、P21a LangChain AI 层容量门禁、P21b 生产只读资源观测门禁、P21c 生产资源观测 release gate 加强模式、P21d 生产观测发布证据容量校验、P22a LangChain 发布证据包和 P5b/E6a 作品集证据真值清单已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包及可填写模板增强、P17b-candidate 真实 replay 候选样本准入审计、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告、P19b 真实 RAG shadow log 观测输入门禁、P19c 真实 RAG shadow log 外部交接包与来源证明、P21a LangChain AI 层容量门禁、P21b 生产只读资源观测门禁、P21c 生产资源观测 release gate 加强模式、P21d 生产观测发布证据容量校验、P22a LangChain 发布证据包、P5b/E6a 作品集证据真值清单和 P23a 外部证据交接汇总包已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -2073,6 +2073,27 @@ python scripts\build_langchain_portfolio_evidence_packet.py --require-verified-e
 python scripts\build_langchain_portfolio_evidence_packet.py --require-complete --summary
 python scripts\check_langchain_ai_layer_production_plan.py --summary
 python scripts\check_project.py --skip-tests
+```
+
+## 四十一、P23a 外部证据交接汇总包
+
+2026-07-10 已完成 E1/E2/E6 外部证据交接汇总的机器可复核切片：
+
+- 新增 `scripts/build_langchain_external_evidence_handoff_packet.py`，只读聚合真实 replay 接入包、真实 RAG shadow log 接入包和作品集证据清单的 E1-E5 缺口。
+- 汇总包输出 `required_external_inputs`、`missing_actions`、E1/E2 可填写模板、命令链和统一交接顺序，方便仓库外真实记录持有人或人工审核人按一份清单准备输入。
+- 职责评审结论为 `split_by_responsibility`：交接汇总的使用者是外部记录持有人/审核人，变化原因是“如何一次性准备 E1/E2/E6 外部证据”，不同于真实 replay 导出、RAG shadow log 复算和作品集严格门禁本身；新脚本只协调已有构建器，不吸收下游业务逻辑，也不是为了满足体量阈值而机械拆文件。
+- 汇总包固定声明 `raw_customer_conversation_read=false`、`raw_rag_shadow_log_read=false`、`real_customer_data_committed=false`、`business_database_read=false`、`external_llm_called=false`、`production_service_changed=false` 和 `readiness_changed=false`。
+- 本切片不读取真实客服记录、不读取真实 RAG shadow log、不写业务数据库、不调用外部 LLM、不改变生产热路径、不让 `candidate_ready`、`real_sample_ready`、`shadow_log_ready`、`external_evidence_complete` 或 `portfolio_complete` 变为 true。
+- `scripts/check_langchain_ai_layer_production_plan.py` 已把该脚本列为生产增强计划必备 artifact，防止外部证据交接入口从计划中丢失。
+
+P23a 验收：
+
+```powershell
+python -m pytest tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov
+python -m ruff check scripts\build_langchain_external_evidence_handoff_packet.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\build_langchain_external_evidence_handoff_packet.py scripts\check_langchain_ai_layer_production_plan.py tests\scripts\test_build_langchain_external_evidence_handoff_packet.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\build_langchain_external_evidence_handoff_packet.py --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
 ```
 
 ## 五、推荐执行顺序
