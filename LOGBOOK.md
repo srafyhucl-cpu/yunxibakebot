@@ -1,4 +1,73 @@
 ﻿
+## [2026-07-10] - fix(harness): 修复版本与进度清单同步假成功
+- **操作人**: AI (Codex)
+- **trace_id**: 20260710-version-progress-sync
+- **背景**: 首次提交钩子运行时将 `VERSION` 更新到 `0.105.14`，但项目进度表头仍是 `0.105.13`，同时钩子报告同步通过。继续推送会留下版本事实漂移。
+- **决策**:
+  - `sync_version.py` 同时支持当前和旧版进度表头；未知格式必须失败，不能静默跳过。
+  - 版本注入成功后同时自动暂存 `VERSION` 和项目进度文件，确保 hook 写入进入同一次提交。
+  - 增加仓库级一致性测试，直接比较 `VERSION` 与进度表头。
+- **改动**:
+  - `scripts/sync_version.py` - 增加当前表头匹配、未知格式阻断、布尔结果和生成文件暂存 helper。
+  - `tests/scripts/test_sync_version.py` - 覆盖当前/旧版/未知表头及仓库实际一致性。
+  - `docs/AGENTS/commit-workflow.md` - 明确版本与项目进度表头必须在同一次提交中自动暂存。
+  - `docs/harness-engineering/core/mistake-ledger.md` - 登记 M-20260710-001 和新增机械防线。
+  - `项目进度与配置清单.md` - 修正当前版本为 `0.105.14`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_sync_version.py -q --tb=short --no-cov` 通过，4 项失败 0。
+  - `python -m ruff check scripts\sync_version.py tests\scripts\test_sync_version.py` 通过。
+- **后续**:
+  - 使用 `SKIP_VERSION_BUMP=1` amend 当前提交，避免修复同步器时再次递增版本；amend 后重新跑全部 pre-commit 门禁。
+
+## [2026-07-10] - docs(harness): 文件体量治理改为责任优先评审
+- **操作人**: AI (Codex)
+- **trace_id**: 20260710-responsibility-first-file-size-governance
+- **背景**: 用户明确文件体量限制的目标是防止上帝类，不希望为了满足行数阈值硬拆代码。现有 file-size Skill 虽然有“阈值不是拆分目标”的一句说明，但 description、上帝类判定、验收清单和 pre-commit 提示仍含有“超线就拆”的冲突口径。
+- **决策**:
+  - 接受 ADR 0004：行数、公开类/方法数量和函数长度只触发职责评审，不单独构成拆分结论。
+  - 超过阻断线且无评审记录的新文件继续阻断；合法处理是按职责拆分、内聚保留并记录理由，或记录候选边界后延后。
+  - 只有候选单元具有稳定接口、独立测试价值并能降低耦合时才拆分；禁止按行数切块、薄转发层和碎片 helper。
+  - 存量超线说明统一放在 `OVERSIZE_REVIEW_NOTES`，门禁输出评审理由而不是自动要求拆分。
+- **改动**:
+  - `.agents/skills/yunxi-file-size-guard/SKILL.md` - 升级到 1.1.0，增加责任优先决策流、上帝类证据、保留条件和评审模板。
+  - `scripts/check_file_sizes.py`、`scripts/check_project.py` - 将存量路径白名单改为带理由的职责评审记录，并把文件/函数提示统一成非阻断职责评审信号。
+  - `tests/scripts/test_check_file_sizes.py` - 固化三类评审结论、禁止机械拆分和评审说明完整性。
+  - `docs/harness-engineering/adr/0004-responsibility-first-file-size-governance.md` - 记录长期取舍。
+  - `AGENTS.md`、`.pre-commit-config.yaml`、`.agents/SKILL_AUDIT.md`、`.agents/skills/yunxi-clean-code-guard/SKILL.md`、`docs/AGENTS/coding-red-lines.md`、`docs/AGENTS/skill-reference.md`、`docs/harness-engineering/core/verification-matrix.md` - 统一项目入口和验证口径。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_file_sizes.py -q --tb=short --no-cov` 通过，3 项失败 0。
+  - `python -m ruff check scripts\check_file_sizes.py tests\scripts\test_check_file_sizes.py` 通过。
+  - `python -m ruff format --check scripts\check_file_sizes.py tests\scripts\test_check_file_sizes.py` 通过。
+  - `python scripts\check_file_sizes.py` 通过；输出 13 个存量超线文件的职责评审说明，并明确“不因行数自动要求拆分”。
+- **后续**:
+  - 后续修改超线文件时必须重新判断本次改动是否增加变化原因；`OVERSIZE_REVIEW_NOTES` 不是永久白名单。
+
+## [2026-07-10] - feat(eval): 强化 P17b 真实 replay 接入模板与命令链
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P17b-intake 已有外部接入操作包，但缺少可直接填写的输入模板，候选审计也未进入操作包命令链。续跑中进一步发现旧字段说明使用 `messages[]`，而现有导出器实际消费扁平 `user_message` / `final_reply`；照旧说明执行会导出空内容并在 replay contract 失败。
+- **决策**:
+  - 交接模板以现有导出器 canonical 输入合同为准，不为未定义的多轮消息折叠语义扩展导出器。
+  - `handoff_declaration` 单独承载真实来源、脱敏审核、原始来源不入仓和 evidence ID；`records` 只承载导出器可消费的记录字段。
+  - 操作包命令链增加候选审计 JSON 留档，并显式携带 `source_type=real_customer_conversation`、`raw_source_retention=not_committed` 和真实脱敏来源标识。
+  - `candidate_ready=false`、`real_sample_ready=false` 继续保持；没有仓库外真实脱敏输入时不写真实 manifest 条目。
+- **改动**:
+  - `scripts/build_real_conversation_replay_intake_packet.py` - 新增可填写交接模板、字段别名说明、候选审计 JSON 命令，并把长命令构建函数拆成职责单一的小函数。
+  - `scripts/prepare_real_conversation_replay_pool_entry.py` - CLI 暴露真实来源类型和原始来源不入仓参数，并传入既有断言与 entry 草稿。
+  - `tests/scripts/test_build_real_conversation_replay_intake_packet.py` - 覆盖模板字段、候选审计命令和模板到导出器的实际合同。
+  - `tests/scripts/test_prepare_real_conversation_replay_pool_entry.py` - 覆盖新增 CLI 参数进入 manifest entry 草稿。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md`、`项目进度与配置清单.md` - 同步 P17b 当前态、真实输入合同和可执行命令。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov` 通过，20 项失败 0。
+  - `python -m ruff check ...` 与 `python -m ruff format --check ...` 通过。
+  - `python scripts\build_real_conversation_replay_intake_packet.py --summary` 通过，`status=passed failed=0 target_count=30`。
+  - `python scripts\check_real_conversation_replay_intake_readiness.py --summary` 通过，并正确保持 `real_sample_ready=false`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`total=41 failed=0`。
+  - `python scripts\check_file_sizes.py`、`python scripts\check_mistake_ledger.py`、`python scripts\check_project.py --skip-tests` 和 `git diff --check` 通过。
+- **后续**:
+  - E1 仍等待具备权限的数据持有人在仓库外提供真实脱敏输入；输入到位后按操作包运行 candidate audit、人工复核和 `--require-real` 门禁。
+  - 当前没有新增需要写入 mistake ledger 的重复错误；模板到导出器的合同已由端到端测试形成机械防线。
+
 ## [2026-07-10] - docs(architecture): 增加 LangChain 后续增强可执行计划
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

@@ -1,4 +1,46 @@
 ﻿
+## E-20260710-046：版本与项目进度表头同步修复
+
+- trace_id: 20260710-version-progress-sync
+- generated_at: 2026-07-10
+- evidence_type: local/harness-version-progress-sync-regression
+- file: `D:\Project\YunxiBakeBot\scripts\sync_version.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_sync_version.py`; `D:\Project\YunxiBakeBot\VERSION`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\commit-workflow.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\mistake-ledger.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_sync_version.py -q --tb=short --no-cov`; `python -m ruff check scripts\sync_version.py tests\scripts\test_sync_version.py`; `python -m ruff format --check scripts\sync_version.py tests\scripts\test_sync_version.py`; `python scripts\check_mistake_ledger.py`; `python scripts\check_evidence_index.py --summary`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - fix(harness): 修复版本与进度清单同步假成功
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 本轮只修复版本文件与项目进度表头的本地提交同步，不读取业务数据库、不处理客户数据、不调用外部 LLM、不修改生产配置。
+- summary: 版本同步脚本现可识别当前和旧版进度表头，未知格式会阻断而不是静默成功；生成的 VERSION 和项目进度文件会同时加入暂存区。4 项回归测试覆盖两种格式、未知格式和仓库实际版本一致性，当前均为 `0.105.14`。
+
+## E-20260710-045：文件体量责任优先治理
+
+- trace_id: 20260710-responsibility-first-file-size-governance
+- generated_at: 2026-07-10
+- evidence_type: local/harness-responsibility-first-file-size-governance
+- file: `D:\Project\YunxiBakeBot\.agents\skills\yunxi-file-size-guard\SKILL.md`; `D:\Project\YunxiBakeBot\.agents\skills\yunxi-clean-code-guard\SKILL.md`; `D:\Project\YunxiBakeBot\.pre-commit-config.yaml`; `D:\Project\YunxiBakeBot\scripts\check_file_sizes.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_file_sizes.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0004-responsibility-first-file-size-governance.md`; `D:\Project\YunxiBakeBot\AGENTS.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\coding-red-lines.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\skill-reference.md`; `D:\Project\YunxiBakeBot\.agents\SKILL_AUDIT.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\verification-matrix.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_file_sizes.py -q --tb=short --no-cov`; `python -m ruff check scripts\check_file_sizes.py tests\scripts\test_check_file_sizes.py`; `python -m ruff format --check scripts\check_file_sizes.py tests\scripts\test_check_file_sizes.py`; `python scripts\check_file_sizes.py`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - docs(harness): 文件体量治理改为责任优先评审
+- related_adr: 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 本轮只更新项目工程治理 Skill、门禁提示、测试和文档，不读取业务数据库、不处理客户数据、不调用外部 LLM、不修改生产配置。
+- summary: 文件体量治理从“超线即拆”的冲突口径升级为责任优先评审。行数只触发评审；职责混杂时按稳定且可独立测试的边界拆分，职责高度内聚时记录理由保留，暂不能安全拆分时记录候选边界。门禁继续阻断未经评审的新超线文件，但明确禁止为了压行数机械切分。
+
+## E-20260710-044：LangChain AI 应用层 P17b 接入模板与命令链增强
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p17b-real-replay-intake-template-command-chain
+- file: `D:\Project\YunxiBakeBot\scripts\build_real_conversation_replay_intake_packet.py`; `D:\Project\YunxiBakeBot\scripts\prepare_real_conversation_replay_pool_entry.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_real_conversation_replay_intake_packet.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_prepare_real_conversation_replay_pool_entry.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --tb=short --no-cov`; `python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\prepare_real_conversation_replay_pool_entry.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py`; `python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\prepare_real_conversation_replay_pool_entry.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py`; `python scripts\build_real_conversation_replay_intake_packet.py --summary`; `python scripts\check_real_conversation_replay_intake_readiness.py --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_file_sizes.py`; `python scripts\check_mistake_ledger.py`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 强化 P17b 真实 replay 接入模板与命令链
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只强化仓库外真实 replay 接入模板、CLI 参数、命令链和测试；不读取原始客服记录、不接入真实客户样本、不访问业务数据库、不调用外部 LLM、不修改生产配置。默认生成的 JSON 位于 gitignored reports 目录。
+- summary: P17b-intake 现在输出与现有导出器一致的可填写扁平模板，并通过端到端测试证明模板可被导出器消费；命令链新增候选审计 JSON 留档，显式携带真实来源类型、脱敏审核、原始来源不入仓和 evidence ID。当前仍无仓库外真实脱敏输入，`candidate_ready=false`、`real_sample_ready=false` 仍是正确状态。
+
 ## E-20260710-043：LangChain AI 应用层后续增强可执行计划
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

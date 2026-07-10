@@ -9,10 +9,12 @@ ______________________________________________________________________
 | 较大任务 / 追溯 / 复盘 / 证据留档 / Skill 更新 | `skill invoke yunxi-harness-engineering` |
 | 修改任意分层代码 | `skill invoke yunxi-architecture-guard` |
 | 修改 LLM/Prompt/意图 | `skill invoke yunxi-llm-guard` |
-| 新增/修改 `.py` 文件 | `skill invoke yunxi-file-size-guard` |
+| 新增/修改 `.py` 文件 | `skill invoke yunxi-file-size-guard`，用体量信号触发职责评审 |
 | 代码审查/发现质量问题 | `skill invoke yunxi-clean-code-guard` |
 
 > ⚠️ **不允许跳过**：即使任务看起来很小，只要涉及上表中的文件范围，就必须先调用 Skill。
+
+文件体量守卫的目标是防止上帝类，不是要求所有文件低于固定行数。超线后先判断职责、变化原因、依赖和测试边界：职责混杂才拆；高度内聚则记录评审理由后保留。禁止为了让门禁变绿机械切文件。长期决策见 [ADR 0004](../harness-engineering/adr/0004-responsibility-first-file-size-governance.md)。
 
 ---
 

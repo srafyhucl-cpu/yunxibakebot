@@ -27,12 +27,12 @@ repos:
         description: 有代码变更时要求同步更新 LOGBOOK.md；可用 SKIP_LOGBOOK_CHECK=1 临时跳过
 
       - id: check-file-sizes
-        name: 文件体量门禁
+        name: 文件体量职责评审门禁
         entry: python scripts/check_file_sizes.py
         language: system
         pass_filenames: false
         always_run: true
-        description: 检查各层 .py 文件是否超过 blocking 阈值，超线时阻断提交
+        description: 体量超过阻断线且缺少职责评审时阻断；职责混杂才拆，高度内聚可记录理由保留
 
       - id: check-project
         name: YunxiBakeBot Quality Gate

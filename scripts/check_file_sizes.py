@@ -1,7 +1,7 @@
-"""文件体量门禁脚本。
+"""文件体量职责评审门禁。
 
-在 pre-commit 阶段检查本项目所有 .py 文件是否超过 blocking 阈值。
-超线时打印详情并以非零退出码阻断提交。
+行数只负责触发评审。超过阻断线且没有评审记录时阻断提交，
+避免未经设计继续膨胀；是否拆分仍由职责内聚性和稳定边界决定。
 """
 
 import sys
@@ -26,25 +26,56 @@ BLOCKING_RULES: list[tuple[str, int]] = [
 # 忽略目录（不参与检查）
 IGNORE_DIRS = {"__pycache__", ".git", "venv", "node_modules", "migrations"}
 
-# 已知超线但尚未完成拆分的存量文件（仅发出警告，不阻断提交）
-# 完成拆分后请从此名单移除
-KNOWN_OVERSIZE = {
-    "app/repository/knowledge_repo.py",  # 254行，超出4行，待微调
-    "app/repository/knowledge_product_repo.py",  # 271行，商城目录查询与分类序列化待拆分
-    "app/repository/youzan_repo.py",  # 411行，有赞商品宽表与分类回写链路待拆分
-    "app/service/chat.py",  # 496行，核心链路，待拆 tool_executor
-    "app/service/knowledge_admin.py",  # 324行，后台知识管理编排待拆分页与同步入口
-    "app/service/observability.py",  # 353行，待拆分页查询与报表
-    "app/service/llm/function_tool_order.py",  # 181行，超出1行
-    "app/service/llm/function_tool_product.py",  # 252行，待拆 product_rag_helper
-    "app/service/llm/intent.py",  # 183行，格式化后超出3行，待继续拆词表/规则
-    "app/service/youzan/client.py",  # 354行，有赞开放接口客户端待按域拆分
-    "app/service/youzan/event_item.py",  # 396行，待拆 item_builder
-    "app/service/youzan/product_reconciler.py",  # 356行，商品对账与分类回填待拆分
-    "app/service/wecom/client_kf.py",  # 387行，mixin模式待拆分
-    "app/service/wecom/kf_message_queue.py",  # 348行，待拆消息处理链路
-    # app/database.py 已拆分，365 行，无超线
+# 存量超线文件的职责评审说明。这里不是永久白名单；修改时仍需复核是否新增职责。
+OVERSIZE_REVIEW_NOTES: dict[str, str] = {
+    "app/repository/knowledge_repo.py": (
+        "存量职责评审：知识读写与治理查询仍有多个变化原因，后续按可独立测试的查询/写入边界评估；禁止按行数机械切分。"
+    ),
+    "app/repository/knowledge_product_repo.py": (
+        "存量职责评审：商城目录查询与分类序列化是候选边界，拆分前需先稳定返回合同；禁止按行数机械切分。"
+    ),
+    "app/repository/youzan_repo.py": (
+        "存量职责评审：有赞商品宽表与分类回写存在独立变化原因，后续按数据所有权拆分；禁止按行数机械切分。"
+    ),
+    "app/service/chat.py": (
+        "存量职责评审：客户对话入口保持编排内聚，新职责应落入已有 agent/tool 边界；禁止为缩短入口文件制造薄转发层。"
+    ),
+    "app/service/knowledge_admin.py": (
+        "存量职责评审：后台知识管理编排含分页与同步候选边界，只有接口可独立测试时才拆分。"
+    ),
+    "app/service/observability.py": (
+        "存量职责评审：观测查询与报表聚合存在不同变化原因，后续按读模型合同评估；禁止按行数机械切分。"
+    ),
+    "app/service/llm/function_tool_order.py": (
+        "存量职责评审：订单与物流工具同属履约事实查询，先保持领域内聚；新增其他工具职责时再拆。"
+    ),
+    "app/service/llm/function_tool_product.py": (
+        "存量职责评审：商品事实查询与 RAG 辅助存在候选边界，需避免拆分后泄漏会话和检索内部状态。"
+    ),
+    "app/service/llm/intent.py": (
+        "存量职责评审：意图入口已把词表和 prompt 外置，当前保留解析编排内聚；不得回流词表职责。"
+    ),
+    "app/service/youzan/client.py": (
+        "存量职责评审：有赞开放接口客户端可按 API 领域形成稳定子客户端，拆分不得复制鉴权和重试逻辑。"
+    ),
+    "app/service/youzan/event_item.py": (
+        "存量职责评审：商品事件解析、构建和 RAG 同步存在候选边界，需按事件数据流拆分而非按函数数量切分。"
+    ),
+    "app/service/youzan/product_reconciler.py": (
+        "存量职责评审：商品对账与分类回填存在独立变化原因，候选单元必须能独立 dry-run 和测试。"
+    ),
+    "app/service/wecom/client_kf.py": (
+        "存量职责评审：企微客服客户端按协议能力聚合，候选拆分需复用统一鉴权并避免 mixin 状态穿透。"
+    ),
+    "app/service/wecom/kf_message_queue.py": (
+        "存量职责评审：消息拉取、分类、处理和发送存在候选边界，需先冻结队列状态合同再拆分。"
+    ),
 }
+
+UNREVIEWED_OVERSIZE_GUIDANCE = (
+    "请先做职责评审：职责混杂时按稳定、可独立测试的边界拆分；职责高度内聚时记录保留理由。"
+    "禁止为了压行数机械切文件。"
+)
 
 
 def get_limit(rel: str) -> int:
@@ -67,7 +98,7 @@ def main() -> int:
     violations: list[str] = []
 
     app_root = root / "app"
-    warnings: list[str] = []
+    reviewed_findings: list[tuple[str, str]] = []
     for py_file in sorted(app_root.rglob("*.py")):
         parts = py_file.relative_to(root).parts
         if any(d in IGNORE_DIRS for d in parts):
@@ -78,25 +109,26 @@ def main() -> int:
         lines = count_lines(py_file)
         if lines > limit:
             msg = (
-                f"  {rel_unix}: {lines} 行（上限 {limit} 行，超出 {lines - limit} 行）"
+                f"  {rel_unix}: {lines} 行（未评审阻断线 {limit} 行，"
+                f"超出 {lines - limit} 行）"
             )
-            if rel_unix in KNOWN_OVERSIZE:
-                warnings.append(msg)
+            review_note = OVERSIZE_REVIEW_NOTES.get(rel_unix)
+            if review_note is not None:
+                reviewed_findings.append((msg, review_note))
             else:
                 violations.append(msg)
 
-    if warnings:
-        print(
-            "\n[WARN] 已知存量超线文件（不阻断提交，完成拆分后请从 KNOWN_OVERSIZE 移除）："
-        )
-        for w in warnings:
-            print(w)
+    if reviewed_findings:
+        print("\n[WARN] 已有职责评审记录的存量超线文件（不因行数自动要求拆分）：")
+        for finding, review_note in reviewed_findings:
+            print(finding)
+            print(f"    评审：{review_note}")
 
     if violations:
-        print("\n[ERROR] 文件体量超线，提交被阻断：")
+        print("\n[ERROR] 文件体量超过阻断线且缺少职责评审，提交被阻断：")
         for v in violations:
             print(v)
-        print("\n请先拆分超线文件，再重新提交。")
+        print(f"\n{UNREVIEWED_OVERSIZE_GUIDANCE}")
         return 1
 
     print(

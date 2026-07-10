@@ -38,6 +38,7 @@ ______________________________________________________________________
 | 文档 | `Test-Path` + `Select-String` 链接/关键词检查 | LOGBOOK 和进度清单同步检查 |
 | Harness 文档 | `Test-Path docs/harness-engineering/...` | 检查无未完成占位 |
 | Harness 脚本 | `python -m pytest tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py tests/scripts/test_check_evidence_index.py -q --no-cov` | `python scripts/harness_snapshot.py --json` + `python scripts/check_mistake_ledger.py` + `python scripts/check_evidence_index.py --summary` + `pre-commit run check-mistake-ledger --all-files` + `pre-commit run check-evidence-index --all-files` |
+| 文件体量与职责治理 | `python -m pytest tests/scripts/test_check_file_sizes.py -q --no-cov` + `python scripts/check_file_sizes.py` | 对超线目标记录职责、变化原因、候选边界、测试成本和 `split_by_responsibility / keep_cohesive_with_review / defer_with_boundary_plan` 结论 |
 | ADR / 证据索引 | `python scripts/check_evidence_index.py --summary` | 搜索 `trace_id`、`related_adr`、`evidence_type` 关键字段；证据条目不得缺必填字段、不得重复 ID |
 
 ______________________________________________________________________

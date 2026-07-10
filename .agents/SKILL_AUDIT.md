@@ -1,6 +1,6 @@
 # Skill 死亡风险审计
 
-> 审计日期：2026-05-22（更新：2026-06-22）
+> 审计日期：2026-05-22（更新：2026-07-10）
 > 范围：全局 `c:\Users\srafy\.agents\skills\` + 项目 `.agents\skills\`
 > 操作建议仅供参考，**不自动删除任何文件**
 
@@ -23,7 +23,7 @@
 | KEEP | `芸熙Harness工程守卫` | 较大任务、追溯、复盘、防重犯、证据留档、交接和 Skill 审计的统一入口 | 2026-06-11 新增，已联动 AGENTS、skill-reference、traceability-model、verification-matrix 和交接模板 |
 | KEEP | `芸熙LLM守卫` | DeepSeek 调用、Function Calling、意图识别、对话循环的专项规范 | 已补充 Harness 联动 |
 | KEEP | `芸熙架构守卫` | api/service/repository/models 分层边界、Webhook 幂等约束 | 已补充 Harness 联动 |
-| KEEP | `芸熙文件体量守卫` | 防止单文件过大，超阻断线强制走拆分工作流 | 已修复：description 加入主动检查触发词；工作流联动升级；已补充 Harness 联动 |
+| KEEP | `芸熙文件体量守卫` | 用体量信号触发职责评审，防止上帝类和职责漂移 | 2026-07-10 升级为责任优先治理：职责混杂才拆，高度内聚可记录理由保留，禁止为压行数机械切分 |
 | KEEP | `芸熙洁净代码守卫` | 零硬编码、函数设计、命名质量、可复用性 | 已修复：重定位为深度核查手册，与 AGENT.md 差异化；已补充 Harness 联动 |
 
 ---
@@ -147,7 +147,7 @@
 ### 已完成的修复
 
 - [x] `using-superpowers` — 已补充 Windsurf 中文触发词到 description
-- [x] `芸熙文件体量守卫` — 已加入"新增或修改任意 .py 文件时均应主动检查"
+- [x] `芸熙文件体量守卫` — 已加入主动检查，并升级为“体量触发职责评审、禁止机械拆分”的责任优先治理
 - [x] `芸熙洁净代码守卫` — 已重定位为深度核查手册，与 AGENT.md 基础规则差异化
 - [x] `lark-vc-agent` — 保留，极低频但有效（AI 代入飞书会议场景）
 - [x] `lark-openapi-explorer` — 保留，已作为其他 lark-* skill 的兜底方案

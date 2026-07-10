@@ -84,6 +84,10 @@ def test_prepare_pool_entry_draft_cli_writes_json(tmp_path: Path) -> None:
             "qa-owner",
             "--redaction-reviewed-at",
             "2026-07-10",
+            "--source-type",
+            "real_customer_conversation",
+            "--raw-source-retention",
+            "not_committed",
             "--json-out",
             str(output_path),
             "--summary",
@@ -94,6 +98,8 @@ def test_prepare_pool_entry_draft_cli_writes_json(tmp_path: Path) -> None:
     assert exit_code == 0
     assert payload["status"] == "passed"
     assert payload["entry"]["name"] == "approved-real-sample"
+    assert payload["entry"]["source_type"] == "real_customer_conversation"
+    assert payload["entry"]["raw_source_retention"] == "not_committed"
 
 
 def write_real_redacted_fixture(fixture_path: Path) -> None:

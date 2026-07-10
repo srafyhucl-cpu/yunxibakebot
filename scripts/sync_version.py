@@ -208,33 +208,73 @@ def check_config_version_consistency(new_version: str) -> bool:
 # ────────────────────────────────────────────
 
 
-def inject_version_to_progress(new_version: str) -> None:
+def inject_version_to_progress(new_version: str) -> bool:
     """在项目进度与配置清单.md 的表头中注入版本号。"""
     if not PROGRESS_FILE.exists():
-        return
+        print(f"[version-sync] [ERR] 项目进度文件不存在: {PROGRESS_FILE}")
+        return False
 
     content = PROGRESS_FILE.read_text(encoding="utf-8")
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # 更新"最后更新"行中的版本号
-    # 格式：> 最后更新: YYYY-MM-DD（第N次）— vM.N.P 描述
-    pattern = r"(> 最后更新:\s*\d{4}-\d{2}-\d{2}（[^）]+）—\s*v?\d+\.\d+\.\d+\s*)"
-    replacement = f"> 最后更新: {today}（自动版本同步）— v{new_version} "
-    new_content, count = re.subn(pattern, replacement, content, count=1)
+    current_pattern = (
+        r"(?m)^> 最后更新\s+\d{4}-\d{2}-\d{2}\s+-\s+"
+        r"当前本地代码版本为\s+`\d+\.\d+\.\d+`。"
+    )
+    current_replacement = f"> 最后更新 {today} - 当前本地代码版本为 `{new_version}`。"
+    new_content, count = re.subn(
+        current_pattern,
+        current_replacement,
+        content,
+        count=1,
+    )
+
+    if count == 0:
+        legacy_pattern = (
+            r"> 最后更新:\s*\d{4}-\d{2}-\d{2}（[^）]+）—\s*"
+            r"v?\d+\.\d+\.\d+\s*"
+        )
+        legacy_replacement = f"> 最后更新: {today}（自动版本同步）— v{new_version} "
+        new_content, count = re.subn(
+            legacy_pattern,
+            legacy_replacement,
+            content,
+            count=1,
+        )
 
     if count == 0:
         # 如果没有匹配到版本号标记，尝试在"最后更新"行后追加版本号
         pattern2 = r"(> 最后更新:\s*\d{4}-\d{2}-\d{2}（[^）]+）—\s*)"
-        new_content, count2 = re.subn(
+        new_content, count = re.subn(
             pattern2,
             f"\\1v{new_version} ",
             content,
             count=1,
         )
 
+    if count == 0:
+        print("[version-sync] [ERR] 项目进度表头格式无法识别，版本号未同步")
+        return False
+
     if new_content != content:
         PROGRESS_FILE.write_text(new_content, encoding="utf-8")
-        print(f"[version-sync] [OK] 已将 v{new_version} 注入到项目进度与配置清单.md")
+    print(f"[version-sync] [OK] 已将 v{new_version} 注入到项目进度与配置清单.md")
+    return True
+
+
+def stage_generated_file(path: Path, label: str) -> bool:
+    """暂存版本同步生成的文件。"""
+    result = subprocess.run(
+        ["git", "add", str(path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if result.returncode == 0:
+        print(f"[version-sync] [OK] {label} 已加入暂存区")
+        return True
+    print(f"[version-sync] [ERR] git add {label} 失败: {result.stderr.strip()}")
+    return False
 
 
 # ────────────────────────────────────────────
@@ -282,23 +322,19 @@ def main() -> int:
     write_version(new_version)
     print(f"[version-sync] [OK] VERSION 已更新: v{current_version} -> v{new_version}")
 
-    # 5. 自动 git add VERSION 文件
-    add_result = subprocess.run(
-        ["git", "add", str(VERSION_FILE)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    if add_result.returncode != 0:
-        print(f"[version-sync] [ERR] git add VERSION 失败: {add_result.stderr.strip()}")
-        # 回滚 VERSION 文件
+    # 5. 注入版本号到项目进度与配置清单
+    if not inject_version_to_progress(new_version):
         write_version(current_version)
         print(f"[version-sync] 已回滚 VERSION 到 v{current_version}")
         return 1
-    print("[version-sync] [OK] VERSION 已加入暂存区")
 
-    # 6. 注入版本号到项目进度与配置清单
-    inject_version_to_progress(new_version)
+    # 6. 自动暂存两个版本来源文件
+    if not stage_generated_file(VERSION_FILE, "VERSION"):
+        write_version(current_version)
+        print(f"[version-sync] 已回滚 VERSION 到 v{current_version}")
+        return 1
+    if not stage_generated_file(PROGRESS_FILE, "项目进度与配置清单.md"):
+        return 1
 
     # 7. 校验文档同步
     missing_docs = check_doc_sync(staged + [VERSION_FILE.name])

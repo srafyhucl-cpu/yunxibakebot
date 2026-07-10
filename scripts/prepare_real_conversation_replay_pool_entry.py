@@ -198,6 +198,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--redaction-reviewer", required=True, help="脱敏审核人")
     parser.add_argument("--redaction-reviewed-at", required=True, help="脱敏审核日期")
     parser.add_argument(
+        "--source-type",
+        default=REAL_SOURCE_TYPE,
+        help="真实样本来源类型",
+    )
+    parser.add_argument(
+        "--raw-source-retention",
+        default=RAW_SOURCE_RETENTION_NOT_COMMITTED,
+        help="原始来源留存声明",
+    )
+    parser.add_argument(
         "--purpose",
         default="approved_redacted_regression",
         help="样本池用途说明",
@@ -228,6 +238,8 @@ def main(argv: list[str] | None = None) -> int:
         redaction_method=args.redaction_method,
         redaction_reviewer=args.redaction_reviewer,
         redaction_reviewed_at=args.redaction_reviewed_at,
+        source_type=args.source_type,
+        raw_source_retention=args.raw_source_retention,
         purpose=args.purpose,
         min_per_scenario=args.min_per_scenario,
     )

@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包、P17b-candidate 真实 replay 候选样本准入审计、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告、P19b 真实 RAG shadow log 观测输入门禁、P21a LangChain AI 层容量门禁、P21b 生产只读资源观测门禁、P21c 生产资源观测 release gate 加强模式、P21d 生产观测发布证据容量校验和 P22a LangChain 发布证据包已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包及可填写模板增强、P17b-candidate 真实 replay 候选样本准入审计、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告、P19b 真实 RAG shadow log 观测输入门禁、P21a LangChain AI 层容量门禁、P21b 生产只读资源观测门禁、P21c 生产资源观测 release gate 加强模式、P21d 生产观测发布证据容量校验和 P22a LangChain 发布证据包已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1775,6 +1775,7 @@ P17 后续：
 - 工具要求调用方显式提供样本名称、证据 ID、脱敏方法、脱敏审核人和脱敏审核日期，并默认写出 gitignored `reports/agent-eval/real-replay-pool-entry-draft.json`。
 - 草稿生成前会复用 `build_real_replay_coverage_report()` 检查 order、refund、after_sales、inventory、price、human_transfer 六类事实敏感场景覆盖，不允许 coverage 未通过的 fixture 直接生成可用条目。
 - 工具会拒绝 `synthetic`、`schema_sample`、`contract_shape_only` 等来源声明，要求 `metadata.contains_sensitive_data=false`、fixture metadata 带 redaction，且 manifest 草稿声明 `source_type=real_customer_conversation` 和 `raw_source_retention=not_committed`。
+- CLI 已显式暴露 `--source-type` 和 `--raw-source-retention`；参数会进入条目草稿并继续受真实来源与原始来源不入仓断言保护。
 - `scripts/check_real_conversation_replay_intake_readiness.py` 和 `scripts/check_langchain_ai_layer_production_plan.py` 已把该脚本列为真实样本接入通道必备 artifact。
 - 本切片不读取原始客户会话、不修改样本池 manifest、不访问业务数据库、不调用外部 LLM、不提交真实客户数据；它只生成待人工确认的条目草稿。
 
@@ -1794,7 +1795,9 @@ python scripts\check_real_conversation_replay_intake_readiness.py --summary
 
 - 新增 `scripts/build_real_conversation_replay_intake_packet.py`，用于生成给真实客服记录持有人执行的接入包。
 - 操作包列出原始记录必须包含的字段、六类事实敏感场景覆盖目标、脱敏要求、人工审核要求和完整命令链。
-- 命令链覆盖导出脱敏 fixture、检查 replay 契约、检查场景覆盖、生成 pool entry 草稿、严格检查 pool manifest 和严格检查 intake readiness。
+- 操作包已增加可填写 `handoff_template`，使用导出器真实支持的扁平 canonical 字段：`golden_case_id`、`user_message`、`final_reply`，并保留可选 `case_id`、`source`、`group`、`intent`；不再把未被导出器消费的 `messages[]` 误写成可执行输入合同。
+- 命令链覆盖导出脱敏 fixture、检查 replay 契约、检查场景覆盖、候选准入审计及 JSON 留档、生成 pool entry 草稿、严格检查 pool manifest 和严格检查 intake readiness。
+- 导出命令显式要求真实脱敏来源标识；候选审计和 entry 草稿命令显式携带 `source_type=real_customer_conversation` 与 `raw_source_retention=not_committed`，减少人工执行时漏填准入声明的风险。
 - 操作包报告明确 `raw_customer_conversation_read=false`、`real_customer_data_committed=false`、`business_database_read=false` 和 `external_llm_called=false`；脚本不读取真实原始记录，只生成执行说明和门禁命令。
 - `scripts/check_real_conversation_replay_intake_readiness.py`、`scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入该脚本，防止真实样本接入入口丢失。
 - 当前仓库仍未接入真实客服样本，`real_sample_ready=false` 仍是正确状态；本切片不把合成样例算作真实样本。
@@ -1802,9 +1805,9 @@ python scripts\check_real_conversation_replay_intake_readiness.py --summary
 P17b-intake 验收：
 
 ```powershell
-python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
-python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
-python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m pytest tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
+python -m ruff check scripts\build_real_conversation_replay_intake_packet.py scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\build_real_conversation_replay_intake_packet.py scripts\prepare_real_conversation_replay_pool_entry.py scripts\check_real_conversation_replay_intake_readiness.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_build_real_conversation_replay_intake_packet.py tests\scripts\test_prepare_real_conversation_replay_pool_entry.py tests\scripts\test_export_real_conversation_replay_fixture.py tests\scripts\test_check_real_conversation_replay_intake_readiness.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
 python scripts\build_real_conversation_replay_intake_packet.py --summary
 python scripts\check_real_conversation_replay_intake_readiness.py --summary
 python scripts\check_langchain_ai_layer_production_plan.py --summary

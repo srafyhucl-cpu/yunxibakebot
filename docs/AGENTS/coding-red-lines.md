@@ -159,6 +159,22 @@ async def get_user(user_id: int): ...  # ✓ 中文注释
 
 ---
 
+## 文件体量与职责评审
+
+文件体量门禁用于发现上帝类风险，不把行数当作重构完成标准：
+
+- 警戒线和阻断线只触发职责评审。
+- 超过阻断线且没有评审记录的新文件会阻断提交。
+- 职责混杂时，按可命名、可独立测试的稳定边界拆分。
+- 职责高度内聚时，可以记录理由后保留超线实现。
+- 禁止为了压行数制造 `part1.py`、碎片 helper、薄转发层、循环依赖或大量状态穿透。
+
+完整决策见 [ADR 0004](../harness-engineering/adr/0004-responsibility-first-file-size-governance.md) 和 `.agents/skills/yunxi-file-size-guard/SKILL.md`。
+
+这是一项职责评审门禁，不改变本文件前述安全、分层和数据访问红线的强制性。
+
+---
+
 ## 代码风格工具
 
 | 红线 | 说明 |

@@ -18,6 +18,10 @@ from scripts.check_real_conversation_replay_coverage import (  # noqa: E402
     DEFAULT_MIN_PER_SCENARIO,
     load_required_sensitive_scenarios,
 )
+from scripts.check_real_conversation_replay_pool import (  # noqa: E402
+    RAW_SOURCE_RETENTION_NOT_COMMITTED,
+    REAL_SOURCE_TYPE,
+)
 
 DEFAULT_OUTPUT_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replay-intake-packet.json"
@@ -34,6 +38,9 @@ DEFAULT_REPLIES_PATH = (
 DEFAULT_COVERAGE_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "real-conversation-replay-coverage.json"
 )
+DEFAULT_CANDIDATE_AUDIT_PATH = (
+    ROOT_DIR / "reports" / "agent-eval" / "real-replay-candidate-audit.json"
+)
 DEFAULT_ENTRY_DRAFT_PATH = (
     ROOT_DIR / "reports" / "agent-eval" / "real-replay-pool-entry-draft.json"
 )
@@ -45,16 +52,23 @@ REQUIRED_SENSITIVE_SCENARIOS = load_required_sensitive_scenarios(
 )
 DEFAULT_TARGET_COUNT = len(REQUIRED_SENSITIVE_SCENARIOS) * DEFAULT_MIN_PER_SCENARIO
 
-RAW_RECORD_FIELDS = (
-    "case_id",
+REQUIRED_RAW_RECORD_FIELDS = (
     "golden_case_id",
-    "scenario",
-    "channel",
-    "conversation_id",
-    "created_at",
-    "messages",
+    "user_message",
+    "final_reply",
 )
-MESSAGE_FIELDS = ("role", "content", "created_at")
+OPTIONAL_RAW_RECORD_FIELDS = (
+    "case_id",
+    "source",
+    "group",
+    "intent",
+)
+RAW_RECORD_FIELD_ALIASES = {
+    "case_id": ("id", "conversation_id"),
+    "golden_case_id": ("golden_id",),
+    "user_message": ("query", "customer_message", "message", "user_text"),
+    "final_reply": ("reply", "assistant_reply", "bot_reply", "answer"),
+}
 REDACTION_REQUIREMENTS = (
     "手机号、地址、open_id、union_id、客户姓名、完整订单号必须脱敏",
     "原始客服记录只允许保存在仓库外，不得提交到 git",
@@ -62,6 +76,24 @@ REDACTION_REQUIREMENTS = (
     "fixture metadata 必须写明 source 和 redaction",
     "人工审核后才能生成 pool manifest 条目草稿",
 )
+INTAKE_RECORD_TEMPLATE = {
+    "case_id": "<stable-real-redacted-case-id>",
+    "golden_case_id": "<matching-customer-golden-case-id>",
+    "source": "<real-redacted-customer-service-export>",
+    "group": "<optional-business-group>",
+    "intent": "<optional-intent>",
+    "user_message": "<已脱敏用户问题，不含手机号、地址、open_id、客户姓名、完整订单号>",
+    "final_reply": "<已脱敏客服回复或系统最终回复>",
+}
+INTAKE_HANDOFF_DECLARATION_TEMPLATE = {
+    "source_type": REAL_SOURCE_TYPE,
+    "contains_sensitive_data": False,
+    "redaction_method": "<manual_redaction_v1|tool_redaction_plus_manual_review>",
+    "redaction_reviewer": "<脱敏审核人>",
+    "redaction_reviewed_at": "<YYYY-MM-DD>",
+    "raw_source_retention": RAW_SOURCE_RETENTION_NOT_COMMITTED,
+    "evidence_id": "<evidence-index-id>",
+}
 
 
 def build_real_replay_intake_packet(
@@ -93,9 +125,16 @@ def build_real_replay_intake_packet(
         "target_count": target_count,
         "min_per_scenario": min_per_scenario,
         "required_scenarios": list(REQUIRED_SENSITIVE_SCENARIOS),
-        "raw_record_fields": list(RAW_RECORD_FIELDS),
-        "message_fields": list(MESSAGE_FIELDS),
+        "raw_record_fields": list(
+            REQUIRED_RAW_RECORD_FIELDS + OPTIONAL_RAW_RECORD_FIELDS
+        ),
+        "required_raw_record_fields": list(REQUIRED_RAW_RECORD_FIELDS),
+        "optional_raw_record_fields": list(OPTIONAL_RAW_RECORD_FIELDS),
+        "raw_record_field_aliases": {
+            field: list(aliases) for field, aliases in RAW_RECORD_FIELD_ALIASES.items()
+        },
         "redaction_requirements": list(REDACTION_REQUIREMENTS),
+        "handoff_template": build_handoff_template(),
         "commands": build_command_plan(
             draft_fixture_path=draft_fixture_path,
             pool_manifest_path=pool_manifest_path,
@@ -143,41 +182,92 @@ def build_command_plan(
     min_per_scenario: int,
 ) -> list[dict[str, object]]:
     return [
-        {
-            "step": "export_redacted_fixture",
-            "command": (
+        *build_fixture_preparation_commands(
+            draft_fixture_path=draft_fixture_path,
+            evidence_id=evidence_id,
+            min_per_scenario=min_per_scenario,
+        ),
+        *build_pool_admission_commands(
+            draft_fixture_path=draft_fixture_path,
+            pool_manifest_path=pool_manifest_path,
+            evidence_id=evidence_id,
+        ),
+    ]
+
+
+def build_handoff_template() -> dict[str, object]:
+    return {
+        "handoff_declaration": dict(INTAKE_HANDOFF_DECLARATION_TEMPLATE),
+        "records": [dict(INTAKE_RECORD_TEMPLATE)],
+    }
+
+
+def build_fixture_preparation_commands(
+    *,
+    draft_fixture_path: Path,
+    evidence_id: str,
+    min_per_scenario: int,
+) -> list[dict[str, object]]:
+    return [
+        build_command_step(
+            "export_redacted_fixture",
+            (
                 "python scripts\\export_real_conversation_replay_fixture.py "
-                "--input <仓库外原始客服记录.jsonl> "
+                "--input <仓库外已脱敏客服记录.jsonl> "
+                "--source <真实脱敏来源标识> "
                 f"--output {draft_fixture_path} --summary"
             ),
-            "writes_sensitive_data": False,
-            "human_input_required": True,
-        },
-        {
-            "step": "check_replay_contract",
-            "command": (
+            human_input_required=True,
+        ),
+        build_command_step(
+            "check_replay_contract",
+            (
                 "python scripts\\check_real_conversation_replay.py "
                 f"--fixture {draft_fixture_path} "
                 f"--json-out {DEFAULT_DRAFT_CHECK_PATH} "
                 f"--replies-json-out {DEFAULT_REPLIES_PATH} --summary"
             ),
-            "writes_sensitive_data": False,
-            "human_input_required": False,
-        },
-        {
-            "step": "check_sensitive_scenario_coverage",
-            "command": (
+            human_input_required=False,
+        ),
+        build_command_step(
+            "check_sensitive_scenario_coverage",
+            (
                 "python scripts\\check_real_conversation_replay_coverage.py "
                 f"--fixture {draft_fixture_path} "
                 f"--min-per-scenario {min_per_scenario} "
                 f"--json-out {DEFAULT_COVERAGE_PATH} --summary"
             ),
-            "writes_sensitive_data": False,
-            "human_input_required": False,
-        },
-        {
-            "step": "prepare_pool_entry_draft",
-            "command": (
+            human_input_required=False,
+        ),
+        build_command_step(
+            "audit_candidate_fixture",
+            (
+                "python scripts\\audit_real_conversation_replay_candidate.py "
+                f"--fixture {draft_fixture_path} "
+                "--require-fixture "
+                f"--source-type {REAL_SOURCE_TYPE} "
+                "--redaction-method <脱敏方法> "
+                "--redaction-reviewer <审核人> "
+                "--redaction-reviewed-at <YYYY-MM-DD> "
+                f"--raw-source-retention {RAW_SOURCE_RETENTION_NOT_COMMITTED} "
+                f"--evidence-id {evidence_id} "
+                f"--json-out {DEFAULT_CANDIDATE_AUDIT_PATH} --summary"
+            ),
+            human_input_required=True,
+        ),
+    ]
+
+
+def build_pool_admission_commands(
+    *,
+    draft_fixture_path: Path,
+    pool_manifest_path: Path,
+    evidence_id: str,
+) -> list[dict[str, object]]:
+    return [
+        build_command_step(
+            "prepare_pool_entry_draft",
+            (
                 "python scripts\\prepare_real_conversation_replay_pool_entry.py "
                 f"--fixture {draft_fixture_path} "
                 "--name <真实脱敏样本池名称> "
@@ -185,30 +275,43 @@ def build_command_plan(
                 "--redaction-method <脱敏方法> "
                 "--redaction-reviewer <审核人> "
                 "--redaction-reviewed-at <YYYY-MM-DD> "
+                f"--source-type {REAL_SOURCE_TYPE} "
+                f"--raw-source-retention {RAW_SOURCE_RETENTION_NOT_COMMITTED} "
                 f"--json-out {DEFAULT_ENTRY_DRAFT_PATH} --summary"
             ),
-            "writes_sensitive_data": False,
-            "human_input_required": True,
-        },
-        {
-            "step": "verify_pool_strict_gate",
-            "command": (
+            human_input_required=True,
+        ),
+        build_command_step(
+            "verify_pool_strict_gate",
+            (
                 "python scripts\\check_real_conversation_replay_pool.py "
                 f"--manifest {pool_manifest_path} --require-real --summary"
             ),
-            "writes_sensitive_data": False,
-            "human_input_required": True,
-        },
-        {
-            "step": "verify_intake_strict_gate",
-            "command": (
+            human_input_required=True,
+        ),
+        build_command_step(
+            "verify_intake_strict_gate",
+            (
                 "python scripts\\check_real_conversation_replay_intake_readiness.py "
                 f"--manifest {pool_manifest_path} --require-real --summary"
             ),
-            "writes_sensitive_data": False,
-            "human_input_required": False,
-        },
+            human_input_required=False,
+        ),
     ]
+
+
+def build_command_step(
+    step: str,
+    command: str,
+    *,
+    human_input_required: bool,
+) -> dict[str, object]:
+    return {
+        "step": step,
+        "command": command,
+        "writes_sensitive_data": False,
+        "human_input_required": human_input_required,
+    }
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:

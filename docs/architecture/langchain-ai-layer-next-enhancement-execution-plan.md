@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-10
-> 状态：待执行
+> 状态：持续执行中（E0 已完成；E1 接入工具链已增强，等待仓库外真实脱敏输入）
 > 上游计划：[LangChain AI 应用层生产增强计划书](./langchain-ai-layer-production-enhancement-plan.md)
 
 ## 一、目标
@@ -81,41 +81,71 @@ python scripts\check_evidence_index.py --summary
 2. 每条样本必须声明来源类型、脱敏方法、审核人、审核时间、原始来源不入仓。
 3. 不允许提交原始客户消息、手机号、地址、open_id、完整订单号。
 
+### 当前进度
+
+1. `scripts\build_real_conversation_replay_intake_packet.py` 已输出可填写的仓库外交接模板，模板字段与现有导出器的扁平输入合同一致。
+2. 操作包命令链已显式包含真实来源标识、候选审计 JSON、真实来源类型和原始来源不入仓声明。
+3. `scripts\prepare_real_conversation_replay_pool_entry.py` CLI 已暴露 `--source-type` 和 `--raw-source-retention`，命令行声明会进入 manifest entry 草稿并受断言保护。
+4. 当前仍没有仓库外真实脱敏输入，因此 E1 尚未完成，`candidate_ready=false`、`real_sample_ready=false` 仍是正确状态。
+
 ### 输入合同
 
-候选 fixture 至少包含：
+仓库外交接 JSON / JSONL 使用以下合同；`handoff_declaration` 用于人工审核和后续命令参数，导出器消费 `records`：
 
 ```text
-metadata.source_type
-metadata.redaction_method
-metadata.reviewed_by
-metadata.reviewed_at
-metadata.raw_source_retained_outside_repo
+handoff_declaration.source_type=real_customer_conversation
+handoff_declaration.contains_sensitive_data=false
+handoff_declaration.redaction_method
+handoff_declaration.redaction_reviewer
+handoff_declaration.redaction_reviewed_at
+handoff_declaration.raw_source_retention=not_committed
+handoff_declaration.evidence_id
+records[].golden_case_id
+records[].user_message
+records[].final_reply
+records[].case_id                  # 可选
+records[].source                   # 可选
+records[].group                    # 可选
+records[].intent                   # 可选
+```
+
+导出后的 replay fixture 使用现有 checker 合同：
+
+```text
+metadata.source
+metadata.redaction
+metadata.contains_sensitive_data=false
 cases[].case_id
-cases[].messages
-cases[].expected
-cases[].sensitive_scenario
+cases[].golden_case_id
+cases[].user_message
+cases[].final_reply
+cases[].source
+cases[].group
+cases[].intent
 ```
 
 ### 执行步骤
 
-1. 使用 `scripts\build_real_conversation_replay_intake_packet.py --summary` 生成外部接入说明。
-2. 把仓库外脱敏输入放到用户指定的非仓库目录。
-3. 运行候选准入审计，只生成报告和 manifest draft，不直接改 manifest。
-4. 人工复核审计报告。
-5. 通过后再把 manifest entry 写入真实 replay pool。
-6. 跑 real replay、coverage、pool 和 release gate。
+1. 使用 `scripts\build_real_conversation_replay_intake_packet.py --json` 生成并检查外部接入模板与命令链。
+2. 在仓库外按 `handoff_template` 准备已脱敏输入，不把原始客服记录写入仓库。
+3. 运行导出器生成 gitignored replay fixture，并通过 replay contract 与 coverage 检查。
+4. 运行候选准入审计并保存 JSON，只生成报告和 manifest entry draft，不直接改 manifest。
+5. 人工复核候选审计报告和 entry draft。
+6. 通过后再由人工把 entry 写入真实 replay pool manifest。
+7. 跑 real replay、coverage、pool、intake readiness 和聚合 eval。
 
 ### 验收命令
 
 ```powershell
 python scripts\build_real_conversation_replay_intake_packet.py --summary
-python scripts\audit_real_conversation_replay_candidate.py --fixture <redacted-fixture-path> --require-fixture --summary
-python scripts\prepare_real_conversation_replay_pool_entry.py --fixture <redacted-fixture-path> --summary
+python scripts\export_real_conversation_replay_fixture.py --input <仓库外已脱敏输入路径> --source <真实脱敏来源标识> --output <redacted-fixture-path> --summary
 python scripts\check_real_conversation_replay.py --fixture <redacted-fixture-path> --summary
 python scripts\check_real_conversation_replay_coverage.py --fixture <redacted-fixture-path> --summary
-python scripts\check_real_conversation_replay_pool.py --require-real --summary
-python scripts\report_agent_eval.py --latest --include-real-replay --summary
+python scripts\audit_real_conversation_replay_candidate.py --fixture <redacted-fixture-path> --require-fixture --source-type real_customer_conversation --redaction-method <脱敏方法> --redaction-reviewer <审核人> --redaction-reviewed-at <YYYY-MM-DD> --raw-source-retention not_committed --evidence-id <证据ID> --json-out reports\agent-eval\real-replay-candidate-audit.json --summary
+python scripts\prepare_real_conversation_replay_pool_entry.py --fixture <redacted-fixture-path> --name <样本池条目名称> --evidence-id <证据ID> --redaction-method <脱敏方法> --redaction-reviewer <审核人> --redaction-reviewed-at <YYYY-MM-DD> --source-type real_customer_conversation --raw-source-retention not_committed --json-out reports\agent-eval\real-replay-pool-entry-draft.json --summary
+python scripts\check_real_conversation_replay_pool.py --manifest <真实样本池manifest路径> --require-real --summary
+python scripts\check_real_conversation_replay_intake_readiness.py --manifest <真实样本池manifest路径> --require-real --summary
+python scripts\report_agent_eval.py --latest --include-real-replay --real-replay-fixture <redacted-fixture-path> --summary
 ```
 
 ### 完成标准

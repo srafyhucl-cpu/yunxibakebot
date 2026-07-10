@@ -1,106 +1,107 @@
 ﻿---
 name: 芸熙文件体量守卫
-version: 1.0.0
-description: "【必须在动代码前调用】芸熙烘焙 AI 客服文件体量守卫。新增或修改任意 .py 文件前，必须先调用本 Skill 检查目标文件行数是否已超警戒线（service: 220行，llm子模块: 120行，api: 250行）。超线禁止继续追加代码，必须走 large-file-refactor-review 工作流先拆分。"
+version: 1.1.0
+description: "【必须在动代码前调用】芸熙烘焙 AI 客服文件体量与职责守卫。新增或修改任意 .py 文件前，用行数、公开类/方法和依赖数量触发职责评审；目标是防止上帝类，不是把文件机械切到阈值以内。超线后先判断职责是否混杂，只有存在稳定、可独立测试的职责边界时才拆分；高度内聚的单一职责可记录评审理由后保留。"
 ---
 
-# 芸熙烘焙单文件体量与上帝类守卫
+# 芸熙烘焙文件体量与职责守卫
+
+## 核心目标
+
+本守卫要阻止的是上帝类、职责漂移和难以测试的耦合，不是大文件本身。
+
+必须坚持以下判断：
+
+1. 行数阈值是评审触发器，不是拆分目标。
+2. 不能仅凭“超过 N 行”判定上帝类；要看模块有多少独立变化原因、依赖方向和业务职责。
+3. 只有抽出单元具备清晰接口、独立测试价值和稳定所有权时才拆分。
+4. 如果拆分只会产生转发壳、碎片 helper、callback 穿透或循环依赖，应保留内聚实现并记录评审理由。
+5. 禁止为了让门禁变绿而按行数、函数数量或代码块位置机械切文件。
+
+长期决策见 `docs/harness-engineering/adr/0004-responsibility-first-file-size-governance.md`。
 
 ## Harness 联动
 
-如果出现“继续往超线文件追加职责”“拆分后又回流到单文件”“阈值或存量清单过时”等情况，先联动 `yunxi-harness-engineering`：
+如果出现“继续往超线文件追加新职责”“拆分后职责又回流”“阈值或存量清单过时”或“为压行数硬拆”等情况，先联动 `yunxi-harness-engineering`：
 
 - 将本次文件体量风险绑定到 trace。
-- 把验证命令写入 `docs/harness-engineering/core/verification-matrix.md` 或 LOGBOOK。
+- 把职责评审结论和验证命令写入 ADR、LOGBOOK 或 verification matrix。
 - 若属于重复错误，写入 `docs/harness-engineering/core/mistake-ledger.md` 并补机械防线。
 
-## 📏 单文件体量阈值
+## 单文件体量阈值
 
-> 阈值是「职责可能过载」的早期信号，不是拆分目标。超线必须先评估职责是否真实混杂，不是为压行数而拆。
+> 阈值是“职责可能过载”的早期信号。阻断线的含义是“未经职责评审不能继续”，不是“必须把行数拆到线下”。
 
-| 层级 | 警戒线（warning） | 硬上限（blocking） | |------|------------------|-------------------| |
-`app/api/*.py` 路由层 | 250 行 | 350 行 | | `app/service/*.py` 业务层 | 220 行 | 320 行 | |
-`app/service/llm/*.py` LLM 子模块 | 120 行 | 180 行 | | `app/service/wecom/*.py` / `youzan/*.py` | 150 行
-| 250 行 | | `app/repository/*.py` 数据层 | 150 行 | 250 行 | | `app/models/*.py` 模型层 | 80 行 | 120 行 |
+| 层级 | 警戒线 | 未评审阻断线 |
+|------|--------|--------------|
+| `app/api/*.py` | 250 行 | 350 行 |
+| `app/service/*.py` | 220 行 | 320 行 |
+| `app/service/llm/*.py` | 120 行 | 180 行 |
+| `app/service/wecom/*.py` / `youzan/*.py` | 150 行 | 250 行 |
+| `app/repository/*.py` | 150 行 | 250 行 |
+| `app/models/*.py` | 80 行 | 120 行 |
 
-**附加硬约束（任一违反即 blocking）：**
+**附加评审触发器：**
 
-- 单文件公开类（非 `_` 前缀）数量 **≤ 3**
-- 单类公开方法数量 **≤ 20**
-- 单个函数/方法体 **≤ 50 行**（不含注释和空行）
+- 单文件公开类（非 `_` 前缀）数量超过 3 个。
+- 单类公开方法数量超过 20 个。
+- 单个函数/方法体超过 50 行（不含注释和空行）。
 - 禁止在大文件上继续追加新职责（无论是否超线）
 
-## 🚫 上帝类反模式识别
+`scripts/check_file_sizes.py` 对超过阻断线且没有评审记录的新文件阻断提交。评审后有三种合法结果：
 
-满足以下任一条件即判定为上帝类，必须进入拆分流程：
+- `split_by_responsibility`：职责混杂，按稳定边界拆分并补独立测试。
+- `keep_cohesive_with_review`：职责高度内聚，在 `OVERSIZE_REVIEW_NOTES` 写明保留理由。
+- `defer_with_boundary_plan`：暂时无法安全拆分，记录候选边界并禁止继续追加无关职责。
+
+不得把评审记录当成永久白名单；每次修改超线文件仍要确认本次改动是否引入新的变化原因。
+
+## 上帝类判定
+
+出现以下多个证据时，才把模块判定为上帝类并进入拆分设计：
 
 - 单类/单模块同时承担 **≥ 4 类职责**（如：路由解析 + 业务逻辑 + DB 操作 + 外部 API 同时存在）
-- 单个函数体超过 **50 行**
-- 单文件同时包含 **≥ 4 个公开类**
-- 单文件 import 跨越 **≥ 3 个不同功能模块**
-- 同一函数既有 I/O 操作又有复杂业务逻辑判断
+- 不同业务需求经常修改同一文件的不同区域，存在多个独立变化原因。
+- 单元测试无法隔离某项职责，必须装配大量无关依赖。
+- 依赖方向跨越 `api → service → repository → models` 边界或出现循环依赖。
+- 某个子能力已有稳定输入输出合同，可以被独立 mock、替换和复用。
 
-## ⚠️ 当前存量警戒文件
+以下情况不应仅因行数偏长而拆分：
 
-> 最后更新：2026-05-29（重复代码消除重构后）
+- 声明式映射、协议字段表、有限状态转换或单一领域规则集中表达更清晰。
+- 拆分后每个文件只剩薄转发，阅读一条调用链需要跨越多个文件。
+- 抽取会迫使调用方传递大量内部状态或增加 callback/闭包耦合。
+- 代码虽长，但只有一个业务所有者、一个变化原因和一套可独立测试的输入输出。
 
-| 文件 | 实测行数 | 阈值 | 状态 |
-|------|---------|------|------|
-| `app/repository/knowledge_repo.py` | 576 行 | 150 warning / 250 blocking | 🚨 严重超线，禁止追加 |
-| `app/service/youzan/event_item.py` | 410 行 | 150 warning / 250 blocking | 🚨 严重超线，禁止追加 |
-| `app/database.py` | 411 行 | （初始化脚本，单职责豁免评估中） | ⚠️ 关注 |
-| `app/service/observability.py` | 383 行 | 220 warning / 320 blocking | 🚨 超硬上限 |
-| `app/service/chat.py` | 381 行 | 220 warning / 320 blocking | 🚨 超硬上限 |
-| `app/api/admin.py` | 360 行 | 250 warning / 350 blocking | 🚨 超硬上限 |
-| `app/api/webhook.py` | 332 行 | 250 warning / 350 blocking | ⚠️ 超警戒线 |
-| `app/service/youzan/event_trade.py` | 193 行 | 150 warning / 250 blocking | ⚠️ 超警戒线（已从 257 降至 193） |
-| `app/service/llm/function_tool_order.py` | 175 行 | 120 warning / 180 blocking | ⚠️ 超警戒线（已从 219 降至 175） |
-| `app/service/llm/function_tool_product.py` | 265 行 | 120 warning / 180 blocking | 🚨 严重超线 |
-| `app/service/llm/functions.py` | 72 行 | 120 warning / 180 blocking | ✅ 绿区 |
+## 存量文件来源
 
-**修改以上任何文件前，必须先走 `large-file-refactor-review` 工作流，且不得追加新职责。**
+存量超线文件和评审说明以 `scripts/check_file_sizes.py` 的 `OVERSIZE_REVIEW_NOTES` 为唯一来源。不要在 Skill 中复制易过期的行数表。
 
-## 🧭 拆分方向指引
+修改超线文件前先读评审说明，并验证本次改动没有新增无关职责。只有职责评审结论为 `split_by_responsibility` 时，才进入 `large-file-refactor-review` 工作流。
 
-### `admin.py`（页面路由 + API 路由 + 认证混杂）
+## 职责评审流程
 
-建议拆分为：
+1. 列出文件当前职责、公开入口、主要依赖和最近三类变化原因。
+2. 区分“同一职责的多个步骤”和“可独立变化的多个职责”，不要把步骤数量当职责数量。
+3. 为每个候选拆分回答：能否独立测试、接口是否稳定、是否减少依赖、是否避免循环。
+4. 比较保留与拆分后的认知成本；跨文件跳转、胶水代码和状态传递都计入成本。
+5. 输出明确结论：`split_by_responsibility`、`keep_cohesive_with_review` 或 `defer_with_boundary_plan`。
 
-```
-app/api/
-├── admin_pages.py    # 页面路由（login/dashboard/transfers/chat-test）
-├── admin_api.py      # API 路由（CRUD/transfer ops/session query）
-└── admin_auth.py     # 认证依赖（token 验证/cookie 验证）
-```
+## 好的拆分标准
 
-### `chat.py`（已拆分完成 ✅）
+- 新单元有可命名的业务职责，而不是 `part1.py`、`helpers2.py` 或按行号分段。
+- 新单元能用少量参数调用，能独立 mock 和测试。
+- 原模块对新单元只通过稳定接口依赖，不泄漏大量内部可变状态。
+- 拆分减少变化耦合、依赖数量或测试装配成本，至少改善一项可说明的工程指标。
+- 不引入循环依赖，不穿透项目分层。
 
-实际拆分结果：
-
-```
-app/service/
-├── chat.py                        # 保留：AI 对话循环 + 入口调度（291 行）
-└── youzan/
-    ├── event_handler.py           # 新增：YouzanEventHandler 分发器（51 行）
-    ├── event_trade.py             # 新增：交易事件处理（126 行）
-    └── event_item.py              # 新增：商品事件处理 + RAG 同步（215 行）
-```
-
-### `functions.py`（已拆分完成 ✅）
-
-实际拆分结果：
-
-```
-app/service/llm/
-├── function_defs.py          # 新增：FUNCTION_DEFINITIONS + 常量（82 行）
-├── function_tool_order.py    # 新增：get_order_info + get_logistics_info（143 行）
-├── function_tool_product.py  # 新增：get_product_info + search_knowledge（83 行）
-└── functions.py              # 保留：dispatch_tool + re-export 向后兼容（72 行）
-```
-
-## 🔧 检查方法（PowerShell）
+## 检查方法（PowerShell）
 
 ```powershell
+# 运行机器门禁并读取存量职责评审说明
+python scripts/check_file_sizes.py
+python scripts/check_project.py --skip-tests
+
 # 查看所有 .py 文件行数排序
 Get-ChildItem -Recurse -Filter "*.py" -Path "app" |
   ForEach-Object { [PSCustomObject]@{File=$_.Name; Lines=@(Get-Content $_.FullName).Count} } |
@@ -117,18 +118,26 @@ $content = Get-Content "app/service/chat.py"
 # 人工结合 IDE 展开查看各函数体行数
 ```
 
-## 拆分前 3 问自检（任一为 No 就不拆）
+## 评审记录模板
 
-1. 抽出后的单元能否被独立 mock 测试？
-1. 抽出后原文件与新文件的职责边界是否更清晰？
-1. 抽出是否会引入循环依赖、过多 callback、或破坏已有调用链？
+```text
+file:
+size_signal:
+current_responsibilities:
+independent_change_reasons:
+candidate_boundary:
+testability_after_split:
+coupling_cost:
+decision: split_by_responsibility | keep_cohesive_with_review | defer_with_boundary_plan
+rationale:
+verification:
+```
 
-## ✅ 拆分 Review Checklist
+## 验收清单
 
-- [ ] 行数已回归阈值内（主文件 + 新文件均在警戒线下）
-- [ ] 单文件公开类 ≤ 3，单类公开方法 ≤ 20
-- [ ] 单函数体 ≤ 50 行
-- [ ] 拆分后无循环依赖（分层方向：`api → service → repository → models`）
-- [ ] 原调用方 import 路径无需修改（或已做向后兼容 re-export）
-- [ ] 相关测试仍通过
-- [ ] `LOGBOOK.md` 已更新
+- [ ] 已说明职责和变化原因，而不是只报告行数。
+- [ ] 若拆分，新文件具有稳定职责、独立测试价值和清晰依赖方向。
+- [ ] 若保留超线文件，已记录内聚性理由和禁止追加的新职责范围。
+- [ ] 未产生薄转发壳、碎片 helper、循环依赖或大量状态穿透。
+- [ ] 相关测试、`check_file_sizes.py` 和项目门禁通过。
+- [ ] 长期决策或存量风险已同步 LOGBOOK、ADR 或评审说明。

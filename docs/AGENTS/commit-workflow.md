@@ -14,7 +14,7 @@ ______________________________________________________________________
 5. **检查工作区临时产物**：先执行 `git status --short`，确认不存在 `.tmp-*.log`、`.codex-server*.log`、`.superpowers/` 等本地临时文件；如存在，必须先清理
 6. **运行验证**：按 `docs/harness-engineering/core/verification-matrix.md` 选择最低验证；文档变更至少完成 `Test-Path` / `Select-String` 之类的链接与关键词检查，代码变更再运行对应测试
 7. **git add + commit**（pre-commit 会自动执行以下操作）：
-   - **版本号自动递增**：根据提交信息自动递增 `VERSION` 文件（feat→minor, fix→patch, feat!→major）
+   - **版本号自动递增**：根据提交信息自动递增 `VERSION`，同步项目进度表头，并把两个文件加入同一次提交；未知表头会阻断（feat→minor, fix→patch, feat!→major）
    - **文档同步检查**：校验 LOGBOOK.md 和项目进度与配置清单.md 已暂存
    - **质量门禁**：密钥扫描 + 文件体量 + 红线规则自测 + 全套测试
 8. **推送到两个远端**：`git push origin master && git push server master`

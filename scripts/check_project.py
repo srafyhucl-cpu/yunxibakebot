@@ -271,7 +271,7 @@ def check_known_magic_integers(app_dir: Path) -> CheckResult:
 
 
 def check_function_lengths(app_dir: Path) -> list[str]:
-    """扫描超过 FUNC_MAX_LINES 行的函数，返回警告列表（不阻断）。"""
+    """扫描超过职责评审线的函数，返回非阻断信号。"""
     warnings: list[str] = []
     for file_path in iter_python_files((app_dir,)):
         tree = _parse_ast(file_path)
@@ -286,7 +286,8 @@ def check_function_lengths(app_dir: Path) -> list[str]:
             if func_lines > FUNC_MAX_LINES:
                 rel = file_path.relative_to(ROOT_DIR)
                 warnings.append(
-                    f"{rel}:{node.lineno}: `{node.name}()` {func_lines} 行（上限 {FUNC_MAX_LINES}）"
+                    f"{rel}:{node.lineno}: `{node.name}()` {func_lines} 行"
+                    f"（职责评审线 {FUNC_MAX_LINES}）"
                 )
     return warnings
 
@@ -388,7 +389,10 @@ def main() -> int:
 
     func_length_warnings = check_function_lengths(APP_DIR)
     if func_length_warnings:
-        print(f"\n[函数行数警告（{len(func_length_warnings)} 处，暂不阻断）]")
+        print(
+            f"\n[函数职责评审信号（{len(func_length_warnings)} 处，"
+            "不因行数自动要求拆分）]"
+        )
         for warning in func_length_warnings:
             print(f"WARN {warning}")
 
