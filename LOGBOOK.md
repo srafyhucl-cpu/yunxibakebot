@@ -21,8 +21,15 @@
   - `python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary` 按预期失败，等待 `0.105.13` 部署后的生产 release evidence。
   - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`total=41 failed=0`。
   - `python scripts\check_project.py --skip-tests` 通过，默认业务合约包含 `langchain_release_evidence_packet status=passed packet_ready=false failed=0`。
+  - 本地和生产 `/opt/yunxibakebot` 均确认位于 `bae86cead38722d7ec30e9b703456a2c9cc4ea51`，`VERSION=0.105.13`。
+  - 生产执行 `systemctl restart yunxibakebot` 后服务为 `active`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.13`。
+  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 通过，`production_runtime=ok`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`total=8 failed=0`。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 通过，`production_versions=0.105.13`、`callback_failed=0`、`capacity_runtime=ok`。
+  - `python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary` 通过，`packet_ready=true`。
 - **后续**:
-  - 提交推送并部署 `0.105.13` 后，复跑加强 release gate、P13b 生产观测发布复核和 `build_langchain_release_evidence_packet.py --require-production-evidence --summary`，让 `packet_ready=true`。
+  - P22a 生产发布证据包已收口。下一步继续 P17b 首批真实脱敏样本接入；没有真实样本前继续保持 `candidate_ready=false` 和 `real_sample_ready=false`。
 
 ## [2026-07-10] - fix(ops): 允许待发货 callback 探针受控空结果
 - **操作人**: AI (Codex)
