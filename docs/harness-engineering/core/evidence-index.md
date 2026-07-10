@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-039：LangChain AI 应用层 P21d 生产观测发布证据容量校验
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local-production/p21d-production-observability-capacity-evidence
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_production_observability_release.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_production_observability_release.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_check_langchain_production_observability_release.py -q --no-cov`; `python -m ruff check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py`; `python -m ruff format --check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`
+- result: pass
+- related_logbook: 2026-07-10 - feat(ops): 将容量证据纳入生产观测发布门禁
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只复核 release gate JSON 是否包含生产容量证据；不做压测、不读取业务数据库、不调用外部 LLM、不向 LangSmith 外发。release gate JSON 和 capacity JSON 位于 gitignored reports 目录。
+- summary: P21d 将 `langchain_ai_layer_capacity` 纳入 P13b 生产观测发布证据门禁。当前在生产 `0.105.9` 与本地版本匹配时加强 release gate 和 P13b 门禁均通过，P13b summary 输出 `capacity_runtime=ok`；`0.105.10` 部署后需复验并补生产同步证据。
+
 ## E-20260710-038：LangChain AI 应用层 P21c 生产资源观测 release gate 加强模式
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

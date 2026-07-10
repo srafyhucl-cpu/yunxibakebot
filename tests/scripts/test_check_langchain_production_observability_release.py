@@ -29,6 +29,8 @@ def test_passes_when_release_report_has_matching_production_evidence(
     }
     assert report["observability"]["langsmith_enabled"] is False
     assert report["observability"]["langsmith_enabled_explicit"] is True
+    assert report["capacity"]["production_runtime_status"] == "ok"
+    assert report["capacity"]["service_active"] is True
 
 
 def test_fails_current_production_drift_shape(tmp_path: Path) -> None:
@@ -89,6 +91,47 @@ def test_requires_explicit_langsmith_status(tmp_path: Path) -> None:
     assert report["status"] == "failed"
     assert "langsmith_status.missing" in finding_codes
     assert report["observability"]["langsmith_enabled_explicit"] is False
+
+
+def test_requires_capacity_evidence(tmp_path: Path) -> None:
+    report_path = tmp_path / "release.json"
+    payload = build_release_payload()
+    payload["release_summary"].pop("langchain_ai_layer_capacity")
+    report_path.write_text(
+        checker.json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    report = checker.build_production_observability_release_report(
+        report_path,
+        expected_version="0.97.2",
+    )
+    finding_codes = [finding["code"] for finding in report["findings"]]
+
+    assert report["status"] == "failed"
+    assert "capacity_evidence.missing" in finding_codes
+    assert report["capacity"]["production_runtime_status"] == "missing"
+
+
+def test_rejects_capacity_version_drift(tmp_path: Path) -> None:
+    report_path = tmp_path / "release.json"
+    payload = build_release_payload()
+    capacity = payload["release_summary"]["langchain_ai_layer_capacity"]
+    capacity["version"] = "0.0.0"
+    capacity["health_version"] = "0.0.0"
+    report_path.write_text(
+        checker.json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    report = checker.build_production_observability_release_report(
+        report_path,
+        expected_version="0.97.2",
+    )
+    finding_codes = [finding["code"] for finding in report["findings"]]
+
+    assert report["status"] == "failed"
+    assert "capacity_version_mismatch" in finding_codes
 
 
 def test_main_writes_json_and_summary(tmp_path: Path, capsys) -> None:
@@ -173,6 +216,20 @@ def build_release_payload(
                 "trace_status": "ok",
                 "trace_total_runs": 2,
                 "langsmith_enabled": False,
+            },
+            "langchain_ai_layer_capacity": {
+                "status": "passed",
+                "failed": 0,
+                "trace_latency_ms": 2500.0,
+                "payload_bytes": 2227,
+                "production_runtime_status": "ok",
+                "service_active": True,
+                "version": health_version,
+                "health_version": health_version,
+                "ready_version": ready_version,
+                "rss_mb": 80.0,
+                "mem_available_mb": 512.0,
+                "load1": 0.2,
             },
         },
     }

@@ -58,6 +58,7 @@ def build_production_observability_release_report(
         release_summary,
         "langchain_observability_evidence",
     )
+    capacity = dict_value(release_summary, "langchain_ai_layer_capacity")
     production_versions = extract_production_endpoint_versions(production_smoke)
     callback_failed_names = list_value(callback_probe, "failed_names")
     langsmith_enabled = observability.get("langsmith_enabled")
@@ -86,6 +87,20 @@ def build_production_observability_release_report(
             "trace_total_runs": observability.get("trace_total_runs", 0),
             "langsmith_enabled": langsmith_enabled,
             "langsmith_enabled_explicit": "langsmith_enabled" in observability,
+        },
+        "capacity": {
+            "status": capacity.get("status", "missing"),
+            "failed": capacity.get("failed", 0),
+            "production_runtime_status": capacity.get(
+                "production_runtime_status", "missing"
+            ),
+            "service_active": capacity.get("service_active", False),
+            "version": capacity.get("version", ""),
+            "health_version": capacity.get("health_version", ""),
+            "ready_version": capacity.get("ready_version", ""),
+            "rss_mb": capacity.get("rss_mb", 0.0),
+            "mem_available_mb": capacity.get("mem_available_mb", 0.0),
+            "load1": capacity.get("load1", 0.0),
         },
     }
 
@@ -125,15 +140,93 @@ def collect_release_findings(
         release_summary,
         "langchain_observability_evidence",
     )
+    capacity = dict_value(release_summary, "langchain_ai_layer_capacity")
     findings.extend(check_production_smoke(production_smoke))
     findings.extend(check_callback_probe(callback_probe))
     findings.extend(check_observability_evidence(observability))
+    findings.extend(
+        check_capacity_evidence(
+            capacity,
+            expected_app_version=expected_app_version,
+        )
+    )
     findings.extend(
         check_production_versions(
             production_smoke,
             expected_app_version=expected_app_version,
         )
     )
+    return findings
+
+
+def check_capacity_evidence(
+    capacity: dict[str, object],
+    *,
+    expected_app_version: str,
+) -> list[ReleaseFinding]:
+    findings: list[ReleaseFinding] = []
+    if not capacity:
+        return [
+            ReleaseFinding(
+                "capacity_evidence.missing",
+                "release summary 缺少 langchain_ai_layer_capacity。",
+                {},
+            )
+        ]
+    if capacity.get("status") != "passed" or capacity.get("failed") != 0:
+        findings.append(
+            ReleaseFinding(
+                "capacity_evidence.failed",
+                "LangChain AI 层容量门禁未通过。",
+                {
+                    "status": capacity.get("status", "missing"),
+                    "failed": capacity.get("failed", 0),
+                },
+            )
+        )
+    if capacity.get("production_runtime_status") != "ok":
+        findings.append(
+            ReleaseFinding(
+                "capacity_production_runtime.failed",
+                "生产只读资源观测未通过。",
+                {
+                    "production_runtime_status": capacity.get(
+                        "production_runtime_status", "missing"
+                    ),
+                    "service_active": capacity.get("service_active", False),
+                },
+            )
+        )
+    if capacity.get("service_active") is not True:
+        findings.append(
+            ReleaseFinding(
+                "capacity_service.inactive",
+                "容量报告显示生产服务不是 active。",
+                {"service_active": capacity.get("service_active", False)},
+            )
+        )
+    version_fields = {
+        "version": capacity.get("version", ""),
+        "health_version": capacity.get("health_version", ""),
+        "ready_version": capacity.get("ready_version", ""),
+    }
+    mismatched_versions = {
+        name: version
+        for name, version in version_fields.items()
+        if version != expected_app_version
+    }
+    if mismatched_versions:
+        findings.append(
+            ReleaseFinding(
+                "capacity_version_mismatch",
+                "容量报告中的生产版本与本地目标版本不一致。",
+                {
+                    "expected_app_version": expected_app_version,
+                    "versions": version_fields,
+                    "mismatched_versions": mismatched_versions,
+                },
+            )
+        )
     return findings
 
 
@@ -357,6 +450,7 @@ def main(argv: list[str] | None = None) -> int:
 def print_summary(report: dict[str, object]) -> None:
     production = dict_value(report, "production")
     observability = dict_value(report, "observability")
+    capacity = dict_value(report, "capacity")
     endpoint_versions = dict_value(production, "endpoint_versions")
     version_values = sorted(set(str(value) for value in endpoint_versions.values()))
     print(
@@ -365,7 +459,8 @@ def print_summary(report: dict[str, object]) -> None:
         f"expected_version={report['expected_app_version']} "
         f"production_versions={','.join(version_values) or 'missing'} "
         f"callback_failed={production.get('callback_failed', 0)} "
-        f"langsmith_enabled={str(observability.get('langsmith_enabled')).lower()}"
+        f"langsmith_enabled={str(observability.get('langsmith_enabled')).lower()} "
+        f"capacity_runtime={capacity.get('production_runtime_status', 'missing')}"
     )
     for finding in list_value(report, "findings"):
         if isinstance(finding, dict):

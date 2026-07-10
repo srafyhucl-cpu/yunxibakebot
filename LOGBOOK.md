@@ -1,4 +1,26 @@
 ﻿
+## [2026-07-10] - feat(ops): 将容量证据纳入生产观测发布门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P21c 已让 release gate 能生成 `langchain_ai_layer_capacity` 摘要，但 P13b 生产观测发布证据门禁还没有强制检查该摘要。上线收口时如果缺少 capacity 证据，旧门禁仍可能通过。
+- **决策**:
+  - 扩展 `scripts/check_langchain_production_observability_release.py`，要求 release summary 中必须存在 `langchain_ai_layer_capacity`。
+  - 新增容量证据失败、生产 runtime 非 ok、服务非 active、容量报告版本漂移等 finding。
+  - summary 输出新增 `capacity_runtime` 字段，便于发布日志直接识别。
+  - 本切片只复核 release gate JSON，不改变线上热路径、不做压测、不读取业务数据库。
+- **改动**:
+  - `scripts/check_langchain_production_observability_release.py` - 新增 capacity summary 抽取、校验和 summary 输出。
+  - `tests/scripts/test_check_langchain_production_observability_release.py` - 覆盖通过样例、缺失 capacity 和 capacity 版本漂移。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/harness-engineering/core/evidence-index.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P21d 追溯记录和版本 `0.105.10`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_check_langchain_production_observability_release.py -q --no-cov` 通过，6 项失败 0。
+  - `python -m ruff check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py` 通过。
+  - `python -m ruff format --check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py` 通过。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.9` 与本地版本匹配时通过，`total=8 failed=0`。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.9` 与本地版本匹配时通过，输出 `capacity_runtime=ok`。
+- **后续**:
+  - 部署 `0.105.10` 后复跑 P21d release gate 和 P13b 门禁，并把生产复验结果补入 evidence index。
+
 ## [2026-07-10] - feat(ops): 将生产资源观测接入 release gate 加强模式
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
