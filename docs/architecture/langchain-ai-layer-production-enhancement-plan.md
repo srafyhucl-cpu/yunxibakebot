@@ -2,7 +2,7 @@
 
 > trace_id: `20260709-langchain-ai-layer-production-enhancement`
 > 日期：2026-07-09
-> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告、P19b 真实 RAG shadow log 观测输入门禁、P21a LangChain AI 层容量门禁、P21b 生产只读资源观测门禁、P21c 生产资源观测 release gate 加强模式和 P21d 生产观测发布证据容量校验已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
+> 状态：持续执行中，P0-P14c 已完成；P12 样本池准入门禁、P13a 观测证据包、P13b 生产观测发布证据门禁、P14a 生产同步交接报告、P14b 生产运行时版本门禁、P14c callback 失败定位报告入口、P14c callback 稳定化本地修复与生产复验、P15a 真实 replay 样本池脱敏证明准入、P16a LangSmith 运行时配置预检、P17a 真实脱敏回放样本接入准备度报告、P17b-prep 真实 replay pool 条目草稿生成器、P17b-intake 外部接入操作包、P17b-candidate 真实 replay 候选样本准入审计、P18a LangSmith 生产灰度发布预检、P18b LangSmith 生产启用操作包、P19a RAG shadow 观测报告、P19b 真实 RAG shadow log 观测输入门禁、P21a LangChain AI 层容量门禁、P21b 生产只读资源观测门禁、P21c 生产资源观测 release gate 加强模式和 P21d 生产观测发布证据容量校验已完成，下一步建议进入 P17b 首批真实脱敏样本接入；若生产 LangSmith 已完成人工外发合规和 key 注入，也可继续 P18c 小流量外发灰度。
 > 前置成果：[LangChain 生态全面接管 AI 应用层计划书](./langchain-ecosystem-ai-layer-takeover-plan.md)
 > 作品集入口：[LangChain AI 应用层作品集说明](./langchain-ai-layer-portfolio.md)
 
@@ -1808,6 +1808,29 @@ python -m ruff format --check scripts\build_real_conversation_replay_intake_pack
 python scripts\build_real_conversation_replay_intake_packet.py --summary
 python scripts\check_real_conversation_replay_intake_readiness.py --summary
 python scripts\check_langchain_ai_layer_production_plan.py --summary
+```
+
+## 三十四点一、P17b-candidate 真实 replay 候选样本准入审计
+
+2026-07-10 已完成 P17b 的候选样本准入审计切片：
+
+- 新增 `scripts/audit_real_conversation_replay_candidate.py`，用于在真实脱敏 replay fixture 写入样本池 manifest 前做只读审计。
+- 默认无输入时报告通过但明确 `candidate_ready=false`，并输出 `provide_redacted_real_replay_candidate_fixture`；严格模式 `--require-fixture` 缺输入会失败，避免把没有真实候选样本误报为可接入。
+- 有候选 fixture 时，审计会复用 `check_real_conversation_replay.py` 和 `check_real_conversation_replay_coverage.py`，同时检查 `metadata.contains_sensitive_data=false`、fixture 来源不是 `synthetic/schema_sample/contract_shape_only`、脱敏 metadata 存在。
+- 真实候选必须显式提供 `source_type=real_customer_conversation`、脱敏方法、脱敏审核人、审核时间、`raw_source_retention=not_committed` 和 evidence ID。
+- 报告会输出 `manifest_entry_draft` 供人工确认，但不会修改 manifest、不读取原始客户会话、不访问业务数据库、不调用外部 LLM、不提交真实客户数据。
+- `scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入默认 readiness 报告，防止 P17b 候选准入审计入口丢失。
+
+P17b-candidate 验收：
+
+```powershell
+python -m pytest tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov
+python -m ruff check scripts\audit_real_conversation_replay_candidate.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python -m ruff format --check scripts\audit_real_conversation_replay_candidate.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py
+python scripts\audit_real_conversation_replay_candidate.py --summary
+python scripts\audit_real_conversation_replay_candidate.py --require-fixture --summary
+python scripts\check_langchain_ai_layer_production_plan.py --summary
+python scripts\check_project.py --skip-tests
 ```
 
 ## 三十五、P18a LangSmith 生产灰度发布预检

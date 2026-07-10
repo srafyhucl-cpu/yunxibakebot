@@ -40,6 +40,10 @@ def test_langchain_ai_layer_production_plan_detects_missing_boundary() -> None:
         in report["failed_names"]
     )
     assert (
+        "artifact.scripts/audit_real_conversation_replay_candidate.py"
+        in report["failed_names"]
+    )
+    assert (
         "artifact.scripts/check_langsmith_production_rollout.py"
         in report["failed_names"]
     )

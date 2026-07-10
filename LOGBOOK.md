@@ -1,4 +1,30 @@
 ﻿
+## [2026-07-10] - feat(eval): 增加真实 replay 候选样本准入审计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: P17b 真实样本接入仍等待仓库外真实脱敏客服会话。已有导出器、外部接入包和 manifest 草稿生成器，但真实 fixture 写入样本池前还缺一个只读候选审计入口，容易把来源证明、脱敏审核和 coverage 检查分散在人工步骤里。
+- **决策**:
+  - 新增 `scripts/audit_real_conversation_replay_candidate.py`，在真实 replay fixture 进入 pool manifest 前做候选审计。
+  - 默认无输入时通过但明确 `candidate_ready=false`；严格模式 `--require-fixture` 缺输入失败。
+  - 有候选 fixture 时复用 replay 与 coverage 门禁，并要求真实来源类型、脱敏方法、审核人、审核时间、原始来源不入仓声明和 evidence ID。
+  - 审计只生成 `manifest_entry_draft`，不修改 manifest、不读取原始客户会话、不访问业务数据库、不调用外部 LLM、不提交真实客户数据。
+- **改动**:
+  - `scripts/audit_real_conversation_replay_candidate.py` - 新增候选样本准入审计报告和 CLI。
+  - `tests/scripts/test_audit_real_conversation_replay_candidate.py` - 覆盖默认 readiness、strict 缺输入、合成来源拒绝、隐私模式拒绝、有效候选 draft 和 CLI 写 JSON。
+  - `scripts/check_project.py`、`scripts/check_langchain_ai_layer_production_plan.py`、`tests/scripts/test_check_langchain_ai_layer_production_plan.py` - 接入默认门禁和计划静态验收。
+  - `docs/architecture/langchain-ai-layer-production-enhancement-plan.md`、`docs/architecture/langchain-ai-layer-next-execution-plan.md`、`项目进度与配置清单.md`、`VERSION` - 同步 P17b-candidate 追溯记录和版本 `0.105.11`。
+- **验证结果**:
+  - `python -m pytest tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov` 通过，11 项失败 0。
+  - `python -m ruff check scripts\audit_real_conversation_replay_candidate.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python -m ruff format --check scripts\audit_real_conversation_replay_candidate.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py` 通过。
+  - `python scripts\audit_real_conversation_replay_candidate.py --summary` 通过，`candidate_ready=false`。
+  - `python scripts\audit_real_conversation_replay_candidate.py --require-fixture --summary` 按预期失败，`candidate_ready=false failed=1`。
+  - `python scripts\check_langchain_ai_layer_production_plan.py --summary` 通过，`total=40 failed=0`。
+  - `python scripts\check_evidence_index.py --summary` 通过，`total=221 failed=0`。
+  - `python scripts\check_project.py --skip-tests` 通过，默认业务合约包含 `real_conversation_replay_candidate_audit status=passed candidate_ready=false failed=0`。
+- **后续**:
+  - 真正让 `candidate_ready=true` 仍需要仓库外真实脱敏 replay fixture 和人工脱敏审核证明；不能用合成 fixture 冒充真实样本。
+
 ## [2026-07-10] - feat(ops): 将容量证据纳入生产观测发布门禁
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement

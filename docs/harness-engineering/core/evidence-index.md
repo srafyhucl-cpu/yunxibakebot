@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-040：LangChain AI 应用层 P17b-candidate 真实 replay 候选样本准入审计
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: local/p17b-candidate-real-replay-candidate-audit
+- file: `D:\Project\YunxiBakeBot\scripts\audit_real_conversation_replay_candidate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_audit_real_conversation_replay_candidate.py`; `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_production_plan.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py -q --no-cov`; `python -m ruff check scripts\audit_real_conversation_replay_candidate.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python -m ruff format --check scripts\audit_real_conversation_replay_candidate.py scripts\check_langchain_ai_layer_production_plan.py scripts\check_project.py tests\scripts\test_audit_real_conversation_replay_candidate.py tests\scripts\test_check_langchain_ai_layer_production_plan.py`; `python scripts\audit_real_conversation_replay_candidate.py --summary`; `python scripts\audit_real_conversation_replay_candidate.py --require-fixture --summary`; `python scripts\check_langchain_ai_layer_production_plan.py --summary`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-10 - feat(eval): 增加真实 replay 候选样本准入审计
+- related_adr: 0003-langchain-ai-layer-boundary
+- contains_sensitive_data: no
+- retention_note: 本轮只新增真实 replay 候选 fixture 的只读审计入口；默认无输入时不声称真实候选样本已准备好。脚本不读取原始客户会话、不修改 manifest、不访问业务数据库、不调用外部 LLM、不提交真实客户数据。
+- summary: P17b-candidate 新增真实 replay 候选样本准入审计。默认报告通过但 `candidate_ready=false`，strict 模式缺 fixture 按预期失败；有 fixture 时复用 replay 与 coverage 门禁，并要求真实来源、脱敏审核、原始来源不入仓和 evidence ID。该切片把真实样本接入前的人工审核条件固化为机器门禁，但当前仓库仍未接入真实脱敏客户样本。
+
 ## E-20260710-039：LangChain AI 应用层 P21d 生产观测发布证据容量校验
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
