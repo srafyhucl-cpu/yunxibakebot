@@ -18,8 +18,15 @@
   - `python -m ruff format --check scripts\check_langchain_production_observability_release.py tests\scripts\test_check_langchain_production_observability_release.py` 通过。
   - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.9` 与本地版本匹配时通过，`total=8 failed=0`。
   - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.9` 与本地版本匹配时通过，输出 `capacity_runtime=ok`。
+  - 本地 commit `b4ff71344b0b28501e4832dd5e7acba6f3b8c1ce` 已推送到 `origin/master` 和 `server/master`。
+  - 生产 `/opt/yunxibakebot` 已同步到 `b4ff71344b0b28501e4832dd5e7acba6f3b8c1ce`，`VERSION=0.105.10`。
+  - `systemctl restart yunxibakebot` 后服务为 `active`，公网 `/health` 和 `/ready` 均返回 `version=0.105.10`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`runtime_versions=0.105.10`。
+  - `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.10` 上通过，`total=8 failed=0`。
+  - `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary` 在生产 `0.105.10` 上通过，`production_versions=0.105.10`、`capacity_runtime=ok`。
+  - `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary` 通过，`production_runtime=ok`。
 - **后续**:
-  - 部署 `0.105.10` 后复跑 P21d release gate 和 P13b 门禁，并把生产复验结果补入 evidence index。
+  - P17b 首批真实脱敏样本接入仍需要真实客服样本来源；没有真实样本前继续保持 readiness=false，不伪造数据。
 
 ## [2026-07-10] - feat(ops): 将生产资源观测接入 release gate 加强模式
 - **操作人**: AI (Codex)
