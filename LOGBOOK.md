@@ -1,4 +1,24 @@
 ﻿
+## [2026-07-10] - ops: 完成 P17b 工具链增强与 Harness 治理生产收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260709-langchain-ai-layer-production-enhancement
+- **背景**: `37bfc58 / 0.105.14` 已推送到 `origin/master` 和 `server/master`，生产工作树已同步，但公网进程仍运行 `0.105.13`，需要重启并按 LangChain 生产增强证据标准复验。
+- **操作**:
+  - 重启 `yunxibakebot` 并确认服务 active。
+  - 复核生产工作树 commit、VERSION、工作区和公网 `/health`、`/ready`。
+  - 运行生产 runtime gate、带 production smoke/observability/runtime capacity 的加强 release gate、P13b 发布观测复核和严格发布证据包。
+- **验证结果**:
+  - 生产工作树为 `37bfc58182124aad6b0f09f274f7893f435fada3`，`VERSION=0.105.14`，工作区干净，服务 active。
+  - `/health` 返回 `status=ok version=0.105.14`；`/ready` 返回 `status=ready version=0.105.14`。
+  - `python scripts\check_langchain_production_runtime_version.py --summary` 通过，`failed=0 runtime_versions=0.105.14`。
+  - 加强 release gate 通过，`total=8 failed=0`。
+  - P13b 生产观测发布复核通过，`failed=0 callback_failed=0 capacity_runtime=ok`。
+  - 生产容量门禁通过，`production_runtime=ok`。
+  - 严格发布证据包通过，`packet_ready=true failed=0`。
+- **边界**:
+  - 本次部署只包含 P17b 接入工具、测试和 Harness 治理，不接入真实客服样本、不启用 LangSmith 外发、不改变 RAG 默认 `hybrid` 模式。
+  - `candidate_ready=false`、`real_sample_ready=false` 仍是正确状态。
+
 ## [2026-07-10] - fix(harness): 修复版本与进度清单同步假成功
 - **操作人**: AI (Codex)
 - **trace_id**: 20260710-version-progress-sync

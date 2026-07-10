@@ -1,4 +1,18 @@
 ﻿
+## E-20260710-047：P17b 工具链增强与 Harness 治理生产收口
+
+- trace_id: 20260709-langchain-ai-layer-production-enhancement
+- generated_at: 2026-07-10
+- evidence_type: production/p17b-intake-file-governance-release-closure
+- file: `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-next-enhancement-execution-plan.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/yunxibakebot`
+- command: `git push origin master`; `git push server master`; `git ls-remote origin refs/heads/master`; `git ls-remote server refs/heads/master`; production `systemctl restart yunxibakebot`; production `git rev-parse HEAD`; production `cat VERSION`; production `git status --short`; production `systemctl is-active yunxibakebot`; production `/health`; production `/ready`; `python scripts\check_langchain_production_runtime_version.py --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --include-observability-evidence --include-production-runtime-capacity --json-out reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_production_observability_release.py --report reports\agent-eval\langchain-ai-layer-release-gate-with-production-observability-latest.json --summary`; `python scripts\check_langchain_ai_layer_capacity.py --include-production-runtime --summary`; `python scripts\build_langchain_release_evidence_packet.py --require-production-evidence --summary`
+- result: pass
+- related_logbook: 2026-07-10 - ops: 完成 P17b 工具链增强与 Harness 治理生产收口
+- related_adr: 0003-langchain-ai-layer-boundary; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 报告只记录生产版本、release gate、callback 汇总、容量状态和 readiness 布尔值；不包含客户原文、手机号、地址、open_id、订单明细、callback token、AES key、API key、服务器密码或私钥。JSON 位于 gitignored reports 目录。
+- summary: `37bfc58 / 0.105.14` 已同步生产并重启，runtime、加强 release gate、P13b 发布观测复核、生产容量和严格证据包均通过，`packet_ready=true`。本轮不接入真实 replay 样本，`candidate_ready=false`、`real_sample_ready=false` 仍为正确边界。
+
 ## E-20260710-046：版本与项目进度表头同步修复
 
 - trace_id: 20260710-version-progress-sync

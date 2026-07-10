@@ -17,12 +17,12 @@
 
 ## 二、当前已收口基线
 
-截至 `0.105.13`：
+截至 `0.105.14`：
 
 1. 客户机器人主编排已由 LangGraph 接管。
 2. 员工助手主编排已由 LangGraph 接管。
 3. LangChain tool、retriever adapter、structured planner fallback、trace 报告、release gate 和生产证据包已落地。
-4. 生产 `/opt/yunxibakebot` 已部署 `0.105.13`，严格发布证据包已通过，`packet_ready=true`。
+4. 生产 `/opt/yunxibakebot` 已部署 `0.105.14 / 37bfc58`，严格发布证据包已通过，`packet_ready=true`。
 5. 真实脱敏样本仍未接入，`candidate_ready=false`、`real_sample_ready=false` 仍是正确状态。
 6. LangSmith 生产外发仍未启用，`langsmith_enabled=false` 仍是正确状态。
 7. RAG 生产默认模式仍为 `hybrid`；`planned-hybrid` 只能作为受控灰度候选，`planned-hybrid+rerank` 继续 shadow-only。
@@ -39,15 +39,15 @@
 
 ### 目标
 
-确认当前 `0.105.13` 生产发布证据已经收口，后续增强从干净基线开始。
+确认当前 `0.105.14` 生产发布证据已经收口，后续增强从干净基线开始。
 
 ### 当前状态
 
 已完成：
 
 ```text
-production commit=29b4822ec9fa5cafea9dd88ea559bb0df9042f3c
-runtime VERSION=0.105.13
+production commit=37bfc58182124aad6b0f09f274f7893f435fada3
+runtime VERSION=0.105.14
 service=active
 packet_ready=true
 ```
@@ -87,6 +87,7 @@ python scripts\check_evidence_index.py --summary
 2. 操作包命令链已显式包含真实来源标识、候选审计 JSON、真实来源类型和原始来源不入仓声明。
 3. `scripts\prepare_real_conversation_replay_pool_entry.py` CLI 已暴露 `--source-type` 和 `--raw-source-retention`，命令行声明会进入 manifest entry 草稿并受断言保护。
 4. 当前仍没有仓库外真实脱敏输入，因此 E1 尚未完成，`candidate_ready=false`、`real_sample_ready=false` 仍是正确状态。
+5. 接入模板与命令链增强已部署到生产 `0.105.14`；runtime、加强 release gate、P13b 复核和严格证据包均通过，但这不改变真实样本 readiness。
 
 ### 输入合同
 

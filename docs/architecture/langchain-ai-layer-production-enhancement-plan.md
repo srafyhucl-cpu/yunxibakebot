@@ -1801,6 +1801,7 @@ python scripts\check_real_conversation_replay_intake_readiness.py --summary
 - 操作包报告明确 `raw_customer_conversation_read=false`、`real_customer_data_committed=false`、`business_database_read=false` 和 `external_llm_called=false`；脚本不读取真实原始记录，只生成执行说明和门禁命令。
 - `scripts/check_real_conversation_replay_intake_readiness.py`、`scripts/check_langchain_ai_layer_production_plan.py` 和 `scripts/check_project.py --skip-tests` 已接入该脚本，防止真实样本接入入口丢失。
 - 当前仓库仍未接入真实客服样本，`real_sample_ready=false` 仍是正确状态；本切片不把合成样例算作真实样本。
+- 2026-07-10 接入模板与命令链增强已部署到生产 `0.105.14 / 37bfc58`；运行时版本门禁、加强 release gate `8/8`、P13b 复核和严格发布证据包均通过，`packet_ready=true`。这只证明工具链已部署，不代表真实样本已到位。
 
 P17b-intake 验收：
 
