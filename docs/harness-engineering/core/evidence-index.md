@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-078：生产 callback 与 inbox 聚合复验
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/callback-and-inbox-readonly-verification
+- file: `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; production `/opt/yunxibakebot/data/bot.db`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts/check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn`; production read-only `SELECT queue_name, status, COUNT(*) FROM inbox_events GROUP BY queue_name, status`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r2-r5): 生产 callback 与 inbox 聚合复验
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只保留版本、用例数量、失败数量和 inbox 状态聚合；不包含 callback 回复正文、客户原文、订单明细、员工 ID、密钥或数据库记录内容。
+- summary: 生产 `0.107.13` callback `61/61` 通过、失败 `0`；inbox 只读聚合为 `youzan_webhook/processed=58`，无处理中、失败或死信状态。该证据不替代真实崩溃注入、消息重复专项或主体删除专项。
+
 ## E-20260712-077：发布迁移异盘门禁并复验生产 fail-closed
 
 - trace_id: 20260711-global-risk-remediation

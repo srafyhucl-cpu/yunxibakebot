@@ -1,3 +1,12 @@
+## [2026-07-12] - verify(r2-r5): 生产 callback 与 inbox 聚合复验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 生产 `0.107.13` 员工 callback 探针 `61/61` 通过，失败 `0`，全部 HTTP 200。
+  - 生产 inbox 只读聚合为 `youzan_webhook/processed=58`，无 `processing`、`failed` 或 `dead_letter`。
+- **结论**: 当前版本的员工授权、统一转人工边界和持久 inbox 运行态保持正常；该证据不替代真实崩溃注入、消息重复专项或主体删除专项。
+- **边界**: 未保存或输出 callback 回复正文、客户原文、订单明细、员工 ID、密钥和数据库记录内容。
+
 ## [2026-07-12] - deploy(r4): 发布迁移异盘门禁并复验生产 fail-closed
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
