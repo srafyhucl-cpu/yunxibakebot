@@ -57,6 +57,12 @@ python -m pytest tests/test_red_line_rules.py -q --tb=short
 # 生产同构、数据隔离的主体删除与消息崩溃整改 Harness
 python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-remediation-harness --json
 
+# 完整隐私出站合同（本地静态/合成检查）
+python scripts/check_privacy_outbound_contract.py --summary
+
+# 完整隐私出站合同（额外核验生产布尔开关，不输出密钥）
+python scripts/check_privacy_outbound_contract.py --production-runtime --ssh-key $env:USERPROFILE\.ssh\id_ed25519 --summary
+
 # 立即创建一份本地 D 盘生产加密备份
 python scripts/local_production_backup.py --backup-dir D:\Backups\YunxiBakeBot --key-file D:\Backups\YunxiBakeBot\keys\backup.key --ssh-key $env:USERPROFILE\.ssh\id_ed25519
 

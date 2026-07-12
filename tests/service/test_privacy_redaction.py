@@ -69,3 +69,38 @@ def test_redaction_preserves_langchain_message_contract() -> None:
     assert isinstance(messages[2], ToolMessage)
     assert "13812345678" not in str(messages)
     assert "ORD-20260711" not in str(messages)
+
+
+def test_redaction_removes_structured_sensitive_fields_by_key() -> None:
+    messages = redact_external_messages(
+        [
+            {
+                "role": "tool",
+                "content": {
+                    "receiver_phone": "not-a-phone-format",
+                    "delivery_address": "望京SOHO T3 1201",
+                    "open_id": "short-id",
+                    "order_no": "short-order",
+                    "history_text": "没有格式特征的原始消息",
+                    "status": "paid",
+                },
+            }
+        ]
+    )
+
+    content = messages[0]["content"]
+    assert content == {
+        "receiver_phone": "<手机号>",
+        "delivery_address": "<地址>",
+        "open_id": "<open_id>",
+        "order_no": "<订单号>",
+        "history_text": "<原始消息>",
+        "status": "paid",
+    }
+
+
+def test_redaction_removes_unstructured_region_address() -> None:
+    redacted = redact_external_text("请送到北京市朝阳区望京SOHO三号楼")
+
+    assert "北京市朝阳区望京SOHO三号楼" not in redacted
+    assert "<地址>" in redacted

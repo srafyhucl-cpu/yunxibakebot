@@ -4488,3 +4488,15 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仓库只记录脚本、任务状态和脱敏结果；不记录备份密钥、客户数据、数据库内容或 SSH 私钥。加密备份保留在仓库外 D 盘，默认 30 天且至少 3 份，每次作业最多逐个清理一份过期文件。
 - summary: 直接运行和 Windows 计划任务实跑均成功；任务每天 03:30 执行，首次 `LastTaskResult=0`。D 盘现有 3 份 AES-256-GCM 备份，本地和生产 `/dev/shm` 无明文临时快照残留；生产持久挂载仍未配置。
+## E-20260712-086：生产隐私出站聚合审计
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/privacy-outbound-contract-audit
+- file: `D:\Project\YunxiBakeBot\app\service\privacy_redaction.py`; `D:\Project\YunxiBakeBot\scripts\check_privacy_outbound_contract.py`; `D:\Project\YunxiBakeBot\tests\service\test_privacy_redaction.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_privacy_outbound_contract.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-07-12-production-privacy-outbound-audit-design.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts/check_privacy_outbound_contract.py --production-runtime --ssh-key C:\\Users\\srafy\\.ssh\\id_ed25519 --json`; `python -m pytest tests/service/test_privacy_redaction.py tests/scripts/test_check_privacy_outbound_contract.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-privacy-outbound`; `python -m ruff check app/service/privacy_redaction.py scripts/check_privacy_outbound_contract.py tests/service/test_privacy_redaction.py tests/scripts/test_check_privacy_outbound_contract.py scripts/check_project.py`; `python -m mypy app/service/privacy_redaction.py scripts/check_privacy_outbound_contract.py --follow-imports=skip`
+- result: pass
+- related_logbook: `LOGBOOK.md` 2026-07-12 `fix(r3-a): 完成生产隐私出站聚合审计`
+- contains_sensitive_data: no
+- retention_note: 只保留模块路径、布尔开关和合成敏感标记结果；不包含客户内容、订单明细、员工 ID、数据库数据、API key 或 SSH key。
+- summary: 生产专项 `8/8` 通过；自动发现 9 个模型调用模块并全部经过统一脱敏，ChatOpenAI 仅有一个共享工厂，OpenAI SDK 仅保留 ASR 窄适配；结构化 payload 和 trace 元数据零合成敏感标记；生产离线 QA/知识缺口/memory、LangSmith tracing 和 key 配置 7 个布尔值全部为 false。真实生产主体删除仍单列未完成。

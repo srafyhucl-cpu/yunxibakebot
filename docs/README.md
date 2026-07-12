@@ -115,6 +115,8 @@
   - 生产同构、数据隔离的主体删除和消息进程崩溃恢复 Harness 设计。
 - `docs/harness-engineering/specs/2026-07-12-local-production-backup-job-design.md`
   - 无生产独立磁盘时，由 Windows 主机主动拉取并在 D 盘加密保留生产快照的设计。
+- `docs/harness-engineering/specs/2026-07-12-production-privacy-outbound-audit-design.md`
+  - 聚合模型入口、结构化脱敏、trace 过滤和生产关闭态的隐私出站审计设计。
 
 ## 历史评估与报告
 
