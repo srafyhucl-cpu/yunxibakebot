@@ -1,3 +1,16 @@
+## [2026-07-12] - feat(r2-b): 新增生产合成 inbox 崩溃恢复专项
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **目标**: 在不使用真实业务消息、不触发渠道发送的前提下，验证生产 SQLite inbox 的 processing 崩溃、lease 重领和终态幂等。
+- **实现**:
+  - 新增专用 `remediation_production_harness` 队列，生产业务 worker 不消费该队列。
+  - 第一独立子进程使用真实 `InboxRepo.claim()` 进入 processing 后由父进程强制 kill；第二独立子进程等待 lease 到期后重领并标记 processed。
+  - 验证重复 enqueue 被拒绝、attempt_count=2、单一 processed 终态、前后 integrity check 和最终前缀零残留。
+  - CLI 要求显式生产确认；发现历史合成前缀残留时 fail closed，报告不输出 message key 或 payload。
+- **本地验证**: 真实子进程合同测试 `4 passed`；Ruff 通过，格式和 mypy 纳入提交前门禁。
+- **发布状态**: 待本提交部署后执行生产专项并回填最终结果。
+- **边界**: 不写企微/有赞业务队列，不调用外部渠道，不读取客户、订单、员工或群数据；Docker 继续后置。
+
 ## [2026-07-12] - feat(r3-a): 新增生产合成主体真实删除专项
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

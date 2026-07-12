@@ -60,6 +60,9 @@ python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-reme
 # 生产真实 API 合成主体删除专项（仅在生产主机 loopback 执行）
 venv/bin/python scripts/verify_production_subject_deletion.py --db /opt/yunxibakebot/data/bot.db --base-url http://127.0.0.1:7001 --confirm-production-synthetic-subject --json
 
+# 生产真实 InboxRepo 合成消息崩溃恢复专项（专用队列，不触发渠道发送）
+venv/bin/python scripts/verify_production_synthetic_inbox_crash.py --db /opt/yunxibakebot/data/bot.db --confirm-production-synthetic-inbox-crash --json
+
 # 完整隐私出站合同（本地静态/合成检查）
 python scripts/check_privacy_outbound_contract.py --summary
 

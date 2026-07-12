@@ -4537,3 +4537,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只保留检查名称、通过状态和安全边界布尔值；不记录 JWT、合成主体 ID、导出正文、客户内容、订单明细或数据库内容。
 - summary: 本地脚本合同 `3 passed`，Ruff 和 mypy 通过；首次生产执行发现并阻断未配置前台会话密钥，失败路径完成清理。服务器本地生成并托管随机会话密钥、重启后，生产真实 JWT/loopback API 专项 `8/8` 通过，synthetic residue false，health/ready/systemd 正常；不触碰真实客户。
+## E-20260712-090：生产合成 inbox 崩溃恢复专项
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/synthetic-inbox-crash-recovery
+- file: `D:\Project\YunxiBakeBot\scripts\verify_production_synthetic_inbox_crash.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_verify_production_synthetic_inbox_crash.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-07-12-production-synthetic-inbox-crash-design.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_verify_production_synthetic_inbox_crash.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-prod-inbox-crash`; production `venv/bin/python scripts/verify_production_synthetic_inbox_crash.py --db /opt/yunxibakebot/data/bot.db --confirm-production-synthetic-inbox-crash --json`
+- result: partial
+- related_logbook: `LOGBOOK.md` 2026-07-12 `feat(r2-b): 新增生产合成 inbox 崩溃恢复专项`
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录检查名称、计数和安全边界布尔值；不记录 message key、payload、客户内容、订单明细、员工或群身份、数据库内容。
+- summary: 本地真实子进程 claim/kill/reclaim 合同 `4 passed`；生产专项待本提交部署后执行。专用队列不被业务 worker 消费，验证真实 InboxRepo lease 状态机且不触发外部渠道发送。

@@ -268,7 +268,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 统一状态至少包含 `received / processing / processed / failed`，支持 lease、超时恢复、有界重试、dead-letter 检视和 shutdown drain。使用 TaskSupervisor 或框架 worker 统一拥有后台任务，移除路由闭包 fire-and-forget。
 
-本轮完成：SQLite inbox 作为 ADR 0006 窄例外接入企微与 Youzan；持久状态覆盖 `received / processing / processed / failed / dead_letter`，支持 lease 重领、有限重试、100 次并发去重、失败恢复、实例重启恢复和 shutdown drain；路由闭包 fire-and-forget 已移除。R2 出站测试全部通过，代码已提交并部署；生产真实进程崩溃后 systemd 自动恢复且 inbox 无异常状态；隔离 Harness 通过独立子进程 claim/kill、lease 到期、新连接重领和终态幂等验证。有处理中真实业务消息时的生产丢失/重复专项仍未形成独立证据。
+本轮完成：SQLite inbox 作为 ADR 0006 窄例外接入企微与 Youzan；持久状态覆盖 `received / processing / processed / failed / dead_letter`，支持 lease 重领、有限重试、100 次并发去重、失败恢复、实例重启恢复和 shutdown drain；路由闭包 fire-and-forget 已移除。R2 出站测试全部通过，代码已提交并部署；生产真实进程崩溃后 systemd 自动恢复且 inbox 无异常状态；隔离 Harness 通过独立子进程 claim/kill、lease 到期、新连接重领和终态幂等验证。生产真实 SQLite/InboxRepo 的专用合成队列崩溃专项已实现，待本次发布执行；真实业务消息不作为崩溃测试材料。
 
 没有通过 R2 前，禁止多 worker 和水平扩容。
 
