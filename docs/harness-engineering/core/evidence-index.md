@@ -4311,3 +4311,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅保留版本、状态、数量、权限、字段键扫描和错误计数；不包含 trace 内容、客户原文、订单明细、员工 ID、密钥或 callback 回复。
 - summary: 生产 `0.107.10` trace sink 写入 120 条、权限 `600`、禁止敏感字段键为空；callback `61/61` 通过；最近 200 条服务日志无 `parse_item_id` 导入错误。LangSmith 未启用，生产外发仍关闭。
+## E-20260712-073：异盘加密备份脚本安全门禁
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: local/encrypted-off-disk-backup-contract
+- file: `D:\Project\YunxiBakeBot\scripts\backup_db.sh`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_backup_db_script.py`; `D:\Project\YunxiBakeBot\docs\architecture\privacy-data-retention-policy.md`
+- command: `python -m pytest tests\scripts\test_backup_db_script.py tests\scripts\test_encrypted_backup.py -q --no-cov`; `python -m ruff check tests\scripts\test_backup_db_script.py scripts\encrypted_backup.py`; `python -m ruff format --check tests\scripts\test_backup_db_script.py scripts\encrypted_backup.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - fix(r4): 备份脚本改为异盘加密 fail-closed
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录脚本门禁、加密算法和保留策略；不包含密钥内容、备份内容、客户数据、订单数据或生产路径中的密文。
+- summary: 备份脚本已从同盘明文 SQLite 备份收敛为异盘 AES-256-GCM `.ybak` 备份；缺少独立挂载或密钥条件时 fail-closed，旧备份由运维逐个审核清理，默认保留 30 天。

@@ -313,7 +313,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest 和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.10` 生产 health/ready/版本门禁已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.10` 生产 health/ready/版本门禁已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。

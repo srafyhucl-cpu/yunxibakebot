@@ -1,29 +1,18 @@
 #!/bin/bash
-# ============================================================
-# 芸熙烘焙 SQLite 热备份脚本
-#
-# 功能：
-#   使用 SQLite 官方 .backup 命令对 data/bot.db 进行热备份，
-#   无需停机，备份期间数据库可正常读写。
-#
-# 用法：
-#   bash scripts/backup_db.sh
-#
-# 建议 crontab（每小时执行）：
-#   0 * * * * /opt/yunxibakebot/scripts/backup_db.sh >> /opt/yunxibakebot/data/backup.log 2>&1
-# ============================================================
+# 生产 SQLite 加密备份脚本。
+# 备份目录必须是与数据库不同设备的已挂载路径；缺失时直接失败。
 
 set -euo pipefail
 
-# ── 路径配置 ──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DB_PATH="$PROJECT_DIR/data/bot.db"
-BACKUP_DIR="$PROJECT_DIR/data/backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/bot_backup_$TIMESTAMP.db"
+DB_PATH="${YUNXI_DB_PATH:-$PROJECT_DIR/data/bot.db}"
+BACKUP_DIR="${YUNXI_BACKUP_DIR:-/mnt/backup/yunxibakebot}"
+KEY_PATH="${YUNXI_BACKUP_KEY_FILE:-/etc/yunxibakebot/backup.key}"
+PYTHON_BIN="${YUNXI_PYTHON_BIN:-$PROJECT_DIR/venv/bin/python}"
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+BACKUP_FILE="$BACKUP_DIR/bot_backup_${TIMESTAMP}.ybak"
 
-# ── 日志函数 ──
 log_info() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $*"
 }
@@ -32,43 +21,42 @@ log_error() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $*" >&2
 }
 
-# ── 前置检查 ──
 if [ ! -f "$DB_PATH" ]; then
-    log_error "数据库文件不存在: $DB_PATH"
+    log_error "数据库文件不存在"
     exit 1
 fi
-
-# ── 创建备份目录 ──
 if [ ! -d "$BACKUP_DIR" ]; then
-    mkdir -p "$BACKUP_DIR"
-    log_info "创建备份目录: $BACKUP_DIR"
+    log_error "备份目录未挂载，拒绝写入同盘目录"
+    exit 2
 fi
-
-# ── 执行热备份 ──
-log_info "开始备份: $DB_PATH → $BACKUP_FILE"
-
-# 使用 SQLite 的 .backup 命令进行热备份（安全、零停机）
-sqlite3 "$DB_PATH" ".backup '$BACKUP_FILE'"
-
-# ── 验证备份 ──
-if [ -f "$BACKUP_FILE" ]; then
-    # 快速完整性检查
-    sqlite3 "$BACKUP_FILE" "PRAGMA integrity_check;" > /dev/null 2>&1
-    INTEGRITY_STATUS=$?
-    if [ $INTEGRITY_STATUS -eq 0 ]; then
-        ORIG_SIZE=$(stat -c%s "$DB_PATH" 2>/dev/null || stat -f%z "$DB_PATH" 2>/dev/null)
-        BACKUP_SIZE=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || stat -f%z "$BACKUP_FILE" 2>/dev/null)
-        log_info "备份完成 | 文件: $(basename "$BACKUP_FILE") | 大小: $BACKUP_SIZE 字节 | 原库: $ORIG_SIZE 字节 | 完整性: OK"
-    else
-        log_error "备份完整性检查失败: $BACKUP_FILE"
-        rm -f "$BACKUP_FILE"
-        exit 2
-    fi
-else
-    log_error "备份文件未生成: $BACKUP_FILE"
+if [ ! -f "$KEY_PATH" ]; then
+    log_error "备份密钥文件不存在"
     exit 3
 fi
 
-# ── 旧备份保留 ──
-# 备份属于受控恢复资产，不在应用脚本中批量删除；按隐私保留策略由运维逐个审核并清理。
-log_info "备份保留策略: 30 天；过期文件由运维按单文件路径审核清理"
+DB_DEVICE="$(stat -c '%d' "$DB_PATH")"
+BACKUP_DEVICE="$(stat -c '%d' "$BACKUP_DIR")"
+if [ "$DB_DEVICE" = "$BACKUP_DEVICE" ]; then
+    log_error "备份目录与数据库位于同一设备，拒绝继续"
+    exit 4
+fi
+
+KEY_SIZE="$(stat -c '%s' "$KEY_PATH")"
+KEY_MODE="$(stat -c '%a' "$KEY_PATH")"
+if [ "$KEY_SIZE" -ne 32 ] || [ "$KEY_MODE" != "600" ]; then
+    log_error "备份密钥必须是 32 字节且权限为 600"
+    exit 5
+fi
+
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="python3"
+fi
+
+umask 077
+log_info "开始 AES-256-GCM 加密备份"
+"$PYTHON_BIN" "$PROJECT_DIR/scripts/encrypted_backup.py" \
+    --db "$DB_PATH" \
+    --output "$BACKUP_FILE" \
+    --key-file "$KEY_PATH"
+chmod 600 "$BACKUP_FILE"
+log_info "备份完成；保留期 30 天，过期文件由运维逐个审核清理"

@@ -12,7 +12,7 @@
 | `knowledge_retrieval_logs` | 30 天 | 删除哈希/分类日志 | 不恢复原始 query |
 | `miniapp_address_audit` | 365 天 | 删除审计快照 | 法定争议由人工冻结并登记 |
 | 已完成/已取消 `orders` | 2555 天 | 按 `updated_at` 删除 | 履约、支付和法定留存优先 |
-| `data/backups/bot_backup_*.db` | 30 天 | 只报告，不由应用批量删除 | 运维逐个审核单文件清理 |
+| `/mnt/backup/yunxibakebot/bot_backup_*.ybak` | 30 天 | AES-256-GCM 加密；只报告，不由应用批量删除 | 运维逐个审核单文件清理 |
 
 未列入表中的数据不得因为“看起来像日志”而自动删除；新增含个人数据的表必须先补充主体导出、删除和保留期合同测试。
 

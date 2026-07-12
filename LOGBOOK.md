@@ -13010,3 +13010,9 @@ ______________________________________________________________________
 - **验证结果**: systemd active；`/health=200`、`/ready=200`；带受控生产 actor 的 callback 探针 `61/61` 通过；本地 trace sink 写入 `120` 条，文件权限 `600`，禁止敏感字段键为空；最近 200 条服务日志中 `parse_item_id` 导入错误 `0`。
 - **结论**: R5 本地受控 trace sink 已达到生产验证条件，有赞 webhook canonical parser 回归已修复。
 - **边界**: LangSmith 外发保持关闭；异盘备份挂载和迁移回滚仍未完成；Docker 按计划后置。
+## [2026-07-12] - fix(r4): 备份脚本改为异盘加密 fail-closed
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: `scripts/backup_db.sh` 默认只接受 `/mnt/backup/yunxibakebot`，强制校验数据库和备份目录设备号不同、32 字节密钥、密钥权限 `600`，调用 `encrypted_backup.py` 生成 `.ybak`，不批量删除旧备份。
+- **验证结果**: 备份脚本和 AES-GCM 合同测试 `4 passed`；Ruff 和 diff 检查通过。
+- **生产状态**: 当前生产没有独立挂载，脚本按预期拒绝执行；迁移 apply/rollback 继续保持关闭。
