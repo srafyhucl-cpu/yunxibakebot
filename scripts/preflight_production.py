@@ -118,7 +118,7 @@ READINESS_ACTIONS = {
     "wecom_intelligent_bot_callback_token_configured": "设置 WECOM_INTELLIGENT_BOT_TOKEN，或复用 WECOM_TOKEN。",
     "wecom_intelligent_bot_encoding_aes_key_configured": "设置 WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY，或复用 WECOM_ENCODING_AES_KEY。",
     "handoff_staff_userid_ready": "设置 WECOM_STAFF_ID 或 WECOM_KF_SERVICER_USERID。",
-    "wecom_employee_auth_ready": "生产必须开启 WECOM_EMPLOYEE_AUTH_REQUIRED，并配置员工用户白名单和企业 ID。",
+    "wecom_employee_auth_ready": "生产必须开启 WECOM_EMPLOYEE_AUTH_REQUIRED，并配置员工用户、企业 ID 和运营用户白名单。",
     "admin_frontend_index_exists": "在 web/admin 执行 npm run build:production。",
     "admin_frontend_assets_exist": "在 web/admin 执行 npm run build:production。",
     "admin_frontend_observability_summary_built": "重新构建或同步最新 web/admin/dist。",
@@ -239,6 +239,7 @@ def build_readiness_preflight_checks(
             settings.WECOM_EMPLOYEE_AUTH_REQUIRED
             and bool(settings.WECOM_EMPLOYEE_ALLOWED_USERS.strip())
             and bool(settings.WECOM_EMPLOYEE_CORP_ID.strip())
+            and bool(settings.WECOM_EMPLOYEE_OPS_USERS.strip())
         )
     return [
         PreflightCheck(

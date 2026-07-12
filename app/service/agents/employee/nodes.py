@@ -23,6 +23,7 @@ UNSUPPORTED_REPLY = (
     "我还没理解这个问题。你可以直接问订单、商品库存、配送规则、待人工或系统状态。"
 )
 HUMAN_HANDOFF_REPLY = "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
+UNAUTHORIZED_TOOL_REPLY = "当前员工身份无权调用该工具，请联系管理员授权。"
 FACT_UNAVAILABLE_MARKERS = (
     "未找到匹配商品",
     "未找到匹配订单",
@@ -106,6 +107,9 @@ class EmployeeAgentNodes:
         query = state["query"]
         results: list[ToolResult] = []
         for tool_name in state.get("selected_tools", ()):
+            if not _is_tool_allowed(state, tool_name):
+                results.append(ToolResult(ok=False, summary=UNAUTHORIZED_TOOL_REPLY))
+                continue
             results.append(await self._execute_tool(tool_name, query, plan))
         if not results:
             results.append(ToolResult(ok=False, summary=UNSUPPORTED_REPLY))
@@ -306,6 +310,11 @@ def _selected_tools(plan: AgentPlan) -> tuple[str, ...]:
     if plan.intent in (AgentIntent.OPS_QUERY, AgentIntent.MULTI_TOOL):
         return cast(tuple[str, ...], plan.tools)
     return ()
+
+
+def _is_tool_allowed(state: EmployeeAgentState, tool_name: str) -> bool:
+    allowed_tools = state.get("allowed_tools")
+    return allowed_tools is None or tool_name in allowed_tools
 
 
 def _tool_args(tool_name: str, query: str, plan: AgentPlan) -> dict[str, Any]:

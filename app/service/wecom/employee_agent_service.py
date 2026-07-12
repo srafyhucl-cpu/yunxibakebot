@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from app.service.chat_reply import clean_plain_text_reply
 from app.service.agents.employee.nodes import EmployeeGraphDependencies
@@ -40,7 +40,15 @@ class EmployeeAgentService:
             )
         )
 
-    async def answer(self, query: str) -> str:
+    async def answer(
+        self,
+        query: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> str:
         """回答员工自然语言问题。"""
-        deterministic_reply = await self._graph_service.answer(query)
-        return clean_plain_text_reply(deterministic_reply)
+        deterministic_reply = await self._graph_service.answer(
+            query,
+            allowed_tools=allowed_tools,
+        )
+        return cast(str, clean_plain_text_reply(deterministic_reply))

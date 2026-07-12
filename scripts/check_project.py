@@ -169,6 +169,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
     ),
     (
         sys.executable,
+        "scripts/check_security_outbound_contract.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
         "scripts/check_langsmith_production_rollout.py",
         "--summary",
     ),

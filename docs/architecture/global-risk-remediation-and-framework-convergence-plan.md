@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：生产当前版本 `0.107.13`（本列车）；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；生产同构隔离整改 Harness 已用真实 Bearer JWT/FastAPI/service/repository/SQLite 和独立子进程 kill 完成主体删除与消息重领 `8/8` 验证。R2-B 已有生产重启、真实进程崩溃恢复和 inbox 汇总证据，但有处理中真实业务消息时的丢失/重复专项仍未完成；R3-A 完整生产隐私出站专项已通过聚合门禁 `8/8`，真实生产主体删除仍未完成。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。本地 D 盘长期加密备份已配置每天 03:30 的 Windows 计划任务，默认保留 30 天且至少 3 份；生产持久挂载仍未配置；容器 build/smoke 仍未完成。全量测试已串行通过。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；生产同构隔离整改 Harness 已用真实 Bearer JWT/FastAPI/service/repository/SQLite 和独立子进程 kill 完成主体删除与消息重领 `8/8` 验证。R2-B 已有生产重启、真实进程崩溃恢复和 inbox 汇总证据，但有处理中真实业务消息时的丢失/重复专项仍未完成；R3-A 完整生产隐私出站专项已通过聚合门禁 `8/8`，真实生产主体删除仍未完成；R3-B 已统一商品目录/客服卡片远程下载入口，并将员工 Agent 运营权限收敛为服务端 ops 用户白名单和执行前工具门禁。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。本地 D 盘长期加密备份已配置每天 03:30 的 Windows 计划任务，默认保留 30 天且至少 3 份；生产持久挂载仍未配置；容器 build/smoke 仍未完成。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -295,7 +295,7 @@ python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-reme
 
 ### R3-B：Webhook、SSRF 和员工授权
 
-状态：已完成首片本地实施与定向验证（2026-07-11）：远程商品图逐跳 URL/DNS/大小策略、缺失 Secret 503、企微员工 actor/运营角色白名单已接入；统一下载入口、生产强制 allowlist 配置和全量员工授权审计仍需出站复核。
+状态：已完成并通过本地聚合门禁（2026-07-12）：商品目录和客服卡片统一走远程图片策略，真实流式读取、逐跳 URL/DNS、MIME 和双重大小上限已覆盖；企微员工 callback 固定校验 actor，运营权限改为服务端 ops 用户白名单，Agent 在工具执行前检查 allowed tools；生产匿名配置已迁移，重启后聚合门禁纳入本发布验证。
 
 - Secret 缺失固定 503，生产模式可选择启动失败。
 - URL 统一 allowlist；DNS 解析后阻断私网、回环和 link-local，每次重定向重新验证。

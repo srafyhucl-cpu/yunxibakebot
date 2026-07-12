@@ -4500,3 +4500,15 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只保留模块路径、布尔开关和合成敏感标记结果；不包含客户内容、订单明细、员工 ID、数据库数据、API key 或 SSH key。
 - summary: 生产专项 `8/8` 通过；自动发现 9 个模型调用模块并全部经过统一脱敏，ChatOpenAI 仅有一个共享工厂，OpenAI SDK 仅保留 ASR 窄适配；结构化 payload 和 trace 元数据零合成敏感标记；生产离线 QA/知识缺口/memory、LangSmith tracing 和 key 配置 7 个布尔值全部为 false。真实生产主体删除仍单列未完成。
+## E-20260712-087：R3-B 远程下载与员工授权聚合审计
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/r3b-security-outbound-contract
+- file: `D:\Project\YunxiBakeBot\app\service\security\url_policy.py`; `D:\Project\YunxiBakeBot\app\service\wecom\kf_card_sender.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_authorization.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\scripts\check_security_outbound_contract.py`; `D:\Project\YunxiBakeBot\tests\service\test_url_policy.py`; `D:\Project\YunxiBakeBot\tests\service\wecom\test_employee_authorization.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts/check_security_outbound_contract.py --production-runtime --ssh-key C:\\Users\\srafy\\.ssh\\id_ed25519 --json`; `python -m pytest tests/service/test_url_policy.py tests/service/wecom/test_kf_card_sender.py tests/api/test_miniapp_catalog_api.py tests/service/wecom/test_employee_authorization.py tests/service/test_wecom_intelligent_bot_dispatcher.py tests/service/test_wecom_employee_agent.py tests/service/agents/test_employee_graph.py tests/scripts/test_preflight_production.py tests/scripts/test_check_security_outbound_contract.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-r3b-gate`; `python scripts/check_project.py --skip-tests`
+- result: pass
+- related_logbook: `LOGBOOK.md` 2026-07-12 `fix(r3-b): 收口远程下载与员工 Agent 授权单一路径`
+- contains_sensitive_data: no
+- retention_note: 只保留安全合同、测试汇总和生产匿名布尔/计数；不记录员工、群、企业、域名 allowlist、callback token、AES key 或业务数据。
+- summary: 下载/授权/Agent/预检定向套件 `108 passed`；商品目录和客服卡片统一走真实流式、逐跳复验、MIME 与大小策略；运营权限由服务端 ops 用户白名单决定，Agent 未授权工具在执行前阻断。生产既有唯一员工白名单已原子迁移为唯一 ops 用户，不新增授权主体；重启后匿名聚合门禁纳入发布验证。

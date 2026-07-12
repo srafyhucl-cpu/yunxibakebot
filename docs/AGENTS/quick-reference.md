@@ -63,6 +63,10 @@ python scripts/check_privacy_outbound_contract.py --summary
 # 完整隐私出站合同（额外核验生产布尔开关，不输出密钥）
 python scripts/check_privacy_outbound_contract.py --production-runtime --ssh-key $env:USERPROFILE\.ssh\id_ed25519 --summary
 
+# R3-B 下载与员工授权合同
+python scripts/check_security_outbound_contract.py --summary
+python scripts/check_security_outbound_contract.py --production-runtime --ssh-key $env:USERPROFILE\.ssh\id_ed25519 --summary
+
 # 立即创建一份本地 D 盘生产加密备份
 python scripts/local_production_backup.py --backup-dir D:\Backups\YunxiBakeBot --key-file D:\Backups\YunxiBakeBot\keys\backup.key --ssh-key $env:USERPROFILE\.ssh\id_ed25519
 

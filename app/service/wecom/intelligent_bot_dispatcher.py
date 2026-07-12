@@ -51,11 +51,8 @@ class WeComBotMessageDispatcher:
 
     async def dispatch_message(self, message: dict[str, Any]) -> str:
         """处理企微消息回调并返回可发送文本。"""
-        actor = (
-            self._actor_authorizer.authorize(message)
-            if self._actor_authorizer is not None
-            else None
-        )
+        authorizer = self._actor_authorizer
+        actor = authorizer.authorize(message) if authorizer is not None else None
         text = extract_message_text(message)
         if not text:
             _log_dispatch_result(
@@ -66,7 +63,17 @@ class WeComBotMessageDispatcher:
             )
             return FALLBACK_REPLY
         if self._employee_agent_service is not None:
-            reply_text = await self._employee_agent_service.answer(text)
+            allowed_tools = (
+                authorizer.allowed_agent_tools(actor)
+                if actor is not None and authorizer is not None
+                else None
+            )
+            reply_text = str(
+                await self._employee_agent_service.answer(
+                    text,
+                    allowed_tools=allowed_tools,
+                )
+            )
             _log_dispatch_result(
                 message=message,
                 route_name="employee_agent",
@@ -75,8 +82,8 @@ class WeComBotMessageDispatcher:
             )
             return reply_text
         route = self._select_route(text)
-        if actor is not None:
-            self._actor_authorizer.authorize_tool(actor, route.name)
+        if actor is not None and authorizer is not None:
+            authorizer.authorize_tool(actor, route.name)
         payload = _build_tool_payload(text, route.name)
         tool_response = await route.handler(payload)
         reply_text = _extract_reply_text(tool_response)

@@ -163,7 +163,7 @@ class Settings(BaseSettings):
     WECOM_EMPLOYEE_ALLOWED_USERS: str = ""
     WECOM_EMPLOYEE_ALLOWED_CHATS: str = ""
     WECOM_EMPLOYEE_CORP_ID: str = ""
-    WECOM_EMPLOYEE_OPS_ROLES: str = ""
+    WECOM_EMPLOYEE_OPS_USERS: str = ""
     WECOM_CALLBACK_MAX_AGE_SECONDS: int = 300
     WECOM_CALLBACK_NONCE_CACHE_SIZE: int = 4096
     WECOM_API_BASE: str = "https://qyapi.weixin.qq.com/cgi-bin"

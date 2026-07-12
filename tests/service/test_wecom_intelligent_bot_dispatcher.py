@@ -18,7 +18,12 @@ class _FakeBusinessToolService:
 
 
 class _FakeEmployeeAgentService:
-    async def answer(self, query: str) -> str:
+    async def answer(
+        self,
+        query: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> str:
         return f"agent:{query}"
 
 

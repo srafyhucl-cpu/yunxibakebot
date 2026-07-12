@@ -1,3 +1,17 @@
+## [2026-07-12] - fix(r3-b): 收口远程下载与员工 Agent 授权单一路径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发现**:
+  - 微信客服商品卡片绕过统一 URL policy 直接下载图片；底层 `client.get()` 会先缓冲完整响应，并非真正流式读取。
+  - Agent 模式只校验 actor user/chat/corp，但未在工具执行前应用运营权限；旧角色来自回调 payload，不是可信服务端授权事实。
+- **修复**:
+  - 商品目录与客服卡片统一使用 `fetch_limited_remote_image`，底层改为 `client.stream()`，逐跳复验 URL/DNS，执行 MIME、声明长度和实际字节上限。
+  - 新增服务端 `WECOM_EMPLOYEE_OPS_USERS`，生产从既有唯一员工白名单原子迁移，不新增授权主体；群聊无 chat allowlist 时 fail closed。
+  - Dispatcher 将 allowed tools 传入 LangGraph state，节点在执行前阻断未授权工具；聚合门禁接入 `check_project.py`。
+- **验证结果**: R3-B 下载/授权/Agent/预检聚合定向套件 `108 passed`；Ruff、格式、mypy、文件体量和本地聚合门禁通过。
+- **结论**: 统一下载入口、生产强制 allowlist 和全量员工 Agent 授权路径已收口；生产匿名配置和重启后聚合门禁纳入同一发布验证。
+- **边界**: 不输出员工、群、企业或域名 allowlist；不读取业务数据库；不调用任意外部测试 URL。
+
 ## [2026-07-12] - fix(r3-a): 完成生产隐私出站聚合审计
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

@@ -2,6 +2,7 @@
 
 from app.service.agents.employee.graph import build_employee_agent_graph
 from app.service.agents.employee.nodes import EmployeeGraphDependencies
+from app.service.agents.employee.state import EmployeeAgentState
 from app.service.agents.trace_report import AgentTraceRun
 from app.service.agents.trace_sink import AgentTraceSink
 from app.logger import setup_logger
@@ -16,14 +17,30 @@ class EmployeeAgentGraphService:
         self._dependencies = dependencies
         self._graph = None
 
-    async def answer(self, query: str) -> str:
+    async def answer(
+        self,
+        query: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> str:
         """执行员工助手 LangGraph 并返回原始确定性回复。"""
-        reply, _trace_run = await self.answer_with_trace(query)
+        reply, _trace_run = await self.answer_with_trace(
+            query,
+            allowed_tools=allowed_tools,
+        )
         return reply
 
-    async def answer_with_trace(self, query: str) -> tuple[str, AgentTraceRun]:
+    async def answer_with_trace(
+        self,
+        query: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> tuple[str, AgentTraceRun]:
         """执行员工助手 LangGraph 并返回脱敏 trace。"""
-        result = await self._compiled_graph().ainvoke({"query": query})
+        state: EmployeeAgentState = {"query": query}
+        if allowed_tools is not None:
+            state["allowed_tools"] = tuple(sorted(allowed_tools))
+        result = await self._compiled_graph().ainvoke(state)
         reply = str(result.get("reply", ""))
         trace_run = AgentTraceRun(
             agent="employee",

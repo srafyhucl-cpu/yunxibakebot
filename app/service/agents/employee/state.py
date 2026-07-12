@@ -11,6 +11,7 @@ class EmployeeAgentState(TypedDict, total=False):
     query: str
     plan: AgentPlan
     selected_tools: tuple[str, ...]
+    allowed_tools: tuple[str, ...]
     tool_results: list[ToolResult]
     reply: str
     trace_events: list[dict[str, Any]]

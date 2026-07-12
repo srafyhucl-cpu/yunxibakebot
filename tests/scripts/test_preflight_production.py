@@ -192,6 +192,7 @@ def test_production_preflight_requires_employee_auth_allowlist(monkeypatch) -> N
     monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_AUTH_REQUIRED", False)
     monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_ALLOWED_USERS", "user-1")
     monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_CORP_ID", "corp-1")
+    monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_OPS_USERS", "user-1")
 
     checks = preflight.build_readiness_preflight_checks()
     checks_by_key = {check.key: check for check in checks}

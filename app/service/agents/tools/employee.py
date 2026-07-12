@@ -8,6 +8,29 @@ from pydantic import BaseModel, Field
 
 
 DEFAULT_EMPLOYEE_TOOL_LIMIT = 5
+EMPLOYEE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "order_dynamic_query",
+        "product_lookup",
+        "knowledge_answer",
+        "ops_summary",
+        "integration_status",
+        "handoff_pending",
+        "customer_lookup",
+        "group_campaign_summary",
+        "offline_review_summary",
+    }
+)
+EMPLOYEE_OPS_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "ops_summary",
+        "integration_status",
+        "handoff_pending",
+        "customer_lookup",
+        "group_campaign_summary",
+        "offline_review_summary",
+    }
+)
 
 
 @dataclass(frozen=True)

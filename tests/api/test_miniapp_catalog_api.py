@@ -30,6 +30,15 @@ class _FakeImageResponse:
             "content-length": str(len(content)),
         }
 
+    async def __aenter__(self) -> "_FakeImageResponse":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    async def aiter_bytes(self):
+        yield self.content
+
 
 class _FakeImageClient:
     requested_urls: list[str] = []
@@ -44,7 +53,8 @@ class _FakeImageClient:
     async def __aexit__(self, *args: object) -> None:
         return None
 
-    async def get(self, url: str) -> _FakeImageResponse:
+    def stream(self, method: str, url: str) -> _FakeImageResponse:
+        assert method == "GET"
         self.requested_urls.append(url)
         return self.response
 

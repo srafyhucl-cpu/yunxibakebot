@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 from app.models.employee_agent import (
     AgentIntent,
@@ -755,6 +757,24 @@ async def test_employee_agent_routes_existing_ops_tools() -> None:
     assert "离线复盘" in offline_review_reply
 
 
+async def test_employee_agent_blocks_unauthorized_ops_tool_before_execution() -> None:
+    lookup_customer = AsyncMock(return_value={"ok": True, "result": "不应执行"})
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=SimpleNamespace(lookup_customer=lookup_customer),
+        status_tool_service=_FakeStatusToolService(),
+        planner=_planner(),
+    )
+
+    reply = await service.answer(
+        "查一下张三地址线索",
+        allowed_tools=frozenset({"order_dynamic_query", "product_lookup"}),
+    )
+
+    lookup_customer.assert_not_awaited()
+    assert reply == "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
+
+
 async def test_employee_agent_service_has_no_reply_llm_entrypoint() -> None:
     from app.service.wecom import employee_agent_service
 
@@ -771,7 +791,12 @@ async def test_employee_agent_service_delegates_to_langgraph(monkeypatch) -> Non
         def __init__(self, dependencies: Any) -> None:
             self.dependencies = dependencies
 
-        async def answer(self, query: str) -> str:
+        async def answer(
+            self,
+            query: str,
+            *,
+            allowed_tools: frozenset[str] | None = None,
+        ) -> str:
             return f"**graph** {query}"
 
     monkeypatch.setattr(

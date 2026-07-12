@@ -1,8 +1,13 @@
 """微信客服商品卡片发送。"""
 
+from app.config import settings
 from app.logger import setup_logger
+from app.service.security.url_policy import fetch_limited_remote_image
 
 logger = setup_logger()
+
+IMAGE_FETCH_TIMEOUT_SECONDS = 10.0
+MAX_CARD_IMAGE_BYTES = 5 * 1024 * 1024
 
 
 async def send_kf_card(client, external_userid: str, card: dict) -> None:
@@ -16,25 +21,24 @@ async def send_kf_card(client, external_userid: str, card: dict) -> None:
 
     if img_url:
         try:
-            img_resp = await client._client.get(img_url, timeout=10)
-            if img_resp.status_code == 200:
-                img_data = await img_resp.aread()
-                logger.info(
-                    "已下载商品图片 size=%dB url=%s", len(img_data), img_url[:80]
-                )
+            image = await fetch_limited_remote_image(
+                img_url,
+                allowed_hosts=settings.REMOTE_IMAGE_ALLOWED_HOSTS.split(","),
+                timeout_seconds=IMAGE_FETCH_TIMEOUT_SECONDS,
+                max_bytes=MAX_CARD_IMAGE_BYTES,
+            )
+            if image is not None:
+                img_data, _content_type = image
+                logger.info("已通过安全策略下载商品图片 size=%dB", len(img_data))
                 thumb_media_id = await client.upload_kf_temp_media(
                     file_data=img_data,
                     file_type="image",
                     file_name=f"{title}.jpg",
                 )
             else:
-                logger.warning(
-                    "下载商品图片失败 status=%d url=%s",
-                    img_resp.status_code,
-                    img_url[:80],
-                )
+                logger.warning("商品图片未通过下载安全策略")
         except Exception as exc:
-            logger.warning("下载/上传商品图片异常 url=%s err=%s", img_url[:80], exc)
+            logger.warning("下载/上传商品图片异常 err=%s", exc)
 
     result = await client.send_kf_link(
         external_userid=external_userid,

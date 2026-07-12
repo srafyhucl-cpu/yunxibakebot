@@ -5,7 +5,7 @@ import ipaddress
 import socket
 from collections.abc import Iterable
 from collections.abc import Callable
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -39,7 +39,7 @@ async def validate_remote_url(url: str, allowed_hosts: Iterable[str]) -> None:
 def _resolve_addresses(hostname: str, port: int | None) -> set[str]:
     resolved_port = port or 443
     return {
-        result[4][0]
+        str(result[4][0])
         for result in socket.getaddrinfo(
             hostname, resolved_port, type=socket.SOCK_STREAM
         )
@@ -74,34 +74,32 @@ async def fetch_limited_remote_image(
         for _ in range(MAX_REDIRECTS + 1):
             await validate_remote_url(current_url, allowed_hosts)
             try:
-                response = await client.get(current_url)
+                async with client.stream("GET", current_url) as response:
+                    if response.status_code in {301, 302, 303, 307, 308}:
+                        location = str(response.headers.get("location") or "")
+                        if not location:
+                            return None
+                        current_url = urljoin(current_url, location)
+                        continue
+                    if response.status_code != 200:
+                        return None
+                    content_type = (
+                        response.headers.get("content-type", "")
+                        .split(";", 1)[0]
+                        .strip()
+                        .lower()
+                    )
+                    if not content_type.startswith("image/"):
+                        return None
+                    content_length = response.headers.get("content-length", "")
+                    if content_length.isdigit() and int(content_length) > max_bytes:
+                        return None
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        content.extend(chunk)
+                        if len(content) > max_bytes:
+                            return None
+                    return bytes(content), content_type
             except httpx.HTTPError:
                 return None
-            if response.status_code in {301, 302, 303, 307, 308}:
-                current_url = str(response.headers.get("location") or "")
-                if not current_url:
-                    return None
-                continue
-            if response.status_code != 200:
-                return None
-            content_type = (
-                response.headers.get("content-type", "")
-                .split(";", 1)[0]
-                .strip()
-                .lower()
-            )
-            if not content_type.startswith("image/"):
-                return None
-            content_length = response.headers.get("content-length", "")
-            if content_length.isdigit() and int(content_length) > max_bytes:
-                return None
-            if hasattr(response, "aiter_bytes"):
-                content = bytearray()
-                async for chunk in response.aiter_bytes():
-                    content.extend(chunk)
-                    if len(content) > max_bytes:
-                        return None
-                return bytes(content), content_type
-            content = bytes(getattr(response, "content", b""))
-            return (content, content_type) if len(content) <= max_bytes else None
     return None
