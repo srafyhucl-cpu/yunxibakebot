@@ -57,6 +57,9 @@ python -m pytest tests/test_red_line_rules.py -q --tb=short
 # 生产同构、数据隔离的主体删除与消息崩溃整改 Harness
 python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-remediation-harness --json
 
+# 生产真实 API 合成主体删除专项（仅在生产主机 loopback 执行）
+venv/bin/python scripts/verify_production_subject_deletion.py --db /opt/yunxibakebot/data/bot.db --base-url http://127.0.0.1:7001 --confirm-production-synthetic-subject --json
+
 # 完整隐私出站合同（本地静态/合成检查）
 python scripts/check_privacy_outbound_contract.py --summary
 

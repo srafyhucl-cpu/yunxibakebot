@@ -4524,3 +4524,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告不记录员工、群、企业 ID、callback token、AES key 或密文；只保留测试状态和脱敏回复摘要。
 - summary: 修复探针硬编码无 chatid group 和错误 actor 来源导致的全转人工假绿；新探针优先选择员工 allowlist，有群白名单才构造 group，否则使用 single。探针合同 `31 passed`；部署后以生产本地 `61/61` 验证授权 actor 自动回复路径。
+## E-20260712-089：生产合成主体真实删除专项
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/synthetic-subject-deletion
+- file: `D:\Project\YunxiBakeBot\scripts\verify_production_subject_deletion.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_verify_production_subject_deletion.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-07-12-production-synthetic-subject-deletion-design.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_verify_production_subject_deletion.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-prod-subject-delete`; production `venv/bin/python scripts/verify_production_subject_deletion.py --db /opt/yunxibakebot/data/bot.db --base-url http://127.0.0.1:7001 --confirm-production-synthetic-subject --json`
+- result: partial
+- related_logbook: `LOGBOOK.md` 2026-07-12 `feat(r3-a): 新增生产合成主体真实删除专项`
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只保留检查名称、通过状态和安全边界布尔值；不记录 JWT、合成主体 ID、导出正文、客户内容、订单明细或数据库内容。
+- summary: 本地脚本合同 `3 passed`，Ruff 和 mypy 通过；生产专项待本提交部署后执行。专项仅写入随机前缀合成主体，使用生产真实 JWT 和 loopback API，并在 finally 中验证合成数据零残留，不触碰真实客户。

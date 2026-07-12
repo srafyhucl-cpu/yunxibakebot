@@ -113,6 +113,7 @@ ______________________________________________________________________
 | [specs/2026-07-12-local-production-backup-job-design.md](specs/2026-07-12-local-production-backup-job-design.md) | 无生产独立磁盘时的本地主动加密备份设计 |
 | [specs/2026-07-12-production-privacy-outbound-audit-design.md](specs/2026-07-12-production-privacy-outbound-audit-design.md) | 模型、trace 和生产开关的完整隐私出站审计设计 |
 | [specs/2026-07-12-r3b-security-outbound-audit-design.md](specs/2026-07-12-r3b-security-outbound-audit-design.md) | 统一远程下载和员工 Agent 权限的 R3-B 安全出站审计设计 |
+| [specs/2026-07-12-production-synthetic-subject-deletion-design.md](specs/2026-07-12-production-synthetic-subject-deletion-design.md) | 使用生产真实 JWT/API 和合成主体安全验证隐私导出删除闭环 |
 | [core/evidence-index.md](core/evidence-index.md) | 登记上线、交接、预检、冒烟、迁移等证据包索引 |
 | [adr/README.md](adr/README.md) | 记录会影响长期演进的架构决策 |
 

@@ -1,3 +1,16 @@
+## [2026-07-12] - feat(r3-a): 新增生产合成主体真实删除专项
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **目标**: 不使用真实客户作为破坏性测试材料，在生产运行时验证隐私主体导出和删除闭环。
+- **实现**:
+  - 新增 `verify_production_subject_deletion.py`，只允许 loopback API 且要求显式生产确认参数。
+  - 随机合成主体覆盖 session、message、profile、consent、address、order、customer master 和 identity link，并使用生产 `StorefrontAuthService` 签发真实 JWT。
+  - 调用真实 export/delete API，验证七类关联记录、consent revoked、前后 integrity check 和最终零残留。
+  - 报告不输出 token、主体 ID 或导出正文；异常路径也按精确主键清理唯一合成数据。
+- **本地验证**: 脚本合同测试 `3 passed`；Ruff check/format 和独立 mypy 通过。
+- **发布状态**: 待本提交部署后执行生产专项并回填最终 `8/8` 结果。
+- **边界**: 不读取、不导出、不删除真实客户；Docker 继续后置。
+
 ## [2026-07-12] - fix(harness): 修正员工 callback 探针 actor 语义
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

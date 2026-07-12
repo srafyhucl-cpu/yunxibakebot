@@ -276,7 +276,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 ### R3-A：consent 和删除闭环
 
-状态：consent/画像撤回、检索日志哈希、主体导出/删除、外发脱敏和数据库 TTL 首片本地实施与验证已完成（2026-07-11）；备份保留已定义为 30 天且应用不批量删除；R3-A 完整生产出站专项已于 2026-07-12 通过聚合门禁 `8/8`，真实生产主体删除仍需独立证据。
+状态：consent/画像撤回、检索日志哈希、主体导出/删除、外发脱敏和数据库 TTL 首片本地实施与验证已完成（2026-07-11）；备份保留已定义为 30 天且应用不批量删除；R3-A 完整生产出站专项已于 2026-07-12 通过聚合门禁 `8/8`。生产合成主体通过真实 JWT 和真实 API 的专项验证已实现，待本次发布后执行；真实客户数据不作为破坏性测试材料。
 
 1. 定义 `unknown / granted / revoked` 的机器语义；只有 granted 可以生成长期画像。
 2. revoked 立即停止读取、外发和派生，并触发画像删除。
@@ -285,7 +285,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 5. 为 messages、profiles、retrieval logs、地址审计、订单和备份定义 TTL、导出和主体删除流程。
 6. 检索 query 默认哈希或分类聚合，必须保存时先脱敏。
 
-本轮首片：新增 `customer_consent_ledger` 独立三态真相表和前台认证 consent API；热路径仅读取 `granted` 画像，离线 QA、知识缺口和 memory 使用独立开关，只有显式 granted 才可写入画像，revoke 删除画像但保留撤回状态；新增主体导出/删除 API、数据库 TTL 清理入口和隐私保留策略文档；检索 query 只保存脱敏后 SHA-256 与分类；原生 LLM、客户/员工 LangChain 和 query rewrite 边界统一脱敏。代码已提交并部署；隔离 Harness 使用运行时生成的 Bearer JWT 调用真实 privacy router，验证导出、关联删除和 consent revoked。生产聚合门禁自动发现 9 个模型调用模块并确认统一脱敏，结构化 payload 和 trace 合成敏感标记为零，离线 QA/知识缺口/memory 与 LangSmith 生产外发开关全部关闭。真实生产主体删除仍未完成。
+本轮首片：新增 `customer_consent_ledger` 独立三态真相表和前台认证 consent API；热路径仅读取 `granted` 画像，离线 QA、知识缺口和 memory 使用独立开关，只有显式 granted 才可写入画像，revoke 删除画像但保留撤回状态；新增主体导出/删除 API、数据库 TTL 清理入口和隐私保留策略文档；检索 query 只保存脱敏后 SHA-256 与分类；原生 LLM、客户/员工 LangChain 和 query rewrite 边界统一脱敏。代码已提交并部署；隔离 Harness 使用运行时生成的 Bearer JWT 调用真实 privacy router，验证导出、关联删除和 consent revoked。生产聚合门禁自动发现 9 个模型调用模块并确认统一脱敏，结构化 payload 和 trace 合成敏感标记为零，离线 QA/知识缺口/memory 与 LangSmith 生产外发开关全部关闭。新增生产合成主体专项，使用生产进程、生产数据库 schema、真实 JWT 和 loopback API 验证导出、删除、consent revoked、完整性及零残留；不触碰真实客户。
 
 隔离整改 Harness 入口：
 

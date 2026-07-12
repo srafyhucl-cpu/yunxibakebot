@@ -119,6 +119,8 @@
   - 聚合模型入口、结构化脱敏、trace 过滤和生产关闭态的隐私出站审计设计。
 - `docs/harness-engineering/specs/2026-07-12-r3b-security-outbound-audit-design.md`
   - 统一远程图片下载和员工 Agent 工具授权的 R3-B 安全出站审计设计。
+- `docs/harness-engineering/specs/2026-07-12-production-synthetic-subject-deletion-design.md`
+  - 使用生产真实 JWT、loopback API 和随机合成主体验证隐私导出删除闭环，不触碰真实客户。
 
 ## 历史评估与报告
 
