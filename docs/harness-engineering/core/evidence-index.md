@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-064：安全配置预检防线生产验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/deploy-security-preflight-runtime-verification
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\scripts\deploy_server.sh`; `D:\Project\YunxiBakeBot\tests\scripts\test_deploy_server_contract.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\mistake-ledger.md`
+- command: `python -m pytest tests/scripts/test_deploy_server_contract.py -q --no-cov --tb=short`; `bash -n scripts/deploy_server.sh`; `python scripts/build_release_manifest.py --output reports/harness/release-manifest-d0e55c5.json --summary`; `git push origin master`; `git push server master`; `ssh root@47.94.102.250 "systemctl restart yunxibakebot"`; public `/health` and `/ready` probes for both domains
+- result: pass
+- related_logbook: 2026-07-12 - deploy(r4): 安全配置预检防线生产验证
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录提交、版本、状态码、readiness 结果和合同测试；未记录密钥值、客户数据或生产日志正文。
+- summary: 部署安全配置预检已上线；生产 `0.107.2` 重启后 systemd active，双域 health/ready 均 200，版本一致。
+
 ## E-20260712-063：生产迁移 dry-run 与运行态复核
 
 - trace_id: `20260711-global-risk-remediation`

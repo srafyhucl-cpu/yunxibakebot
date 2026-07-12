@@ -1,3 +1,12 @@
+## [2026-07-12] - deploy(r4): 安全配置预检防线生产验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发布**: `d0e55c5f0d568b1dd6a6ee27d7b01623ffc4605e`，`VERSION=0.107.2`。
+- **验证结果**:
+  - 部署脚本新增的安全配置预检已随发布进入生产；生产重启后 systemd active，内外 `/health` 与 `/ready` 均 HTTP 200，版本一致为 `0.107.2`。
+  - 生产 readiness checks 全部通过，仓库工作树干净。
+- **边界**: 未执行 Docker；未执行迁移 apply、生产备份或 callback 业务探针；本次只验证部署防线和运行态门禁。
+
 ## [2026-07-12] - fix(r4): 部署停机前安全配置预检
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
