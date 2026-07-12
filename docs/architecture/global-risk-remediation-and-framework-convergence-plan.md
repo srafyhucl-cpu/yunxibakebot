@@ -254,7 +254,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 4. 活跃会话、支付交易和回复发送分别定义幂等键。
 5. Webhook 增加 timestamp 时间窗、nonce/msgid 重放拒绝。
 
-本轮完成：新增迁移前历史重复报告脚本；`messages.channel_msg_id` 非空值建立唯一索引；`MessageRepo.save_if_new()` 改为数据库原子 claim，并按外层事务状态控制短 claim 提交；聊天主流程和有赞非文本旁路统一使用原子认领。当前本地数据库重复组为 0，生产未访问，未提交、未推送、未部署。Webhook timestamp/nonce 时间窗与持久 inbox/outbox 留在 R2-B/R3-B。
+本轮完成：新增迁移前历史重复报告脚本；`messages.channel_msg_id` 非空值建立唯一索引；`MessageRepo.save_if_new()` 改为数据库原子 claim，并按外层事务状态控制短 claim 提交；聊天主流程和有赞非文本旁路统一使用原子认领。当前本地数据库重复组为 0；代码已提交并部署。生产重启与 inbox 汇总已有证据，但真实消息丢失/重复注入专项仍未形成独立证据。Webhook timestamp/nonce 时间窗与持久 inbox/outbox 留在 R2-B/R3-B。
 
 ### R2-B：持久 inbox/outbox 和任务所有权
 
@@ -268,7 +268,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 统一状态至少包含 `received / processing / processed / failed`，支持 lease、超时恢复、有界重试、dead-letter 检视和 shutdown drain。使用 TaskSupervisor 或框架 worker 统一拥有后台任务，移除路由闭包 fire-and-forget。
 
-本轮完成：SQLite inbox 作为 ADR 0006 窄例外接入企微与 Youzan；持久状态覆盖 `received / processing / processed / failed / dead_letter`，支持 lease 重领、有限重试、100 次并发去重、失败恢复、实例重启恢复和 shutdown drain；路由闭包 fire-and-forget 已移除。R2 出站测试全部通过，生产未访问，未提交、未推送、未部署。
+本轮完成：SQLite inbox 作为 ADR 0006 窄例外接入企微与 Youzan；持久状态覆盖 `received / processing / processed / failed / dead_letter`，支持 lease 重领、有限重试、100 次并发去重、失败恢复、实例重启恢复和 shutdown drain；路由闭包 fire-and-forget 已移除。R2 出站测试全部通过，代码已提交并部署；生产重启后 inbox 只读汇总通过，但真实崩溃注入和消息丢失/重复专项仍未形成独立证据。
 
 没有通过 R2 前，禁止多 worker 和水平扩容。
 
@@ -285,7 +285,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 5. 为 messages、profiles、retrieval logs、地址审计、订单和备份定义 TTL、导出和主体删除流程。
 6. 检索 query 默认哈希或分类聚合，必须保存时先脱敏。
 
-本轮首片：新增 `customer_consent_ledger` 独立三态真相表和前台认证 consent API；热路径仅读取 `granted` 画像，离线 QA、知识缺口和 memory 使用独立开关，只有显式 granted 才可写入画像，revoke 删除画像但保留撤回状态；新增主体导出/删除 API、数据库 TTL 清理入口和隐私保留策略文档；检索 query 只保存脱敏后 SHA-256 与分类；原生 LLM、客户/员工 LangChain 和 query rewrite 边界统一脱敏。R3-A 尚未出站，生产未访问。
+本轮首片：新增 `customer_consent_ledger` 独立三态真相表和前台认证 consent API；热路径仅读取 `granted` 画像，离线 QA、知识缺口和 memory 使用独立开关，只有显式 granted 才可写入画像，revoke 删除画像但保留撤回状态；新增主体导出/删除 API、数据库 TTL 清理入口和隐私保留策略文档；检索 query 只保存脱敏后 SHA-256 与分类；原生 LLM、客户/员工 LangChain 和 query rewrite 边界统一脱敏。代码已提交并部署；生产离线外发关闭态和 callback 隐私检查已有证据，但真实主体删除专项和完整生产出站复核仍未完成。
 
 ### R3-B：Webhook、SSRF 和员工授权
 
@@ -313,7 +313,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.12` 生产 health/ready/版本门禁已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.13` 生产 health/ready/版本门禁和迁移 dry-run 已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。
@@ -394,7 +394,7 @@ LangSmith 仍受 R3 隐私门禁约束。metadata 脱敏不等于 prompt、compl
 3. 消除 service 对 `repo._db` 的私有穿透和高风险循环依赖。2026-07-12 已完成：`AdminService`、知识实时增强、客户工具上下文、订单/物流工具和商品实时刷新链路均改为显式仓储/向量依赖注入；`app/service` 静态扫描零命中。
 4. 按职责拆 `youzan_webhook.py`、`event_item.py`、`kf_message_queue.py`、`function_tool_product.py`；不为压行数机械拆分。2026-07-12 已完成首片：商品工具实时刷新、Webhook 商品 ID 负载解析、商品事件标签解析/死代码清理、客服卡片发送和非文本输入预处理均已移至独立模块；剩余事件状态编排保留内聚边界并由文件体量职责评审记录保护。
 5. 为后台管理增加最小 Playwright E2E：登录、订单、向量重建鉴权、ready 失败态。2026-07-12 已新增真实应用链路 E2E：3 项通过；同时修复 E2E 暴露的 `edge_protection` 请求体 receive 递归导致后台登录 500 的缺陷。
-6. 修正 README 版本、端点、provider、worker 和备份说明；文档片段尽量由代码生成或合同测试保护。2026-07-12 已同步 README、`docs/README.md` 和 `docs/AGENTS/quick-reference.md`：版本 `0.107.12`、MiMo 默认 provider、Docker/systemd 单 worker、`/health` 版本示例和 AES-256-GCM 备份命令均已对齐当前代码。
+6. 修正 README 版本、端点、provider、worker 和备份说明；文档片段尽量由代码生成或合同测试保护。2026-07-12 已同步 README、`docs/README.md` 和 `docs/AGENTS/quick-reference.md`：版本 `0.107.13`、MiMo 默认 provider、Docker/systemd 单 worker、`/health` 版本示例和 AES-256-GCM 备份命令均已对齐当前代码。
 7. 证据索引增加存在性、SHA256、保留期或销毁证明。2026-07-12 已将本地文件存在性和 SHA-256 输出接入 `check_evidence_index.py` JSON 门禁；生产路径仍明确标记为外部未验证，保留/销毁说明继续由 `retention_note` 强制要求。
 8. 运维脚本移除递归/批量删除命令，保留策略改为单文件受控清理或人工任务。
 
