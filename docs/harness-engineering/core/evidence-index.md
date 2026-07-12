@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-062：生产 callback 失败类别细分
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/callback-failure-classification
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_probe_cases.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_callback_semantics.py`
+- command: `scp production temporary callback report to D:\Temp`; PowerShell projection of `name/status_code/reply_valid/privacy_safe/semantic_safe/detail`; explicit deletion of local and production temporary report files
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r3-r5): callback 失败类别细分
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只保留失败类别统计和合同字段；报告正文、回复预览、密钥和客户数据未入仓且临时文件已清理。
+- summary: `61` 个 callback 用例中 `22` 个失败，全部为 semantic mismatch；HTTP、流式格式和隐私检查均通过。失败需业务规则/真实数据校准，不能放宽断言。
+
 ## E-20260712-061：生产备份密钥与保留策略审计
 
 - trace_id: `20260711-global-risk-remediation`
