@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-084：生产同构隔离整改 Harness
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: local/isolated-production-parity-remediation-harness
+- file: `D:\Project\YunxiBakeBot\scripts\run_isolated_remediation_harness.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_run_isolated_remediation_harness.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-07-12-isolated-remediation-harness-design.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts/run_isolated_remediation_harness.py --work-dir D:\\Temp\\yunxi-isolated-remediation-harness-run --json`; `python -m pytest tests/scripts/test_run_isolated_remediation_harness.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-remediation-harness`; `python -m ruff check scripts/run_isolated_remediation_harness.py tests/scripts/test_run_isolated_remediation_harness.py`; `python -m ruff format --check scripts/run_isolated_remediation_harness.py tests/scripts/test_run_isolated_remediation_harness.py`; `python -m mypy scripts/run_isolated_remediation_harness.py --ignore-missing-imports --follow-imports=skip`; `python scripts/check_file_sizes.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - feat(harness): 新增生产同构隔离整改 Harness
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只保留合成检查名称、通过数量和隔离元数据；不包含导出正文、消息 payload、客户数据、生产身份或密钥。临时 SQLite/WAL/SHM 均已逐个清理。
+- summary: 真实 Bearer JWT/FastAPI/service/repository/完整 SQLite schema 的主体导出删除链，以及独立子进程 claim/kill、lease 重领和终态幂等链共 `8/8` 通过；脚本合同测试 `4 passed`。该证据证明生产同构隔离行为，不冒充真实生产数据专项。
+
 ## E-20260712-083：生产真实进程崩溃恢复
 
 - trace_id: 20260711-global-risk-remediation

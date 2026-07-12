@@ -111,6 +111,8 @@
   - 固化单机阶段 SQLite 持久 inbox 的窄例外、恢复边界和后续退出条件。
 - `docs/harness-engineering/core/evidence-index.md`
   - 历史证据索引，只做追溯，不作为当前架构口径来源。
+- `docs/harness-engineering/specs/2026-07-12-isolated-remediation-harness-design.md`
+  - 生产同构、数据隔离的主体删除和消息进程崩溃恢复 Harness 设计。
 
 ## 历史评估与报告
 

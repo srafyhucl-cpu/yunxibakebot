@@ -54,11 +54,14 @@ python scripts/report_retrieval_eval_matrix.py --db data/bot.db --fixture tests/
 # 仅跑红线规则自测
 python -m pytest tests/test_red_line_rules.py -q --tb=short
 
+# 生产同构、数据隔离的主体删除与消息崩溃整改 Harness
+python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-remediation-harness --json
+
 # 本地启动
 uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
 
 # 健康检查
-curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.107.12"}
+curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.107.13"}
 
 # 知识种子导入（仅 FAQ / 规则 / 话术）
 python scripts/seed_baseline_knowledge.py

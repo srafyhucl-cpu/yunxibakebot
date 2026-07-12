@@ -1,3 +1,15 @@
+## [2026-07-12] - feat(harness): 新增生产同构隔离整改 Harness
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **设计**: 使用真实 Bearer JWT、FastAPI privacy router、service/repository、完整 SQLite schema 和独立子进程 kill/reclaim，隔离验证主体删除与消息崩溃恢复。
+- **实现**:
+  - 合成主体只存在于显式 D 盘工作目录；验证 authenticated export/delete、关联记录归零和 consent `revoked`。
+  - 合成 inbox 消息由独立子进程 claim，父进程实际终止子进程；lease 到期后新连接重领，`attempt_count=2`，最终单一 `processed` 且重复 enqueue 被拒绝。
+  - JSON 报告只输出检查状态；运行结束逐个清理 SQLite、WAL 和 SHM 文件。
+- **验证结果**: Harness CLI `8/8` 通过；脚本合同测试 `4 passed`；Ruff check/format、脚本独立 mypy、文件体量和 `git diff --check` 通过。
+- **结论**: 已建立可重复的生产同构隔离入口；它不访问生产数据，也不替代真实生产账号和真实生产业务消息专项。
+- **边界**: 无外部调用、无 legacy auth、无真实客户数据、无临时数据库残留。
+
 ## [2026-07-12] - verify(r2-b): 生产真实进程崩溃恢复
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

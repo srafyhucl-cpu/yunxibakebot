@@ -91,6 +91,7 @@ ______________________________________________________________________
 | `scripts/check_project.py` | 统一红线扫描 |
 | `scripts/preflight_production.py` | 生产同步前只读预检和 recovery plan |
 | `scripts/smoke_test.py` | 服务冒烟和 JSON 留档 |
+| `scripts/run_isolated_remediation_harness.py` | 用生产同构组件隔离验证主体删除与消息进程崩溃重领 |
 | `docs/HarnessEngineering评估报告_20260604.md` | 既有 Harness 成熟度评估 |
 | `docs/VibeCoding可持续性评估报告_20260604.md` | 既有 Vibe Coding 可持续性评估 |
 
@@ -104,6 +105,7 @@ ______________________________________________________________________
 | [core/verification-matrix.md](core/verification-matrix.md) | 按变更类型选择最低验证和加强验证 |
 | [core/mistake-ledger.md](core/mistake-ledger.md) | 记录错误、根因和新增防线 |
 | [core/agent-handoff-template.md](core/agent-handoff-template.md) | 长任务续跑和换 Agent 交接模板 |
+| [specs/2026-07-12-isolated-remediation-harness-design.md](specs/2026-07-12-isolated-remediation-harness-design.md) | 隔离主体删除与消息崩溃恢复的生产同构设计 |
 | [core/evidence-index.md](core/evidence-index.md) | 登记上线、交接、预检、冒烟、迁移等证据包索引 |
 | [adr/README.md](adr/README.md) | 记录会影响长期演进的架构决策 |
 
