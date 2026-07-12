@@ -326,11 +326,11 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ```powershell
 python scripts/migration_job.py --db <path> --mode dry-run
-python scripts/migration_job.py --db <path> --mode apply --backup <backup-path>
+python scripts/migration_job.py --db <path> --mode apply --backup <off-disk-backup-path>
 python scripts/migration_job.py --db <path> --mode rollback --backup <backup-path>
 ```
 
-`apply` 必须先创建且校验 SQLite backup；迁移异常会自动从该备份恢复；`rollback` 不覆盖备份文件，目标库恢复后再次执行 integrity check。生产 apply 仍需由发布窗口和精确 commit/manifest 门禁调用。
+`apply` 必须先创建且校验独立设备上的 SQLite backup；迁移异常会自动从该备份恢复；`rollback` 不覆盖备份文件，目标库恢复后再次执行 integrity check。生产 apply 仍需由发布窗口和精确 commit/manifest 门禁调用，迁移 job 默认拒绝同设备备份。
 
 发布 manifest 入口：
 

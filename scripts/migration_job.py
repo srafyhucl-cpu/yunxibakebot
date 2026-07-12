@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -58,6 +59,7 @@ async def run_job(
     *,
     mode: str,
     backup_path: Path | None = None,
+    require_off_disk: bool = True,
 ) -> MigrationJobReport:
     database_path = database_path.resolve()
     if mode == "dry-run":
@@ -73,6 +75,8 @@ async def run_job(
     if backup_path is None:
         raise ValueError("apply/rollback 必须显式提供 --backup")
     backup_path = backup_path.resolve()
+    if require_off_disk:
+        _assert_off_disk_backup(database_path, backup_path)
 
     if mode == "rollback":
         _restore_backup(backup_path, database_path)
@@ -118,6 +122,18 @@ def _create_backup(database_path: Path, backup_path: Path) -> None:
         with sqlite3.connect(backup_path) as backup:
             source.backup(backup)
             _assert_integrity(backup, "backup")
+
+
+def _assert_off_disk_backup(database_path: Path, backup_path: Path) -> None:
+    """拒绝把同一设备上的备份当作生产回滚点。"""
+    if not database_path.exists():
+        raise FileNotFoundError(f"目标数据库不存在，拒绝检查备份设备: {database_path}")
+    if not backup_path.parent.is_dir():
+        raise FileNotFoundError(f"备份目录必须预先挂载: {backup_path.parent}")
+    database_device = os.stat(database_path).st_dev
+    backup_device = os.stat(backup_path.parent).st_dev
+    if database_device == backup_device:
+        raise ValueError("备份目录与数据库位于同一设备，拒绝迁移")
 
 
 def _restore_backup(backup_path: Path, database_path: Path) -> None:

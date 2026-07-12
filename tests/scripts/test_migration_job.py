@@ -34,6 +34,7 @@ async def test_apply_creates_backup_and_makes_schema_ready(tmp_path: Path) -> No
         database_path,
         mode="apply",
         backup_path=backup_path,
+        require_off_disk=False,
     )
 
     assert report.schema_ready is True
@@ -56,6 +57,7 @@ async def test_rollback_restores_backup_state(tmp_path: Path) -> None:
         database_path,
         mode="rollback",
         backup_path=backup_path,
+        require_off_disk=False,
     )
 
     assert report.rolled_back is True
@@ -76,6 +78,7 @@ async def test_apply_refuses_existing_backup(tmp_path: Path) -> None:
             database_path,
             mode="apply",
             backup_path=backup_path,
+            require_off_disk=False,
         )
 
 
@@ -98,6 +101,7 @@ async def test_apply_failure_restores_backup(
         database_path,
         mode="apply",
         backup_path=backup_path,
+        require_off_disk=False,
     )
 
     assert report.schema_ready is False
@@ -105,3 +109,17 @@ async def test_apply_failure_restores_backup(
     assert "injected migration failure" in report.error
     with sqlite3.connect(database_path) as connection:
         assert connection.execute("SELECT value FROM marker").fetchone() == ("before",)
+
+
+@pytest.mark.asyncio
+async def test_apply_rejects_same_device_backup_by_default(tmp_path: Path) -> None:
+    database_path = tmp_path / "bot.db"
+    backup_path = tmp_path / "backup.db"
+    _create_database(database_path)
+
+    with pytest.raises(ValueError, match="同一设备"):
+        await migration_job.run_job(
+            database_path,
+            mode="apply",
+            backup_path=backup_path,
+        )

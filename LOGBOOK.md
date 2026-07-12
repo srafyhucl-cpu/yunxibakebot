@@ -1,3 +1,16 @@
+## [2026-07-12] - fix(r4): 迁移 job 默认拒绝同设备备份
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**:
+  - `scripts/migration_job.py` 的 `apply`/`rollback` 默认检查数据库与备份目录的设备号，要求备份目录预先存在且位于独立设备。
+  - 同设备或未挂载备份目录时 fail-closed；CLI 不提供绕过参数。
+  - 本地临时目录测试仅显式传入 `require_off_disk=False`，只用于验证迁移逻辑，不代表生产配置。
+- **验证结果**:
+  - `tests/scripts/test_migration_job.py`: `6 passed`。
+  - `ruff check`、`ruff format --check`、`git diff --check`、evidence index 和 mistake ledger 均通过。
+- **结论**: 生产迁移继续保持未执行状态；必须等独立备份挂载和受控密钥托管就绪后，才允许执行 `apply`/`rollback`。
+- **边界**: 未生成同盘备份，未执行生产迁移，未读取或输出数据库内容、密钥和客户数据。
+
 ## [2026-07-12] - deploy(r3-r5): 启用最小员工授权并复验 callback
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

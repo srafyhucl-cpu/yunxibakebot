@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-076：迁移 job 默认异盘设备门禁
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: local/migration-off-disk-guard
+- file: `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_migration_job.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `python -m pytest tests/scripts/test_migration_job.py -q --no-cov`; `python -m ruff check scripts/migration_job.py tests/scripts/test_migration_job.py`; `python -m ruff format --check scripts/migration_job.py tests/scripts/test_migration_job.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - fix(r4): 迁移 job 默认拒绝同设备备份
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录门禁行为、测试汇总和生产未执行状态；不包含数据库内容、备份内容、客户数据或密钥。
+- summary: 迁移 job 的 `apply`/`rollback` 默认要求备份目录预先存在且与数据库位于不同设备；同设备路径会拒绝迁移。既有本地临时目录测试仅显式关闭该门禁，生产 CLI 无绕过路径。
+
 ## E-20260712-070：生产异盘备份前置检查
 
 - trace_id: 20260711-global-risk-remediation
