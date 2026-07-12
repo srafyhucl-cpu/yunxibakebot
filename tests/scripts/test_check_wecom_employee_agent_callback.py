@@ -76,6 +76,25 @@ class _FakeAsyncClient:
         )
 
 
+def test_callback_probe_uses_configured_employee_actor(monkeypatch) -> None:
+    monkeypatch.setattr(callback_check.settings, "WECOM_STAFF_ID", "")
+    monkeypatch.setattr(
+        callback_check.settings,
+        "WECOM_KF_SERVICER_USERID",
+        "service-user",
+    )
+    monkeypatch.setattr(callback_check.settings, "WECOM_EMPLOYEE_CORP_ID", "")
+    monkeypatch.setattr(callback_check.settings, "WECOM_CORP_ID", "corp-id")
+
+    message = callback_check.build_callback_message(
+        default_probe_cases(__import__("datetime").date.today())[0],
+        1,
+    )
+
+    assert message["from"] == {"userid": "service-user"}
+    assert message["corpid"] == "corp-id"
+
+
 def test_parse_base_url_rejects_path() -> None:
     try:
         callback_check.parse_base_url("https://yunxifood.cn/ready")

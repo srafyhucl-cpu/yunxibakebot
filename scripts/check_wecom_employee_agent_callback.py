@@ -223,6 +223,15 @@ def build_callback_message(probe: CallbackProbe, index: int) -> dict[str, object
         "aibotid": "yunxi-employee-agent",
         "chattype": "group",
         "msgtype": "text",
+        "from": {
+            "userid": (
+                settings.WECOM_STAFF_ID.strip()
+                or settings.WECOM_KF_SERVICER_USERID.strip()
+            )
+        },
+        "corpid": (
+            settings.WECOM_EMPLOYEE_CORP_ID.strip() or settings.WECOM_CORP_ID.strip()
+        ),
         "text": {"content": probe.query},
     }
 

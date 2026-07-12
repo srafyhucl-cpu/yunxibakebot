@@ -1,3 +1,13 @@
+## [2026-07-12] - fix(r3-r5): callback 探针携带受控员工 actor
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 启用最小员工用户 allowlist 后，仓库 callback 探针原先不携带 `from.userid` 和 `corpid`，会把授权失败误判成业务语义失败。
+- **改动**:
+  - 探针优先使用 `WECOM_STAFF_ID`，回退到已配置的 `WECOM_KF_SERVICER_USERID`，并携带 `WECOM_EMPLOYEE_CORP_ID`/`WECOM_CORP_ID`。
+  - 增加 actor 映射合同测试；生产配置将以现有客服服务人员 ID 作为唯一用户 allowlist，不开放 chat 通配。
+- **验证结果**: callback 与员工授权定向测试 `33 passed`；Ruff lint/format 通过。
+- **边界**: 未输出员工 ID、企业 ID 或任何密钥；生产配置更新和 callback 复验在提交后执行。
+
 ## [2026-07-12] - verify(r3-r5): callback 诊断链路本地回归
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
