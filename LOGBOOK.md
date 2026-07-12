@@ -1,3 +1,12 @@
+## [2026-07-12] - verify(r3-a): 生产隐私权利接口未认证拒绝
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - `GET /api/v1/miniapp/privacy/subject/export` 未带认证返回 `401`。
+  - `DELETE /api/v1/miniapp/privacy/subject` 未带认证返回 `401`，未进入删除逻辑。
+- **结论**: 生产主体权利接口的认证边界通过；真实主体导出/删除专项仍需受控测试主体和完整出站复核，不能由本次负向探针替代。
+- **边界**: 未发送用户标识，未读取或删除任何主体数据。
+
 ## [2026-07-12] - verify(r2-r5): 生产 callback 与 inbox 聚合复验
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

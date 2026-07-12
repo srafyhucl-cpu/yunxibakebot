@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-079：生产隐私权利接口未认证拒绝
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/privacy-rights-unauthorized-boundary
+- file: `D:\Project\YunxiBakeBot\app\api\channels\storefront\privacy.py`; `D:\Project\YunxiBakeBot\docs\architecture\privacy-data-retention-policy.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `curl.exe -sS -o NUL -w "export_http=%{http_code}" https://yunxifood.cn/api/v1/miniapp/privacy/subject/export`; `curl.exe -sS -o NUL -w "delete_http=%{http_code}" -X DELETE https://yunxifood.cn/api/v1/miniapp/privacy/subject`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r3-a): 生产隐私权利接口未认证拒绝
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只保留未认证状态码和未进入删除逻辑的边界；不包含用户标识、主体数据、客户原文或密钥。
+- summary: 生产主体导出和删除接口在缺少认证时均返回 `401`；本次只验证授权边界，不宣称真实主体导出/删除专项完成。
+
 ## E-20260712-078：生产 callback 与 inbox 聚合复验
 
 - trace_id: 20260711-global-risk-remediation
