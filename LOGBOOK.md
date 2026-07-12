@@ -1,3 +1,12 @@
+## [2026-07-12] - verify(r4): 生产备份密钥与保留策略审计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 生产数据库目录存在且服务正常运行，但 `BACKUP_KEY_FILE`、`ENCRYPTED_BACKUP_KEY_FILE`、`SQLITE_BACKUP_KEY_FILE` 配置值为空。
+  - 未发现可验证的仓外 32 字节备份密钥文件或受控备份目录，无法执行符合计划要求的 AES-GCM 生产备份 round-trip。
+- **边界**: 未生成同盘密钥、未创建同盘备份、未读取数据库内容；避免把不满足异盘托管和 30 天保留策略的产物记为完成。
+- **后续**: 需要受控密钥托管、异盘备份位置和逐文件保留/销毁流程后，再执行生产备份与恢复演练。
+
 ## [2026-07-12] - verify(r3-r5): 生产授权与 callback 探针审计
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

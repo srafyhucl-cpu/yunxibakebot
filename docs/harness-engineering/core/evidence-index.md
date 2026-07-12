@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-061：生产备份密钥与保留策略审计
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/read-only-backup-key-retention-audit
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\privacy-data-retention-policy.md`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\scripts\verify_backup_restore.py`
+- command: `ssh root@47.94.102.250 "inspect backup key variable presence without values; inspect key-file paths and modes; inspect data directory"`
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r4): 生产备份密钥与保留策略审计
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录配置存在性、路径/权限元数据和缺口；未读取数据库、密钥内容、备份内容或客户数据。
+- summary: 生产未配置可验证的仓外备份密钥路径或受控备份目录，生产 AES-GCM backup/restore 与 30 天保留策略仍未执行。
+
 ## E-20260712-060：生产授权与 callback 探针审计
 
 - trace_id: `20260711-global-risk-remediation`
