@@ -1,3 +1,15 @@
+## [2026-07-12] - verify(r2-b): 生产真实进程崩溃恢复
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **前置**: 崩溃注入前 inbox 只读聚合仅有 `youzan_webhook/processed=131`，无处理中、失败或死信任务。
+- **验证结果**:
+  - 对生产 `yunxibakebot` 执行一次受控 `SIGKILL`，systemd 自动拉起新 PID `788756`。
+  - 约 8 秒后 `/health`、`/ready` 恢复，版本 `0.107.13`，schema ready。
+  - 数据库 `PRAGMA integrity_check` 返回 `ok`；恢复后 inbox 仍无 `processing`、`failed` 或 `dead_letter`。
+  - 服务日志显示两个队列 worker 和应用正常重新启动。
+- **结论**: 生产真实进程崩溃后的自动恢复通过；消息丢失/重复专项仍未完成，因为本次未注入业务消息且崩溃前无处理中任务。
+- **边界**: 未写入或删除业务数据，未输出客户原文、订单明细、员工 ID 或密钥。
+
 ## [2026-07-12] - verify(r4): 生产 migration apply/rollback 独立设备 staging 演练
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

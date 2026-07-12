@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-083：生产真实进程崩溃恢复
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/process-crash-recovery
+- file: production `/opt/yunxibakebot/data/bot.db`; production systemd service unit; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: production read-only inbox aggregate before crash; production `systemctl kill -s SIGKILL yunxibakebot`; production `systemctl is-active yunxibakebot`; production `systemctl show -p MainPID --value yunxibakebot`; production `/health`; production `/ready`; production `PRAGMA integrity_check`; production `journalctl -u yunxibakebot -n 80 --no-pager`; production read-only inbox aggregate after recovery
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r2-b): 生产真实进程崩溃恢复
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只保留进程恢复、版本、状态码、数据库完整性和 inbox 状态聚合；不包含日志原文、客户消息、订单数据、员工 ID 或密钥。
+- summary: 崩溃前 inbox 无处理中/失败/死信；SIGKILL 后 systemd 自动拉起新 PID，约 8 秒内 health/ready 恢复，schema 和 integrity check 通过，恢复后无异常状态。该证据证明进程恢复，不替代有处理中消息时的丢失/重复专项。
+
 ## E-20260712-082：生产 migration apply/rollback 独立设备 staging 演练
 
 - trace_id: 20260711-global-risk-remediation
