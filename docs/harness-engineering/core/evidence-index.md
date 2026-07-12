@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-065：callback 诊断链路本地回归
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/callback-diagnosis-contract-regression
+- file: `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\scripts\report_langchain_production_callback_failures.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_authorization.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py tests/scripts/test_report_langchain_production_callback_failures.py tests/service/wecom/test_employee_authorization.py -q --no-cov --tb=short`; `python -m pytest tests/scripts/test_check_langchain_production_observability_release.py tests/scripts/test_report_langchain_production_sync_handoff.py -q --no-cov --tb=short`; targeted `ruff check`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r3-r5): callback 诊断链路本地回归
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录本地测试计数和代码路径；未记录生产 callback 报告、回复正文、密钥或客户数据。
+- summary: 本地 callback/授权/诊断/观测合同共 `45 passed`，Ruff 通过；生产 `22/61` semantic mismatch 仍需真实业务规则和数据校准。
+
 ## E-20260712-064：安全配置预检防线生产验证
 
 - trace_id: `20260711-global-risk-remediation`

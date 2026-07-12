@@ -1,3 +1,13 @@
+## [2026-07-12] - verify(r3-r5): callback 诊断链路本地回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - callback 语义、生产失败诊断和员工授权合同：`35 passed`。
+  - LangChain 生产观测 release/handoff 合同：`10 passed`。
+  - 相关 Ruff 检查通过。
+- **结论**: 本地 callback 规则与失败诊断链路无回归；生产 `22/61` 失败应按真实订单、商品、知识和运营语义处理，不能通过放宽本地断言消除。
+- **边界**: 未访问客户原文、未启用 LangSmith 或生产 trace sink、未修改生产授权名单。
+
 ## [2026-07-12] - deploy(r4): 安全配置预检防线生产验证
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
