@@ -3,8 +3,8 @@
 > trace_id: `20260711-global-risk-remediation`
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
-> 基线：生产当前版本 `0.107.13`（本列车）；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；生产同构隔离整改 Harness 已用真实 Bearer JWT/FastAPI/service/repository/SQLite 和独立子进程 kill 完成主体删除与消息重领 `8/8` 验证。R2-B 已有生产重启、真实进程崩溃恢复和 inbox 汇总证据，但有处理中真实业务消息时的丢失/重复专项仍未完成；R3-A 完整生产隐私出站专项已通过聚合门禁 `8/8`，真实生产主体删除仍未完成；R3-B 已统一商品目录/客服卡片远程下载入口，并将员工 Agent 运营权限收敛为服务端 ops 用户白名单和执行前工具门禁。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。本地 D 盘长期加密备份已配置每天 03:30 的 Windows 计划任务，默认保留 30 天且至少 3 份；生产持久挂载仍未配置；容器 build/smoke 仍未完成。全量测试已串行通过。
+> 基线：生产当前版本 `0.109.4`；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成对应实现与门禁。隔离 Harness 的主体删除/消息重领 `8/8`、生产真实 JWT/API 合成主体删除 `8/8`、生产真实 SQLite/InboxRepo processing 崩溃重领 `8/8` 均已通过，全部零残留且不使用真实客户或业务消息。R3-B 已统一远程下载和员工 Agent 服务端授权单一路径；生产员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证。无法可靠确认的业务事实和 callback 异常统一转人工。本地 D 盘长期加密备份每天 03:30 运行，默认保留 30 天且至少 3 份；生产无独立磁盘，长期灾难恢复由本地加密备份承担。Docker 真实 build/smoke 按用户决定后置。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -246,7 +246,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 ### R2-A：数据库原子幂等
 
-状态：本地实施与验证已完成（2026-07-11）；历史重复报告为 0 组，唯一索引已进入本地迁移；生产重启/真实消息丢失与重复专项尚未形成独立证据。
+状态：本地实施与验证已完成（2026-07-11）；历史重复报告为 0 组，唯一索引已进入迁移；生产重启、processing 崩溃、lease 重领、不丢失和不重复专项已形成独立证据（2026-07-12）。
 
 1. 上唯一约束前先报告并处理历史重复数据。
 2. `channel_msg_id` 和渠道消息键使用数据库唯一约束。
@@ -254,7 +254,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 4. 活跃会话、支付交易和回复发送分别定义幂等键。
 5. Webhook 增加 timestamp 时间窗、nonce/msgid 重放拒绝。
 
-本轮完成：新增迁移前历史重复报告脚本；`messages.channel_msg_id` 非空值建立唯一索引；`MessageRepo.save_if_new()` 改为数据库原子 claim，并按外层事务状态控制短 claim 提交；聊天主流程和有赞非文本旁路统一使用原子认领。当前本地数据库重复组为 0；代码已提交并部署。生产重启与 inbox 汇总已有证据，但真实消息丢失/重复注入专项仍未形成独立证据。Webhook timestamp/nonce 时间窗与持久 inbox/outbox 留在 R2-B/R3-B。
+本轮完成：新增迁移前历史重复报告脚本；`messages.channel_msg_id` 非空值建立唯一索引；`MessageRepo.save_if_new()` 改为数据库原子 claim，并按外层事务状态控制短 claim 提交；聊天主流程和有赞非文本旁路统一使用原子认领。当前本地数据库重复组为 0；代码已提交并部署。生产重启与 inbox 汇总已有证据，生产专用合成队列通过真实 InboxRepo 完成 processing 子进程 kill、lease 到期重领、attempt_count=2、单一 processed、重复 enqueue 拒绝和零残留验证。Webhook timestamp/nonce 时间窗与持久 inbox/outbox 已在 R2-B/R3-B 收口。
 
 ### R2-B：持久 inbox/outbox 和任务所有权
 
@@ -516,12 +516,11 @@ service active
 - 每个结论都有 L3 以上命令或报告证据，生产发布达到 L4/L5。
 - LOGBOOK、进度表、ADR 和 evidence index 能追溯到同一 trace。
 
-## 十七、立即下一步
+## 十七、当前收口顺序
 
-按以下顺序开始，不并行制造更多工作区噪声：
+计划启动步骤、R0 止血、R1-R3 风险链及主要 R4/R5/R6 实施已完成，不再重复执行历史“立即下一步”。当前只按以下顺序收口：
 
-1. 用户审阅本计划和 ADR 0005。
-2. 按第三节精确恢复当前单字符误改，合并计划文档为 1 个 docs commit，并集中推送。
-3. 执行 R0-T0 生产止血并保留只读验证证据。
-4. 并行完成 R0-B 快照白名单化和 R0-C 测试/CI 基线。
-5. 进入 R1，攻击链闭环通过后再恢复订单与支付入口。
+1. 复核主计划完成定义与 evidence index，清除过时的未完成口径。
+2. 以本地 D 盘每日 AES-256-GCM 备份作为当前无生产独立磁盘条件下的长期灾难恢复资产，持续观察计划任务结果。
+3. Docker 真实 build、漏洞扫描和容器 smoke 按用户决定后置，不阻断当前 systemd 生产列车。
+4. 除非发现新的证据缺口，不重新开放离线复盘或 LangSmith 外发。
