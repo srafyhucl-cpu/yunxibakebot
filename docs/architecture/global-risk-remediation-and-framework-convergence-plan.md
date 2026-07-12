@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：`master=origin/master=7e666218275a5040e0c3ab9c648f4cb9a53bac74`，`VERSION=0.105.19`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B 已完成；R3-A、R3-B、R4-A、R4-B、R4-C 和 R5-A 均已有本地首片并通过对应定向门禁。R5-A 已覆盖 provider/model registry、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter、本地 trace sink 和 checkpoint 取舍；R6 已完成仓储返回类型、Agent 类型质量和 Harness 证据完整性首片，并为本轮超线 Agent/订单仓储补充职责评审。生产反向代理、员工授权配置、迁移回滚、异盘密钥托管、容器 build/smoke、生产 sink 启用和 R5 生产 trace/callback 收口仍未完成。全量测试已串行通过，coverage 82.34%。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B 已完成；R3-A、R3-B、R4-A、R4-B、R4-C 和 R5-A 均已有本地首片并通过对应定向门禁。R5-A 已覆盖 provider/model registry、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter、本地 trace sink 和 checkpoint 取舍；R6 已完成仓储返回类型、Agent 类型质量和 Harness 证据完整性首片，并为本轮超线 Agent/订单仓储补充职责评审。生产版本、反向代理和 readiness 已在 `0.107.0` 发布列车中验证；员工授权配置、callback 语义收口、迁移回滚演练、异盘密钥托管、定时备份保留、容器 build/smoke、生产 sink 启用和 R5 生产 trace/callback 收口仍未完成。全量测试已串行通过，coverage 82.34%。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -230,7 +230,7 @@ flowchart TD
 
 ### R1-C：后台认证和边缘防护
 
-状态：本地实施与验证已完成（2026-07-11）；生产反向代理应用与只读复验待授权执行。
+状态：本地实施与验证已完成（2026-07-11）；`0.107.0` 发布后生产反向代理、版本和 readiness 已只读复验，生产员工授权配置仍待真实名单审计。
 
 - 向量重建纳入 admin 认证、单实例互斥和限流。
 - 后台改为 HttpOnly + Secure 短会话，移除 localStorage Bearer，增加 CSRF / Origin 和登录限流。
@@ -303,7 +303,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-A：readiness、告警和任务存活
 
-状态：已完成 readiness HTTP 503、httpx 告警传输、持久 inbox stuck 统计/告警和启动期 readiness snapshot 首片本地实施与定向验证（2026-07-12）；生产反向代理/运行态复验仍未完成。
+状态：已完成 readiness HTTP 503、httpx 告警传输、持久 inbox stuck 统计/告警和启动期 readiness snapshot 首片本地实施与定向验证（2026-07-12）；`0.107.0` 生产运行态、双域反向代理和版本门禁已通过。
 
 - degraded 返回 HTTP 503，metadata `ready=false` 必须失败。
 - readiness 读取当前 worker 的真实初始化和任务存活状态。
@@ -313,7 +313,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest 和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；异盘密钥托管、定时保留策略和生产 smoke 仍未完成。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest 和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.0` 生产 health/ready/版本门禁已通过；异盘密钥托管、定时保留策略和生产迁移回滚演练仍未完成。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。
@@ -354,7 +354,7 @@ R4 出站条件：备份恢复 round-trip、迁移 dry-run/apply/rollback、部�
 
 ### R5-A：模型 registry 与运行时 transport 首片
 
-状态：已完成 LangChain provider/model/temperature/timeout registry、共享 HTTP transport、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、employee structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter 和本地 trace sink 首片；shutdown 统一释放资源，客户/员工 Agent 定向回归及全量测试通过（2026-07-12）。生产 callback/trace sink 启用与发布验证仍未完成。
+状态：已完成 LangChain provider/model/temperature/timeout registry、共享 HTTP transport、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、employee structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter 和本地 trace sink 首片；shutdown 统一释放资源，客户/员工 Agent 定向回归及全量测试通过（2026-07-12）。`0.107.0` 发布版本门禁已通过，但生产 callback 探针 `61` 个用例中 `22` 个失败，生产 trace sink 未启用。
 
 - 已删除 LangChain 模型工厂每次创建 HTTP client 的路径。
 - 已新增共享 `app/service/llm/provider.py` resolver；文本能力统一由 LangChain 工厂解析 MiMo 默认和显式 DeepSeek，`client.py` 仅保留 ASR SDK adapter。
