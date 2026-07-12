@@ -313,7 +313,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.13` 生产 health/ready/版本门禁和迁移 dry-run 已通过；已将生产 SQLite 一致性快照拉到本地 D 盘并完成 AES-256-GCM 解密完整性校验，生产侧明文临时文件已清理。生产服务器仍无可供 migration job 在线回滚的独立挂载和密钥托管，定时保留策略和生产迁移回滚演练仍未完成。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.13` 生产 health/ready/版本门禁和迁移 dry-run 已通过；已将生产 SQLite 一致性快照拉到本地 D 盘并完成 AES-256-GCM 解密完整性校验，生产侧明文临时文件已清理；生产使用 `/dev/shm` 独立设备 staging 完成一次 `apply`/`rollback` 演练并清理临时文件。生产持久化备份挂载、密钥托管和定时保留策略仍未配置，长期灾难恢复资产由本地 D 盘加密备份承担。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。
@@ -330,7 +330,7 @@ python scripts/migration_job.py --db <path> --mode apply --backup <off-disk-back
 python scripts/migration_job.py --db <path> --mode rollback --backup <backup-path>
 ```
 
-`apply` 必须先创建且校验独立设备上的 SQLite backup；迁移异常会自动从该备份恢复；`rollback` 不覆盖备份文件，目标库恢复后再次执行 integrity check。生产 apply 仍需由发布窗口和精确 commit/manifest 门禁调用，迁移 job 默认拒绝同设备备份。
+`apply` 必须先创建且校验独立设备上的 SQLite backup；迁移异常会自动从该备份恢复；`rollback` 不覆盖备份文件，目标库恢复后再次执行 integrity check。生产已在 `/dev/shm` 独立设备 staging 完成一次 apply/rollback 演练；长期备份仍保留在本地 D 盘加密资产中，迁移 job 默认拒绝同设备备份。
 
 发布 manifest 入口：
 

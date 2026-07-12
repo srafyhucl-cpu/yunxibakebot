@@ -1,3 +1,14 @@
+## [2026-07-12] - verify(r4): 生产 migration apply/rollback 独立设备 staging 演练
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 生产 `/dev/shm` 与数据库位于不同设备，数据库 integrity check 返回 `ok`。
+  - `migration_job.py --mode apply --backup /dev/shm/...` 通过，`schema_ready=true`。
+  - 随后 `migration_job.py --mode rollback --backup /dev/shm/...` 通过，`rolled_back=true`、`schema_ready=true`。
+  - tmpfs 备份已按明确路径删除；生产 integrity check、systemd 和 `/health` 复验通过。
+- **结论**: 生产在线 migration apply/rollback 合同已在独立设备 staging 完成一次演练；长期灾难恢复仍依赖本地 D 盘加密备份，生产持久挂载和定时保留尚未配置。
+- **边界**: 未输出数据库内容、客户数据或密钥；未把 tmpfs 临时文件当作长期备份。
+
 ## [2026-07-12] - verify(r4): 真实生产快照本地迁移回滚演练
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

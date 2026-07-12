@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-082：生产 migration apply/rollback 独立设备 staging 演练
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/migration-apply-rollback-tmpfs-staging
+- file: `D:\Project\YunxiBakeBot\scripts\migration_job.py`; production `/opt/yunxibakebot/data/bot.db`; production tmpfs staging; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: production `stat -c '%d' /opt/yunxibakebot/data/bot.db /dev/shm`; production `sqlite3 /opt/yunxibakebot/data/bot.db 'PRAGMA integrity_check;'`; production `venv/bin/python scripts/migration_job.py --db data/bot.db --mode apply --backup /dev/shm/yunxi-migration-backup-20260712-01.db --json`; production `venv/bin/python scripts/migration_job.py --db data/bot.db --mode rollback --backup /dev/shm/yunxi-migration-backup-20260712-01.db --json`; explicit deletion of tmpfs backup; production `/health`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r4): 生产 migration apply/rollback 独立设备 staging 演练
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: yes
+- retention_note: tmpfs 备份只作为迁移期间的独立设备 staging，演练后已删除；长期加密备份保留在本地 D 盘，索引不记录数据库内容、客户数据或密钥。
+- summary: 生产数据库 integrity check 通过；独立设备 `/dev/shm` 上的 migration apply 和 rollback 均返回 `schema_ready=true`，rollback 返回 `rolled_back=true`；tmpfs 文件已清理。该证据不等于生产持久化备份挂载和定时保留已配置。
+
 ## E-20260712-081：真实生产快照本地迁移回滚演练
 
 - trace_id: 20260711-global-risk-remediation
