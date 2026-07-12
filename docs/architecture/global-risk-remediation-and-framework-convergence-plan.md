@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：生产当前版本 `0.107.13`（本列车）；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；R2-B 已有生产重启后的 inbox 汇总证据，R3-A 已有生产离线外发关闭态证据，但真实崩溃注入、主体删除和完整隐私出站专项仍未完成。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink 和迁移 dry-run 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。异盘存储和密钥托管仍未就绪，备份脚本已在生产 fail-closed；定时备份保留、生产迁移回滚演练和容器 build/smoke 仍未完成。全量测试已串行通过。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；R2-B 已有生产重启、真实进程崩溃恢复和 inbox 汇总证据，但有处理中消息时的丢失/重复专项仍未完成；R3-A 已有生产离线外发关闭态和隐私接口未认证拒绝证据，但主体删除和完整隐私出站专项仍未完成。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。长期备份已拉取到本地 D 盘并加密，生产持久挂载、密钥托管和定时保留仍未配置；容器 build/smoke 仍未完成。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -268,7 +268,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 统一状态至少包含 `received / processing / processed / failed`，支持 lease、超时恢复、有界重试、dead-letter 检视和 shutdown drain。使用 TaskSupervisor 或框架 worker 统一拥有后台任务，移除路由闭包 fire-and-forget。
 
-本轮完成：SQLite inbox 作为 ADR 0006 窄例外接入企微与 Youzan；持久状态覆盖 `received / processing / processed / failed / dead_letter`，支持 lease 重领、有限重试、100 次并发去重、失败恢复、实例重启恢复和 shutdown drain；路由闭包 fire-and-forget 已移除。R2 出站测试全部通过，代码已提交并部署；生产重启后 inbox 只读汇总通过，但真实崩溃注入和消息丢失/重复专项仍未形成独立证据。
+本轮完成：SQLite inbox 作为 ADR 0006 窄例外接入企微与 Youzan；持久状态覆盖 `received / processing / processed / failed / dead_letter`，支持 lease 重领、有限重试、100 次并发去重、失败恢复、实例重启恢复和 shutdown drain；路由闭包 fire-and-forget 已移除。R2 出站测试全部通过，代码已提交并部署；生产真实进程崩溃后 systemd 自动恢复且 inbox 无异常状态，但有处理中消息时的消息丢失/重复专项仍未形成独立证据。
 
 没有通过 R2 前，禁止多 worker 和水平扩容。
 
