@@ -1,3 +1,13 @@
+## [2026-07-12] - verify(r4): 全局整改版本最终发布复验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **结果**:
+  - 生产已运行全局整改版本 `0.107.0`，行为发布 commit 为 `371ff0854d6f1ac278ba0f7fa7eb0e78b24991ed`，随后证据文档 commit 为 `e55de350d4e6135242754e2e7d0af01f0b4d37d1`。
+  - `yunxi.hclstudio.cn` 与 `yunxifood.cn` 的 `/health`、`/ready` 均 HTTP 200，返回版本均为 `0.107.0`。
+  - systemd 为 `active/running`，`Result=success`；生产仓库工作树干净。
+- **配置**: 按计划在生产受控 `.env` 中补齐随机 `ADMIN_SESSION_SECRET`，权限保持 `600 root:root`；密钥值未输出、未入仓。
+- **边界**: Docker build/smoke 仍按授权后置；未读取客户数据、订单内容或密钥值。
+
 ## [2026-07-12] - deploy(r4): 全局整改发布失败并自动回滚
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

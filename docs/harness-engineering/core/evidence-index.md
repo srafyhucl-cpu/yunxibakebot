@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-059：全局整改版本最终发布复验
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/deploy-runtime-version-readiness-final
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\scripts\deploy_server.sh`
+- command: `ssh root@47.94.102.250 "systemctl restart yunxibakebot"`; `Invoke-WebRequest https://yunxi.hclstudio.cn/health`; `Invoke-WebRequest https://yunxi.hclstudio.cn/ready`; `Invoke-WebRequest https://yunxifood.cn/health`; `Invoke-WebRequest https://yunxifood.cn/ready`; `ssh root@47.94.102.250 "systemctl show yunxibakebot -p ActiveState -p SubState -p Result -p ExecMainStatus && git rev-parse HEAD && cat VERSION && git status --short"`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r4): 全局整改版本最终发布复验
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录 commit、版本、HTTP 状态、服务状态和密钥配置存在性；未记录密钥值、客户原文、订单或生产日志正文。
+- summary: 行为发布 commit `371ff08` 已成功运行，双域 health/ready 均 200、版本 `0.107.0`，systemd active/running；发布前缺失的 `ADMIN_SESSION_SECRET` 已在受控 `.env` 中补齐，值未回显或入仓。
+
 ## E-20260712-058：全局整改发布失败与自动回滚
 
 - trace_id: `20260711-global-risk-remediation`
