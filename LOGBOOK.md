@@ -1,3 +1,12 @@
+## [2026-07-12] - test(callback): 对齐 API 夹具与服务端授权合同
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发现**: 最终全量测试发现两个加密 callback API 夹具仍使用无 actor/chat/corp 的 group 消息，Fake Agent 未接收 allowed tools；版本一致性测试同时发现进度表头仍为 `0.105.19`。
+- **修复**: API 夹具改用完整合成授权 actor，Fake Agent 对齐生产接口并断言非空工具集合；进度表头同步 `0.109.4`；同类重复问题登记 `M-20260712-008`。
+- **定向验证**: callback API 与版本同步套件 `12 passed`，Ruff 和独立 mypy 通过。
+- **全量验证**: `python -m pytest tests/ -q --no-cov` 复跑 100% 通过，仅有既有 Starlette/httpx2 弃用警告。
+- **边界**: 不关闭生产授权、不引入测试绕过、不修改真实员工/群配置。
+
 ## [2026-07-12] - docs(plan): 清理 R2/R3 生产专项过时缺口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

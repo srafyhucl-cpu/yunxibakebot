@@ -66,6 +66,21 @@ ______________________________________________________________________
 - linked_files: `scripts/deploy_server.sh`; `tests/scripts/test_deploy_server_contract.py`; `app/main.py`
 - next_time_signal: 所有会停止现有服务的部署脚本必须先检查启动必需配置、manifest 和版本；发现缺失时不得进入 stop 阶段。
 
+## M-20260712-008：Callback API 测试夹具未同步服务端授权语义
+
+- status: verified
+- first_seen: 2026-07-12
+- severity: high
+- symptom: 员工 callback 已改为用户、群、企业服务端白名单和 allowed tools 执行前门禁，但两个 API 测试仍发送无 chatid/actor/corp 的 group 消息，Fake Agent 也不接收 allowed_tools，导致全量测试回退到转人工。
+- root_cause: 授权收口只同步了专项 callback 探针和 dispatcher 测试，没有把加密 API 回调夹具纳入同一 actor 合同。
+- impact: 全量测试失败；若通过关闭授权绕过测试，会掩盖生产 fail-closed 边界和工具权限传递回归。
+- fix: API 测试使用明确合成员工、群和企业 ID，配置对应服务端白名单；Fake Agent 对齐 answer 接口并记录 allowed_tools。
+- new_guardrail: `test_wecom_intelligent_bot_callback_api.py` 的产品回复和 Agent 路径同时要求授权 actor，Agent 路径断言收到非空 allowed_tools；标准全量 pytest 纳入发布完成审计。
+- verification: callback API 与版本同步定向套件 `12 passed`；Ruff 和独立 mypy 通过；全量测试复跑作为最终验证。
+- linked_trace: `20260711-global-risk-remediation`
+- linked_files: `tests/api/test_wecom_intelligent_bot_callback_api.py`; `app/service/wecom/employee_authorization.py`; `app/service/wecom/intelligent_bot_dispatcher.py`
+- next_time_signal: callback actor 或工具授权接口变更时，无完整 user/chat/corp 或未接收 allowed_tools 的 API 夹具必须在全量测试中失败。
+
 ## M-20260711-004：消息去重依赖先查后插
 
 - status: verified

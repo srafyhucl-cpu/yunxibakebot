@@ -22,6 +22,9 @@ from app.service.wecom.intelligent_bot_tools import WeComBotBusinessToolService
 
 TOKEN = "callback-token"
 AES_KEY = base64.b64encode(b"1" * 32).decode("utf-8").rstrip("=")
+ACTOR_USER_ID = "synthetic-employee"
+ACTOR_CHAT_ID = "synthetic-group"
+ACTOR_CORP_ID = "synthetic-corp"
 
 
 class _FakeCatalogService:
@@ -40,13 +43,26 @@ class _FakeCatalogService:
 
 
 class _FakeEmployeeAgentService:
-    async def answer(self, query: str) -> str:
+    def __init__(self) -> None:
+        self.allowed_tools: frozenset[str] | None = None
+
+    async def answer(
+        self,
+        query: str,
+        *,
+        allowed_tools: frozenset[str] | None = None,
+    ) -> str:
+        self.allowed_tools = allowed_tools
         return f"agent:{query}"
 
 
 def _client(monkeypatch, *, agent_service=None) -> TestClient:
     monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_TOKEN", TOKEN)
     monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY", AES_KEY)
+    monkeypatch.setattr(settings, "WECOM_EMPLOYEE_AUTH_REQUIRED", True)
+    monkeypatch.setattr(settings, "WECOM_EMPLOYEE_ALLOWED_USERS", ACTOR_USER_ID)
+    monkeypatch.setattr(settings, "WECOM_EMPLOYEE_ALLOWED_CHATS", ACTOR_CHAT_ID)
+    monkeypatch.setattr(settings, "WECOM_EMPLOYEE_CORP_ID", ACTOR_CORP_ID)
     app = FastAPI()
     app.include_router(
         create_wecom_intelligent_bot_router(
@@ -89,6 +105,9 @@ def test_callback_post_returns_encrypted_product_reply(monkeypatch) -> None:
             "msgid": "msg-001",
             "aibotid": "bot-001",
             "chattype": "group",
+            "chatid": ACTOR_CHAT_ID,
+            "corpid": ACTOR_CORP_ID,
+            "from": {"userid": ACTOR_USER_ID},
             "msgtype": "text",
             "text": {"content": "@芸熙助手 草莓蛋糕还有库存吗"},
         },
@@ -120,12 +139,16 @@ def test_callback_post_returns_encrypted_product_reply(monkeypatch) -> None:
 
 
 def test_callback_post_uses_employee_agent_when_injected(monkeypatch) -> None:
-    client = _client(monkeypatch, agent_service=_FakeEmployeeAgentService())
+    agent_service = _FakeEmployeeAgentService()
+    client = _client(monkeypatch, agent_service=agent_service)
     plaintext = json.dumps(
         {
             "msgid": "msg-agent-001",
             "aibotid": "bot-001",
             "chattype": "group",
+            "chatid": ACTOR_CHAT_ID,
+            "corpid": ACTOR_CORP_ID,
+            "from": {"userid": ACTOR_USER_ID},
             "msgtype": "text",
             "text": {"content": "今天一共多少订单"},
         },
@@ -143,6 +166,7 @@ def test_callback_post_uses_employee_agent_when_injected(monkeypatch) -> None:
     payload = response.json()
     reply = json.loads(decrypt(AES_KEY, payload["encrypt"]))
     assert reply["stream"]["content"] == "agent:今天一共多少订单"
+    assert agent_service.allowed_tools
 
 
 def test_callback_post_rejects_invalid_signature(monkeypatch) -> None:
