@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-080：生产数据库加密备份拉取到本地 D 盘
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/local-encrypted-backup-roundtrip
+- file: `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Backups\YunxiBakeBot\bot_backup_20260712_01.ybak`; `D:\Backups\YunxiBakeBot\keys\backup.key`; production `/opt/yunxibakebot/data/bot.db`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: production `sqlite3 /opt/yunxibakebot/data/bot.db '.backup /tmp/yunxi-bot-backup-20260712-01.db'`; `scp root@47.94.102.250:/tmp/yunxi-bot-backup-20260712-01.db D:\\Backups\\YunxiBakeBot\\bot_backup_20260712_01.sqlite3`; `python scripts/encrypted_backup.py --db <local-snapshot> --output D:\\Backups\\YunxiBakeBot\\bot_backup_20260712_01.ybak --key-file D:\\Backups\\YunxiBakeBot\\keys\\backup.key`; `verify_encrypted_backup`; explicit deletion of local and production plaintext snapshots; production `/health`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r4): 生产数据库加密备份拉取到本地 D 盘
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: yes
+- retention_note: 加密备份资产包含受保护业务数据，但不在 Git 仓库；索引只登记加密文件位置、大小、算法、完整性结果和明文清理状态，不包含密钥内容、数据库内容、客户数据或订单数据。备份文件按 30 天策略逐文件审核清理，密钥与备份分开存放。
+- summary: 生产 SQLite `.backup` 一致性快照已通过 SSH 拉取到本地 D 盘并用 AES-256-GCM 加密；解密完整性校验返回 `ok`，本地和生产明文临时文件均已清理。该本地资产不等于生产服务器上的在线 rollback 路径，生产 migration apply/rollback 仍未执行。
+
 ## E-20260712-079：生产隐私权利接口未认证拒绝
 
 - trace_id: 20260711-global-risk-remediation
