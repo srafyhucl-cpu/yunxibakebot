@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-060：生产授权与 callback 探针审计
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/read-only-authorization-callback-audit
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_authorization.py`
+- command: `ssh root@47.94.102.250 "grep configuration flags from /opt/yunxibakebot/.env without values"`; `ssh root@47.94.102.250 "python scripts/check_wecom_employee_agent_callback.py --json --output /tmp/yunxi-callback-probe.json --base-url http://127.0.0.1:7001"`; explicit single-file cleanup of `/tmp/yunxi-callback-probe.json`
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r3-r5): 生产授权与 callback 探针审计
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录配置开关存在性、探针数量/失败数量和临时文件清理；未记录密钥值、客户原文、订单内容或 callback 报告正文。
+- summary: LangSmith 外发关闭且生产 trace path 未配置；员工 allowlist 未配置；生产 callback 探针 `61` 个用例中 `22` 个失败，R3-B/R5 生产 callback 与 trace 收口仍未完成。
+
 ## E-20260712-059：全局整改版本最终发布复验
 
 - trace_id: `20260711-global-risk-remediation`

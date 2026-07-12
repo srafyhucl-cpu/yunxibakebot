@@ -1,3 +1,13 @@
+## [2026-07-12] - verify(r3-r5): 生产授权与 callback 探针审计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 生产配置中 `LANGCHAIN_TRACING_ENABLED` 未启用，`AGENT_LOCAL_TRACE_PATH` 未配置，LangSmith 外发未开启。
+  - 生产 `.env` 未配置员工 allowlist，`WECOM_EMPLOYEE_AUTH_REQUIRED` 未开启；没有足够的真实授权名单可安全推断，因此未擅自打开强制授权。
+  - 仓库 callback 探针在生产本机 loopback 执行 `61` 个用例，`22` 个失败；临时 JSON 报告已清理，不能作为生产 callback 通过证据。
+- **边界**: 未输出任何密钥或客户原文；未启用 LangSmith 或生产 trace sink；未修改员工授权开关。
+- **后续**: 需要真实员工授权名单和 callback 失败用例修复/业务确认后，才能完成 R3-B/R5 生产 callback 与 trace 收口。
+
 ## [2026-07-12] - verify(r4): 全局整改版本最终发布复验
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
