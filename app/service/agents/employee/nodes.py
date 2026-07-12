@@ -22,6 +22,17 @@ from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 UNSUPPORTED_REPLY = (
     "我还没理解这个问题。你可以直接问订单、商品库存、配送规则、待人工或系统状态。"
 )
+HUMAN_HANDOFF_REPLY = "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
+FACT_UNAVAILABLE_MARKERS = (
+    "未找到匹配商品",
+    "未找到匹配订单",
+    "未找到匹配知识",
+    "未找到客户",
+    "未找到该客户",
+    "暂不可用",
+    "无法确认",
+    "需要人工继续核对",
+)
 EMPLOYEE_TOOL_CALL_ID_PREFIX = "employee"
 
 
@@ -244,6 +255,14 @@ def deterministic_reply(
     tool_results: list[ToolResult],
 ) -> str:
     """生成员工助手确定性回复。"""
+    if any(not result.ok for result in tool_results):
+        return HUMAN_HANDOFF_REPLY
+    if any(
+        marker in result.summary
+        for result in tool_results
+        for marker in FACT_UNAVAILABLE_MARKERS
+    ):
+        return HUMAN_HANDOFF_REPLY
     mixed_reply = build_mixed_tool_reply(query, plan, tool_results)
     if mixed_reply is not None:
         return cast(str, mixed_reply)

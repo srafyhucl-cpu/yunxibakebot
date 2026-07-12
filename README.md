@@ -558,7 +558,7 @@ npm run dev
 ```bash
 # 健康检查
 curl http://127.0.0.1:7001/health
-# 预期返回：{"status":"ok","version":"0.105.19"}
+# 预期返回：{"status":"ok","version":"0.107.4"}
 
 # 测试 AI 对话
 curl -X POST http://127.0.0.1:7001/api/v1/chat \

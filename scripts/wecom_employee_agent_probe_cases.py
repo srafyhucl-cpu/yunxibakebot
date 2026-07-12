@@ -28,6 +28,7 @@ class EmployeeAgentProbeCase:
     required_all_term_groups: tuple[tuple[str, ...], ...] = ()
     forbidden_terms: tuple[str, ...] = ()
     allow_empty_result: bool = False
+    allow_handoff: bool = True
 
 
 MISSING_LOGISTICS_EXCLUSION_FORBIDDEN_TERMS = (

@@ -253,6 +253,30 @@ def test_evaluate_reply_requires_all_semantic_terms() -> None:
     assert matched.passed is True
 
 
+def test_evaluate_reply_accepts_handoff_when_business_fact_is_uncertain() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe(
+            "uncertain-business-fact",
+            "退款怎么处理",
+            required_all_terms=("退款", "订单状态"),
+            allow_handoff=True,
+        ),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "当前信息无法可靠确认，我先为您转人工核对，请稍候。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is True
+    assert result.semantic_safe is True
+
+
 def test_evaluate_reply_accepts_alternative_required_all_groups() -> None:
     probe = callback_check.CallbackProbe(
         "no-stock-product",

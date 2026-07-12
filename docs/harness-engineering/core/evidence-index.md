@@ -4233,3 +4233,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录本地测试结果和代码路径；未记录真实客户数据、密钥、生产日志或备份内容。
 - summary: R3/R4 域级合同测试共 `28 passed`，全仓 Ruff 通过；真实 Docker build/smoke、生产配置审计、异盘密钥托管和版本发布仍未验证。
+## E-20260712-067：不确定业务事实转人工合同
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: local/employee-callback-handoff-contract
+- file: `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\scripts\wecom_employee_agent_callback_semantics.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`
+- command: `python -m pytest tests\scripts\test_check_wecom_employee_agent_callback.py tests\service\agents\test_employee_graph.py tests\service\test_wecom_employee_agent.py -q --no-cov`; `python -m ruff check app\service\agents\employee\nodes.py scripts\check_wecom_employee_agent_callback.py scripts\wecom_employee_agent_callback_semantics.py scripts\wecom_employee_agent_probe_cases.py tests\service\test_wecom_employee_agent.py tests\scripts\test_check_wecom_employee_agent_callback.py`; `python -m ruff format --check app\service\agents\employee\nodes.py scripts\check_wecom_employee_agent_callback.py scripts\wecom_employee_agent_callback_semantics.py scripts\wecom_employee_agent_probe_cases.py tests\service\test_wecom_employee_agent.py tests\scripts\test_check_wecom_employee_agent_callback.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - fix(r3-r5): 不确定业务事实统一转人工
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录代码路径、测试汇总和安全边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或生产回复内容。
+- summary: 工具失败、事实未命中或无法可靠确认时，员工助手返回受控转人工回复；callback 探针允许该明确终态，但不放宽授权、隐私、纯文本、流式结构和禁止词检查。生产验证待发布后执行。

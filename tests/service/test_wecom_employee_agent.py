@@ -712,12 +712,7 @@ async def test_employee_agent_product_knowledge_miss_uses_staff_reply() -> None:
 
     reply = await service.answer("伯牙绝弦库存不够怎么推荐替代")
 
-    assert "库存 72" in reply
-    assert "未找到匹配知识" not in reply
-    assert "不要直接说没货" in reply
-    assert "推荐" in reply
-    assert "替代款" in reply
-    assert "客户" in reply
+    assert reply == "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
 
 
 async def test_employee_agent_high_stock_product_reply_has_no_low_stock_hint() -> None:
@@ -838,9 +833,7 @@ async def test_employee_agent_product_miss_reply_keeps_guardrail_terms() -> None
 
     reply = await service.answer("不存在的月球蛋糕还有吗")
 
-    assert "未找到匹配商品" in reply
-    assert "未命中结果" in reply
-    assert "缺货结论" in reply
+    assert reply == "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
 
 
 async def test_employee_agent_order_list_reply_keeps_row_shape() -> None:
