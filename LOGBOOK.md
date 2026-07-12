@@ -12994,3 +12994,12 @@ ______________________________________________________________________
 - **处置**: 未生成密钥、未写入同盘备份、未执行迁移 apply；保持备份恢复门禁 fail-closed。
 - **下一步**: 仅待运维提供独立挂载或对象存储目标后，生成 32 字节密钥、执行加密备份和恢复 round-trip；保留期按 30 天。
 - **边界**: 未读取或输出任何现有密钥、环境变量值或业务数据。
+## [2026-07-12] - fix(r4-r5): 启用受控 trace sink 并修复有赞解析回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**:
+  - 生产启用本地脱敏 JSONL sink，路径为应用数据目录下的 `agent-traces/runtime.jsonl`，不启用 LangSmith 外发。
+  - sink 写入前强制 trace 文件权限 `600`；仅保留脱敏字段和哈希会话标识。
+  - 修复 `webhook_helpers` 对已删除 `parse_item_id` 旧入口的导入，改用 canonical `webhook_payload`。
+- **验证结果**: trace callback `61/61` 通过；生产 trace 文件写入 `80` 条，权限修正目标为 `600`；相关回归测试 `11 passed`。
+- **边界**: 生产重启后需复验 trace 文件权限和有赞 webhook 事务错误消失；未开启 LangSmith。

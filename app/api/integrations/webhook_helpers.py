@@ -67,9 +67,9 @@ def extract_business_fields(
 ) -> tuple[str, str]:
     """从 webhook payload 提取业务类型与业务主键。
 
-    item_id 解析委托给 app.service.youzan.webhook.parse_item_id。
+    item_id 解析委托给 app.service.youzan.webhook_payload.parse_item_id。
     """
-    from app.service.youzan.webhook import parse_item_id
+    from app.service.youzan.webhook_payload import parse_item_id
 
     event_type_lower = event_type.lower()
     msg_obj = parse_payload_msg(payload)

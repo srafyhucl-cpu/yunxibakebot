@@ -51,5 +51,7 @@ def _build_sink_payload(trace_run: AgentTraceRun) -> dict[str, Any]:
 
 def _append_json_line(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
+    path.chmod(0o600)
     with path.open("a", encoding="utf-8") as trace_file:
         trace_file.write(json.dumps(payload, ensure_ascii=False) + "\n")

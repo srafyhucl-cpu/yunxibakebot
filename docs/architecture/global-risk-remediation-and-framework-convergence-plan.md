@@ -354,7 +354,7 @@ R4 出站条件：备份恢复 round-trip、迁移 dry-run/apply/rollback、部�
 
 ### R5-A：模型 registry 与运行时 transport 首片
 
-状态：已完成 LangChain provider/model/temperature/timeout registry、共享 HTTP transport、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、employee structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter 和本地 trace sink 首片；shutdown 统一释放资源，客户/员工 Agent 定向回归及全量测试通过（2026-07-12）。`0.107.8` 生产 callback `61/61` 已通过；生产 trace sink 仍未启用。
+状态：已完成 LangChain provider/model/temperature/timeout registry、共享 HTTP transport、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、employee structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter 和本地 trace sink 首片；shutdown 统一释放资源，客户/员工 Agent 定向回归及全量测试通过（2026-07-12）。`0.107.8` 生产 callback `61/61` 已通过；本地受控 trace sink 已启用，待本列车发布后完成 `600` 权限和有赞 webhook 回归最终复验。
 
 - 已删除 LangChain 模型工厂每次创建 HTTP client 的路径。
 - 已新增共享 `app/service/llm/provider.py` resolver；文本能力统一由 LangChain 工厂解析 MiMo 默认和显式 DeepSeek，`client.py` 仅保留 ASR SDK adapter。

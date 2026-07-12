@@ -4285,3 +4285,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录挂载存在性、密钥文件存在性和门禁处置；不包含密钥内容、环境变量值、备份内容、客户数据或订单数据。
 - summary: 生产当前仅有根盘 `/dev/vda3`，没有已配置独立备份挂载，密钥文件不存在。按 fail-closed 规则未生成同盘备份、未执行迁移 apply；外部存储目标出现后再继续。
+## E-20260712-071：生产受控 trace sink 与有赞解析回归修正
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/local-trace-sink-and-webhook-import-fix
+- file: `D:\Project\YunxiBakeBot\app\service\agents\trace_sink.py`; `D:\Project\YunxiBakeBot\app\api\integrations\webhook_helpers.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_trace_sink.py`; `D:\Project\YunxiBakeBot\tests\api\test_webhook_helpers.py`; production `/opt/yunxibakebot/data/agent-traces/runtime.jsonl`
+- command: `python -m pytest tests\service\agents\test_trace_sink.py tests\api\test_webhook_helpers.py tests\service\youzan\test_event_handler_edge.py tests\service\youzan\test_webhook_dispatcher.py -q --no-cov`; `python -m ruff check app\service\agents\trace_sink.py tests\service\agents\test_trace_sink.py app\api\integrations\webhook_helpers.py tests\api\test_webhook_helpers.py`; production `systemctl restart yunxibakebot`; production callback `61/61`; production trace file line count and permission check
+- result: partial
+- related_logbook: 2026-07-12 - fix(r4-r5): 启用受控 trace sink 并修复有赞解析回归
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录脱敏 sink 配置、测试汇总、文件权限和导入路径修正；不包含 trace 内容、客户原文、订单明细、员工 ID、密钥或 callback 内容。
+- summary: 本地 sink 已启用并写入生产，但首次配置暴露了换行转义造成的 `.jsonln` 文件名和 `644` 权限问题，已修复为 canonical `.jsonl` 路径并补充 `600` 文件权限；有赞 webhook 的 `parse_item_id` 导入已改回 canonical `webhook_payload`。待本列车发布后完成最终生产权限和 webhook 错误复验。

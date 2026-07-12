@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import stat
 
 import pytest
 
@@ -46,6 +48,8 @@ async def test_local_trace_sink_writes_hashed_identity_and_safe_events(
         "event": "node",
         "tool_call_count": 1,
     }
+    if os.name != "nt":
+        assert stat.S_IMODE(trace_path.stat().st_mode) == 0o600
 
 
 def test_build_local_trace_sink_requires_enabled_path() -> None:
