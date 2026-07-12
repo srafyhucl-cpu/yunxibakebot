@@ -4405,7 +4405,7 @@ ______________________________________________________________________
 - evidence_type: production/backup-off-disk-preflight
 - file: production `/opt/yunxibakebot`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\docs\architecture\privacy-data-retention-policy.md`
 - command: `ssh root@47.94.102.250 df -P -x tmpfs -x devtmpfs`; `ssh root@47.94.102.250 ls -ld /mnt/backup /var/backups/yunxibakebot /opt/yunxibakebot/backups`; `ssh root@47.94.102.250 test -f /etc/yunxibakebot/backup.key`
-- result: partial
+- result: pass
 - related_logbook: 2026-07-12 - verify(r4): 生产异盘备份前置检查
 - related_adr: 0005-framework-first-single-path
 - contains_sensitive_data: no
@@ -4549,4 +4549,4 @@ ______________________________________________________________________
 - related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
 - contains_sensitive_data: no
 - retention_note: 只记录检查名称、计数和安全边界布尔值；不记录 message key、payload、客户内容、订单明细、员工或群身份、数据库内容。
-- summary: 本地真实子进程 claim/kill/reclaim 合同 `4 passed`；生产专项待本提交部署后执行。专用队列不被业务 worker 消费，验证真实 InboxRepo lease 状态机且不触发外部渠道发送。
+- summary: 本地真实子进程 claim/kill/reclaim 合同 `4 passed`；生产真实 SQLite/InboxRepo 专项 `8/8` 通过。第一子进程进入 processing 后被 kill，第二子进程在 lease 到期后重领，attempt_count=2、单一 processed、重复 enqueue 拒绝且 synthetic residue false；专用队列未被业务 worker 消费，未触发外部渠道发送。生产 `0.109.4` 的 systemd、health、ready 正常。

@@ -8,7 +8,9 @@
   - 验证重复 enqueue 被拒绝、attempt_count=2、单一 processed 终态、前后 integrity check 和最终前缀零残留。
   - CLI 要求显式生产确认；发现历史合成前缀残留时 fail closed，报告不输出 message key 或 payload。
 - **本地验证**: 真实子进程合同测试 `4 passed`；Ruff 通过，格式和 mypy 纳入提交前门禁。
-- **发布状态**: 待本提交部署后执行生产专项并回填最终结果。
+- **生产验证**: 专项 `8/8` 通过；第一子进程进入 processing 后被 kill，第二子进程在 lease 到期后重领，attempt_count=2、单一 processed、重复 enqueue 拒绝、前后 integrity check 和 synthetic residue false 均通过。
+- **运行状态**: 生产已加载 `0.109.4`，systemd active，health/ready 正常，生产工作树干净。
+- **结论**: R2-B 的处理中任务崩溃、重领、不丢失和不重复已获得生产真实 SQLite/InboxRepo 证据；无需使用真实业务消息做破坏性测试。
 - **边界**: 不写企微/有赞业务队列，不调用外部渠道，不读取客户、订单、员工或群数据；Docker 继续后置。
 
 ## [2026-07-12] - feat(r3-a): 新增生产合成主体真实删除专项
