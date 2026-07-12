@@ -1,3 +1,14 @@
+## [2026-07-12] - deploy(r4): 发布迁移异盘门禁并复验生产 fail-closed
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发布**: 双远端同步提交 `a0109ef`，生产版本 `0.107.13`，重启后 systemd active。
+- **验证结果**:
+  - 生产 `/health` 与 `/ready` 均正常，schema ready，offline review/QA/memory 保持关闭。
+  - `migration_job.py --mode dry-run --json` 通过，未执行数据库写入。
+  - `backup_db.sh` 按预期拒绝执行：独立备份目录未挂载，未生成同盘备份。
+- **结论**: 迁移 apply/rollback 继续保持 fail-closed，等待外部备份挂载和受控密钥托管；Docker 按计划暂后置。
+- **边界**: 未执行迁移写入或回滚，未读取或输出数据库内容、客户数据和密钥。
+
 ## [2026-07-12] - fix(r4): 迁移 job 默认拒绝同设备备份
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

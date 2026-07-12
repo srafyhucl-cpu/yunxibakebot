@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-077：发布迁移异盘门禁并复验生产 fail-closed
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/migration-dry-run-and-backup-fail-closed
+- file: `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\scripts\backup_db.sh`; production `/opt/yunxibakebot`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `git push origin master`; `git push server master`; production `systemctl restart yunxibakebot`; production `systemctl is-active yunxibakebot`; production `/health`; production `/ready`; production `venv/bin/python scripts/migration_job.py --db data/bot.db --mode dry-run --json`; production `bash scripts/backup_db.sh`
+- result: partial-pass
+- related_logbook: 2026-07-12 - deploy(r4): 发布迁移异盘门禁并复验生产 fail-closed
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录版本、服务状态、dry-run 结果和 fail-closed 原因；不包含数据库内容、备份内容、客户数据或密钥。
+- summary: 提交 `a0109ef` 已同步双远端并运行于生产 `0.107.13`；health/ready 和迁移 dry-run 通过。备份脚本因独立目录未挂载而拒绝执行，未生成同盘备份，生产 apply/rollback 未执行。
+
 ## E-20260712-076：迁移 job 默认异盘设备门禁
 
 - trace_id: 20260711-global-risk-remediation
