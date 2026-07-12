@@ -13003,3 +13003,10 @@ ______________________________________________________________________
   - 修复 `webhook_helpers` 对已删除 `parse_item_id` 旧入口的导入，改用 canonical `webhook_payload`。
 - **验证结果**: trace callback `61/61` 通过；生产 trace 文件写入 `80` 条，权限修正目标为 `600`；相关回归测试 `11 passed`。
 - **边界**: 生产重启后需复验 trace 文件权限和有赞 webhook 事务错误消失；未开启 LangSmith。
+## [2026-07-12] - deploy(r4-r5): trace sink 与 webhook 回归最终验证
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发布**: `25d2393`，生产 `VERSION=0.107.10`。
+- **验证结果**: systemd active；`/health=200`、`/ready=200`；带受控生产 actor 的 callback 探针 `61/61` 通过；本地 trace sink 写入 `120` 条，文件权限 `600`，禁止敏感字段键为空；最近 200 条服务日志中 `parse_item_id` 导入错误 `0`。
+- **结论**: R5 本地受控 trace sink 已达到生产验证条件，有赞 webhook canonical parser 回归已修复。
+- **边界**: LangSmith 外发保持关闭；异盘备份挂载和迁移回滚仍未完成；Docker 按计划后置。

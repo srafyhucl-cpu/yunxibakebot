@@ -4298,3 +4298,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录脱敏 sink 配置、测试汇总、文件权限和导入路径修正；不包含 trace 内容、客户原文、订单明细、员工 ID、密钥或 callback 内容。
 - summary: 本地 sink 已启用并写入生产，但首次配置暴露了换行转义造成的 `.jsonln` 文件名和 `644` 权限问题，已修复为 canonical `.jsonl` 路径并补充 `600` 文件权限；有赞 webhook 的 `parse_item_id` 导入已改回 canonical `webhook_payload`。待本列车发布后完成最终生产权限和 webhook 错误复验。
+## E-20260712-072：trace sink 与 webhook 回归生产最终验证
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/trace-sink-and-webhook-regression-final
+- file: `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\callback-final-20260712.json`; production `/opt/yunxibakebot/data/agent-traces/runtime.jsonl`; production `/opt/yunxibakebot/app/api/integrations/webhook_helpers.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `git push origin master`; `git push server master`; production `systemctl restart yunxibakebot`; production `/health`; production `/ready`; callback `python scripts\check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json` with controlled actor environment; production trace JSONL line count/mode/forbidden-key scan; production `journalctl` recent 200-line canonical import error scan
+- result: pass
+- related_logbook: 2026-07-12 - deploy(r4-r5): trace sink 与 webhook 回归最终验证
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅保留版本、状态、数量、权限、字段键扫描和错误计数；不包含 trace 内容、客户原文、订单明细、员工 ID、密钥或 callback 回复。
+- summary: 生产 `0.107.10` trace sink 写入 120 条、权限 `600`、禁止敏感字段键为空；callback `61/61` 通过；最近 200 条服务日志无 `parse_item_id` 导入错误。LangSmith 未启用，生产外发仍关闭。
