@@ -1,3 +1,14 @@
+## [2026-07-12] - deploy(r4): 全局整改发布失败并自动回滚
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发布目标**: `371ff0854d6f1ac278ba0f7fa7eb0e78b24991ed`，`VERSION=0.107.0`。
+- **结果**:
+  - 248 文件整改列车已提交，commit 已推送 `origin/master` 和 `server/master`；提交钩子全部通过，发布 manifest 生成成功。
+  - 生产工作树快进后重启失败：启动安全检查发现生产未配置 `ADMIN_SESSION_SECRET`，服务未监听 7001 并进入 systemd 自动重启。
+  - 已停止重启循环并回滚到 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`；生产服务 active，内外 `/health` 与 `/ready` 均 HTTP 200，运行版本恢复为 `0.105.19`。
+- **边界**: 未生成或写入任何生产密钥，未修改生产环境配置；Docker 按授权后置。
+- **后续**: 生产配置安全托管 `ADMIN_SESSION_SECRET` 后，重新执行目标 commit 的发布与版本门禁；在此之前不得宣称 `0.107.0` 已上线。
+
 ## [2026-07-12] - verify(r3-r4): 整改域级合同回归
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

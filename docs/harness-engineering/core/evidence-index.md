@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-058：全局整改发布失败与自动回滚
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/deploy-failed-startup-rollback
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\scripts\deploy_server.sh`
+- command: `git commit -m "feat: execute global risk remediation baseline"`; `python scripts/build_release_manifest.py --output reports/harness/release-manifest-371ff08.json --summary`; `git push origin master`; `git push server master`; `ssh root@47.94.102.250 "systemctl restart yunxibakebot"`; `journalctl -u yunxibakebot -n 120 --no-pager`; `ssh root@47.94.102.250 "systemctl stop yunxibakebot && git reset --hard 7e666218275a5040e0c3ab9c648f4cb9a53bac74 && systemctl start yunxibakebot"`; public `/health` and `/ready` probes
+- result: partial-pass
+- related_logbook: 2026-07-12 - deploy(r4): 全局整改发布失败并自动回滚
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录 commit、版本、状态码、服务状态和缺失配置名；未记录密钥值、客户原文、订单或生产日志正文。
+- summary: 目标 commit `371ff08` 已提交并双远端推送，manifest 通过；生产因缺少 `ADMIN_SESSION_SECRET` 启动安全检查失败，已回滚到 `7e666218`，内外 health/ready 均恢复 HTTP 200、版本 `0.105.19`。新版本未上线。
+
 ## E-20260712-057：R3/R4 整改域级合同回归
 
 - trace_id: `20260711-global-risk-remediation`
