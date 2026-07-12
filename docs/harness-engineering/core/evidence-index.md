@@ -4476,3 +4476,15 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录配置布尔态、队列状态汇总、版本和 callback 汇总；不包含客户内容、订单明细、员工 ID、密钥、原始 query 或 trace 正文。
 - summary: 生产重启后 inbox 全部为 `processed=50`，无处理中或死信；readiness 的 offline review/QA/memory 均关闭，LangSmith 未配置；callback `61/61` 通过。该证据不替代真实崩溃注入和主体删除专项。
+## E-20260712-085：本地 D 盘生产加密备份计划任务
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/local-encrypted-backup-schedule
+- file: `D:\Project\YunxiBakeBot\scripts\local_production_backup.py`; `D:\Project\YunxiBakeBot\scripts\install_local_backup_task.ps1`; `D:\Project\YunxiBakeBot\tests\scripts\test_local_production_backup.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-07-12-local-production-backup-job-design.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts/local_production_backup.py --backup-dir D:\\Backups\\YunxiBakeBot --key-file D:\\Backups\\YunxiBakeBot\\keys\\backup.key --ssh-key C:\\Users\\srafy\\.ssh\\id_ed25519`; `.\\scripts\\install_local_backup_task.ps1`; `Start-ScheduledTask -TaskName YunxiBakeBot-Local-Encrypted-Backup`; `python -m pytest tests/scripts/test_local_production_backup.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-local-backup`
+- result: pass
+- related_logbook: `LOGBOOK.md` 2026-07-12 `feat(r4-b): 配置本地 D 盘生产加密备份计划任务`
+- contains_sensitive_data: no
+- retention_note: 仓库只记录脚本、任务状态和脱敏结果；不记录备份密钥、客户数据、数据库内容或 SSH 私钥。加密备份保留在仓库外 D 盘，默认 30 天且至少 3 份，每次作业最多逐个清理一份过期文件。
+- summary: 直接运行和 Windows 计划任务实跑均成功；任务每天 03:30 执行，首次 `LastTaskResult=0`。D 盘现有 3 份 AES-256-GCM 备份，本地和生产 `/dev/shm` 无明文临时快照残留；生产持久挂载仍未配置。

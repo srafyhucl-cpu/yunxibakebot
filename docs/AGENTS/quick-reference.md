@@ -57,6 +57,12 @@ python -m pytest tests/test_red_line_rules.py -q --tb=short
 # 生产同构、数据隔离的主体删除与消息崩溃整改 Harness
 python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-remediation-harness --json
 
+# 立即创建一份本地 D 盘生产加密备份
+python scripts/local_production_backup.py --backup-dir D:\Backups\YunxiBakeBot --key-file D:\Backups\YunxiBakeBot\keys\backup.key --ssh-key $env:USERPROFILE\.ssh\id_ed25519
+
+# 安装或刷新每天 03:30 的 Windows 本地备份任务
+.\scripts\install_local_backup_task.ps1
+
 # 本地启动
 uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
 

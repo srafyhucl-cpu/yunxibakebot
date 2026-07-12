@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：生产当前版本 `0.107.13`（本列车）；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；生产同构隔离整改 Harness 已用真实 Bearer JWT/FastAPI/service/repository/SQLite 和独立子进程 kill 完成主体删除与消息重领 `8/8` 验证。R2-B 已有生产重启、真实进程崩溃恢复和 inbox 汇总证据，但有处理中真实业务消息时的丢失/重复专项仍未完成；R3-A 已有生产离线外发关闭态和隐私接口未认证拒绝证据，但真实生产主体删除和完整隐私出站专项仍未完成。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。长期备份已拉取到本地 D 盘并加密，生产持久挂载、密钥托管和定时保留仍未配置；容器 build/smoke 仍未完成。全量测试已串行通过。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；生产同构隔离整改 Harness 已用真实 Bearer JWT/FastAPI/service/repository/SQLite 和独立子进程 kill 完成主体删除与消息重领 `8/8` 验证。R2-B 已有生产重启、真实进程崩溃恢复和 inbox 汇总证据，但有处理中真实业务消息时的丢失/重复专项仍未完成；R3-A 已有生产离线外发关闭态和隐私接口未认证拒绝证据，但真实生产主体删除和完整隐私出站专项仍未完成。生产 `0.107.13` 的员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。本地 D 盘长期加密备份已配置每天 03:30 的 Windows 计划任务，默认保留 30 天且至少 3 份；生产持久挂载仍未配置；容器 build/smoke 仍未完成。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -319,7 +319,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.13` 生产 health/ready/版本门禁和迁移 dry-run 已通过；已将生产 SQLite 一致性快照拉到本地 D 盘并完成 AES-256-GCM 解密完整性校验，生产侧明文临时文件已清理；生产使用 `/dev/shm` 独立设备 staging 完成一次 `apply`/`rollback` 演练并清理临时文件。生产持久化备份挂载、密钥托管和定时保留策略仍未配置，长期灾难恢复资产由本地 D 盘加密备份承担。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.13` 生产 health/ready/版本门禁和迁移 dry-run 已通过；已将生产 SQLite 一致性快照拉到本地 D 盘并完成 AES-256-GCM 解密完整性校验，生产侧明文临时文件已清理；生产使用 `/dev/shm` 独立设备 staging 完成一次 `apply`/`rollback` 演练并清理临时文件。本地 Windows 主机已配置每天 03:30 主动拉取、加密、验证的计划任务，默认保留 30 天且至少 3 份，计划任务实跑结果为 0。生产持久化备份挂载仍未配置，长期灾难恢复资产由本地 D 盘加密备份承担。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。
