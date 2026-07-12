@@ -4337,3 +4337,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录门禁失败原因和运行状态；不包含密钥内容、备份内容、客户数据或订单数据。
 - summary: 生产脚本实际拒绝同盘备份，因为 `/mnt/backup/yunxibakebot` 未挂载；服务版本和 health/ready 正常。异盘存储就绪前不执行迁移。
+## E-20260712-075：生产 inbox 与隐私关闭态复验
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/inbox-restart-and-privacy-off-state
+- file: production `/opt/yunxibakebot/data/bot.db`; production `/opt/yunxibakebot/.env`; `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\callback-r3-20260712.json`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: production `systemctl restart yunxibakebot`; production `/ready`; production read-only inbox status aggregation; callback `python scripts\check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json` with controlled actor environment
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r2-r3): 生产队列状态与隐私关闭态复验
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录配置布尔态、队列状态汇总、版本和 callback 汇总；不包含客户内容、订单明细、员工 ID、密钥、原始 query 或 trace 正文。
+- summary: 生产重启后 inbox 全部为 `processed=50`，无处理中或死信；readiness 的 offline review/QA/memory 均关闭，LangSmith 未配置；callback `61/61` 通过。该证据不替代真实崩溃注入和主体删除专项。

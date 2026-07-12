@@ -13023,3 +13023,10 @@ ______________________________________________________________________
 - **验证结果**: 生产执行 `bash scripts/backup_db.sh` 返回“备份目录未挂载，拒绝写入同盘目录”；未生成备份文件，迁移 apply/rollback 未执行。
 - **结论**: 备份脚本的异盘 fail-closed 约束在生产生效。
 - **边界**: 生产仍缺独立备份挂载和 32 字节密钥；Docker 后置。
+## [2026-07-12] - verify(r2-r3): 生产队列状态与隐私关闭态复验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **生产配置**: 将 `ENABLE_OFFLINE_REVIEW` 明确设为 `false`；LangSmith tracing/key 保持未配置；本地受控 trace sink 保持启用。
+- **验证结果**: readiness `ready`，`offline_review/offline_qa/offline_memory=false`；重启后 callback `61/61` 通过；inbox 状态 `processed=50`，无 `processing/failed/dead_letter`。
+- **结论**: R2-B 生产重启后的持久 inbox 状态正常，R3-A 离线外发关闭态正常。
+- **边界**: 未执行真实崩溃注入、主体删除请求或迁移；这些专项仍保留为未完成。
