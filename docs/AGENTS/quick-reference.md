@@ -58,7 +58,7 @@ python -m pytest tests/test_red_line_rules.py -q --tb=short
 uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
 
 # 健康检查
-curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.107.10"}
+curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.107.12"}
 
 # 知识种子导入（仅 FAQ / 规则 / 话术）
 python scripts/seed_baseline_knowledge.py

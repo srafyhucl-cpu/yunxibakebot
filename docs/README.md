@@ -6,7 +6,7 @@
 
 除非你是在回顾历史决策，否则当前实施、迁移和双仓协作都应从本节进入；下方“历史方案”和“业务与技术背景”只用于参考，不作为执行起点。
 
-当前代码事实（2026-07-12，`VERSION=0.107.10`）：
+当前代码事实（2026-07-12，`VERSION=0.107.12`）：
 
 - `docs/architecture/global-risk-remediation-and-framework-convergence-plan.md`
   - 当前全局风险整改唯一主计划；先处理订单伪造、快照 PII、认证支付、事务、消息可靠性和发布恢复，再恢复 LangChain E1-E6 扩大灰度。

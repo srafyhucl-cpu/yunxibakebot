@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：生产当前版本 `0.107.10`（本列车）；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B 已完成；R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁。生产 `0.107.12` 的员工授权、反向代理、readiness、callback `61/61` 和本地受控 trace sink 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。异盘存储和密钥托管仍未就绪，备份脚本已在生产 fail-closed；定时备份保留、生产迁移回滚演练和容器 build/smoke 仍未完成。全量测试已串行通过。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁；R2-B 持久队列重启/真实消息专项复验和 R3-A 隐私出站专项复验仍未形成独立生产证据。生产 `0.107.12` 的员工授权、反向代理、readiness、callback `61/61` 和本地受控 trace sink 均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。异盘存储和密钥托管仍未就绪，备份脚本已在生产 fail-closed；定时备份保留、生产迁移回滚演练和容器 build/smoke 仍未完成。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -246,7 +246,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 ### R2-A：数据库原子幂等
 
-状态：已完成本地实施与验证（2026-07-11）；历史重复报告为 0 组，唯一索引已进入本地迁移，R2-B 持久任务可靠性仍未完成。
+状态：本地实施与验证已完成（2026-07-11）；历史重复报告为 0 组，唯一索引已进入本地迁移；生产重启/真实消息丢失与重复专项尚未形成独立证据。
 
 1. 上唯一约束前先报告并处理历史重复数据。
 2. `channel_msg_id` 和渠道消息键使用数据库唯一约束。
@@ -276,7 +276,7 @@ R1 出站条件：攻击链负向 E2E、订单事务故障注入和后台鉴权�
 
 ### R3-A：consent 和删除闭环
 
-状态：已完成 consent/画像撤回、检索日志哈希、主体导出/删除、外发脱敏和数据库 TTL 首片本地实施与验证（2026-07-11）；备份保留已定义为 30 天且应用不批量删除，R3-A 仍需出站复核。
+状态：consent/画像撤回、检索日志哈希、主体导出/删除、外发脱敏和数据库 TTL 首片本地实施与验证已完成（2026-07-11）；备份保留已定义为 30 天且应用不批量删除；R3-A 生产出站专项仍需独立复核。
 
 1. 定义 `unknown / granted / revoked` 的机器语义；只有 granted 可以生成长期画像。
 2. revoked 立即停止读取、外发和派生，并触发画像删除。
@@ -313,7 +313,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.10` 生产 health/ready/版本门禁已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest、异盘设备/密钥安全门禁和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.12` 生产 health/ready/版本门禁已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。
@@ -394,7 +394,7 @@ LangSmith 仍受 R3 隐私门禁约束。metadata 脱敏不等于 prompt、compl
 3. 消除 service 对 `repo._db` 的私有穿透和高风险循环依赖。2026-07-12 已完成：`AdminService`、知识实时增强、客户工具上下文、订单/物流工具和商品实时刷新链路均改为显式仓储/向量依赖注入；`app/service` 静态扫描零命中。
 4. 按职责拆 `youzan_webhook.py`、`event_item.py`、`kf_message_queue.py`、`function_tool_product.py`；不为压行数机械拆分。2026-07-12 已完成首片：商品工具实时刷新、Webhook 商品 ID 负载解析、商品事件标签解析/死代码清理、客服卡片发送和非文本输入预处理均已移至独立模块；剩余事件状态编排保留内聚边界并由文件体量职责评审记录保护。
 5. 为后台管理增加最小 Playwright E2E：登录、订单、向量重建鉴权、ready 失败态。2026-07-12 已新增真实应用链路 E2E：3 项通过；同时修复 E2E 暴露的 `edge_protection` 请求体 receive 递归导致后台登录 500 的缺陷。
-6. 修正 README 版本、端点、provider、worker 和备份说明；文档片段尽量由代码生成或合同测试保护。2026-07-12 已同步 README、`docs/README.md` 和 `docs/AGENTS/quick-reference.md`：版本 `0.107.10`、MiMo 默认 provider、Docker/systemd 单 worker、`/health` 版本示例和 AES-256-GCM 备份命令均已对齐当前代码。
+6. 修正 README 版本、端点、provider、worker 和备份说明；文档片段尽量由代码生成或合同测试保护。2026-07-12 已同步 README、`docs/README.md` 和 `docs/AGENTS/quick-reference.md`：版本 `0.107.12`、MiMo 默认 provider、Docker/systemd 单 worker、`/health` 版本示例和 AES-256-GCM 备份命令均已对齐当前代码。
 7. 证据索引增加存在性、SHA256、保留期或销毁证明。2026-07-12 已将本地文件存在性和 SHA-256 输出接入 `check_evidence_index.py` JSON 门禁；生产路径仍明确标记为外部未验证，保留/销毁说明继续由 `retention_note` 强制要求。
 8. 运维脚本移除递归/批量删除命令，保留策略改为单文件受控清理或人工任务。
 
