@@ -516,6 +516,8 @@ service active
 - 每个结论都有 L3 以上命令或报告证据，生产发布达到 L4/L5。
 - LOGBOOK、进度表、ADR 和 evidence index 能追溯到同一 trace。
 
+2026-07-12 当前 systemd 生产列车完成审计：以上 7 类要求全部通过，证据见 `reports/harness/global-risk-remediation-completion-audit-20260712.md` 和 `E-20260712-091`。Docker真实 build、漏洞扫描和容器 smoke 按用户决定后置，因此主计划长期目标仍保持 active，不将静态容器合同伪装为完成证据。
+
 ## 十七、当前收口顺序
 
 计划启动步骤、R0 止血、R1-R3 风险链及主要 R4/R5/R6 实施已完成，不再重复执行历史“立即下一步”。当前只按以下顺序收口：

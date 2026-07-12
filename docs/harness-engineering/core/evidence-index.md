@@ -4550,3 +4550,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录检查名称、计数和安全边界布尔值；不记录 message key、payload、客户内容、订单明细、员工或群身份、数据库内容。
 - summary: 本地真实子进程 claim/kill/reclaim 合同 `4 passed`；生产真实 SQLite/InboxRepo 专项 `8/8` 通过。第一子进程进入 processing 后被 kill，第二子进程在 lease 到期后重领，attempt_count=2、单一 processed、重复 enqueue 拒绝且 synthetic residue false；专用队列未被业务 worker 消费，未触发外部渠道发送。生产 `0.109.4` 的 systemd、health、ready 正常。
+## E-20260712-091：全局风险整改当前列车完成审计
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/global-remediation-completion-audit
+- file: `D:\Project\YunxiBakeBot\reports\harness\global-risk-remediation-completion-audit-20260712.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/ -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-global-remediation-final-2`; `python scripts/check_privacy_outbound_contract.py --production-runtime --json`; `python scripts/check_security_outbound_contract.py --production-runtime --json`; `python scripts/check_langchain_production_runtime_version.py --summary`; `python scripts/check_langchain_ai_layer_capacity.py --include-production-runtime --summary`; production `venv/bin/python scripts/check_wecom_employee_agent_callback.py --base-url http://127.0.0.1:7001 --json`; Windows scheduled task status and backup inventory
+- result: pass
+- related_logbook: `LOGBOOK.md` 2026-07-12 `audit(plan): 完成当前 systemd 风险整改列车审计`
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录版本、测试/门禁计数、布尔状态和后置项；不保存 callback 回复、客户内容、订单明细、员工/群/企业 ID、密钥或数据库内容。
+- summary: 当前 HEAD 全量 `1303/1303` 通过；生产 `0.109.5` 的 systemd、health/ready、隐私 `8/8`、安全 `10/10`、LangChain版本/容量和 callback `61/61` 均通过；备份任务最近结果 0。当前 systemd 生产列车完成，Docker真实 build/漏洞扫描/smoke 按用户决定后置，因此长期目标保持 active。

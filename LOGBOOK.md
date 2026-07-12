@@ -1,3 +1,13 @@
+## [2026-07-12] - audit(plan): 完成当前 systemd 风险整改列车审计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **全量验证**: 当前 HEAD 收集 `1303` 项，`1303/1303` 通过；修复 callback 授权夹具和版本表头漂移后复跑无失败。
+- **生产验证**: `0.109.5` systemd active、health/ready正常；隐私 `8/8`、安全 `10/10`、LangChain版本/容量和 callback `61/61` 通过。
+- **恢复验证**: Windows本地加密备份任务 Ready，最近结果 0，下一次 03:30，D 盘现有 4 份加密备份。
+- **审计结论**: 主计划完成定义的 7 类当前 systemd 列车要求均有 L3-L5 证据；完成审计归档到 `reports/harness/global-risk-remediation-completion-audit-20260712.md`。
+- **后置项**: Docker真实 build、漏洞扫描和容器 smoke 按用户决定后置；静态合同不替代真实验证，因此长期目标保持 active。
+- **边界**: 报告不保存 callback 业务正文、客户/订单数据、员工/群/企业 ID 或任何密钥。
+
 ## [2026-07-12] - test(callback): 对齐 API 夹具与服务端授权合同
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
