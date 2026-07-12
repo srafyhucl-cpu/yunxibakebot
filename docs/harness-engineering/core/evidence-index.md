@@ -4324,3 +4324,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录脚本门禁、加密算法和保留策略；不包含密钥内容、备份内容、客户数据、订单数据或生产路径中的密文。
 - summary: 备份脚本已从同盘明文 SQLite 备份收敛为异盘 AES-256-GCM `.ybak` 备份；缺少独立挂载或密钥条件时 fail-closed，旧备份由运维逐个审核清理，默认保留 30 天。
+## E-20260712-074：生产备份脚本 fail-closed 实测
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/off-disk-backup-fail-closed-verification
+- file: production `/opt/yunxibakebot/scripts/backup_db.sh`; production `/opt/yunxibakebot/data/bot.db`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `git push origin master`; `git push server master`; production `systemctl restart yunxibakebot`; production `/health`; production `/ready`; production `bash scripts/backup_db.sh`
+- result: partial
+- related_logbook: 2026-07-12 - verify(r4): 生产备份脚本 fail-closed 实测
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录门禁失败原因和运行状态；不包含密钥内容、备份内容、客户数据或订单数据。
+- summary: 生产脚本实际拒绝同盘备份，因为 `/mnt/backup/yunxibakebot` 未挂载；服务版本和 health/ready 正常。异盘存储就绪前不执行迁移。

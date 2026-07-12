@@ -13016,3 +13016,10 @@ ______________________________________________________________________
 - **改动**: `scripts/backup_db.sh` 默认只接受 `/mnt/backup/yunxibakebot`，强制校验数据库和备份目录设备号不同、32 字节密钥、密钥权限 `600`，调用 `encrypted_backup.py` 生成 `.ybak`，不批量删除旧备份。
 - **验证结果**: 备份脚本和 AES-GCM 合同测试 `4 passed`；Ruff 和 diff 检查通过。
 - **生产状态**: 当前生产没有独立挂载，脚本按预期拒绝执行；迁移 apply/rollback 继续保持关闭。
+## [2026-07-12] - verify(r4): 生产备份脚本 fail-closed 实测
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **发布**: 生产 `045bf14`，`VERSION=0.107.12`；systemd active，health/ready `200`。
+- **验证结果**: 生产执行 `bash scripts/backup_db.sh` 返回“备份目录未挂载，拒绝写入同盘目录”；未生成备份文件，迁移 apply/rollback 未执行。
+- **结论**: 备份脚本的异盘 fail-closed 约束在生产生效。
+- **边界**: 生产仍缺独立备份挂载和 32 字节密钥；Docker 后置。
