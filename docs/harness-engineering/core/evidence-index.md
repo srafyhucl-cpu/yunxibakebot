@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-066：最小员工授权与 callback 生产复验
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/employee-authorization-callback-reverification
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_authorization.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `ssh root@47.94.102.250 "set WECOM_EMPLOYEE_AUTH_REQUIRED=true and allow existing WECOM_KF_SERVICER_USERID within existing .env"`; `ssh root@47.94.102.250 "systemctl restart yunxibakebot; curl health/ready"`; production callback probe with actor-bound script; temporary report cleanup
+- result: partial-pass
+- related_logbook: 2026-07-12 - deploy(r3-r5): 启用最小员工授权并复验 callback
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录配置策略、版本、状态码和失败计数；未记录员工 ID、企业 ID、密钥、回复正文或客户数据。
+- summary: 最小员工授权已启用，生产 `0.107.3` health/ready 通过；callback 仍 `22/61` semantic mismatch，授权/HTTP/隐私路径已排除为失败原因。
+
 ## E-20260712-065：callback 诊断链路本地回归
 
 - trace_id: `20260711-global-risk-remediation`

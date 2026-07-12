@@ -1,3 +1,13 @@
+## [2026-07-12] - deploy(r3-r5): 启用最小员工授权并复验 callback
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **配置**: 生产启用 `WECOM_EMPLOYEE_AUTH_REQUIRED=true`，用户 allowlist 使用既有 `WECOM_KF_SERVICER_USERID`，企业范围使用既有 `WECOM_CORP_ID`；未配置 chat 通配或未知角色名单。
+- **验证结果**:
+  - 生产 `0.107.3` 重启后 systemd active，内网 health/ready 通过。
+  - callback 探针仍为 `22/61` 失败，失败全部为 semantic mismatch；HTTP、流式格式、隐私和授权路径均通过。
+- **结论**: 员工授权配置缺口已补齐；剩余失败是订单、商品、配送知识、运营和客户线索的业务语义/数据口径问题。
+- **边界**: 员工 ID、企业 ID 和密钥值未输出或入仓；临时 callback 报告已清理。
+
 ## [2026-07-12] - fix(r3-r5): callback 探针携带受控员工 actor
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
