@@ -4094,6 +4094,20 @@ ______________________________________________________________________
 - retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
+## E-20260712-063：生产迁移 dry-run 与运行态复核
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/read-only-migration-dry-run
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `ssh root@47.94.102.250 "python scripts/migration_job.py --db data/bot.db --mode dry-run --json"`; `ssh root@47.94.102.250 "systemctl is-active yunxibakebot; curl http://127.0.0.1:7001/health; curl http://127.0.0.1:7001/ready"`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r4): 生产迁移 dry-run 与运行态复核
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 仅记录 schema_ready、服务状态、版本和 HTTP 结果；未记录数据库内容、备份、密钥或客户数据。
+- summary: 生产迁移 dry-run 通过，`schema_ready=true`、未 apply；服务 active，health/ready 版本 `0.107.0`。生产 apply/rollback 仍受异盘备份门禁约束。
+
 ## E-20260712-062：生产 callback 失败类别细分
 
 - trace_id: `20260711-global-risk-remediation`

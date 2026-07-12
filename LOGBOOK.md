@@ -1,3 +1,12 @@
+## [2026-07-12] - verify(r4): 生产迁移 dry-run 与运行态复核
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 生产 `scripts/migration_job.py --db data/bot.db --mode dry-run --json` 通过，`schema_ready=true`、`rolled_back=false`，未执行数据库 apply。
+  - systemd active，内网 `/health` 与 `/ready` 返回 `0.107.0`。
+- **边界**: 未创建备份、未执行迁移写入、未读取数据库内容；一次独立 sqlite 命令因远程引号解析失败，不作为成功证据。
+- **后续**: 生产 apply/rollback 仍需受控异盘备份和发布窗口，当前只证明 dry-run schema 门禁通过。
+
 ## [2026-07-12] - verify(r3-r5): callback 失败类别细分
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
