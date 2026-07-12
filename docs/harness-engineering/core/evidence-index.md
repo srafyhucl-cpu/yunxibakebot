@@ -4512,3 +4512,15 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只保留安全合同、测试汇总和生产匿名布尔/计数；不记录员工、群、企业、域名 allowlist、callback token、AES key 或业务数据。
 - summary: 下载/授权/Agent/预检定向套件 `108 passed`；商品目录和客服卡片统一走真实流式、逐跳复验、MIME 与大小策略；运营权限由服务端 ops 用户白名单决定，Agent 未授权工具在执行前阻断。生产既有唯一员工白名单已原子迁移为唯一 ops 用户，不新增授权主体；重启后匿名聚合门禁纳入发布验证。
+## E-20260712-088：员工 callback 探针 actor 语义修正
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: harness/callback-authorized-actor-semantics
+- file: `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py -q --no-cov --basetemp D:\\Temp\\pytest-yunxi-r3b-callback-probe`; `python -m ruff check scripts/check_wecom_employee_agent_callback.py tests/scripts/test_check_wecom_employee_agent_callback.py`; `python -m mypy scripts/check_wecom_employee_agent_callback.py --follow-imports=skip`; `cd /opt/yunxibakebot && venv/bin/python scripts/check_wecom_employee_agent_callback.py --base-url http://127.0.0.1:7001 --json`
+- result: pass
+- related_logbook: `LOGBOOK.md` 2026-07-12 `fix(harness): 修正员工 callback 探针 actor 语义`
+- contains_sensitive_data: no
+- retention_note: 报告不记录员工、群、企业 ID、callback token、AES key 或密文；只保留测试状态和脱敏回复摘要。
+- summary: 修复探针硬编码无 chatid group 和错误 actor 来源导致的全转人工假绿；新探针优先选择员工 allowlist，有群白名单才构造 group，否则使用 single。探针合同 `31 passed`；部署后以生产本地 `61/61` 验证授权 actor 自动回复路径。

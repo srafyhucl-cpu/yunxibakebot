@@ -77,6 +77,16 @@ class _FakeAsyncClient:
 
 
 def test_callback_probe_uses_configured_employee_actor(monkeypatch) -> None:
+    monkeypatch.setattr(
+        callback_check.settings,
+        "WECOM_EMPLOYEE_ALLOWED_USERS",
+        "allowed-user,other-user",
+    )
+    monkeypatch.setattr(
+        callback_check.settings,
+        "WECOM_EMPLOYEE_ALLOWED_CHATS",
+        "allowed-chat",
+    )
     monkeypatch.setattr(callback_check.settings, "WECOM_STAFF_ID", "")
     monkeypatch.setattr(
         callback_check.settings,
@@ -91,8 +101,25 @@ def test_callback_probe_uses_configured_employee_actor(monkeypatch) -> None:
         1,
     )
 
-    assert message["from"] == {"userid": "service-user"}
+    assert message["from"] == {"userid": "allowed-user"}
+    assert message["chattype"] == "group"
+    assert message["chatid"] == "allowed-chat"
     assert message["corpid"] == "corp-id"
+
+
+def test_callback_probe_uses_single_chat_without_chat_allowlist(monkeypatch) -> None:
+    monkeypatch.setattr(
+        callback_check.settings, "WECOM_EMPLOYEE_ALLOWED_USERS", "allowed-user"
+    )
+    monkeypatch.setattr(callback_check.settings, "WECOM_EMPLOYEE_ALLOWED_CHATS", "")
+
+    message = callback_check.build_callback_message(
+        default_probe_cases(__import__("datetime").date.today())[0],
+        1,
+    )
+
+    assert message["chattype"] == "single"
+    assert "chatid" not in message
 
 
 def test_parse_base_url_rejects_path() -> None:

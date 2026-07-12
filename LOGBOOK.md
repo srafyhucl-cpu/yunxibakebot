@@ -1,3 +1,12 @@
+## [2026-07-12] - fix(harness): 修正员工 callback 探针 actor 语义
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **问题**: callback 探针硬编码 `chattype=group` 但不提供 `chatid`，并优先使用客服员工 ID 而非员工授权白名单；新 fail-closed 策略会正确拒绝该 actor，但语义门禁把统一转人工误判为 `61/61` 功能通过。
+- **修复**: 探针优先使用员工用户 allowlist；存在 chat allowlist 时构造带 `chatid` 的 group 消息，否则构造 single 消息；报告继续不输出 actor ID。
+- **验证结果**: 探针合同测试 `31 passed`，Ruff、格式和独立 mypy 通过。
+- **结论**: 后续 callback `61/61` 必须证明授权 actor 的真实自动回复路径，拒绝/转人工路径不能再替代功能证据。
+- **边界**: 未记录员工、群或企业 ID，未修改生产业务数据。
+
 ## [2026-07-12] - fix(r3-b): 收口远程下载与员工 Agent 授权单一路径
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

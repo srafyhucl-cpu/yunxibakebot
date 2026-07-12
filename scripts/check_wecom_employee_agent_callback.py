@@ -220,14 +220,17 @@ async def request_callback_probe(
 
 
 def build_callback_message(probe: CallbackProbe, index: int) -> dict[str, object]:
-    return {
+    allowed_user = _first_allowlist_value(settings.WECOM_EMPLOYEE_ALLOWED_USERS)
+    allowed_chat = _first_allowlist_value(settings.WECOM_EMPLOYEE_ALLOWED_CHATS)
+    message: dict[str, object] = {
         "msgid": f"employee-agent-smoke-{index}",
         "aibotid": "yunxi-employee-agent",
-        "chattype": "group",
+        "chattype": "group" if allowed_chat else "single",
         "msgtype": "text",
         "from": {
             "userid": (
-                settings.WECOM_STAFF_ID.strip()
+                allowed_user
+                or settings.WECOM_STAFF_ID.strip()
                 or settings.WECOM_KF_SERVICER_USERID.strip()
             )
         },
@@ -236,6 +239,16 @@ def build_callback_message(probe: CallbackProbe, index: int) -> dict[str, object
         ),
         "text": {"content": probe.query},
     }
+    if allowed_chat:
+        message["chatid"] = allowed_chat
+    return message
+
+
+def _first_allowlist_value(raw_value: str) -> str:
+    return next(
+        (item.strip() for item in raw_value.split(",") if item.strip()),
+        "",
+    )
 
 
 def decrypt_reply(
@@ -350,7 +363,7 @@ def build_json_report(
     results: list[CallbackProbeResult],
 ) -> dict[str, object]:
     failed_results = [result for result in results if not result.passed]
-    payload = {
+    payload: dict[str, object] = {
         "status": "passed" if not failed_results else "failed",
         "metadata": build_report_metadata(base_url),
         "total": len(results),
@@ -371,8 +384,12 @@ def ensure_report_is_sanitized(payload: dict[str, object]) -> None:
 
 def print_results(base_url: str, results: list[CallbackProbeResult]) -> None:
     payload = build_json_report(base_url, results)
+    metadata = payload["metadata"]
+    generated_at = (
+        metadata.get("generated_at", "") if isinstance(metadata, dict) else ""
+    )
     print("WeCom employee agent callback checks")
-    print(f"generated_at={payload['metadata']['generated_at']}")
+    print(f"generated_at={generated_at}")
     print(f"base_url={base_url}")
     print(f"app_version={APP_VERSION}")
     print(f"total={payload['total']} failed={payload['failed']}")
