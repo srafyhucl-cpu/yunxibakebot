@@ -1,3 +1,13 @@
+## [2026-07-12] - verify(r4): 真实生产快照本地迁移回滚演练
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 从本地 AES-256-GCM 备份临时解密生产快照，`migration_job.py --mode dry-run --json` 返回 `schema_ready=true`。
+  - 对临时快照执行 `apply` 后再执行 `rollback`，结果分别为 `apply_schema_ready=true`、`rollback_schema_ready=true`、`rollback_rolled_back=true`。
+  - 迁移副本和解密快照均已逐个删除；加密备份未覆盖，仍可独立校验。
+- **结论**: 真实生产快照的数据结构可通过本地迁移/回滚合同；这不等于生产服务器已执行 migration apply/rollback，生产在线回滚路径仍未挂载。
+- **边界**: 未写入生产数据库，未输出数据库内容、客户数据、订单明细或密钥。
+
 ## [2026-07-12] - verify(r4): 生产数据库加密备份拉取到本地 D 盘
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

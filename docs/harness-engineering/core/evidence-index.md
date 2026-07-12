@@ -4272,6 +4272,20 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-081：真实生产快照本地迁移回滚演练
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: local/production-snapshot-migration-roundtrip
+- file: `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Backups\YunxiBakeBot\bot_backup_20260712_01.ybak`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `verify_encrypted_backup`; `python scripts/migration_job.py --db <decrypted-production-snapshot> --mode dry-run --json`; local `run_job(... mode=apply, require_off_disk=False)`; local `run_job(... mode=rollback, require_off_disk=False)`; explicit deletion of decrypted snapshot and migration copy
+- result: pass
+- related_logbook: 2026-07-12 - verify(r4): 真实生产快照本地迁移回滚演练
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: yes
+- retention_note: 临时解密库和迁移副本只在 D 盘工作目录短暂存在，验证后逐个删除；长期只保留加密备份，密钥与备份分开存放。索引不包含数据库内容、客户数据或密钥。
+- summary: 真实生产 SQLite 快照的本地 dry-run、apply、rollback 和 integrity check 均通过；生产数据库未写入，生产服务器在线 migration rollback 路径仍未完成。
+
 ## E-20260712-080：生产数据库加密备份拉取到本地 D 盘
 
 - trace_id: 20260711-global-risk-remediation
