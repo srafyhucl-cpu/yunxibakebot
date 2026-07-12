@@ -8,7 +8,11 @@
   - 调用真实 export/delete API，验证七类关联记录、consent revoked、前后 integrity check 和最终零残留。
   - 报告不输出 token、主体 ID 或导出正文；异常路径也按精确主键清理唯一合成数据。
 - **本地验证**: 脚本合同测试 `3 passed`；Ruff check/format 和独立 mypy 通过。
-- **发布状态**: 待本提交部署后执行生产专项并回填最终 `8/8` 结果。
+- **生产验证**:
+  - 首次执行被真实配置门禁阻断，确认生产 `STOREFRONT_AUTH_SECRET` 未配置；失败路径完成合成数据清理。
+  - 在生产主机本地生成 32 字节随机会话密钥写入权限 `600` 的 `.env`，密钥不回传、不入库；重启后 health/ready 正常。
+  - 真实专项 `8/8` 通过，包含 authenticated export/delete、关联记录归零、consent revoked、前后 integrity check 和 synthetic residue false。
+- **结论**: 生产主体权利闭环已用生产运行时合成主体完成验证；真实客户无需也不得作为破坏性测试材料。
 - **边界**: 不读取、不导出、不删除真实客户；Docker 继续后置。
 
 ## [2026-07-12] - fix(harness): 修正员工 callback 探针 actor 语义

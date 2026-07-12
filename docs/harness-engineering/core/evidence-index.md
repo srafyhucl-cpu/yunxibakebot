@@ -593,7 +593,7 @@
 - evidence_type: local+production/p10b-langchain-ai-layer-production-release-gate
 - file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\scripts\smoke_test.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_smoke_test.py`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-latest.json`; `D:\Project\YunxiBakeBot\reports\agent-eval\langchain-ai-layer-release-gate-prod-latest.json`; `D:\Project\YunxiBakeBot\reports\smoke\langchain-prod-smoke-20260710-014618.json`; `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\langchain-prod-callback-20260710-014620.json`; `D:\Project\YunxiBakeBot\docs\architecture\langchain-ai-layer-production-enhancement-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
 - command: `python -m pytest tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py -q --no-cov`; `python -m ruff check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python -m ruff format --check scripts\smoke_test.py scripts\check_langchain_ai_layer_release_gate.py tests\scripts\test_smoke_test.py tests\scripts\test_check_langchain_ai_layer_release_gate.py`; `python scripts\check_langchain_ai_layer_release_gate.py --json-out reports\agent-eval\langchain-ai-layer-release-gate-latest.json --summary`; `python scripts\check_langchain_ai_layer_release_gate.py --include-production-smoke --production-base-url https://yunxifood.cn --json-out reports\agent-eval\langchain-ai-layer-release-gate-prod-latest.json --summary`
-- result: partial
+- result: pass
 - related_logbook: 2026-07-10 - feat(eval): 增加 P10b 生产 smoke/callback 可选门禁
 - related_adr: 0003-langchain-ai-layer-boundary
 - contains_sensitive_data: no
@@ -4536,4 +4536,4 @@ ______________________________________________________________________
 - related_adr: 0005-framework-first-single-path
 - contains_sensitive_data: no
 - retention_note: 只保留检查名称、通过状态和安全边界布尔值；不记录 JWT、合成主体 ID、导出正文、客户内容、订单明细或数据库内容。
-- summary: 本地脚本合同 `3 passed`，Ruff 和 mypy 通过；生产专项待本提交部署后执行。专项仅写入随机前缀合成主体，使用生产真实 JWT 和 loopback API，并在 finally 中验证合成数据零残留，不触碰真实客户。
+- summary: 本地脚本合同 `3 passed`，Ruff 和 mypy 通过；首次生产执行发现并阻断未配置前台会话密钥，失败路径完成清理。服务器本地生成并托管随机会话密钥、重启后，生产真实 JWT/loopback API 专项 `8/8` 通过，synthetic residue false，health/ready/systemd 正常；不触碰真实客户。
