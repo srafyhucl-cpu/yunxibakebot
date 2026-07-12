@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：生产当前版本 `0.107.4`（本列车）；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B 已完成；R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁。生产版本、员工授权、反向代理和 readiness 已在 `0.107.3` 发布列车中验证；`0.107.4` 本列车将 callback 中无法可靠确认的业务事实统一收敛为转人工，并在发布后复验。异盘密钥托管、定时备份保留、生产迁移回滚演练、容器 build/smoke 和生产 trace sink 启用仍未完成。全量测试已串行通过。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B 已完成；R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成本地首片并通过对应门禁。生产 `0.107.8` 的员工授权、反向代理、readiness 和 callback `61/61` 探针均已验证；无法可靠确认的业务事实和 callback 异常已统一收敛为转人工。异盘密钥托管、定时备份保留、生产迁移回滚演练、容器 build/smoke 和生产 trace sink 启用仍未完成。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -313,7 +313,7 @@ R3 出站条件：consent 三态、删除链、外发脱敏、SSRF 重定向和�
 
 ### R4-B：CI、部署、迁移和备份恢复
 
-状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest 和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.3` 生产 health/ready/版本门禁已通过；异盘密钥托管、定时保留策略和生产迁移回滚演练仍未完成。
+状态：已完成发布失败边界、SQLite backup/restore round-trip、独立迁移 job、精确 release manifest 和 AES-GCM 加密备份首片本地实施与合同验证（2026-07-12）；`0.107.8` 生产 health/ready/版本门禁已通过；生产异盘挂载和密钥文件前置检查已执行但未满足，未生成同盘备份，定时保留策略和生产迁移回滚演练仍未完成。
 
 1. 按 `$GITHUB_SHA` 构建和部署，禁止 `git pull server main` 等漂移分支。
 2. `pip install`、前端 build、迁移、ready 和版本任一失败都立即退出。
@@ -354,7 +354,7 @@ R4 出站条件：备份恢复 round-trip、迁移 dry-run/apply/rollback、部�
 
 ### R5-A：模型 registry 与运行时 transport 首片
 
-状态：已完成 LangChain provider/model/temperature/timeout registry、共享 HTTP transport、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、employee structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter 和本地 trace sink 首片；shutdown 统一释放资源，客户/员工 Agent 定向回归及全量测试通过（2026-07-12）。`0.107.4` 本地发布版本门禁已通过；生产 callback 的事实不确定场景已统一转人工，需发布后复跑 `61` 个用例确认，生产 trace sink 仍未启用。
+状态：已完成 LangChain provider/model/temperature/timeout registry、共享 HTTP transport、文本 chat 单路径、customer/employee `ToolNode`、`BaseMessage` state、employee structured planner、三种 RAG 模式统一 adapter、七类文本 Runnable、ASR 窄 SDK adapter 和本地 trace sink 首片；shutdown 统一释放资源，客户/员工 Agent 定向回归及全量测试通过（2026-07-12）。`0.107.8` 生产 callback `61/61` 已通过；生产 trace sink 仍未启用。
 
 - 已删除 LangChain 模型工厂每次创建 HTTP client 的路径。
 - 已新增共享 `app/service/llm/provider.py` resolver；文本能力统一由 LangChain 工厂解析 MiMo 默认和显式 DeepSeek，`client.py` 仅保留 ASR SDK adapter。

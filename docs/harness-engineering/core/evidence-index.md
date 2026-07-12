@@ -4259,3 +4259,29 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录故障类别、路由状态和验证命令；不登记客户原文、订单明细、员工 ID、callback token、AES key 或回复正文。生产 JSON 位于 gitignored reports 目录。
 - summary: 生产 callback 已确认实际走 employee_agent 路径；22 个失败中 20 个为通用异常兜底文本，2 个为需要运营判断的订单关注问法。下一发布列车将这三类统一收敛到转人工，保留所有安全和格式门禁。
+## E-20260712-069：callback 转人工策略生产验证
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/employee-callback-handoff-release-verification
+- file: `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\callback-handoff-policy-20260712-4.json`; production `/opt/yunxibakebot`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `git push origin master`; `git push server master`; production `git rev-parse HEAD`; production `git show HEAD:VERSION`; production `systemctl restart yunxibakebot`; production `/health`; production `/ready`; `python scripts\check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json`
+- result: pass
+- related_logbook: 2026-07-12 - deploy(r3-r5): callback 转人工策略生产收口
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
+- summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
+## E-20260712-070：生产异盘备份前置检查
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/backup-off-disk-preflight
+- file: production `/opt/yunxibakebot`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\docs\architecture\privacy-data-retention-policy.md`
+- command: `ssh root@47.94.102.250 df -P -x tmpfs -x devtmpfs`; `ssh root@47.94.102.250 ls -ld /mnt/backup /var/backups/yunxibakebot /opt/yunxibakebot/backups`; `ssh root@47.94.102.250 test -f /etc/yunxibakebot/backup.key`
+- result: partial
+- related_logbook: 2026-07-12 - verify(r4): 生产异盘备份前置检查
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录挂载存在性、密钥文件存在性和门禁处置；不包含密钥内容、环境变量值、备份内容、客户数据或订单数据。
+- summary: 生产当前仅有根盘 `/dev/vda3`，没有已配置独立备份挂载，密钥文件不存在。按 fail-closed 规则未生成同盘备份、未执行迁移 apply；外部存储目标出现后再继续。
