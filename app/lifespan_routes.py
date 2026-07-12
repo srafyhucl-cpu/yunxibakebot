@@ -21,6 +21,7 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
         create_storefront_group_registrations_router,
     )
     from app.api.channels.storefront.orders import create_storefront_orders_router
+    from app.api.channels.storefront.privacy import create_storefront_privacy_router
     from app.api.channels.storefront.payments import create_storefront_payments_router
     from app.api.integrations.wecom import router as wecom_router
     from app.api.integrations.wecom_intelligent_bot import (
@@ -43,6 +44,12 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     )
     app.include_router(create_storefront_catalog_router(services["catalog_service"]))
     app.include_router(create_storefront_orders_router(services["order_service"]))
+    app.include_router(
+        create_storefront_privacy_router(
+            services["customer_consent_service"],
+            services.get("privacy_lifecycle_service"),
+        )
+    )
     app.include_router(create_storefront_payments_router(services["order_service"]))
     app.include_router(
         create_storefront_chat_router(services["storefront_conversation_service"])

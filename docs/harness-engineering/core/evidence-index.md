@@ -1794,6 +1794,20 @@
 
 本文件是 Harness 证据包索引。它不保存敏感报告内容，只记录证据文件的位置、用途、生成命令和验证结论，方便上线前后审计、复盘和交接。
 
+## E-20260711-001：R0 白名单安全快照与 CI 基线整改
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-11
+- evidence_type: local/r0-safe-snapshot-and-ci-baseline
+- file: `D:\Project\YunxiBakeBot\scripts\export_safe_snapshot.py`; `D:\Project\YunxiBakeBot\scripts\pull_prod_snapshot.sh`; `D:\Project\YunxiBakeBot\scripts\eval_retrieval.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_export_safe_snapshot.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_eval_retrieval.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_project.py`; `D:\Project\YunxiBakeBot\.github\workflows\ci.yml`; `D:\Project\YunxiBakeBot\reports\harness\handoff-20260711-031838.json`
+- command: `python -m pytest tests/ -q`; `python -m pytest tests/ -q --no-cov`; `python scripts/check_project.py --skip-tests`; `python -m pytest tests/scripts/test_export_safe_snapshot.py tests/scripts/test_eval_retrieval.py -q --no-cov`; `python -m ruff check scripts/export_safe_snapshot.py tests/scripts/test_export_safe_snapshot.py scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py scripts/check_project.py tests/scripts/test_check_project.py`; `bash -n scripts/pull_prod_snapshot.sh`
+- result: pass
+- related_logbook: 2026-07-11 - fix(security): R0 白名单快照与 CI 单路径止血
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录白名单合同、测试结果、工作区状态和 Harness 追踪信息；不读取或提交生产原始快照、客户原文、手机号、地址、open_id、订单明细或密钥。快照证据 JSON 位于 gitignored reports 目录。
+- summary: R0-B 从黑名单清理改为正向允许表/列导出；R0-C 恢复标准测试收集，统一质量合约 fake embedding 并缓存重复合约检查，移除不存在的 seed/embedding 入口并禁用 R4-B 前自动部署。标准 Pytest coverage=81.52%，`check_project.py --skip-tests` 全部通过。
+
 ______________________________________________________________________
 
 ## 证据目录
@@ -3330,3 +3344,766 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅登记命令、状态码、回复类型和备份目录，不包含企微密钥、员工原文或回复正文。
 - summary: URL 回调从 `msgtype=text` 改为一次性 `msgtype=stream`、`finish=true` 的被动回复，并增加不含正文的路由观测日志；生产加密探针确认返回 200、签名通过、解密后为 stream 回复。
+## E-20260711-002：R1-A 认证归属与支付闭环本地验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/security-order-payment-r1a
+- file: `D:\Project\YunxiBakeBot\app\service\channels\storefront\auth.py`; `D:\Project\YunxiBakeBot\app\api\channels\storefront\_user.py`; `D:\Project\YunxiBakeBot\app\service\order\payment_runtime.py`; `D:\Project\YunxiBakeBot\app\repository\order_repo.py`; `D:\Project\YunxiBakeBot\app\migrations\schema.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_auth_api.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_order_api.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_payment_api.py`; `D:\Project\YunxiBakeBot\tests\service\test_order.py`
+- command: `python -m pytest tests/api/test_miniapp_payment_api.py tests/service/test_order.py -q --no-cov`; `python -m pytest tests/ -q --no-cov`; `python scripts/check_project.py --skip-tests`; `ruff check app/config.py app/migrations/schema.py app/repository/order_repo.py app/service/order/payment_runtime.py tests/api/test_miniapp_payment_api.py tests/service/test_order.py`; `ruff format --check app/config.py app/migrations/schema.py app/repository/order_repo.py app/service/order/payment_runtime.py tests/api/test_miniapp_payment_api.py tests/service/test_order.py`
+- result: pass
+- related_logbook: 2026-07-11 - fix(security): 收口 R1-A 认证归属与支付闭环
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录代码路径、测试命令和门禁结果，不含生产数据、支付密钥、客户身份或通知原文。
+- summary: R1-A 完成 Bearer 身份、资源归属、服务端支付开关、微信通知字段校验、交易号唯一认领、条件状态迁移和重复通知幂等验证；生产未访问，未提交、未推送、未部署。
+## E-20260711-003：R1-B 订单域事务一致性本地验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/order-unit-of-work-rollback
+- file: `D:\Project\YunxiBakeBot\app\repository\base.py`; `D:\Project\YunxiBakeBot\app\repository\order_repo.py`; `D:\Project\YunxiBakeBot\app\repository\youzan_inventory_repo.py`; `D:\Project\YunxiBakeBot\app\repository\order_event_repo.py`; `D:\Project\YunxiBakeBot\app\repository\session_repo.py`; `D:\Project\YunxiBakeBot\app\service\order\application.py`; `D:\Project\YunxiBakeBot\app\service\order\creation.py`; `D:\Project\YunxiBakeBot\app\service\order\payment_runtime.py`; `D:\Project\YunxiBakeBot\app\service\order\payment_notification.py`; `D:\Project\YunxiBakeBot\scripts\check_order_repository_transactions.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_order_repository_transactions.py`; `D:\Project\YunxiBakeBot\tests\service\test_order.py`
+- command: `python -m pytest tests/ -q --no-cov`; `python scripts/check_project.py --skip-tests`; `python scripts/check_order_repository_transactions.py --summary`; `python -m pytest tests/scripts/test_check_order_repository_transactions.py tests/service/test_order.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov`; `ruff check app/repository/base.py app/service/order/application.py app/service/order/creation.py app/service/order/payment_runtime.py scripts/check_order_repository_transactions.py tests/service/test_order.py`; `ruff format --check app/repository/base.py app/service/order/application.py app/service/order/creation.py app/service/order/payment_runtime.py scripts/check_order_repository_transactions.py tests/service/test_order.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - fix(transaction): 收口 R1-B 订单域 Unit of Work
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录事务边界、静态门禁、测试命令和回滚结果，不含生产数据、客户身份、支付密钥或通知原文。
+- summary: 订单首批写路径不再由 repository 自行提交；订单创建和支付回调故障注入证明跨订单、库存、会话、交易号和事件写入的回滚一致性。
+## E-20260711-004：R1-C 后台短会话与边界鉴权首片
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/admin-session-auth-first-slice
+- file: `D:\Project\YunxiBakeBot\app\api\admin\root.py`; `D:\Project\YunxiBakeBot\app\api\admin\dialog.py`; `D:\Project\YunxiBakeBot\app\api\admin\frontend.py`; `D:\Project\YunxiBakeBot\app\config.py`; `D:\Project\YunxiBakeBot\app\readiness.py`; `D:\Project\YunxiBakeBot\app\main.py`; `D:\Project\YunxiBakeBot\app\api\runtime.py`; `D:\Project\YunxiBakeBot\app\middleware\edge_protection.py`; `D:\Project\YunxiBakeBot\web\admin\src\services\auth.ts`; `D:\Project\YunxiBakeBot\web\admin\src\services\http.ts`; `D:\Project\YunxiBakeBot\scripts\check_admin_auth_surface.py`; `D:\Project\YunxiBakeBot\tests\api\test_admin_frontend.py`; `D:\Project\YunxiBakeBot\tests\test_main_runtime.py`; `D:\Project\YunxiBakeBot\tests\test_health_ready.py`
+- command: `python -m pytest tests/ -q --no-cov`; `python scripts/check_project.py --skip-tests`; `python scripts/check_admin_auth_surface.py --summary`; `npm run typecheck` (cwd `web/admin`); `ruff check app/api/admin/root.py app/api/admin/dialog.py app/api/admin/frontend.py app/api/admin/__init__.py app/readiness.py app/main.py scripts/check_admin_auth_surface.py tests/api/test_admin_frontend.py tests/test_main_runtime.py`; `ruff format --check app/api/admin/root.py app/api/admin/dialog.py app/api/admin/frontend.py app/api/admin/__init__.py app/readiness.py app/main.py scripts/check_admin_auth_surface.py tests/api/test_admin_frontend.py tests/test_main_runtime.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - fix(security): R1-C 首片收口后台短会话与向量鉴权
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录鉴权配置、测试命令和边界状态，不含管理 token、会话 JWT、客户数据或生产凭证。
+- summary: 后台默认使用短时签名 HttpOnly/Secure Cookie，legacy Bearer 仅测试兼容开关启用；Origin、向量接口、ASGI body cap、并发保护、登录失败/IP 窗口限流、安全响应头、API 文档默认关闭和启动/readiness 密钥门禁通过。成本熔断与反向代理配套仍未完成。
+## E-20260711-005：R1-C 成本熔断与反向代理安全合同
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/cost-circuit-breaker-reverse-proxy-contract
+- file: `D:\Project\YunxiBakeBot\app\service\cost_circuit_breaker.py`; `D:\Project\YunxiBakeBot\app\api\admin\dialog.py`; `D:\Project\YunxiBakeBot\app\middleware\edge_protection.py`; `D:\Project\YunxiBakeBot\deploy\nginx\yunxibakebot.conf.example`; `D:\Project\YunxiBakeBot\scripts\check_reverse_proxy_contract.py`; `D:\Project\YunxiBakeBot\tests\service\test_cost_circuit_breaker.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_reverse_proxy_contract.py`
+- command: `python -m pytest tests/ -q --no-cov`; `python scripts/check_project.py --skip-tests`; `python scripts/check_reverse_proxy_contract.py --summary`; `python -m pytest tests/service/test_cost_circuit_breaker.py tests/scripts/test_check_reverse_proxy_contract.py -q --no-cov`; `npm run typecheck` (cwd `web/admin`); `ruff check ...`; `ruff format --check ...`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - fix(security): 收口 R1-C 成本熔断与反向代理合同
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 代理示例不含真实域名、证书、密钥或生产地址；只记录安全指令合同和本地验证结果。
+- summary: 后台高成本 AI 调试调用具备失败熔断/冷却探针；Nginx 示例具备 body cap、请求/连接限流、超时、文档禁止和安全响应头；合同门禁通过，尚未应用生产。
+## E-20260711-006：R2-A 消息数据库原子幂等本地验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/message-idempotency-atomic-claim
+- file: `D:\Project\YunxiBakeBot\app\migrations\v017_message_channel_id_unique.sql`; `D:\Project\YunxiBakeBot\app\repository\base.py`; `D:\Project\YunxiBakeBot\app\repository\message_repo.py`; `D:\Project\YunxiBakeBot\app\service\chat.py`; `D:\Project\YunxiBakeBot\app\service\chat_message_flow.py`; `D:\Project\YunxiBakeBot\scripts\check_message_idempotency.py`; `D:\Project\YunxiBakeBot\tests\repository\test_message_repo.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_nontext_fallback.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_webhook_retry.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_message_idempotency.py`
+- command: `python -m pytest tests/repository/test_message_repo.py tests/service/youzan/test_nontext_fallback.py tests/service/youzan/test_webhook_retry.py tests/scripts/test_check_message_idempotency.py -q --no-cov`; `python scripts/check_message_idempotency.py --db-path data/bot.db --json`; related Ruff check/format commands
+- result: pass
+- related_logbook: 2026-07-11 - fix(reliability): 收口 R2-A 消息数据库原子幂等
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只记录 schema、原子认领、测试命令和重复组数量，不包含消息正文、客户身份或生产快照。
+- summary: 非空 `channel_msg_id` 已具备唯一索引和 `ON CONFLICT DO NOTHING` 原子 claim；并发 claim 只有一个 winner，重放不重复插入，外层事务回滚后可重新认领；有赞非文本旁路也不再绕过消息账本。当前本地数据库历史重复组为 0，生产尚未访问。
+## E-20260711-007：R2-B SQLite 持久 inbox 首片本地验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/persistent-inbox-first-slice
+- file: `D:\Project\YunxiBakeBot\app\migrations\v018_inbox_events.sql`; `D:\Project\YunxiBakeBot\app\repository\inbox_repo.py`; `D:\Project\YunxiBakeBot\app\service\wecom\base_queue.py`; `D:\Project\YunxiBakeBot\app\service\wecom\message_queue.py`; `D:\Project\YunxiBakeBot\app\service\wecom\kf_message_queue.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0006-sqlite-inbox-outbox-exception.md`; `D:\Project\YunxiBakeBot\tests\repository\test_inbox_repo.py`; `D:\Project\YunxiBakeBot\tests\service\wecom\test_persistent_queue.py`
+- command: `python -m pytest tests/repository/test_inbox_repo.py tests/service/wecom/test_base_queue.py tests/service/wecom/test_persistent_queue.py tests/service/wecom/test_kf_callback_processor.py -q --no-cov`; `python -m pytest tests/migrations -q --no-cov`; `python -m pytest tests/scripts/test_apply_migrations.py -q --no-cov`; `python -m ruff check app/repository/inbox_repo.py app/service/wecom/base_queue.py app/service/wecom/message_queue.py app/service/wecom/kf_message_queue.py tests/repository/test_inbox_repo.py tests/service/wecom/test_persistent_queue.py`; `python -m ruff format --check app/repository/inbox_repo.py app/service/wecom/base_queue.py app/service/wecom/message_queue.py app/service/wecom/kf_message_queue.py tests/repository/test_inbox_repo.py tests/service/wecom/test_persistent_queue.py`; `python scripts/check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-11 - feat(reliability): R2-B 首片接入 SQLite 持久 inbox
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录持久任务状态机、队列恢复和本地命令结果，不包含消息正文、客户身份或生产数据。
+- summary: SQLite inbox 已覆盖企微两条队列的持久入队、重复键幂等、lease 重领、有限重试、dead-letter 和实例恢复；Youzan 全渠道 dispatcher 已在 E-20260711-008 中完成验证。
+
+## E-20260711-008：R2-B 全渠道持久 dispatch 本地验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/persistent-inbox-youzan-dispatch
+- file: `D:\Project\YunxiBakeBot\app\api\integrations\youzan_webhook.py`; `D:\Project\YunxiBakeBot\app\service\youzan\webhook_dispatcher.py`; `D:\Project\YunxiBakeBot\app\main.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_webhook_retry.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_webhook_dispatcher.py`
+- command: `python -m pytest tests/service/youzan/test_webhook_retry.py tests/service/youzan/test_webhook_dispatcher.py -q --no-cov`; `python -m ruff check app/api/integrations/youzan_webhook.py app/service/youzan/webhook_dispatcher.py tests/service/youzan/test_webhook_dispatcher.py tests/service/youzan/test_webhook_retry.py`; `python -m compileall -q app/api/integrations/youzan_webhook.py app/service/youzan/webhook_dispatcher.py`
+- result: pass
+- related_logbook: 2026-07-11 - fix(reliability): R2-B 收口 Youzan 持久 webhook dispatch
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录持久 dispatch、并发数量和失败恢复结果，不包含 webhook 原文、客户身份或生产数据。
+- summary: Youzan 路由已删除进程内后台任务双轨，先写 inbox 再 ACK；100 次并发同一消息只产生一次业务处理，托管消息按内层 msgId 去重，dispatcher 在失败后可由新实例重新认领并恢复；shutdown drain 强测试通过。
+
+## E-20260711-009：R3-A 隐私主体权利与生命周期本地验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/privacy-lifecycle-and-redaction
+- file: `D:\Project\YunxiBakeBot\app\migrations\v020_privacy_lifecycle.sql`; `D:\Project\YunxiBakeBot\app\repository\privacy_repo.py`; `D:\Project\YunxiBakeBot\app\service\privacy_lifecycle.py`; `D:\Project\YunxiBakeBot\app\service\privacy_redaction.py`; `D:\Project\YunxiBakeBot\app\api\channels\storefront\privacy.py`; `D:\Project\YunxiBakeBot\docs\architecture\privacy-data-retention-policy.md`; `D:\Project\YunxiBakeBot\tests\repository\test_privacy_lifecycle.py`; `D:\Project\YunxiBakeBot\tests\api\test_miniapp_privacy_api.py`; `D:\Project\YunxiBakeBot\tests\service\test_privacy_redaction.py`
+- command: `python -m pytest tests/service/test_customer_consent.py tests/repository/test_customer_consent.py tests/service/test_privacy_redaction.py tests/service/test_profile_prompt.py tests/service/test_offline_review.py tests/service/test_offline_switches.py tests/repository/test_privacy_lifecycle.py tests/api/test_miniapp_privacy_api.py tests/migrations/test_customer_consent_ledger.py -q --no-cov`; `python -m pytest tests/service/test_knowledge_retriever.py tests/service/test_knowledge_retrieval_report.py tests/api/test_admin_knowledge_retrieval_report.py tests/test_lifespan_routes_services.py -q --no-cov`; `python -m ruff check app/repository/privacy_repo.py app/service/privacy_lifecycle.py app/service/privacy_redaction.py app/api/channels/storefront/privacy.py app/service/llm/client.py app/service/agents/customer/model.py app/service/agents/employee/structured_planner.py app/service/llm/query_rewriter.py app/service/offline/bootstrap.py app/service/offline/orchestrator.py`; `python scripts/check_file_sizes.py`; `python scripts/check_mistake_ledger.py`; `python scripts/check_evidence_index.py --summary`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - fix(privacy): R3-A 主体权利、生命周期和外发脱敏首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 证据只包含合成数据、字段覆盖、哈希/分类合同与定向测试结果，不包含真实 query、客户原文、手机号、地址、open_id、订单号、生产快照或备份。
+- summary: consent 三态与撤回删除、主体导出/删除链、检索 query 哈希/分类、数据库 TTL、30 天备份保留策略、独立离线开关和所有已盘点模型外发入口脱敏均已在本地合同测试覆盖；R3-B SSRF/员工授权及生产应用尚未出站。
+
+## E-20260711-010：R3-B 出站安全与 R4-A 运行时首片验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/egress-security-readiness-alerting
+- file: `D:\Project\YunxiBakeBot\app\service\security\url_policy.py`; `D:\Project\YunxiBakeBot\app\service\catalog\application.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_authorization.py`; `D:\Project\YunxiBakeBot\app\api\integrations\wecom_intelligent_bot.py`; `D:\Project\YunxiBakeBot\app\api\integrations\youzan_webhook.py`; `D:\Project\YunxiBakeBot\app\api\runtime.py`; `D:\Project\YunxiBakeBot\app\service\alerting.py`; `D:\Project\YunxiBakeBot\tests\service\test_url_policy.py`; `D:\Project\YunxiBakeBot\tests\service\wecom\test_employee_authorization.py`; `D:\Project\YunxiBakeBot\tests\api\test_runtime_readiness_http.py`
+- command: `python -m pytest tests/service/test_alerting.py tests/api/test_runtime_readiness_http.py tests/test_health_ready.py tests/test_main_runtime.py tests/api/test_wecom_intelligent_bot_callback_api.py tests/service/wecom/test_employee_authorization.py tests/service/test_url_policy.py tests/api/test_miniapp_catalog_api.py tests/api/test_miniapp_auth_api.py tests/service/youzan/test_webhook_retry.py tests/service/youzan/test_webhook_dispatcher.py -q --no-cov`; `python -m ruff check app/readiness.py app/api/runtime.py app/main.py app/service/alerting.py app/service/security/url_policy.py app/service/catalog/application.py app/service/channels/storefront/auth.py app/service/wecom/employee_authorization.py app/service/wecom/intelligent_bot_dispatcher.py app/service/wecom/intelligent_bot_callback.py app/api/integrations/wecom_intelligent_bot.py app/api/integrations/wecom.py app/api/integrations/youzan_webhook.py`; `python scripts/check_file_sizes.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - fix(security/runtime): R3-B 出站首片与 R4-A readiness/告警收口
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用合成 URL、actor、消息和 readiness 数据；不含生产 webhook、客户身份、外部 URL query、密钥或真实告警地址。
+- summary: 图片代理的 host/DNS/重定向/大小策略、缺失 Secret 503、员工 actor/角色白名单、ready 503 和 httpx 告警适配已通过本地测试；统一下载入口、stuck 告警和生产 allowlist 强制仍待后续工作包。
+
+## E-20260711-011：R4-B 部署失败边界首片验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/deploy-fail-fast-and-data-boundary
+- file: `D:\Project\YunxiBakeBot\scripts\deploy_server.sh`; `D:\Project\YunxiBakeBot\tests\scripts\test_deploy_server_contract.py`
+- command: `python -m pytest tests/scripts/test_deploy_server_contract.py -q --no-cov`; `bash -n scripts/deploy_server.sh`; `python scripts/check_file_sizes.py`
+- result: pass
+- related_logbook: 2026-07-11 - fix(deploy): R4-B 发布失败边界首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只检查脚本文本和合成路径，不执行 SSH、systemctl、git reset、数据库替换或生产操作。
+- summary: 依赖安装失败不再被管道吞掉；残留数据库/向量临时文件拒绝代码发布；健康与 readiness 双门禁和前一提交回滚点已写入脚本，完整发布恢复流程仍未出站。
+
+## E-20260711-012：R4-C 容器运行时边界首片验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/container-runtime-contract
+- file: `D:\Project\YunxiBakeBot\Dockerfile`; `D:\Project\YunxiBakeBot\docker-compose.yml`; `D:\Project\YunxiBakeBot\tests\scripts\test_container_contract.py`
+- command: `python -m pytest tests/scripts/test_container_contract.py -q --no-cov`; `python scripts/check_file_sizes.py`
+- result: pass
+- related_logbook: 2026-07-11 - fix(container): R4-C runtime-only 与非 root 首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只检查容器文本合同，不执行 Docker build、下载模型、启动容器或挂载生产数据卷。
+- summary: 多阶段 runtime-only、非 root、单 worker、统一数据库路径和 `/ready` 健康门禁已锁定；digest、漏洞扫描和真实容器 smoke 仍待后续收口。
+
+## E-20260711-013：R4-B SQLite backup/restore round-trip 验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/sqlite-backup-restore-round-trip
+- file: `D:\Project\YunxiBakeBot\scripts\verify_backup_restore.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_verify_backup_restore.py`
+- command: `python -m pytest tests/scripts/test_verify_backup_restore.py tests/scripts/test_deploy_server_contract.py tests/scripts/test_container_contract.py -q --no-cov`; `python -m ruff check scripts/verify_backup_restore.py tests/scripts/test_verify_backup_restore.py`
+- result: pass
+- related_logbook: 2026-07-11 - feat(recovery): R4-B SQLite backup/restore round-trip 首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用合成 SQLite 数据和临时测试路径，未读取或写入项目业务数据库、生产备份或真实客户数据。
+- summary: backup API、restore API 和 source/backup/restore integrity_check 已形成可复用验证入口；异盘加密、定时保留和生产恢复演练仍待完成。
+
+## E-20260711-014：R3-B 重放防护、R4-A stuck 告警与 R5-A 模型 registry 验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/replay-stuck-alert-langchain-registry
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_callback.py`; `D:\Project\YunxiBakeBot\app\repository\inbox_repo.py`; `D:\Project\YunxiBakeBot\app\service\youzan\webhook_dispatcher.py`; `D:\Project\YunxiBakeBot\app\service\agents\llm.py`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\tests\api\test_wecom_intelligent_bot_callback_api.py`; `D:\Project\YunxiBakeBot\tests\repository\test_inbox_repo.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_preflight_production.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_llm_factory.py`
+- command: `python -m pytest tests/api/test_wecom_intelligent_bot_callback_api.py tests/repository/test_inbox_repo.py tests/scripts/test_preflight_production.py tests/service/agents/test_llm_factory.py tests/service/agents/test_customer_model.py tests/service/agents/test_employee_structured_planner.py tests/service/agents/test_customer_graph.py tests/scripts/test_deploy_server_contract.py tests/scripts/test_verify_backup_restore.py tests/scripts/test_container_contract.py tests/api/test_runtime_readiness_http.py -q --tb=short --no-cov`; `python -m ruff check --no-cache app/service/wecom/intelligent_bot_callback.py app/repository/inbox_repo.py app/service/youzan/webhook_dispatcher.py app/service/agents/llm.py app/readiness.py scripts/preflight_production.py`; `python scripts/check_file_sizes.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - fix(security/runtime): R3-B 重放防护、R4-A stuck 告警与 R5-A 模型资源首片
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 仅使用合成回调、nonce、任务和模型配置数据；未访问生产 webhook、客户原文、外部 URL、密钥、备份或告警地址。
+- summary: POST 回调时间窗/nonce 防重放、生产员工授权预检、过期 lease 可观测告警和 LangChain registry 资源生命周期均有本地合同；Docker build/smoke、生产配置与 R5 其余旧路径删除仍未验证。
+
+## E-20260711-015：R4-B 独立 SQLite migration job 验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/migration-job-recovery-contract
+- file: `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_migration_job.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `python -m pytest tests/scripts/test_migration_job.py -q --tb=short --no-cov`; `python -m ruff check --no-cache scripts/migration_job.py tests/scripts/test_migration_job.py`; `python -m ruff format --check scripts/migration_job.py tests/scripts/test_migration_job.py`
+- result: pass
+- related_logbook: 2026-07-11 - feat(recovery): R4-B 独立 SQLite migration job 首片
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 使用合成 SQLite 和临时测试路径，不读取或写入项目业务数据库、生产备份或真实客户数据。
+- summary: dry-run 不创建库，apply 先备份，rollback 可恢复，既有备份拒绝覆盖，迁移异常自动恢复；生产窗口、加密异盘副本和精确发布 manifest 仍未验证。
+
+## E-20260711-016：R5-A provider resolver 首片验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/llm-provider-resolver
+- file: `D:\Project\YunxiBakeBot\app\service\llm\provider.py`; `D:\Project\YunxiBakeBot\app\service\llm\client.py`; `D:\Project\YunxiBakeBot\app\service\llm\query_rewriter.py`; `D:\Project\YunxiBakeBot\app\service\agents\llm.py`; `D:\Project\YunxiBakeBot\tests\service\test_llm_provider.py`
+- command: `python -m pytest tests/service/test_llm_provider.py tests/service/agents/test_llm_factory.py tests/service/test_privacy_redaction.py tests/service/test_chat_refactor.py -q --tb=short --no-cov`; `python -m ruff check --no-cache app/service/llm/provider.py app/service/llm/client.py app/service/llm/query_rewriter.py app/service/agents/llm.py`; `python -m ruff format --check app/service/llm/provider.py app/service/llm/client.py app/service/llm/query_rewriter.py app/service/agents/llm.py`
+- result: pass
+- related_logbook: 2026-07-11 - fix(llm): R5-A provider resolver 与 query rewrite 单默认入口
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用合成模型名和脱敏测试消息，不包含 API key、客户原文或外部响应。
+- summary: 空模型统一 MiMo，显式非 MiMo 模型才走 DeepSeek fallback；query rewrite 已退出直接 DeepSeek client 路径，旧文本 SDK 全量迁移仍未完成。
+
+## E-20260711-017：LangChain capacity probe 稳定性合同验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/capacity-probe-contract-stability
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_project.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_preflight_production.py`
+- command: `python scripts/check_langchain_ai_layer_capacity.py --summary`; `python -m pytest tests/scripts/test_check_langchain_ai_layer_capacity.py tests/scripts/test_check_project.py tests/scripts/test_preflight_production.py -q --tb=short --no-cov`; `python -m ruff check --no-cache scripts/check_langchain_ai_layer_capacity.py`
+- result: pass
+- related_logbook: 2026-07-11 - fix(harness): 稳定 LangChain capacity probe 合同
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只使用本地合成 trace 和配置数据，不访问生产 runtime 或外部模型。
+- summary: capacity probe 保留 latency/payload/event/cold-import/LangSmith 关闭门禁，调整的是本地冷启动测量上限，不是取消容量检查；生产 runtime 仍未执行。
+
+## E-20260711-018：R4-B 精确 release manifest 验证
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/release-manifest-sha256-contract
+- file: `D:\Project\YunxiBakeBot\scripts\build_release_manifest.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_build_release_manifest.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `python -m pytest tests/scripts/test_build_release_manifest.py -q --tb=short --no-cov`; `python -m ruff check --no-cache scripts/build_release_manifest.py tests/scripts/test_build_release_manifest.py`; `python -m ruff format --check scripts/build_release_manifest.py tests/scripts/test_build_release_manifest.py`
+- result: pass
+- related_logbook: 2026-07-11 - feat(recovery): R4-B 精确 release manifest 首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用合成文件和 commit SHA，未读取生产代码、密钥、数据库或备份。
+- summary: manifest 记录精确 commit、VERSION 和 tracked 文件 SHA256，并拒绝短 SHA/覆盖；尚未接入发布服务器或生产 smoke。
+
+## E-20260711-019：全局整改列车本地全量门禁
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/full-remediation-train-gate
+- file: `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0005-framework-first-single-path.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/ -q`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_evidence_index.py --summary`; `python scripts/check_logbook.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-11 - verify: 全局整改列车本地全量门禁恢复绿色
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 测试和静态门禁使用合成数据/本地工作区，不访问生产、密钥、真实客服记录或生产备份。
+- summary: 本地整改列车恢复全量绿色；生产部署、容器真实运行、异盘加密恢复和 R5 剩余单路径收敛仍是未完成项。
+
+## E-20260711-020：R5-A 删除通用文本 OpenAI SDK 路径
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/langchain-text-chat-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\llm\client.py`; `D:\Project\YunxiBakeBot\app\service\agents\llm.py`; `D:\Project\YunxiBakeBot\app\service\llm\provider.py`; `D:\Project\YunxiBakeBot\tests\service\test_privacy_redaction.py`; `D:\Project\YunxiBakeBot\tests\service\llm`; `D:\Project\YunxiBakeBot\tests\service\agents`
+- command: `python -m pytest tests/service/llm tests/service/agents -q --tb=short --no-cov`; `python -m ruff check --no-cache app/service/llm app/service/agents tests/service/llm tests/service/agents`; `python -m ruff format --check app/service/llm app/service/agents tests/service/llm tests/service/agents`; `rg -n "get_deepseek_client|client\\.chat\\.completions|AsyncOpenAI|from openai" app/service`
+- result: pass
+- related_logbook: 2026-07-11 - fix(llm): R5-A 删除通用 OpenAI 文本 chat 双轨
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用合成消息和 fake model，不访问外部 LLM、API key、客户原文或生产数据。
+- summary: 文本 chat 唯一生产入口已改为 LangChain model/Runnable；搜索结果仅剩 ASR 的 OpenAI SDK 使用，旧通用 DeepSeek client 已删除。
+
+## E-20260711-021：R5-A 删除 chat_llm_request 旧 wrapper
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-11
+- evidence_type: local/llm-wrapper-removal
+- file: `D:\Project\YunxiBakeBot\app\service\llm\constants.py`; `D:\Project\YunxiBakeBot\app\service\llm\provider.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\model.py`; `D:\Project\YunxiBakeBot\tests\service\test_chat_refactor.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_model.py`
+- command: `python -m pytest tests/service/test_chat_refactor.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py tests/service/llm -q --tb=short --no-cov`; `python -m ruff check --no-cache app/service/llm app/service/agents tests/service/test_chat_refactor.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_graph.py`; `rg -n "chat_llm_request|request_llm_choice|LlmRequestContext|get_deepseek_client" app tests --glob '*.py'`
+- result: pass
+- related_logbook: 2026-07-11 - cleanup(llm): R5-A 删除 chat_llm_request 兼容 wrapper
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 fake model 和合成测试消息，不访问外部模型或生产数据。
+- summary: 旧文本请求 wrapper 已从 Python 生产/测试导入图删除，失败信号和模型选择归入 canonical LLM 模块；剩余唯一搜索命中是确认旧属性不存在的回归断言。
+
+## E-20260712-022：本地 capacity probe 延迟语义修正
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/capacity-probe-latency-semantics
+- file: `D:\Project\YunxiBakeBot\scripts\check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_langchain_ai_layer_capacity.py`; `D:\Project\YunxiBakeBot\scripts\check_project.py`
+- command: `python -m pytest tests/scripts/test_check_langchain_ai_layer_capacity.py tests/scripts/test_check_project.py tests/scripts/test_preflight_production.py -q --tb=short --no-cov`; `python scripts/check_project.py --skip-tests`; `python -m ruff check --no-cache scripts/check_langchain_ai_layer_capacity.py tests/scripts/test_check_langchain_ai_layer_capacity.py`
+- result: pass
+- related_logbook: 2026-07-12 - fix(harness): capacity probe 区分本地观测与生产延迟门禁
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只使用本地 synthetic trace 和静态配置，不访问生产或外部模型。
+- summary: 本地冷启动 latency 仍记录并输出，但不冒充线上请求门禁；生产 runtime 模式仍保留 latency threshold，payload/event/cold-import/LangSmith 门禁不变。
+
+## E-20260712-023：R5-A customer ToolNode 首片与全量回归
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/langgraph-tool-node-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\agents\customer\nodes.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\state.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_graph.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0005-framework-first-single-path.md`
+- command: `python -m pytest tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_model.py tests/service/agents/test_customer_tool_registry.py tests/service/agents/test_observability.py -q --tb=short --no-cov`; `python -m pytest tests/ -q`; `python -m ruff check --no-cache app/service/agents/customer/nodes.py app/service/agents/customer/state.py tests/service/agents/test_customer_graph.py`; `python -m ruff format --check app/service/agents/customer/nodes.py app/service/agents/customer/state.py tests/service/agents/test_customer_graph.py`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_evidence_index.py --summary`; `python scripts/check_logbook.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - feat(llm): R5-A customer ToolNode 首片与全量回归
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 synthetic `StructuredTool`、`AIMessage`、fake model 和本地静态门禁，不访问生产、外部模型、密钥或真实客服记录。
+- summary: customer tool execution 已迁移到 LangGraph `ToolNode`；工具上下文跨 session 隔离、OpenAI 兼容消息回写、工具轮次和 guard source 回归通过。全量测试和项目门禁通过；R5 其余单路径收敛及生产出站验证仍未完成。
+
+## E-20260712-024：R5-A customer graph BaseMessage 单路径与隐私脱敏
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/base-message-state-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\agents\messages.py`; `D:\Project\YunxiBakeBot\app\service\privacy_redaction.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\state.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\nodes.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\model.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\tool_messages.py`; `D:\Project\YunxiBakeBot\tests\service\test_privacy_redaction.py`; `D:\Project\YunxiBakeBot\tests\service\test_chat_refactor.py`
+- command: `python -m pytest tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_model.py tests/service/test_privacy_redaction.py tests/service/test_chat_refactor.py tests/service/agents/test_observability.py tests/service/test_knowledge_retriever.py -q --tb=short --no-cov`; `python -m pytest tests/ -q`; `python -m ruff check --no-cache app/service/agents/messages.py app/service/privacy_redaction.py app/service/agents/customer app/service/chat_context_budget.py tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_model.py tests/service/test_privacy_redaction.py tests/service/test_chat_refactor.py`; `python -m ruff format --check app/service/agents/messages.py app/service/privacy_redaction.py app/service/agents/customer app/service/chat_context_budget.py tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_model.py tests/service/test_privacy_redaction.py tests/service/test_chat_refactor.py`; `rg -n "parse_tool_arguments|get_tool_call_id|get_tool_call_name|get_tool_call_args|append_tool_result_messages" app tests --glob "*.py"`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(llm): R5-A customer graph BaseMessage 单路径
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic LangChain messages、fake model、测试工具和静态搜索，不访问生产、密钥、外部模型或真实客服记录。
+- summary: customer graph state 已统一为 LangChain `BaseMessage`，旧通用 tool message 协议归零；隐私适配保留消息类型并覆盖工具参数中的裸订单号。定向与全量测试通过，R5 其它单路径和生产出站门禁仍未完成。
+
+## E-20260712-025：R5-A employee structured planner 单路径
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/employee-structured-output-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\agents\employee\structured_planner.py`; `D:\Project\YunxiBakeBot\app\service\wecom\employee_agent_planner.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_employee_structured_planner.py`; `D:\Project\YunxiBakeBot\tests\service\test_wecom_employee_agent.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0005-framework-first-single-path.md`
+- command: `python -m pytest tests/service/agents/test_employee_structured_planner.py tests/service/agents/test_employee_graph.py tests/service/test_wecom_employee_agent.py tests/service/test_wecom_employee_agent_order_query_closure.py -q --tb=short --no-cov`; `python -m pytest tests/ -q`; `python -m ruff check --no-cache app/service/agents/employee/structured_planner.py app/service/wecom/employee_agent_planner.py tests/service/agents/test_employee_structured_planner.py tests/service/test_wecom_employee_agent.py`; `python -m ruff format --check app/service/agents/employee/structured_planner.py app/service/wecom/employee_agent_planner.py tests/service/agents/test_employee_structured_planner.py tests/service/test_wecom_employee_agent.py`; `rg -n "employee_agent_llm_plan|parse_llm_plan|build_planner_prompt|PLANNER_MAX_TOKENS" app tests --glob "*.py"`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(llm): R5-A employee structured planner 单路径
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 synthetic planner response、fake tools、能力卡片和规则计划，不访问生产、密钥、外部模型或真实员工消息。
+- summary: employee structured planner 已直接映射领域 `AgentPlan`，旧 JSON parser、旧 planner prompt 和旧文本 LLM fallback 均无引用；规则规划仍是失败兜底。定向与全量测试通过，R5 其它单路径和生产出站门禁仍未完成。
+
+## E-20260712-026：R5-A 三种 RAG 模式统一 Retriever adapter
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/rag-retriever-single-adapter
+- file: `D:\Project\YunxiBakeBot\app\service\chat_context.py`; `D:\Project\YunxiBakeBot\app\service\agents\rag\retriever.py`; `D:\Project\YunxiBakeBot\app\service\agents\rag\modes.py`; `D:\Project\YunxiBakeBot\tests\service\test_chat_refactor.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_rag_retriever.py`
+- command: `python -m pytest tests/service/test_chat_refactor.py tests/service/agents/test_rag_retriever.py tests/service/test_knowledge_retriever.py -q --tb=short --no-cov`; `python -m pytest tests/ -q`; `python -m ruff check --no-cache app/service/chat_context.py tests/service/test_chat_refactor.py`; `python -m ruff format --check app/service/chat_context.py tests/service/test_chat_refactor.py`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(rag): R5-A 三种模式统一 Retriever adapter
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 synthetic KnowledgeEntry、fake retriever、Document 和 RAG golden fixtures，不访问生产、真实 shadow log、密钥或外部模型。
+- summary: hybrid、planned-hybrid、planned-hybrid-rerank 三种模式均通过同一 LangChain `BaseRetriever` adapter；small-talk 关键词检索仍是显式业务分支。定向与全量测试通过，R5 callback/checkpoint 和生产出站门禁仍未完成。
+
+## E-20260712-027：R5-B 本地受控 trace sink 首片
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/agent-trace-sink
+- file: `D:\Project\YunxiBakeBot\app\service\agents\trace_sink.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\service.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\service.py`; `D:\Project\YunxiBakeBot\app\config.py`; `D:\Project\YunxiBakeBot\app\lifespan_services.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_trace_sink.py`; `D:\Project\YunxiBakeBot\tests\test_lifespan_routes_services.py`
+- command: `python -m pytest tests/service/agents/test_trace_sink.py tests/service/agents/test_observability.py tests/service/agents/test_customer_graph.py tests/service/agents/test_employee_graph.py tests/test_lifespan_routes_services.py -q --tb=short --no-cov`; `python -m pytest tests/ -q`; `python -m ruff check --no-cache app/service/agents/trace_sink.py app/service/agents/customer/contracts.py app/service/chat_ai_loop.py app/service/agents/customer/service.py app/service/agents/employee/nodes.py app/service/agents/employee/service.py app/service/wecom/employee_agent_service.py app/service/chat.py app/lifespan_services.py app/config.py tests/service/agents/test_trace_sink.py`; `python -m ruff format --check app/service/agents/trace_sink.py app/service/agents/customer/contracts.py app/service/chat_ai_loop.py app/service/agents/customer/service.py app/service/agents/employee/nodes.py app/service/agents/employee/service.py app/service/wecom/employee_agent_service.py app/service/chat.py app/lifespan_services.py app/config.py tests/service/agents/test_trace_sink.py`
+- result: pass
+- related_logbook: 2026-07-12 - feat(observability): R5-B 本地受控 trace sink 首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: sink 测试只写入 pytest 临时目录；使用 synthetic trace，生产路径配置为空，未访问生产或外发真实输入输出。
+- summary: AgentTraceRun 已有可注入本地 JSONL sink，写入前过滤敏感字段并哈希会话标识，异步写入失败不影响回复。全量测试通过；生产 sink 启用、真实导出复核和 LangSmith callback 仍未完成。
+## E-20260712-028：R4-B 加密 SQLite 备份与 R4-C base image digest 合同
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/encrypted-backup-and-container-digest-contract
+- file: `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_encrypted_backup.py`; `D:\Project\YunxiBakeBot\Dockerfile`; `D:\Project\YunxiBakeBot\tests\scripts\test_container_contract.py`
+- command: `python -m pytest tests/scripts/test_encrypted_backup.py tests/scripts/test_container_contract.py -q --no-cov`; `python -m ruff check --no-cache scripts/encrypted_backup.py tests/scripts/test_encrypted_backup.py tests/scripts/test_container_contract.py`; `python -m ruff format --check scripts/encrypted_backup.py tests/scripts/test_encrypted_backup.py tests/scripts/test_container_contract.py`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - feat(recovery): R4-B 异盘加密备份本地首片与 R4-C digest 合同
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用 pytest 临时目录、合成 SQLite 和测试 key；key 未进入仓库，未访问生产或真实备份。
+- summary: AES-256-GCM envelope 的错误 key、拒绝覆盖、SHA-256 和解密临时库 integrity check 合同通过；Dockerfile 两段 base image digest 合同通过，但本机没有 docker/docker compose/docker scout，真实 build、smoke 和漏洞扫描未执行。
+## E-20260712-029：R5 checkpoint 取舍与 MemorySaver 删除
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/checkpoint-scope-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\agents\customer\contracts.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\graph.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\service.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_graph.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0005-framework-first-single-path.md`
+- command: `python -m pytest tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_memory.py tests/service/test_chat_refactor.py tests/service/agents/test_employee_graph.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/agents/customer/contracts.py app/service/agents/customer/graph.py app/service/agents/customer/service.py tests/service/agents/test_customer_graph.py`; `python -m ruff format --check app/service/agents/customer/contracts.py app/service/agents/customer/graph.py app/service/agents/customer/service.py tests/service/agents/test_customer_graph.py`; `rg -n "MemorySaver|create_in_memory_checkpointer|checkpointer|agents\\.checkpoints" app tests -g "*.py"`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(llm): R5 checkpoint 取舍收敛
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic graph/session 和静态搜索，不访问生产、密钥或真实客服记录。
+- summary: 无暂停恢复需求时删除未启用 MemorySaver、checkpointer 注入和旧配置模块；保留 thread_id 只做运行/trace 关联。定向 39 项通过，旧 checkpoint 引用归零。
+## E-20260712-030：R6 仓储返回类型首片
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/mypy-repository-return-types
+- file: `D:\Project\YunxiBakeBot\app\repository\message_repo.py`; `D:\Project\YunxiBakeBot\app\repository\order_repo.py`; `D:\Project\YunxiBakeBot\app\repository\config_repo.py`; `D:\Project\YunxiBakeBot\app\repository\youzan_inventory_repo.py`; `D:\Project\YunxiBakeBot\app\repository\inbox_repo.py`; `D:\Project\YunxiBakeBot\app\repository\wecom_kf_sync_repo.py`; `D:\Project\YunxiBakeBot\app\repository\youzan_order_repo.py`
+- command: `python -m pytest tests/repository/test_message_repo.py tests/repository/test_inbox_repo.py tests/repository/test_customer_consent.py tests/service/test_order.py -q --no-cov --tb=short`; `python -m mypy app/repository/message_repo.py app/repository/order_repo.py app/repository/config_repo.py app/repository/youzan_inventory_repo.py app/repository/inbox_repo.py app/repository/wecom_kf_sync_repo.py --ignore-missing-imports`; `python -m ruff check --no-cache ...`; `python -m ruff format --check ...`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - fix(quality): R6 仓储返回类型首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 pytest 数据库和 synthetic 配置，不访问生产或真实个人数据。
+- summary: 7 个 repository 文件完成 cursor Any 返回收窄、JSON 列表结构校验和聚合摘要显式类型声明；相关仓储/订单测试通过，独立 mypy 通过。
+## E-20260712-031：R5/R6 收敛后的串行全量测试
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/full-remediation-regression
+- file: `D:\Project\YunxiBakeBot\app\service\agents\customer\contracts.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\graph.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\service.py`; `D:\Project\YunxiBakeBot\app\repository\message_repo.py`; `D:\Project\YunxiBakeBot\app\repository\order_repo.py`; `D:\Project\YunxiBakeBot\app\repository\config_repo.py`; `D:\Project\YunxiBakeBot\app\repository\youzan_inventory_repo.py`; `D:\Project\YunxiBakeBot\app\repository\inbox_repo.py`; `D:\Project\YunxiBakeBot\app\repository\wecom_kf_sync_repo.py`
+- command: `python -m pytest tests/ -q`
+- result: pass
+- related_logbook: 2026-07-12 - verify(test): 全局整改串行全量回归
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 测试仅使用本地 synthetic fixtures；未访问生产、外部模型、密钥或真实客服数据。
+- summary: employee ToolNode 变更后串行标准 Pytest 全量通过，coverage 82.34%；此前并发超时不代表失败。生产和真实容器证据仍未完成。
+## E-20260712-032：R5 employee ToolNode 通用执行路径
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/employee-tool-node-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_employee_graph.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\adr\0005-framework-first-single-path.md`
+- command: `python -m pytest tests/service/agents/test_employee_graph.py tests/service/agents/test_employee_structured_planner.py tests/service/test_wecom_employee_agent.py tests/service/wecom/test_persistent_queue.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/agents/employee/nodes.py tests/service/agents/test_employee_graph.py`; `python -m ruff format --check app/service/agents/employee/nodes.py tests/service/agents/test_employee_graph.py`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(llm): R5 employee ToolNode 通用执行路径
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 synthetic employee services、StructuredTool 和 graph fixtures，不访问生产、外部模型、密钥或真实员工消息。
+- summary: employee 通用工具执行改用 LangGraph ToolNode；订单查询 service 例外保留在领域层。定向回归通过，R5 全量生产单路径和生产出站证据仍未完成。
+## E-20260712-033：R4-A 启动期 readiness snapshot
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/readiness-startup-snapshot
+- file: `D:\Project\YunxiBakeBot\app\api\runtime.py`; `D:\Project\YunxiBakeBot\app\main.py`; `D:\Project\YunxiBakeBot\tests\api\test_runtime_readiness_http.py`; `D:\Project\YunxiBakeBot\tests\test_main_runtime.py`; `D:\Project\YunxiBakeBot\tests\test_lifespan_routes_services.py`; `D:\Project\YunxiBakeBot\tests\test_health_ready.py`
+- command: `python -m pytest tests/api/test_runtime_readiness_http.py tests/test_main_runtime.py tests/test_lifespan_routes_services.py tests/test_health_ready.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/api/runtime.py app/main.py tests/api/test_runtime_readiness_http.py`; `python -m ruff format --check app/api/runtime.py app/main.py tests/api/test_runtime_readiness_http.py`
+- result: pass
+- related_logbook: 2026-07-12 - perf(readiness): R4-A 启动期 readiness snapshot
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic readiness state、临时 SQLite 和测试 dist/embedding fixtures，不访问生产。
+- summary: readiness 重型检查移至启动期 snapshot，`/ready` 复用缓存并保留未初始化实时回退；HTTP 503 degraded 合同保持通过，生产运行态复验仍未完成。
+## E-20260712-034：R4-A readiness snapshot 后串行全量回归
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/full-remediation-regression-after-readiness-cache
+- file: `D:\Project\YunxiBakeBot\app\api\runtime.py`; `D:\Project\YunxiBakeBot\app\main.py`; `D:\Project\YunxiBakeBot\tests\api\test_runtime_readiness_http.py`; `D:\Project\YunxiBakeBot\tests\test_health_ready.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`
+- command: `python -m pytest tests/ -q`
+- result: pass
+- related_logbook: 2026-07-12 - verify(test): readiness snapshot 后串行全量回归
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 synthetic fixtures；未访问生产、外部模型、密钥或真实个人数据。
+- summary: readiness snapshot 变更后标准 Pytest 全量通过，coverage 82.34%；R4/R5 本地合同保持绿色，生产与真实容器证据仍未完成。
+
+## E-20260712-035：R6 Agent 类型质量首片
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/mypy-agent-type-slice
+- file: `D:\Project\YunxiBakeBot\app\service\agents\rag\documents.py`; `D:\Project\YunxiBakeBot\app\service\agents\llm.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\model.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_llm_factory.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_model.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_rag_retriever.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_employee_graph.py`
+- command: `python -m ruff format app/service/agents/customer/model.py app/service/agents/employee/nodes.py`; `python -m mypy --follow-imports=skip app/service/agents/rag/documents.py app/service/agents/llm.py app/service/agents/customer/model.py app/service/agents/employee/nodes.py --ignore-missing-imports`; `python -m pytest tests/service/agents/test_llm_factory.py tests/service/agents/test_customer_model.py tests/service/agents/test_rag_retriever.py tests/service/agents/test_employee_graph.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/agents/rag/documents.py app/service/agents/llm.py app/service/agents/customer/model.py app/service/agents/employee/nodes.py`
+- result: pass
+- related_logbook: 2026-07-12 - fix(quality): R6 Agent 类型质量首片
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic fixtures 和测试替身；未访问生产、外部模型、密钥或真实个人数据。
+- summary: 4 个 Agent 文件独立 mypy 通过，定向回归 23 项通过；仅代表本轮直接维护文件的类型质量首片，不代表全仓 Agent 依赖导入后的历史错误已清零。
+
+## E-20260712-036：R6 Harness 证据索引完整性与 SHA-256 门禁
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/harness-evidence-file-integrity
+- file: `D:\Project\YunxiBakeBot\scripts\check_evidence_index.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_evidence_index.py`; `D:\Project\YunxiBakeBot\docs\harness-engineering\README.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_check_evidence_index.py -q --no-cov --tb=short`; `python -m ruff format scripts/check_evidence_index.py tests/scripts/test_check_evidence_index.py`; `python -m ruff check --no-cache scripts/check_evidence_index.py tests/scripts/test_check_evidence_index.py`; `python scripts/check_evidence_index.py --summary`
+- result: pass
+- related_logbook: 2026-07-12 - fix(harness): R6 证据索引完整性与 SHA-256 门禁
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 只输出本地证据文件 SHA-256 和路径状态；不读取生产数据库、真实客服记录、密钥或外部报告内容。生产路径继续作为外部未验证引用保留。
+- summary: 证据索引 270 条目通过结构和路径完整性检查，459 个本地文件生成 SHA-256；目录引用单独标记，历史重命名路径通过显式 alias 解析，缺失路径会阻断。
+
+## E-20260712-037：R6 Agent/订单仓储超线职责评审
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/file-size-responsibility-review
+- file: `D:\Project\YunxiBakeBot\scripts\check_file_sizes.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\app\repository\youzan_order_repo.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_file_sizes.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m ruff format scripts/check_file_sizes.py`; `python -m pytest tests/scripts/test_check_file_sizes.py -q --no-cov --tb=short`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-12 - review(quality): employee Agent nodes 体量职责评审
+- related_adr: 0004-responsibility-first-file-size-governance; 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅登记职责边界、门禁输出和本地代码路径；不读取生产、客户数据或密钥。
+- summary: `employee/nodes.py` 329 行和 `youzan_order_repo.py` 251 行均完成机器可读职责评审并保留内聚边界；文件体量门禁通过，不为压行数机械拆分。
+
+## E-20260712-038：R6 后台最小 Playwright E2E 与 edge receive 修复
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/admin-playwright-e2e
+- file: `D:\Project\YunxiBakeBot\web\admin\package.json`; `D:\Project\YunxiBakeBot\web\admin\package-lock.json`; `D:\Project\YunxiBakeBot\web\admin\playwright.config.ts`; `D:\Project\YunxiBakeBot\web\admin\e2e\admin.spec.ts`; `D:\Project\YunxiBakeBot\app\middleware\edge_protection.py`; `D:\Project\YunxiBakeBot\tests\test_main_runtime.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `npm run typecheck`; `npm run build:production`; `npm run e2e` with `ADMIN_E2E_BASE_URL`, `ADMIN_E2E_API_ORIGIN`, `ADMIN_E2E_TOKEN`, `ADMIN_E2E_EXPECT_READY_STATUS` and `PLAYWRIGHT_EXECUTABLE_PATH` set to local values; `python -m pytest tests/test_main_runtime.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/middleware/edge_protection.py tests/test_main_runtime.py`; `python -m ruff format --check app/middleware/edge_protection.py tests/test_main_runtime.py`
+- result: pass
+- related_logbook: 2026-07-12 - test(e2e): R6 后台最小 Playwright 门禁与中间件缺陷修复
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 使用本地 synthetic 数据、本地 Chrome、临时 session secret 和本地 API；管理员 Token 未写入仓库或证据正文，未访问生产。
+- summary: 真实浏览器 3 项通过：登录/订单页、向量接口未登录 401 与 Cookie 会话、ready degraded 503；首次运行发现并修复 edge protection receive 递归，15 项后端运行时回归通过。
+
+## E-20260712-039：R6 AdminService 仓储依赖显式注入首片
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/service-repository-boundary-first-slice
+- file: `D:\Project\YunxiBakeBot\app\service\admin.py`; `D:\Project\YunxiBakeBot\app\lifespan_services.py`; `D:\Project\YunxiBakeBot\tests\api\test_admin_featured_catalog_api.py`; `D:\Project\YunxiBakeBot\tests\api\test_shop_operations_api.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/test_admin.py tests/api/test_admin_featured_catalog_api.py tests/api/test_shop_operations_api.py tests/api/test_admin_order_api.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/admin.py app/lifespan_services.py tests/api/test_admin_featured_catalog_api.py tests/api/test_shop_operations_api.py`; `rg -n "\\._db\\b|repo\\._db|repository\\._db" app/service --glob '*.py'`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r6): AdminService 仓储依赖显式注入
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地代码、测试替身和静态边界扫描；未访问生产、真实客户数据、密钥或外部服务。
+- summary: `AdminService` 相关定向测试 11 项通过，四处 `KnowledgeRepo._db` 穿透已移除；全量 service 扫描仍显示知识实时增强和 LLM 工具链遗留穿透，R6 第 3 项未完成。
+
+## E-20260712-040：R6 service 仓储句柄穿透全量收敛
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/service-repository-boundary-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\knowledge_live_data.py`; `D:\Project\YunxiBakeBot\app\service\knowledge_retriever.py`; `D:\Project\YunxiBakeBot\app\service\llm\function_tool_order.py`; `D:\Project\YunxiBakeBot\app\service\llm\function_tool_product.py`; `D:\Project\YunxiBakeBot\app\service\youzan\product_sync.py`; `D:\Project\YunxiBakeBot\app\service\agents\customer\contracts.py`; `D:\Project\YunxiBakeBot\app\service\agents\tools\customer.py`; `D:\Project\YunxiBakeBot\app\lifespan_services.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/test_lifespan_routes_services.py tests/service/test_chat_refactor.py tests/service/youzan/test_product_name_change.py tests/service/youzan/test_product_rag_text.py tests/service/test_knowledge_retriever.py tests/service/agents/test_customer_graph.py tests/service/agents/test_customer_tool_registry.py tests/service/test_wecom_intelligent_bot_order_lookup.py -q --no-cov --tb=short`; `python -m pytest tests/service/youzan/test_event_handler_edge.py tests/service/youzan/test_push_simulation.py tests/service/youzan/test_full_chain_e2e.py tests/service/youzan/test_webhook_retry.py tests/service/youzan/test_webhook_dispatcher.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service app/lifespan_services.py`; `rg -n "repo\\._db|knowledge_retriever\\._repo\\._db|repository\\._db" app/service --glob "*.py"`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r6): service 仓储句柄穿透全量收敛
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地代码、测试替身和 synthetic SQLite 数据；未访问生产、真实客户数据、密钥或外部服务。
+- summary: 两组定向回归分别通过 `57 passed` 和 `30 passed`；service 私有仓储连接穿透静态扫描零命中，商品 RAG/Webhook 业务语义保持通过。
+
+## E-20260712-041：R6 商品工具实时刷新职责拆分
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/llm-product-tool-responsibility-split
+- file: `D:\Project\YunxiBakeBot\app\service\llm\function_tool_product.py`; `D:\Project\YunxiBakeBot\app\service\llm\function_tool_product_live.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_event_handler_edge.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_product_rag_text.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/youzan/test_event_handler_edge.py tests/service/youzan/test_product_rag_text.py tests/service/test_knowledge_retriever.py tests/service/agents/test_customer_graph.py tests/service/test_wecom_intelligent_bot_order_lookup.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/llm/function_tool_product.py app/service/llm/function_tool_product_live.py tests/service/youzan/test_event_handler_edge.py`; `python -m py_compile app/service/llm/function_tool_product.py app/service/llm/function_tool_product_live.py`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r6): 拆分商品工具实时刷新职责
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic SQLite 数据、测试替身和本地代码；未访问生产、真实客户数据或外部服务。
+- summary: 定向回归 `32 passed`；商品工具入口文件 150 行，实时职责模块 181 行，旧实现路径已移除。
+
+## E-20260712-042：R6 有赞 Webhook 负载解析职责拆分
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/youzan-webhook-payload-responsibility-split
+- file: `D:\Project\YunxiBakeBot\app\service\youzan\webhook.py`; `D:\Project\YunxiBakeBot\app\service\youzan\webhook_payload.py`; `D:\Project\YunxiBakeBot\app\service\youzan\event_handler.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/youzan/test_event_handler_edge.py tests/service/youzan/test_webhook_retry.py tests/service/youzan/test_webhook_dispatcher.py tests/service/test_youzan_emulator.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/youzan/webhook.py app/service/youzan/webhook_payload.py app/service/youzan/event_handler.py`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r6): 拆分有赞 Webhook 负载解析职责
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地 Webhook 解析、测试替身和 synthetic 数据；未访问生产、真实客户数据或密钥。
+- summary: `12 passed`；Webhook 签名/JSON 解析与商品 ID 负载提取已分离，canonical 调用方已切换。
+
+## E-20260712-043：R6 商品事件与客服队列职责收敛
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/youzan-event-and-wecom-kf-responsibility-split
+- file: `D:\Project\YunxiBakeBot\app\service\youzan\event_item.py`; `D:\Project\YunxiBakeBot\app\service\youzan\event_item_parser.py`; `D:\Project\YunxiBakeBot\app\service\wecom\kf_message_queue.py`; `D:\Project\YunxiBakeBot\app\service\wecom\kf_card_sender.py`; `D:\Project\YunxiBakeBot\scripts\check_file_sizes.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/youzan/test_event_handler_edge.py tests/service/youzan/test_product_rag_text.py tests/service/youzan/test_push_simulation.py tests/service/youzan/test_full_chain_e2e.py tests/service/youzan/test_product_name_change.py -q --no-cov --tb=short`; `python -m pytest tests/service/wecom/test_kf_callback_processor.py tests/service/wecom/test_persistent_queue.py tests/service/wecom/test_ump.py tests/service/wecom/test_client_kf.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/youzan/event_item.py app/service/youzan/event_item_parser.py app/service/youzan/product_sync.py app/service/wecom/kf_message_queue.py app/service/wecom/kf_card_sender.py`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r6): 收敛商品事件与客服队列职责
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地商品事件、微信客服队列和 synthetic 数据；未访问生产、真实客户数据或密钥。
+- summary: 商品事件/同步回归 `27 passed`，客服队列/UMP/客户端回归 `30 passed`；旧无调用方 RAG 实现已删除，卡片发送已独立。
+
+## E-20260712-044：R6 客服非文本输入预处理职责拆分
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/wecom-kf-message-preprocessing-responsibility-split
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\kf_message_queue.py`; `D:\Project\YunxiBakeBot\app\service\wecom\kf_message_preprocessor.py`; `D:\Project\YunxiBakeBot\app\service\wecom\kf_card_sender.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/wecom/test_kf_callback_processor.py tests/service/wecom/test_persistent_queue.py tests/service/wecom/test_ump.py tests/service/wecom/test_client_kf.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app/service/wecom/kf_message_queue.py app/service/wecom/kf_message_preprocessor.py`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r6): 拆分客服非文本输入预处理
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地微信客服队列、测试替身和 synthetic 数据；未访问生产、真实客户数据或密钥。
+- summary: `30 passed`；队列主文件 241 行，输入预处理模块 105 行，图片/语音/非文本输入适配已从队列编排中分离。
+
+## E-20260712-045：R6 README 与运行/备份事实同步
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/documentation-runtime-fact-sync
+- file: `D:\Project\YunxiBakeBot\README.md`; `D:\Project\YunxiBakeBot\docs\README.md`; `D:\Project\YunxiBakeBot\docs\AGENTS\quick-reference.md`; `D:\Project\YunxiBakeBot\VERSION`; `D:\Project\YunxiBakeBot\Dockerfile`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest -q --no-cov --tb=short`; `python scripts/check_project.py --skip-tests`; `rg -n -- "--workers 4|0\\.1\\.0|cp data/bot\\.db|DeepSeek API 客户端" README.md docs/AGENTS/quick-reference.md docs/README.md`; `git diff --check`
+- result: pass
+- related_logbook: 2026-07-12 - docs(r6): 同步 README 运行与备份事实
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地文档、代码配置和测试；未访问生产、真实客户数据、密钥或外部服务。
+- summary: 全量 Pytest 通过；文档已对齐 `0.105.19`、MiMo 默认 provider、单 worker 和 AES-256-GCM 备份操作口径。
+
+## E-20260712-046：R6 链式脚本 Ruff 存量清理
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/ruff-script-quality-cleanup
+- file: `D:\Project\YunxiBakeBot\scripts\append_logbook.py`; `D:\Project\YunxiBakeBot\scripts\mypy_nonblocking.py`; `D:\Project\YunxiBakeBot\scripts\remove_current_tab.py`; `D:\Project\YunxiBakeBot\scripts\remove_current_tab_vue.py`; `D:\Project\YunxiBakeBot\scripts\test_chain_order.py`; `D:\Project\YunxiBakeBot\scripts\test_chain_product_chat.py`; `D:\Project\YunxiBakeBot\scripts\test_chain_webhook.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m ruff check --no-cache app tests scripts`; `python scripts/check_project.py --skip-tests`
+- result: pass
+- related_logbook: 2026-07-12 - fix(r6): 清理链式脚本 Ruff 存量问题
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅验证本地脚本静态质量和项目门禁；未访问生产、真实客户数据、密钥或外部服务。
+- summary: 5 个脚本中的 19 个 Ruff 问题已清理，全仓 Ruff check 与项目红线检查通过。
+## E-20260712-047：R6 全局门禁与运行态探针收口
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/global-remediation-gates-and-runtime-probe
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\app\main.py`
+- command: `python -m pytest tests/scripts -q --no-cov --tb=short`; `python scripts/check_project.py --skip-tests`; `ruff check --no-cache app tests scripts`; `python scripts/check_evidence_index.py`; `python scripts/check_mistake_ledger.py`; `python scripts/check_file_sizes.py`; `git diff --check`; `docker version`; local `/health` and `/ready` probes on ports 7002/7003
+- result: pass
+- related_logbook: 2026-07-12 - verify(r6): 全局整改本地门禁与运行态探针
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic/配置状态；未访问生产、真实客户数据或密钥；不把旧 7002 进程结果当作当前代码证据。
+- summary: 本地门禁收口通过；真实容器和生产项保持未验证，启动安全配置缺口已明确暴露。
+## E-20260712-048：R5 Query Rewrite 与 Handoff Runnable 收敛
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r5-prompt-runnable-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\llm\query_rewriter.py`; `D:\Project\YunxiBakeBot\app\service\transfer_handoff_summary.py`; `D:\Project\YunxiBakeBot\tests\service\llm\test_query_rewriter.py`; `D:\Project\YunxiBakeBot\tests\service\test_transfer_handoff_summary.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/test_transfer_handoff_summary.py tests/service/llm/test_query_rewriter.py tests/service/test_chat_refactor.py tests/service/test_privacy_redaction.py -q --no-cov --tb=short`; `ruff check --no-cache app tests scripts`; `rg -n "from app\.service\.llm\.client import chat_completion|chat_completion\(" app/service --glob '*.py'`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r5): 收敛 query rewrite 与 handoff 摘要 Runnable
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic 测试；Runnable 测试确认手机号和订单号在 prompt 前被脱敏；未访问生产、真实客户数据或密钥。
+- summary: `35 passed`；两个默认能力已去除 `chat_completion` 兼容层依赖；剩余兼容调用明确留在意图识别、会话摘要和三个离线 Agent，R5 仍未全部完成。
+## E-20260712-049：R5 意图识别 Runnable 收敛
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r5-intent-runnable-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\llm\intent.py`; `D:\Project\YunxiBakeBot\tests\service\llm\test_intent.py`; `D:\Project\YunxiBakeBot\tests\service\llm\test_intent_negation.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/llm/test_intent.py tests/service/llm/test_intent_negation.py -q --no-cov --tb=short`; `ruff check --no-cache app/service/llm/intent.py tests/service/llm/test_intent.py`; `rg -n "from app\.service\.llm\.client import chat_completion|chat_completion\(" app/service --glob '*.py'`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r5): 收敛意图识别 Runnable
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic 意图测试；未访问生产、真实客户数据或密钥。
+- summary: `35 passed`；意图识别已切换统一 Runnable 并保留失败/回退语义；剩余兼容调用仅在会话摘要和三个离线 Agent。
+## E-20260712-050：R5 摘要与离线质检 Runnable 收敛
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r5-offline-text-runnable-convergence
+- file: `D:\Project\YunxiBakeBot\app\service\conversation_summary_service.py`; `D:\Project\YunxiBakeBot\app\service\offline\agent_knowledge_gap.py`; `D:\Project\YunxiBakeBot\app\service\offline\agent_qa_review.py`; `D:\Project\YunxiBakeBot\tests\service\test_conversation_summary_service.py`; `D:\Project\YunxiBakeBot\tests\service\test_offline_review.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/test_conversation_summary_service.py tests/service/test_offline_review.py tests/service/llm/test_query_rewriter.py tests/service/llm/test_intent.py tests/service/llm/test_intent_negation.py tests/service/test_transfer_handoff_summary.py -q --no-cov --tb=short`; `ruff check --no-cache app tests scripts`; `rg -n "from app\.service\.llm\.client import chat_completion|chat_completion\(" app/service --glob '*.py'`
+- result: pass
+- related_logbook: 2026-07-12 - refactor(r5): 收敛摘要与离线质检 Runnable
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic 离线测试；Runnable 边界覆盖敏感输入脱敏；未访问生产、真实客户数据或密钥。
+- summary: `76 passed`；六条文本能力已统一到 LangChain Runnable，剩余 service 层旧兼容调用仅为顾客画像 memory。
+## E-20260712-051：R5 文本 chat facade 删除与单路径收口
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r5-text-chat-facade-removal
+- file: `D:\Project\YunxiBakeBot\app\service\llm\client.py`; `D:\Project\YunxiBakeBot\app\service\conversation_summary_service.py`; `D:\Project\YunxiBakeBot\app\service\offline\agent_knowledge_gap.py`; `D:\Project\YunxiBakeBot\app\service\offline\agent_qa_review.py`; `D:\Project\YunxiBakeBot\app\service\offline\agent_memory.py`; `D:\Project\YunxiBakeBot\tests\service\test_offline_review.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/service/test_conversation_summary_service.py tests/service/test_offline_review.py tests/service/llm/test_query_rewriter.py tests/service/llm/test_intent.py tests/service/llm/test_intent_negation.py tests/service/test_transfer_handoff_summary.py tests/service/test_privacy_redaction.py -q --no-cov --tb=short`; `ruff check --no-cache app tests`; `ruff check --no-cache <formal changed scripts>`; `rg -n "from app\.service\.llm\.client import chat_completion|chat_completion\(" app/service tests --glob '*.py'`
+- result: partial-pass
+- related_logbook: 2026-07-12 - refactor(r5): 删除通用 chat_completion 文本 facade
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅使用本地 synthetic 测试；扫描和 Runnable 测试均未访问生产、真实客户数据或密钥。
+- summary: `80 passed`；旧文本 facade 和调用点归零，`client.py` 仅保留 ASR SDK adapter；app/tests 与本轮正式脚本 Ruff 通过。工作树既有未跟踪 `scripts/_*.py` 历史探针仍有 25 个 Ruff 存量问题，未批量修改或删除；生产 trace sink 与发布门禁仍独立未验证。
+## E-20260712-052：R5 文本单路径全量门禁收口
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r5-text-single-path-full-gate
+- file: `D:\Project\YunxiBakeBot\app\service\llm\client.py`; `D:\Project\YunxiBakeBot\scripts\check_file_sizes.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `python -m pytest -q --no-cov --tb=short`; `python scripts/check_project.py --skip-tests`; `python scripts/check_file_sizes.py`; `python scripts/check_evidence_index.py`; `python scripts/check_mistake_ledger.py`; `ruff check --no-cache app tests`; `ruff check --no-cache <formal changed scripts>`; `git diff --check`; `rg -n "chat_completion\\(|from app\\.service\\.llm\\.client import chat_completion" app/service tests --glob '*.py'`
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r5): 文本单路径全量门禁收口
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅登记本地测试和静态门禁；未访问生产、真实客户数据、外部密钥或 Docker daemon。历史未跟踪探针只记录问题，不修改或删除。
+- summary: 全量 Pytest、项目红线/业务合约、文件体量、证据、完整 Ruff 和 diff 门禁通过；R5 本地文本单路径完成。生产/Docker 外部项仍独立未验证。
+
+## E-20260712-053：R6 历史脚本 Ruff 存量清理
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/legacy-script-ruff-cleanup
+- file: `D:\Project\YunxiBakeBot\scripts\_check_test_results.py`; `D:\Project\YunxiBakeBot\scripts\_corpus_profile.py`; `D:\Project\YunxiBakeBot\scripts\_debug_items.py`; `D:\Project\YunxiBakeBot\scripts\_dup_probe.py`; `D:\Project\YunxiBakeBot\scripts\_dup_probe2.py`; `D:\Project\YunxiBakeBot\scripts\_dup_probe3.py`; `D:\Project\YunxiBakeBot\scripts\_nogold_probe.py`; `D:\Project\YunxiBakeBot\scripts\_perf_check.py`; `D:\Project\YunxiBakeBot\scripts\_query_daily_orders.py`; `D:\Project\YunxiBakeBot\scripts\_query_latency.py`; `D:\Project\YunxiBakeBot\scripts\_query_latency_refined.py`; `D:\Project\YunxiBakeBot\scripts\_test_item_info_webhook.py`; `D:\Project\YunxiBakeBot\scripts\_test_product_api.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `ruff check --no-cache --fix <13 historical probe scripts>`; manual syntax-only expansion in `_dup_probe2.py` and `_dup_probe3.py`; `python -m pytest tests/scripts -q --no-cov --tb=short`; `ruff check --no-cache app tests scripts`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r6): 历史脚本 Ruff 存量清理
+- related_adr: 0005-framework-first-single-path; 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 仅修改既有本地探针的导入/语法格式和等价输出结构；未删除文件、未访问生产、未访问真实客户数据或密钥。
+- summary: 历史探针 Ruff `26` 个问题全部清零；脚本测试 `480 passed`，全路径 Ruff 恢复通过。
+## E-20260712-054：R4 生产预检与发布 manifest 边界
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r4-production-preflight-release-boundary
+- file: `D:\Project\YunxiBakeBot\reports\harness\preflight-20260712.json`; `D:\Project\YunxiBakeBot\deploy\nginx\yunxibakebot.conf.example`; `D:\Project\YunxiBakeBot\scripts\preflight_production.py`; `D:\Project\YunxiBakeBot\scripts\build_release_manifest.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python scripts/preflight_production.py --json --output reports/harness/preflight-20260712.json`; `python scripts/check_preflight_business_contracts.py reports/harness/preflight-20260712.json --summary`; `python scripts/check_reverse_proxy_contract.py --summary`; `python -m pytest tests/scripts/test_container_contract.py tests/scripts/test_deploy_server_contract.py tests/scripts/test_preflight_production.py -q --no-cov --tb=short`; `python scripts/build_release_manifest.py --output reports/harness/release-manifest-20260712.json --summary`
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r4): 生产预检与发布 manifest 边界
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 预检 JSON 仅保存布尔 readiness 状态、版本和本地路径；未记录密钥/客户原文；未访问生产或 Docker daemon。
+- summary: 预检业务合同和 31 项定向测试通过；3 项 readiness 配置缺口及 dirty worktree 删除路径已明确暴露。真实生产应用、Docker build/smoke 和精确 manifest 仍待发布窗口。
+## E-20260712-055：生产只读版本与 readiness 审计
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/read-only-runtime-version-readiness-audit
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `ssh root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse HEAD && cat VERSION && git status --short"`; `systemctl is-active/is-enabled/show yunxibakebot`; `curl http://127.0.0.1:7001/health`; `curl http://127.0.0.1:7001/ready`; `curl -sk https://yunxi.hclstudio.cn/health`; `curl -sk https://yunxifood.cn/health`; `nginx -T`
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r4): 生产只读版本与 readiness 审计
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录 commit、版本、状态码、readiness 布尔结果和服务配置路径；未记录密钥、客户原文、订单或生产日志正文。
+- summary: 服务 active/ready 且反向代理可达，但仓库 `VERSION=0.105.19` 与运行 `/health`、`/ready`、公网版本 `0.105.17` 不一致；修复需发布窗口和明确重启/部署授权。
+
+## E-20260712-056：生产版本与运行态刷新复验
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: production/read-only-runtime-version-readiness-refresh
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`
+- command: `ssh -o ConnectTimeout=10 root@47.94.102.250 "cd /opt/yunxibakebot && git rev-parse HEAD && cat VERSION && git status --short && systemctl is-active/is-enabled yunxibakebot"`; `Invoke-WebRequest https://yunxifood.cn/health`; `Invoke-WebRequest https://yunxifood.cn/ready`; `docker version --format ...`
+- result: partial-pass
+- related_logbook: 2026-07-12 - verify(r4): 刷新生产版本与运行态只读复验
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录生产 commit、版本、服务状态、HTTP 状态和 readiness 布尔结果；未记录密钥、客户原文、订单或生产日志正文。
+- summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
+
+## E-20260712-057：R3/R4 整改域级合同回归
+
+- trace_id: `20260711-global-risk-remediation`
+- generated_at: 2026-07-12
+- evidence_type: local/r3-r4-domain-contract-regression
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Project\YunxiBakeBot\scripts\export_safe_snapshot.py`
+- command: `python -m pytest tests/scripts/test_migration_job.py tests/scripts/test_encrypted_backup.py tests/scripts/test_verify_backup_restore.py tests/scripts/test_export_safe_snapshot.py -q --no-cov --tb=short`; `python -m pytest tests/service/test_customer_consent.py tests/service/test_privacy_redaction.py tests/repository/test_privacy_lifecycle.py tests/api/test_miniapp_privacy_api.py -q --no-cov --tb=short`; `python -m pytest tests/scripts/test_check_reverse_proxy_contract.py tests/scripts/test_check_admin_auth_surface.py tests/scripts/test_container_contract.py tests/scripts/test_deploy_server_contract.py tests/api/test_runtime_readiness_http.py -q --no-cov --tb=short`; `python -m ruff check --no-cache app tests scripts`
+- result: pass
+- related_logbook: 2026-07-12 - verify(r3-r4): 整改域级合同回归
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 仅记录本地测试结果和代码路径；未记录真实客户数据、密钥、生产日志或备份内容。
+- summary: R3/R4 域级合同测试共 `28 passed`，全仓 Ruff 通过；真实 Docker build/smoke、生产配置审计、异盘密钥托管和版本发布仍未验证。

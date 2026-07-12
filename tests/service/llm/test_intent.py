@@ -30,19 +30,10 @@ def test_match_clear_intent(
 async def test_detect_intent_uses_llm_for_ambiguous_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class _FakeMessage:
-        content = '{"primary_intent": 2, "secondary_intents": []}'
+    async def _fake_chain(*args: object, **kwargs: object) -> str:
+        return '{"primary_intent": 2, "secondary_intents": []}'
 
-    class _FakeChoice:
-        message = _FakeMessage()
-
-    class _FakeResponse:
-        choices = [_FakeChoice()]
-
-    async def _fake_llm(*args: object, **kwargs: object) -> _FakeResponse:
-        return _FakeResponse()
-
-    monkeypatch.setattr(intent_module, "llm_chat", _fake_llm)
+    monkeypatch.setattr(intent_module, "_invoke_intent_chain", _fake_chain)
 
     intent = await intent_module.detect_intent("开发票")
 
@@ -56,7 +47,7 @@ async def test_detect_intent_falls_back_when_llm_fails(
     async def _raise_llm_error(*args: object, **kwargs: object) -> str:
         raise LLMError("boom")
 
-    monkeypatch.setattr(intent_module, "llm_chat", _raise_llm_error)
+    monkeypatch.setattr(intent_module, "_invoke_intent_chain", _raise_llm_error)
 
     intent = await intent_module.detect_intent("这个呢")
 
@@ -74,7 +65,7 @@ async def test_detect_intent_falls_back_when_llm_fails(
 )
 @pytest.mark.asyncio
 async def test_detect_intent_filters_noise_to_small_talk(noise_query: str) -> None:
-    # 极端噪声不应该调用 llm_chat，直接返回 SMALL_TALK
+    # 极端噪声不应该调用大模型，直接返回 SMALL_TALK
     intent = await intent_module.detect_intent(noise_query)
     assert intent == intent_module.IntentType.SMALL_TALK
 
@@ -86,7 +77,7 @@ async def test_detect_intent_bypasses_llm_for_human_assistance_keywords(
     def _raise_error(*args: object, **kwargs: object) -> None:
         raise AssertionError("不应该调用任何后续大模型接口")
 
-    monkeypatch.setattr(intent_module, "llm_chat", _raise_error)
+    monkeypatch.setattr(intent_module, "_invoke_intent_chain", _raise_error)
 
     intent = await intent_module.detect_intent("我要人工客服")
     assert intent == intent_module.IntentType.HUMAN_ASSISTANCE

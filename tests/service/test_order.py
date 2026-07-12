@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta
 
 from app.models.config import SHOP_OPERATIONS_KEY
+from app.config import settings
 from app.repository.config_repo import ConfigRepo
 from app.repository.order_event_repo import OrderEventRepo
 from app.repository.order_repo import OrderRepo
@@ -236,6 +237,177 @@ async def test_prepare_payment_falls_back_to_mock_without_wechat_config(
     assert session["paymentMethod"] == "mock"
     assert session["paymentStatus"] == "unpaid"
     assert session["paymentParams"]["action"] == "mock-pay"
+
+
+async def test_prepare_payment_does_not_expose_mock_when_disabled(
+    service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """生产默认关闭时，微信未配置不能返回模拟支付会话。"""
+    monkeypatch.setattr(settings, "ALLOW_MOCK_PAYMENT", False)
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "p_payment_prepare_mock_disabled",
+                    "title": "禁止 mock 支付蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="payment-prepare-mock-disabled-user",
+    )
+
+    with pytest.raises(ValueError, match="不提供 mock 支付"):
+        await service.prepare_payment(
+            created["orderId"], user_id="payment-prepare-mock-disabled-user"
+        )
+
+
+async def test_wechat_notify_rejects_business_field_mismatch(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """微信通知的业务字段不匹配时不得进入支付状态流转。"""
+    await seed_catalog_product(
+        db,
+        item_id=82001,
+        title="支付合同蛋糕",
+        price_fen=19800,
+    )
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "82001",
+                    "title": "支付合同蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="payment-contract-user",
+    )
+    monkeypatch.setattr(settings, "WECHAT_PAY_MCH_ID", "mch-test")
+    monkeypatch.setattr(settings, "WECHAT_MINIAPP_APP_ID", "appid-test")
+    runtime = service._payment_service._payment_service
+    valid = {
+        "out_trade_no": created["orderId"],
+        "mchid": "mch-test",
+        "appid": "appid-test",
+        "amount": {"total": 19800},
+        "currency": "CNY",
+        "transaction_id": "4200000000202606171234567891",
+    }
+    invalid_transactions = [
+        {**valid, "mchid": "other-mch"},
+        {**valid, "amount": {"total": 1}},
+        {**valid, "transaction_id": ""},
+    ]
+    for transaction in invalid_transactions:
+        with pytest.raises(ValueError):
+            await runtime._validate_wechat_transaction(transaction)
+
+
+async def test_create_order_rolls_back_inventory_session_and_order_event(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """订单时间线写入失败时，订单域所有前置写入都应回滚。"""
+    await seed_catalog_product(
+        db,
+        item_id=82002,
+        title="事务回滚蛋糕",
+        price_fen=19800,
+        stock=2,
+    )
+
+    async def fail_record_event(**_: object) -> None:
+        raise RuntimeError("模拟订单事件写入失败")
+
+    monkeypatch.setattr(service._timeline_service, "record_event", fail_record_event)
+    with pytest.raises(RuntimeError, match="订单事件写入失败"):
+        await service.create_order(
+            {
+                "items": [
+                    {
+                        "productId": "82002",
+                        "title": "客户端标题",
+                        "priceFen": 1,
+                        "quantity": 1,
+                    }
+                ],
+                "expectTime": "2026-06-18 18:00",
+            },
+            user_id="transaction-rollback-user",
+        )
+
+    product = await YouzanProductRepo(db).get_by_id(82002)
+    assert product is not None
+    assert product["stock"] == 2
+    assert (
+        await SessionRepo(db).get_latest("transaction-rollback-user", "wechat_miniapp")
+        is None
+    )
+    assert await OrderRepo(db).list_by_user("transaction-rollback-user") == []
+
+
+async def test_payment_callback_rolls_back_claim_and_paid_state_on_event_failure(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """支付事件写入失败时，交易号认领和 paid 状态应一起回滚。"""
+    await seed_catalog_product(
+        db,
+        item_id=82003,
+        title="支付事务蛋糕",
+        price_fen=19800,
+        stock=1,
+    )
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "82003",
+                    "title": "支付事务蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="payment-transaction-user",
+    )
+
+    async def fail_event(*_: object, **__: object) -> int:
+        raise RuntimeError("模拟支付事件写入失败")
+
+    monkeypatch.setattr(OrderEventRepo, "add", fail_event)
+    runtime = service._payment_service._payment_service
+    with pytest.raises(RuntimeError, match="支付事件写入失败"):
+        async with OrderRepo(db).transaction():
+            await runtime._mark_wechat_payment_paid(
+                created["orderId"],
+                paid_at="2026-06-18 12:00:00",
+                transaction_id="4200000000202606171234567892",
+            )
+
+    detail = await service.get_user_order(
+        created["orderId"], user_id="payment-transaction-user"
+    )
+    assert detail["paymentStatus"] == "unpaid"
+    assert (
+        await OrderRepo(db).get_payment_transaction_order_id(
+            "4200000000202606171234567892"
+        )
+        is None
+    )
 
 
 async def test_prepare_payment_returns_wechat_shape_when_configured(

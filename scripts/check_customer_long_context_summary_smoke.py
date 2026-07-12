@@ -15,8 +15,10 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from app.service import chat_context as chat_context_module  # noqa: E402
 from app.models.knowledge import KnowledgeEntry  # noqa: E402
-from app.service.chat_context import (  # noqa: E402
+from app.service.agents.customer.prompts import (  # noqa: E402
     SESSION_SUMMARY_SECTION_TITLE,
+)
+from app.service.chat_context import (  # noqa: E402
     prepare_chat_context,
 )
 from app.service.chat_context_budget import (  # noqa: E402

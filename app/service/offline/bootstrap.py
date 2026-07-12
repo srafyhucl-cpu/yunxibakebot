@@ -21,25 +21,41 @@ def register_offline_review_scheduler(
     idle_closer: Any | None = None,
 ) -> None:
     """按配置启动离线质检调度器，并持有后台任务强引用。"""
-    if not settings.ENABLE_OFFLINE_REVIEW:
+    if not (
+        settings.ENABLE_OFFLINE_QA
+        or settings.ENABLE_OFFLINE_KNOWLEDGE_GAP
+        or settings.ENABLE_OFFLINE_MEMORY
+    ):
         return
 
-    qa_review_agent = QaReviewAgent(
-        session_repo=repos["session_repo"],
-        message_repo=repos["message_repo"],
-        review_repo=repos["conversation_review_repo"],
-        max_sessions=settings.OFFLINE_REVIEW_MAX_SESSIONS,
+    qa_review_agent = (
+        QaReviewAgent(
+            session_repo=repos["session_repo"],
+            message_repo=repos["message_repo"],
+            review_repo=repos["conversation_review_repo"],
+            max_sessions=settings.OFFLINE_REVIEW_MAX_SESSIONS,
+        )
+        if settings.ENABLE_OFFLINE_QA
+        else None
     )
-    knowledge_gap_agent = KnowledgeGapAgent(
-        message_repo=repos["message_repo"],
-        gap_repo=repos["knowledge_gap_repo"],
-        max_reviews=settings.OFFLINE_REVIEW_MAX_SESSIONS,
+    knowledge_gap_agent = (
+        KnowledgeGapAgent(
+            message_repo=repos["message_repo"],
+            gap_repo=repos["knowledge_gap_repo"],
+            max_reviews=settings.OFFLINE_REVIEW_MAX_SESSIONS,
+        )
+        if settings.ENABLE_OFFLINE_KNOWLEDGE_GAP
+        else None
     )
-    memory_agent = MemoryAgent(
-        session_repo=repos["offline_session_repo"],
-        message_repo=repos["message_repo"],
-        profile_repo=repos["customer_profile_repo"],
-        max_sessions=settings.OFFLINE_REVIEW_MAX_SESSIONS,
+    memory_agent = (
+        MemoryAgent(
+            session_repo=repos["offline_session_repo"],
+            message_repo=repos["message_repo"],
+            profile_repo=repos["customer_profile_repo"],
+            max_sessions=settings.OFFLINE_REVIEW_MAX_SESSIONS,
+        )
+        if settings.ENABLE_OFFLINE_MEMORY
+        else None
     )
     orchestrator = OfflineReviewOrchestrator(
         qa_review_agent,

@@ -24,6 +24,8 @@ async def get_order_info(
     knowledge_retriever: KnowledgeRetriever,
     order_no: str,
     youzan_client: YouzanClient | None = None,
+    order_repo=None,
+    config_repo=None,
 ) -> str:
     """
     查询订单详细信息（内置已完成/已关闭订单状态机本地短路流控防线）。
@@ -31,10 +33,15 @@ async def get_order_info(
     参数：
         youzan_client: 共享 YouzanClient 单例（由 ChatService 注入，避免并发竞态）
     """
-    db = knowledge_retriever._repo._db
-    from app.repository.youzan_repo import YouzanOrderRepo
-
-    order_repo = YouzanOrderRepo(db)
+    if order_repo is None:
+        return json.dumps(
+            {
+                "order_no": order_no,
+                "available": False,
+                "message": "订单查询服务暂不可用",
+            },
+            ensure_ascii=False,
+        )
 
     try:
         local_order = await order_repo.get_by_order_no(order_no)
@@ -57,9 +64,17 @@ async def get_order_info(
 
         if youzan_client is None:
             from app.service.youzan.client import YouzanClient as _YZC
-            from app.repository.config_repo import ConfigRepo
 
-            youzan_client = _YZC(config_repo=ConfigRepo(db))
+            if config_repo is None:
+                return json.dumps(
+                    {
+                        "order_no": order_no,
+                        "available": False,
+                        "message": "订单查询服务暂不可用",
+                    },
+                    ensure_ascii=False,
+                )
+            youzan_client = _YZC(config_repo=config_repo)
         raw_order = await youzan_client.get_order(order_no)
         parsed = parse_youzan_order_response(raw_order)
         if parsed is None:
@@ -138,6 +153,8 @@ async def get_logistics_info(
     knowledge_retriever: KnowledgeRetriever,
     order_no: str,
     youzan_client: YouzanClient | None = None,
+    order_repo=None,
+    config_repo=None,
 ) -> str:
     """
     查询物流配送进度并反写更新 orders 交易物理大宽表。
@@ -145,14 +162,30 @@ async def get_logistics_info(
     参数：
         youzan_client: 共享 YouzanClient 单例（由 ChatService 注入，避免并发竞态）
     """
-    db = knowledge_retriever._repo._db
+    if order_repo is None:
+        return json.dumps(
+            {
+                "order_no": order_no,
+                "available": False,
+                "message": "物流查询服务暂不可用",
+            },
+            ensure_ascii=False,
+        )
 
     try:
         if youzan_client is None:
             from app.service.youzan.client import YouzanClient as _YZC
-            from app.repository.config_repo import ConfigRepo
 
-            youzan_client = _YZC(config_repo=ConfigRepo(db))
+            if config_repo is None:
+                return json.dumps(
+                    {
+                        "order_no": order_no,
+                        "available": False,
+                        "message": "物流查询服务暂不可用",
+                    },
+                    ensure_ascii=False,
+                )
+            youzan_client = _YZC(config_repo=config_repo)
         raw_logistics = await youzan_client.get_logistics(order_no)
 
         express_data = (
@@ -177,9 +210,6 @@ async def get_logistics_info(
             for s in express_data.get("transit_step_infos", [])
         ]
 
-        from app.repository.youzan_repo import YouzanOrderRepo
-
-        order_repo = YouzanOrderRepo(db)
         local_order = await order_repo.get_by_order_no(order_no)
         if local_order:
             await order_repo.upsert_order(

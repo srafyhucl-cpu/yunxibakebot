@@ -3,9 +3,9 @@
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from httpx import AsyncClient, HTTPError
-
+from httpx import AsyncClient
 from app.models.config import FEATURED_PRODUCTS_KEY
+from app.config import settings
 from app.models.knowledge import KnowledgeCategory, KnowledgeEntry
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
@@ -15,12 +15,12 @@ from app.service.catalog.serialization import (
     CatalogProductSerializer,
     parse_youzan_category_id,
 )
+from app.service.security.url_policy import fetch_limited_remote_image
 
 DEFAULT_PRODUCT_LIMIT = 50
 MAX_IDS_QUERY = 50
 IMAGE_FETCH_TIMEOUT_SECONDS = 8.0
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
-ALLOWED_IMAGE_SCHEMES = {"http", "https"}
 
 
 @dataclass(frozen=True)
@@ -97,34 +97,26 @@ class CatalogApplicationService:
             return None
 
         image_url = str(getattr(entry, "image_url", "") or "").strip()
-        if not self._is_allowed_image_url(image_url):
+        hosts = settings.REMOTE_IMAGE_ALLOWED_HOSTS.split(",")
+        if not self._is_remote_image_url(image_url):
             return None
-
-        try:
-            async with AsyncClient(
-                timeout=IMAGE_FETCH_TIMEOUT_SECONDS, follow_redirects=True
-            ) as client:
-                response = await client.get(image_url)
-        except HTTPError:
-            return None
-
-        if response.status_code != 200:
-            return None
-
-        content_type = (
-            response.headers.get("content-type", "").split(";")[0].strip().lower()
+        result = await fetch_limited_remote_image(
+            image_url,
+            allowed_hosts=hosts,
+            timeout_seconds=IMAGE_FETCH_TIMEOUT_SECONDS,
+            max_bytes=MAX_IMAGE_BYTES,
+            client_factory=AsyncClient,
         )
-        if not content_type.startswith("image/"):
+        if result is None:
             return None
-
-        content_length = response.headers.get("content-length", "")
-        if content_length.isdigit() and int(content_length) > MAX_IMAGE_BYTES:
-            return None
-
-        content = response.content
-        if not content or len(content) > MAX_IMAGE_BYTES:
+        content, content_type = result
+        if not content:
             return None
         return ProductImagePayload(content=content, content_type=content_type)
+
+    def _is_remote_image_url(self, image_url: str) -> bool:
+        parsed = urlparse(image_url)
+        return parsed.scheme in {"http", "https"} and bool(parsed.hostname)
 
     async def _list_products_by_ids(self, ids: str) -> list[dict]:
         products: list[dict] = []
@@ -190,12 +182,6 @@ class CatalogApplicationService:
         if not featured:
             return None
         return await self._config_repo.get_list(FEATURED_PRODUCTS_KEY)
-
-    def _is_allowed_image_url(self, image_url: str) -> bool:
-        if not image_url:
-            return False
-        parsed = urlparse(image_url)
-        return parsed.scheme in ALLOWED_IMAGE_SCHEMES and bool(parsed.netloc)
 
     def _is_sellable_product_entry(self, entry: KnowledgeEntry | None) -> bool:
         if entry is None:

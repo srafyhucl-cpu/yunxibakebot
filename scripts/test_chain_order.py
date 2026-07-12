@@ -14,7 +14,6 @@
 """
 
 import asyncio
-import json
 import sys
 import time
 from pathlib import Path
@@ -236,7 +235,7 @@ async def run_phase_a() -> bool:
         )
     else:
         _fail(
-            f"Webhook 返回非 200",
+            "Webhook 返回非 200",
             f"status={response.status_code}  body={response.text[:120]}",
         )
         return False
@@ -263,9 +262,8 @@ async def run_phase_a() -> bool:
     # updated_at 存储有赞订单自身的 update_time，不是 DB 写入时间
     # 判断依据：测试前已 DELETE 过该 order_no，能查到记录即证明本次 Function Calling 写入
     _ok(
-        f"youzan_orders 有记录（测试前已删除，现重新出现，证明本次 Function Calling 写入成功）"
+        "youzan_orders 有记录（测试前已删除，现重新出现，证明本次 Function Calling 写入成功）"
     )
-    updated_ts = record.get("updated_at", "")
     print(f"\n              {'字段':<22} {'值'}")
     print(f"              {'-' * 55}")
     for f, v in record.items():

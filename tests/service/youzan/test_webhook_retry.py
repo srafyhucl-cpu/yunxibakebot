@@ -6,8 +6,20 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
+from app.api.integrations.youzan_webhook import stop_webhook_dispatchers
 from app.api.webhook import create_webhook_router
 from app.config import settings
+from app.database import close_db, init_db
+
+
+@pytest.fixture(autouse=True)
+async def initialized_webhook_database(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """模拟应用 startup 迁移，并在测试结束回收持久 dispatcher。"""
+    monkeypatch.setattr(settings, "DB_PATH", str(tmp_path / "webhook.db"))
+    connection = await init_db(settings.DB_PATH)
+    await close_db(connection)
+    yield
+    await stop_webhook_dispatchers()
 
 
 class MockSessionRepo:
@@ -117,7 +129,7 @@ async def test_youzan_webhook_concurrency_deduplication(
                 json=payload,
                 headers={"event-sign": "dummy_sig"},
             )
-            for _ in range(3)
+            for _ in range(100)
         ]
         responses = await asyncio.gather(*tasks)
 
@@ -125,7 +137,7 @@ async def test_youzan_webhook_concurrency_deduplication(
             assert response.status_code == 200
             assert response.json() == {"code": 0, "msg": "success"}
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
 
     assert chat_service.handle_count == 1
 

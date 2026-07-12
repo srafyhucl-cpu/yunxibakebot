@@ -7,7 +7,7 @@
 
 数据来源：
     从 --db 指定的 SQLite 库读取 knowledge_base 作为检索语料（建议用
-    scripts/pull_prod_snapshot.sh 拉取并脱敏后的生产快照 data/prod_snapshot/eval.db）。
+    scripts/pull_prod_snapshot.sh 白名单导出的生产快照 data/prod_snapshot/eval.db）。
 
 检索模式（--mode）：
     vector  —— 仅向量（现状基线，默认）
@@ -67,7 +67,6 @@ DEFAULT_FIXTURE_PATH = (
     / "retrieval_eval_set.json"
 )
 DEFAULT_EVALUATION_DB = Path("data/prod_snapshot/eval.db")
-LOCAL_RAW_SNAPSHOT_DB = Path("data/prod_snapshot/bot_raw.db")
 
 
 def load_eval_set(fixture_path: str | Path = DEFAULT_FIXTURE_PATH) -> list[dict]:
@@ -78,18 +77,9 @@ def load_eval_set(fixture_path: str | Path = DEFAULT_FIXTURE_PATH) -> list[dict]
 
 
 def resolve_db_path(db_arg: str) -> Path:
-    """解析评测库路径：优先使用显式入参，其次使用脱敏库，本地调试时兼容原始快照。"""
+    """解析评测库路径：优先使用显式入参，否则只接受安全评测库。"""
     if db_arg:
         return Path(db_arg)
-    if DEFAULT_EVALUATION_DB.exists():
-        return DEFAULT_EVALUATION_DB
-    if LOCAL_RAW_SNAPSHOT_DB.exists():
-        print(
-            "[WARN] 未找到脱敏评测库 data/prod_snapshot/eval.db，"
-            "当前仅用于本地 A0 验证，临时使用 data/prod_snapshot/bot_raw.db",
-            file=sys.stderr,
-        )
-        return LOCAL_RAW_SNAPSHOT_DB
     return DEFAULT_EVALUATION_DB
 
 
@@ -392,7 +382,7 @@ async def main() -> int:
         default="",
         help=(
             "检索语料 SQLite 库；未指定时优先使用 data/prod_snapshot/eval.db，"
-            "若仅存在 bot_raw.db 则用于本地 A0 验证"
+            "请先运行白名单快照导出，不允许使用原始生产快照"
         ),
     )
     parser.add_argument(

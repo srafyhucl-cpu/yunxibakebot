@@ -202,6 +202,15 @@ def build_release_payload(
                 "trace_total_runs": 2,
                 "langsmith_enabled": False,
             },
+            "langchain_ai_layer_capacity": {
+                "status": "passed",
+                "failed": 0,
+                "production_runtime_status": "ok",
+                "service_active": True,
+                "version": "0.98.0",
+                "health_version": "0.98.0",
+                "ready_version": "0.98.0",
+            },
         },
     }
 

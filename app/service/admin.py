@@ -40,6 +40,9 @@ class AdminService:
         knowledge_repo: KnowledgeRepo,
         config_repo: ConfigRepo,
         youzan_product_repo: YouzanProductRepo | None = None,
+        knowledge_product_repo: KnowledgeProductRepo | None = None,
+        knowledge_admin_repo: KnowledgeAdminRepo | None = None,
+        history_repo: ContentChangeHistoryRepo | None = None,
     ) -> None:
         self._session_repo = session_repo
         self._message_repo = message_repo
@@ -47,6 +50,9 @@ class AdminService:
         self._knowledge_repo = knowledge_repo
         self._config_repo = config_repo
         self._youzan_product_repo = youzan_product_repo
+        self._knowledge_product_repo = knowledge_product_repo or KnowledgeProductRepo()
+        self._knowledge_admin_repo = knowledge_admin_repo or KnowledgeAdminRepo()
+        self._history_repo = history_repo or ContentChangeHistoryRepo()
         self._shop_operations_service = ShopOperationsService(config_repo)
 
     # ── 会话与转人工 ──
@@ -145,9 +151,7 @@ class AdminService:
         sort_by: str = "",
         sort_order: str = "desc",
     ) -> list[KnowledgeEntry]:
-        products = await KnowledgeProductRepo(
-            self._knowledge_repo._db
-        ).get_all_products(
+        products = await self._knowledge_product_repo.get_all_products(
             search=search,
             limit=limit,
             offset=offset,
@@ -176,7 +180,7 @@ class AdminService:
         keyword_filter: str = "",
         item_no_filter: str = "",
     ) -> int:
-        return await KnowledgeProductRepo(self._knowledge_repo._db).count_products(
+        return await self._knowledge_product_repo.count_products(
             search=search,
             is_active=is_active,
             sync_source=sync_source,
@@ -196,7 +200,7 @@ class AdminService:
         if not entry:
             return None
         new_status = not bool(entry.is_active)
-        await KnowledgeAdminRepo(self._knowledge_repo._db).update_active(
+        await self._knowledge_admin_repo.update_active(
             product_id,
             new_status,
             sync_source=SyncSource.ADMIN_MANUAL,
@@ -207,9 +211,7 @@ class AdminService:
             if hasattr(entry.category, "value")
             else str(entry.category)
         )
-        await ContentChangeLogger(
-            ContentChangeHistoryRepo(self._knowledge_repo._db)
-        ).log_success(
+        await ContentChangeLogger(self._history_repo).log_success(
             entity_type=ChangeEntityType.KNOWLEDGE,
             entity_key=str(product_id),
             category=category,
@@ -282,7 +284,10 @@ class AdminService:
                 },
             },
             "api": {
-                "admin_token_configured": _is_configured(settings.ADMIN_API_TOKEN),
+                "admin_token_configured": (
+                    _is_configured(settings.ADMIN_API_TOKEN)
+                    and _is_configured(settings.ADMIN_SESSION_SECRET)
+                ),
                 "mimo_api_key_configured": _is_configured(settings.MIMO_API_KEY),
                 "mimo_base_url": settings.MIMO_BASE_URL,
                 "mimo_chat_model": settings.MIMO_CHAT_MODEL,

@@ -5,13 +5,13 @@
 支持多级别告警、防刷机制、Markdown 格式化。
 """
 
-import asyncio
 import time
 from collections.abc import Callable, Coroutine
 from enum import Enum
 
 from app.config import settings
 from app.logger import setup_logger
+import httpx
 
 logger = setup_logger()
 
@@ -120,21 +120,16 @@ class AlertService:
         }
 
         try:
-            import aiohttp  # 延迟导入，避免 aiohttp 未安装时阻塞其他模块
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self._webhook_url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status == 200:
-                        logger.info("企微告警已发送: [%s] %s", level.value, title)
-                    else:
-                        body = await resp.text()
-                        logger.error(
-                            "企微告警发送失败 HTTP %d: %s", resp.status, body[:200]
-                        )
+            async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+                response = await client.post(self._webhook_url, json=payload)
+            if response.status_code == 200:
+                logger.info("企微告警已发送: [%s] %s", level.value, title)
+            else:
+                logger.error(
+                    "企微告警发送失败 HTTP %d: %s",
+                    response.status_code,
+                    response.text[:200],
+                )
         except Exception as exc:
             logger.error("企微告警网络异常: %s", exc)
 

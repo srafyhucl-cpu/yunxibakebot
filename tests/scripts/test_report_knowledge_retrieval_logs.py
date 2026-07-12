@@ -46,8 +46,8 @@ async def test_retrieval_log_report_summarizes_hits_and_no_match(tmp_path) -> No
         "no_match_count": 1,
         "no_match_rate": 0.3333,
     }
-    assert report["top_no_match_queries"] == [{"query": MISSING_QUERY, "count": 1}]
-    assert report["recent_logs"][0]["query"] == MISSING_QUERY
+    assert report["top_no_match_queries"] == [{"query_category": "other", "count": 1}]
+    assert report["recent_logs"][0]["query"] == ""
 
 
 def test_retrieval_log_report_handles_bad_json() -> None:

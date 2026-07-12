@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.logger import setup_logger
+from app.config import settings
 from app.service.wecom.crypto import (
     decrypt,
     encrypt,
@@ -73,6 +74,12 @@ class WeComBotCallbackService:
     ) -> None:
         self._config = config
         self._dispatcher = dispatcher
+        self._seen_callbacks: dict[str, float] = {}
+
+    @property
+    def is_ready(self) -> bool:
+        """返回回调所需密钥是否完整。"""
+        return self._config.is_ready
 
     def verify_url(
         self,
@@ -105,6 +112,7 @@ class WeComBotCallbackService:
         """处理智能机器人 POST 回调。"""
         self._ensure_ready()
         msg_encrypt = _extract_encrypt(encrypted_payload)
+        self._validate_replay_window(timestamp, nonce)
         if not verify_signature(
             self._config.token,
             timestamp,
@@ -113,12 +121,42 @@ class WeComBotCallbackService:
             msg_signature,
         ):
             raise WeComBotCallbackError("签名验证失败")
+        self._remember_callback(timestamp, nonce)
         message = self._decrypt_message(msg_encrypt)
         if not is_message_callback(message):
             logger.info("收到企微智能机器人非消息回调 type=%s", message.get("msgtype"))
             return None
         reply_text = await self._dispatch_message(message)
         return self._encrypt_reply(_build_message_reply(message, reply_text), nonce)
+
+    def _validate_replay_window(self, timestamp: str, nonce: str) -> None:
+        """限制回调时间窗并拒绝已消费的 nonce。"""
+        try:
+            callback_time = int(timestamp)
+        except (TypeError, ValueError) as exc:
+            raise WeComBotCallbackError("回调时间戳无效") from exc
+        if not nonce.strip():
+            raise WeComBotCallbackError("回调 nonce 为空")
+        now = int(time.time())
+        if abs(now - callback_time) > settings.WECOM_CALLBACK_MAX_AGE_SECONDS:
+            raise WeComBotCallbackError("回调已超出允许时间窗")
+        cache_key = f"{timestamp}:{nonce}"
+        self._seen_callbacks = {
+            key: seen_at
+            for key, seen_at in self._seen_callbacks.items()
+            if now - seen_at <= settings.WECOM_CALLBACK_MAX_AGE_SECONDS
+        }
+        if cache_key in self._seen_callbacks:
+            raise WeComBotCallbackError("回调重复提交")
+
+    def _remember_callback(self, timestamp: str, nonce: str) -> None:
+        """在签名验证成功后消费回调 nonce。"""
+        now = int(time.time())
+        cache_key = f"{timestamp}:{nonce}"
+        if len(self._seen_callbacks) >= settings.WECOM_CALLBACK_NONCE_CACHE_SIZE:
+            oldest_key = min(self._seen_callbacks, key=self._seen_callbacks.get)
+            self._seen_callbacks.pop(oldest_key, None)
+        self._seen_callbacks[cache_key] = float(now)
 
     def _decrypt_message(self, msg_encrypt: str) -> dict[str, Any]:
         plaintext = decrypt(self._config.encoding_aes_key, msg_encrypt)

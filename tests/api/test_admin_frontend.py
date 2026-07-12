@@ -3,9 +3,11 @@ from pathlib import Path
 import json
 
 import pytest
-from fastapi import HTTPException, Request
+from fastapi import Request
+from fastapi import HTTPException
 
-from app.api.admin import create_admin_router
+from app.api.admin import create_admin_router, issue_admin_session
+from app.api.admin.root import has_admin_api_access
 from app.api.admin_frontend import FRONTEND_INDEX_FILE, create_admin_frontend_router
 from app.config import settings
 
@@ -53,7 +55,7 @@ async def test_admin_auth_me_returns_profile_with_cookie() -> None:
     payload = await endpoint(
         request=_build_request(
             "/api/v1/admin/me",
-            cookies={"admin_token": settings.ADMIN_API_TOKEN},
+            cookies={"admin_session": issue_admin_session()},
         ),
     )
 
@@ -80,6 +82,36 @@ async def test_admin_auth_me_accepts_bearer_token() -> None:
     body = json.loads(payload.body.decode())
     assert body["ok"] is True
     assert body["data"]["role"] == "admin"
+
+
+def test_admin_bearer_is_disabled_without_explicit_compatibility_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """默认后台会话不接受长期 Bearer token。"""
+    monkeypatch.setattr(settings, "ADMIN_ALLOW_LEGACY_BEARER", False)
+    request = _build_request("/api/v1/admin/me")
+    assert (
+        has_admin_api_access(
+            request, authorization=f"Bearer {settings.ADMIN_API_TOKEN}"
+        )
+        is False
+    )
+
+
+def test_admin_origin_mismatch_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """后台凭证请求的跨站 Origin 必须被拒绝。"""
+    monkeypatch.setattr(settings, "ADMIN_ALLOWED_ORIGINS", "https://admin.example")
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/orders",
+        "headers": [(b"origin", b"https://attacker.example")],
+        "query_string": b"",
+        "server": ("testserver", 80),
+        "client": ("testclient", 50000),
+        "scheme": "http",
+    }
+    assert has_admin_api_access(Request(scope), authorization=None) is False
 
 
 @pytest.mark.asyncio
@@ -115,7 +147,55 @@ async def test_admin_auth_login_sets_cookie() -> None:
     response = await endpoint(request)
 
     assert response.status_code == 200
-    assert "admin_token=" in response.headers["set-cookie"]
+    assert "admin_session=" in response.headers["set-cookie"]
+    assert "HttpOnly" in response.headers["set-cookie"]
+    assert "SameSite=strict" in response.headers["set-cookie"]
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limits_failed_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """后台登录失败达到阈值后应暂时拒绝继续尝试。"""
+    monkeypatch.setattr(settings, "ADMIN_LOGIN_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(settings, "ADMIN_LOGIN_WINDOW_SECONDS", 300)
+    router = create_admin_router(
+        chat_service=object(),
+        admin_service=object(),
+        transfer_mgr=object(),
+    )
+    endpoint = _get_route_endpoint(router, "/api/v1/admin/auth/login", "POST")
+
+    async def invoke_invalid_login() -> None:
+        async def receive() -> dict:
+            return {
+                "type": "http.request",
+                "body": b'{"token":"invalid"}',
+                "more_body": False,
+            }
+
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/admin/auth/login",
+                "headers": [(b"content-type", b"application/json")],
+                "query_string": b"",
+                "server": ("testserver", 80),
+                "client": ("rate-limit-client", 50000),
+                "scheme": "http",
+            },
+            receive,
+        )
+        await endpoint(request)
+
+    for _ in range(2):
+        with pytest.raises(HTTPException) as error:
+            await invoke_invalid_login()
+        assert error.value.status_code == 401
+    with pytest.raises(HTTPException) as error:
+        await invoke_invalid_login()
+    assert error.value.status_code == 429
 
 
 @pytest.mark.asyncio

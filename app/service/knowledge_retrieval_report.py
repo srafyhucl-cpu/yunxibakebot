@@ -90,7 +90,9 @@ def _serialize_log(log: object) -> dict[str, object]:
         "created_at": getattr(log, "created_at", ""),
         "bot_type": getattr(log, "bot_type", ""),
         "audience": getattr(log, "audience", ""),
-        "query": getattr(log, "query", ""),
+        "query": "",
+        "query_hash": getattr(log, "query_hash", ""),
+        "query_category": getattr(log, "query_category", ""),
         "retrieval_mode": getattr(log, "retrieval_mode", ""),
         "result_count": getattr(log, "result_count", 0),
         "fallback_reason": getattr(log, "fallback_reason", ""),
@@ -115,11 +117,16 @@ def _counter_dict(logs: list[object], field: str) -> dict[str, int]:
 
 
 def _top_queries(logs: list[object]) -> list[dict[str, object]]:
-    counter = Counter(str(getattr(log, "query", "")) for log in logs)
+    counter = Counter(
+        str(
+            getattr(log, "query_category", "") or getattr(log, "query", "") or "unknown"
+        )
+        for log in logs
+    )
     return [
-        {"query": query, "count": count}
+        {"query_category": query, "count": count}
         for query, count in counter.most_common(10)
-        if query
+        if query and query != "unknown"
     ]
 
 

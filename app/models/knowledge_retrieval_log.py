@@ -13,6 +13,8 @@ class KnowledgeRetrievalLogCreate:
     matched_titles: list[str] = field(default_factory=list)
     result_count: int = 0
     fallback_reason: str = ""
+    query_hash: str = ""
+    query_category: str = ""
 
 
 @dataclass(frozen=True)
@@ -27,3 +29,5 @@ class KnowledgeRetrievalLog:
     result_count: int
     fallback_reason: str
     created_at: str
+    query_hash: str = ""
+    query_category: str = ""

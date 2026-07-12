@@ -61,7 +61,7 @@ async def test_admin_knowledge_retrieval_report_summary_returns_report() -> None
         }
         assert payload["data"]["breakdown"]["by_audience"] == {"customer": 2}
         assert payload["data"]["top_no_match_queries"] == [
-            {"query": MISSING_QUERY, "count": 1}
+            {"query_category": "other", "count": 1}
         ]
     finally:
         await close_db(db)

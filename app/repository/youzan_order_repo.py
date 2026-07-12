@@ -123,7 +123,9 @@ class YouzanOrderRepo(BaseRepository):
             + " GROUP BY status ORDER BY count DESC, status ASC",
             tuple(params),
         )
-        summary = dict(rows[0]) if rows else {"total_count": 0, "total_amount_fen": 0}
+        summary: dict[str, Any] = (
+            dict(rows[0]) if rows else {"total_count": 0, "total_amount_fen": 0}
+        )
         summary["status_counts"] = {
             str(row["status"]): int(row["count"] or 0) for row in status_rows
         }

@@ -8,14 +8,23 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.api.admin import (
-    ADMIN_SESSION_MAX_AGE_SECONDS,
+    ADMIN_SESSION_COOKIE,
+    admin_login_is_allowed,
+    clear_admin_login_failures,
     has_admin_api_access,
+    is_allowed_admin_origin,
+    is_valid_admin_session,
     is_valid_admin_token,
+    issue_admin_session,
+    record_admin_login_failure,
+    set_admin_session_cookie,
     verify_token,
 )
+from app.config import settings
 from app.logger import setup_logger
 from app.service.admin import AdminService
 from app.service.chat import ChatService
+from app.service.cost_circuit_breaker import CostCircuitBreaker
 
 logger = setup_logger()
 AI_DIALOG_TIMEOUT_SECONDS = 35.0
@@ -27,6 +36,10 @@ def create_dialog_router(
 ) -> APIRouter:
     """工厂函数：返回 AI 对话调试相关 API 路由。"""
     router = APIRouter(prefix="/api/v1/admin", tags=["admin-dialog"])
+    ai_cost_breaker = CostCircuitBreaker(
+        settings.ADMIN_AI_FAILURE_THRESHOLD,
+        settings.ADMIN_AI_COOLDOWN_SECONDS,
+    )
 
     @router.get("/me")
     async def auth_me(
@@ -42,31 +55,32 @@ def create_dialog_router(
 
         # 自愈机制：如果验证通过，提取合法 Token 并强制补发带有正确全局 path 的 Cookie，
         # 用于修复因用户浏览器残留旧的 /auth/ 局部路径 Cookie 而导致后续业务接口 401 的无限重定向死循环
-        token = request.cookies.get("admin_token")
-        if not is_valid_admin_token(token):
-            token = None
-
-        if not token and authorization and authorization.startswith("Bearer "):
-            token = authorization.removeprefix("Bearer ")
-
-        if token and is_valid_admin_token(token):
-            response.set_cookie(
-                key="admin_token",
-                value=token,
-                max_age=ADMIN_SESSION_MAX_AGE_SECONDS,
-                httponly=True,
-                samesite="lax",
-                path="/",
-            )
+        session_token = request.cookies.get(ADMIN_SESSION_COOKIE)
+        if not is_valid_admin_session(session_token):
+            if not (
+                settings.ADMIN_ALLOW_LEGACY_BEARER
+                and authorization
+                and authorization.startswith("Bearer ")
+                and is_valid_admin_token(authorization.removeprefix("Bearer "))
+            ):
+                raise HTTPException(status_code=401, detail="未登录或登录已过期")
+            session_token = issue_admin_session()
+            set_admin_session_cookie(response, session_token)
 
         return response
 
     @router.post("/auth/login")
     async def auth_login(request: Request) -> JSONResponse:
+        if not is_allowed_admin_origin(request):
+            raise HTTPException(status_code=403, detail="请求来源不受信任")
+        if not admin_login_is_allowed(request):
+            raise HTTPException(status_code=429, detail="登录尝试过于频繁")
         body = await request.json()
         token = str(body.get("token", "")).strip()
         if not is_valid_admin_token(token):
+            record_admin_login_failure(request)
             raise HTTPException(status_code=401, detail="Token 无效")
+        clear_admin_login_failures(request)
         response = JSONResponse(
             {
                 "ok": True,
@@ -74,19 +88,13 @@ def create_dialog_router(
                 "data": {"name": "管理员", "role": "admin"},
             },
         )
-        response.set_cookie(
-            key="admin_token",
-            value=token,
-            max_age=ADMIN_SESSION_MAX_AGE_SECONDS,
-            httponly=True,
-            samesite="lax",
-            path="/",
-        )
+        set_admin_session_cookie(response, issue_admin_session())
         return response
 
     @router.post("/auth/logout")
     async def auth_logout() -> JSONResponse:
         response = JSONResponse({"ok": True, "message": "已退出登录"})
+        response.delete_cookie(ADMIN_SESSION_COOKIE, path="/")
         response.delete_cookie("admin_token", path="/")
         return response
 
@@ -197,6 +205,8 @@ def create_dialog_router(
         s = await admin_service.get_active(test_user, "admin_test")
         if s and s.status in ("transfer_pending", "human_service"):
             await admin_service.update_status(s.id, "active")
+        if not ai_cost_breaker.allow():
+            raise HTTPException(status_code=503, detail="AI 服务暂时熔断，请稍后重试")
         try:
             reply = await asyncio.wait_for(
                 chat_service.handle_message(
@@ -208,6 +218,7 @@ def create_dialog_router(
                 timeout=AI_DIALOG_TIMEOUT_SECONDS,
             )
         except TimeoutError:
+            ai_cost_breaker.record_failure()
             logger.error(
                 "后台 AI 对话接口超时: user=%s content=%s", test_user, content[:80]
             )
@@ -217,6 +228,10 @@ def create_dialog_router(
                 "intent": intent,
                 "session_id": s.id if s else "",
             }
+        except Exception:
+            ai_cost_breaker.record_failure()
+            raise
+        ai_cost_breaker.record_success()
         session = await admin_service.get_active(test_user, "admin_test")
         session_id = session.id if session else ""
         clean = (reply or "(无回复)").replace("**", "").replace("*", "")

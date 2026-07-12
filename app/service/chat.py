@@ -16,9 +16,12 @@ from app.repository.analytics_repo import AnalyticsRepo
 from app.repository.conversation_summary_repo import ConversationSummaryRepo
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
+from app.models.message import Message, MessageRole
+from app.models.session import SessionCreate
 from app.service.chat_ai_loop import (
     AiConversationLoopDependencies,
 )
+from app.service.agents.trace_sink import AgentTraceSink
 from app.service.chat_message_flow import (
     ChatMessageFlowDependencies,
     ChatMessageRequest,
@@ -76,13 +79,19 @@ class ChatService:
         analytics_repo: AnalyticsRepo,
         customer_profile_repo: CustomerProfileRepo | None = None,
         conversation_summary_repo: ConversationSummaryRepo | None = None,
+        trace_sink: AgentTraceSink | None = None,
+        order_repo=None,
+        config_repo=None,
+        product_repo=None,
+        knowledge_product_repo=None,
+        history_repo=None,
     ) -> None:
         self._session_mgr = SessionManager(session_repo, message_repo)
         self._session_repo = session_repo
         self._message_repo = message_repo
         self._transfer_mgr = TransferManager(transfer_repo)
         self._knowledge = knowledge_retriever
-        # 显式依赖注入：由组装根（main.py）传入，消除越层访问 session_repo._db（L-1.2）。
+        # 显式依赖注入：由组装根传入，避免服务层自行获取持久化连接。
         self._youzan_client = youzan_client
         self._youzan_webhook_events_repo = youzan_webhook_events_repo
         self._youzan_events = youzan_event_handler
@@ -98,7 +107,14 @@ class ChatService:
             fallback_reply=FALLBACK_REPLY,
             timeout_reply=QUERY_TIMEOUT_REPLY,
             failure_alerter=_llm_failure_alerter,
+            order_repo=order_repo,
+            config_repo=config_repo,
+            product_repo=product_repo,
+            knowledge_product_repo=knowledge_product_repo,
+            analytics_repo=self._analytics_repo,
+            history_repo=history_repo,
             conversation_summary_repo=self._conversation_summary_repo,
+            trace_sink=trace_sink,
         )
         self._message_flow_dependencies = ChatMessageFlowDependencies(
             session_mgr=self._session_mgr,
@@ -136,7 +152,12 @@ class ChatService:
 
     async def reply_youzan_nontext_fallback(self, buyer_id: str, msg_id: str) -> None:
         """有赞非文本消息兑底：直接回友好提示，不喂给 LLM（N-6）。"""
-        if msg_id and await self._message_repo.has_processed(msg_id):
+        if msg_id and not await self._claim_inbound_message(
+            channel="youzan",
+            user_id=buyer_id,
+            content="[非文本消息]",
+            channel_msg_id=msg_id,
+        ):
             return
         await self._youzan_client.send_reply(
             buyer_open_id=buyer_id, content=NONTEXT_FALLBACK_REPLY
@@ -146,12 +167,44 @@ class ChatService:
         self, conversation_id: str, msg_id: str
     ) -> None:
         """有赞托管非文本消息兑底：直接按托管会话回复友好提示。"""
-        if msg_id and await self._message_repo.has_processed(msg_id):
+        if msg_id and not await self._claim_inbound_message(
+            channel="youzan",
+            user_id=conversation_id,
+            content="[托管非文本消息]",
+            channel_msg_id=msg_id,
+        ):
             return
         await self._youzan_client.send_hosting_reply(
             conversation_id=conversation_id,
             content=NONTEXT_FALLBACK_REPLY,
             msg_type="text",
+        )
+
+    async def _claim_inbound_message(
+        self,
+        channel: str,
+        user_id: str,
+        content: str,
+        channel_msg_id: str,
+        staff_id: str = "",
+    ) -> bool:
+        """为不进入主对话流的入站消息建立原子幂等账本记录。"""
+        session = await self._session_repo.get_or_create(
+            SessionCreate(
+                id="",
+                channel=channel,
+                user_id=user_id,
+                staff_id=staff_id,
+            )
+        )
+        return await self._message_repo.save_if_new(
+            Message(
+                id="",
+                session_id=session.id,
+                role=MessageRole.USER,
+                content=content,
+                channel_msg_id=channel_msg_id,
+            )
         )
 
     async def handle_message_and_reply_youzan(

@@ -17,7 +17,7 @@ from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_item import handle_item_event
 from app.service.youzan.event_trade import handle_trade_event
-from app.service.youzan.webhook import parse_item_id
+from app.service.youzan.webhook_payload import parse_item_id
 
 logger = setup_logger()
 

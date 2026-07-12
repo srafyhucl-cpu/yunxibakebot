@@ -1,4 +1,5 @@
 import pytest
+from langchain_core.runnables import RunnableLambda
 
 from app.service.chat_transfer import (
     build_transfer_summary,
@@ -6,6 +7,7 @@ from app.service.chat_transfer import (
 )
 from app.service.transfer_handoff_summary import (
     HandoffSummaryInput,
+    _invoke_handoff_summary_chain,
     build_handoff_note_with_llm,
 )
 
@@ -92,3 +94,30 @@ async def test_build_transfer_summary_public_entrypoint_is_async(
     note = await build_transfer_summary("需要人工", "用户：帮我看看图片")
 
     assert note == "客户诉求：需要人工"
+
+
+@pytest.mark.asyncio
+async def test_handoff_chain_redacts_inputs_before_prompt_runnable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[str] = []
+
+    def capture_prompt(prompt_value, **_kwargs) -> str:
+        captured.append(prompt_value.to_string())
+        return "客户诉求：待确认；当前卡点：待确认；建议接手：人工确认"
+
+    monkeypatch.setattr(
+        "app.service.transfer_handoff_summary.get_langchain_chat_model",
+        lambda **_kwargs: RunnableLambda(capture_prompt),
+    )
+
+    note = await _invoke_handoff_summary_chain(
+        HandoffSummaryInput(
+            reason="用户手机号 13812345678 要求转人工",
+            history_text="用户：订单 E1234567890123 还没收到",
+        )
+    )
+
+    assert "13812345678" not in captured[0]
+    assert "E1234567890123" not in captured[0]
+    assert "人工确认" in note

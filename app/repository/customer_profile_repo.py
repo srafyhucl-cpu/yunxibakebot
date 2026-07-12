@@ -69,3 +69,50 @@ class CustomerProfileRepo(BaseRepository):
             (now, now, channel, user_id),
         )
         await self._db.commit()
+
+    async def get_consent_status(self, channel: str, user_id: str) -> str:
+        """读取独立 consent ledger，缺失时返回 unknown。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT status FROM customer_consent_ledger "
+            "WHERE channel = ? AND user_id = ?",
+            (channel, user_id),
+        )
+        return str(rows[0]["status"]) if rows else "unknown"
+
+    async def set_consent_status(self, channel: str, user_id: str, status: str) -> None:
+        """写入 consent ledger 的三态状态。"""
+        if status not in {"unknown", "granted", "revoked"}:
+            raise ValueError("无效的 consent 状态")
+        await self._db.execute(
+            "INSERT INTO customer_consent_ledger "
+            "(channel, user_id, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, datetime('now'), datetime('now')) "
+            "ON CONFLICT(channel, user_id) DO UPDATE SET "
+            "status = excluded.status, updated_at = excluded.updated_at",
+            (channel, user_id, status),
+        )
+        await self._db.commit()
+
+    async def delete(self, channel: str, user_id: str) -> None:
+        """删除顾客长期画像，不删除 consent ledger。"""
+        await self._db.execute(
+            "DELETE FROM customer_profiles WHERE channel = ? AND user_id = ?",
+            (channel, user_id),
+        )
+        await self._db.commit()
+
+    async def revoke_and_delete(self, channel: str, user_id: str) -> None:
+        """在同一事务内撤回 consent 并删除长期画像。"""
+        await self._db.execute(
+            "INSERT INTO customer_consent_ledger "
+            "(channel, user_id, status, created_at, updated_at) "
+            "VALUES (?, ?, 'revoked', datetime('now'), datetime('now')) "
+            "ON CONFLICT(channel, user_id) DO UPDATE SET "
+            "status = 'revoked', updated_at = excluded.updated_at",
+            (channel, user_id),
+        )
+        await self._db.execute(
+            "DELETE FROM customer_profiles WHERE channel = ? AND user_id = ?",
+            (channel, user_id),
+        )
+        await self._db.commit()

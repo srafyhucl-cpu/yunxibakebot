@@ -117,7 +117,7 @@ ______________________________________________________________________
 | `python scripts/harness_snapshot.py --json` | 输出机器可读快照，适合归档到 reports |
 | `python scripts/harness_snapshot.py --output reports/harness/handoff-{timestamp}.md` | 写入带 UTF-8 BOM 的快照文件，拒绝覆盖已有文件 |
 | `python scripts/check_mistake_ledger.py` | 检查 [core/mistake-ledger.md](core/mistake-ledger.md) 是否有合法空账本标记，或每条 mistake 是否字段完整、枚举合法 |
-| `python scripts/check_evidence_index.py` | 检查 [core/evidence-index.md](core/evidence-index.md) 的证据条目必填字段、结果枚举、重复 ID 和预检业务合约证据引用 |
+| `python scripts/check_evidence_index.py` | 检查 [core/evidence-index.md](core/evidence-index.md) 的证据条目必填字段、结果枚举、重复 ID、预检业务合约引用和本地证据文件存在性；JSON 报告同时输出本地文件 SHA-256，生产路径保留为外部未验证引用 |
 | `.\scripts\enable_utf8_console.ps1` | 修复当前 Windows PowerShell 会话的中文输入输出乱码 |
 
 推荐在长任务交接、上下文重置、上线收口前执行：

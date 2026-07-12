@@ -14,7 +14,7 @@ import re
 from app.logger import setup_logger
 from app.models.content_change_history import WriteResult
 from app.service.knowledge_admin import DEFAULT_PRIORITY
-from app.service.youzan.event_item import _extract_item_tags
+from app.service.youzan.event_item_parser import extract_item_tags
 from app.service.youzan.product_rag_text import (
     build_product_embedding_text,
     build_product_rag_content,
@@ -50,7 +50,7 @@ def parse_product_from_api(raw_product: dict, item_id: int) -> dict | None:
         r"\s+", " ", re.sub(r"\n+", "\n", re.sub(r"<.*?>", "", raw_desc))
     ).strip()
 
-    spec_names, prop_names, ingredients = _extract_item_tags(
+    spec_names, prop_names, ingredients = extract_item_tags(
         title, skus, item_props, desc_clean
     )
 
@@ -115,8 +115,8 @@ async def sync_product_to_db(
 
 
 async def sync_product_to_rag(
-    db,
-    knowledge_retriever,
+    knowledge_product_repo,
+    embedding_searcher,
     parsed: dict,
     is_active: int,
     tags_str: str,
@@ -126,11 +126,8 @@ async def sync_product_to_rag(
     sync_ref: str,
 ) -> str:
     """将商品同步到 RAG 知识库 + 向量索引。"""
-    from app.repository.knowledge_product_repo import KnowledgeProductRepo
-
     item_id = parsed["item_id"]
     title = parsed["title"]
-    knowledge_repo = KnowledgeProductRepo(db)
 
     if is_active == 1:
         content_md = build_product_rag_content(
@@ -156,7 +153,7 @@ async def sync_product_to_rag(
             parsed["desc_clean"],
             tags_str,
         )
-        result = await knowledge_repo.upsert_product_knowledge(
+        result = await knowledge_product_repo.upsert_product_knowledge(
             youzan_item_id=str(item_id),
             title=title,
             content=content_md,
@@ -166,25 +163,23 @@ async def sync_product_to_rag(
             sync_source=sync_source,
             sync_ref=sync_ref,
         )
-        vs = knowledge_retriever._vs
-        if vs and result == WriteResult.APPLIED:
+        if embedding_searcher and result == WriteResult.APPLIED:
             vector = (
-                vs._get_model()
+                embedding_searcher._get_model()
                 .encode(
                     [embedding_text],
                     normalize_embeddings=True,
                 )[0]
                 .tolist()
             )
-            await vs.upsert_one(str(item_id), vector)
+            await embedding_searcher.upsert_one(str(item_id), vector)
         return result
 
-    result = await knowledge_repo.delete_product_knowledge(
+    result = await knowledge_product_repo.delete_product_knowledge(
         str(item_id),
         sync_source=sync_source,
         sync_ref=sync_ref,
     )
-    vs = knowledge_retriever._vs
-    if vs and result == WriteResult.APPLIED:
-        await vs.delete_one(str(item_id))
+    if embedding_searcher and result == WriteResult.APPLIED:
+        await embedding_searcher.delete_one(str(item_id))
     return result

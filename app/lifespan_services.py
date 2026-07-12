@@ -6,12 +6,15 @@
 
 from typing import Any
 
+from app.config import settings
 from app.models.knowledge import KnowledgeAudience
 from app.service.chat import ChatService
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_handler import YouzanEventHandler
 from app.service.youzan.product_reconciler import ProductReconcileService
+from app.service.agents.trace_sink import build_local_agent_trace_sink
+from app.repository.privacy_repo import PrivacyRepo
 
 LEGACY_SERVICE_ALIASES = {
     "miniapp_auth_service": "storefront_auth_service",
@@ -25,12 +28,17 @@ LEGACY_SERVICE_ALIASES = {
 
 def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str, Any]:
     """初始化 Service 层，返回服务字典。"""
+    trace_sink = build_local_agent_trace_sink(
+        enabled=settings.AGENT_LOCAL_TRACE_ENABLED,
+        path=settings.AGENT_LOCAL_TRACE_PATH,
+    )
     knowledge_retriever = KnowledgeRetriever(
         repos["knowledge_repo"],
         vs,
         config_repo=repos["config_repo"],
         bm25=bm25,
         audience=KnowledgeAudience.CUSTOMER.value,
+        youzan_product_repo=repos["youzan_product_repo"],
     )
     employee_knowledge_retriever = KnowledgeRetriever(
         repos["knowledge_repo"],
@@ -38,6 +46,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         config_repo=repos["config_repo"],
         bm25=bm25,
         audience=KnowledgeAudience.EMPLOYEE.value,
+        youzan_product_repo=repos["youzan_product_repo"],
     )
 
     from app.service.admin import AdminService
@@ -46,6 +55,8 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     from app.service.conversation import StorefrontConversationService
     from app.service.customer import CustomerAddressService
     from app.service.customer import CustomerGroupOperationsService
+    from app.service.customer_consent import CustomerConsentService
+    from app.service.privacy_lifecycle import PrivacyLifecycleService
     from app.service.observability import ObservabilityService
     from app.service.ops import (
         ShopConfigurationService,
@@ -66,6 +77,9 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         knowledge_repo=repos["knowledge_repo"],
         config_repo=repos["config_repo"],
         youzan_product_repo=repos["youzan_product_repo"],
+        knowledge_product_repo=repos["knowledge_product_repo"],
+        knowledge_admin_repo=repos["knowledge_admin_repo"],
+        history_repo=repos["history_repo"],
     )
     observability_service = ObservabilityService(
         knowledge_repo=repos["knowledge_repo"],
@@ -96,6 +110,10 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         repos["customer_group_repo"]
     )
     storefront_auth_service = StorefrontAuthService()
+    customer_consent_service = CustomerConsentService(repos["customer_profile_repo"])
+    privacy_lifecycle_service = PrivacyLifecycleService(
+        repos.get("privacy_repo") or PrivacyRepo(None)
+    )
     transfer_mgr = TransferManager(repos["transfer_repo"])
     shop_page_configuration_service = ShopPageConfigurationService(repos["config_repo"])
     shop_configuration_service = ShopConfigurationService(repos["config_repo"])
@@ -125,6 +143,12 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         analytics_repo=repos["analytics_repo"],
         customer_profile_repo=repos.get("customer_profile_repo"),
         conversation_summary_repo=repos.get("conversation_summary_repo"),
+        trace_sink=trace_sink,
+        order_repo=repos.get("youzan_order_repo"),
+        config_repo=repos["config_repo"],
+        product_repo=repos["youzan_product_repo"],
+        knowledge_product_repo=repos["knowledge_product_repo"],
+        history_repo=repos["history_repo"],
     )
     storefront_conversation_service = StorefrontConversationService(
         chat_service=chat_service,
@@ -137,6 +161,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         youzan_order_repo=repos.get("youzan_order_repo"),
         knowledge_retriever=employee_knowledge_retriever,
         youzan_client=youzan_client,
+        config_repo=repos["config_repo"],
     )
     wecom_bot_business_tool_service = WeComBotBusinessToolService(
         order_service=order_service,
@@ -157,6 +182,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         ops_tool_service=wecom_bot_ops_tool_service,
         status_tool_service=wecom_bot_status_tool_service,
         order_lookup_service=wecom_order_lookup_service,
+        trace_sink=trace_sink,
     )
 
     services = {
@@ -170,6 +196,8 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "order_service": order_service,
         "customer_address_service": customer_address_service,
         "customer_group_service": customer_group_service,
+        "customer_consent_service": customer_consent_service,
+        "privacy_lifecycle_service": privacy_lifecycle_service,
         "transfer_mgr": transfer_mgr,
         "shop_page_configuration_service": shop_page_configuration_service,
         "shop_configuration_service": shop_configuration_service,

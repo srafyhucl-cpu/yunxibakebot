@@ -1,4 +1,3 @@
-import os
 import re
 
 file_path = "web/admin/src/features/observability/useObservabilityWorkbench.ts"

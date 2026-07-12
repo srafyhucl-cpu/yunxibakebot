@@ -11,6 +11,7 @@ from app.service.agents.customer.contracts import (
     CustomerGraphRequest,
 )
 from app.service.agents.customer.service import CustomerAgentGraphService
+from app.service.agents.trace_sink import AgentTraceSink
 from app.service.conversation_summary_memory import (
     ConversationSummaryReader,
 )
@@ -31,7 +32,14 @@ class AiConversationLoopDependencies:
     fallback_reply: str
     timeout_reply: str
     failure_alerter: Callable[[str], Awaitable[None]]
+    order_repo: object | None = None
+    config_repo: object | None = None
+    product_repo: object | None = None
+    knowledge_product_repo: object | None = None
+    analytics_repo: object | None = None
+    history_repo: object | None = None
     conversation_summary_repo: ConversationSummaryReader | None = None
+    trace_sink: AgentTraceSink | None = None
 
 
 @dataclass(frozen=True)
@@ -57,10 +65,17 @@ async def run_ai_conversation_loop(
             transfer_mgr=dependencies.transfer_mgr,
             session_repo=dependencies.session_repo,
             youzan_client=dependencies.youzan_client,
+            order_repo=dependencies.order_repo,
+            config_repo=dependencies.config_repo,
+            product_repo=dependencies.product_repo,
+            knowledge_product_repo=dependencies.knowledge_product_repo,
+            analytics_repo=dependencies.analytics_repo,
+            history_repo=dependencies.history_repo,
             fallback_reply=dependencies.fallback_reply,
             timeout_reply=dependencies.timeout_reply,
             failure_alerter=dependencies.failure_alerter,
             conversation_summary_repo=dependencies.conversation_summary_repo,
+            trace_sink=dependencies.trace_sink,
         )
     )
     return await graph_service.answer(

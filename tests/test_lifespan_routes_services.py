@@ -165,6 +165,14 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
+        "app.api.channels.storefront.privacy",
+        create_storefront_privacy_router=lambda service, lifecycle_service=None: (
+            "miniapp-privacy",
+            service,
+        ),
+    )
+    _install_module(
+        monkeypatch,
         "app.api.channels.storefront.payments",
         create_storefront_payments_router=lambda service: (
             "miniapp-payments",
@@ -228,6 +236,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "knowledge_retriever": "knowledge-retriever",
         "storefront_conversation_service": "storefront-conversation-service",
         "customer_group_service": "customer-group-service",
+        "customer_consent_service": "customer-consent-service",
         "wecom_bot_business_tool_service": "wecom-business-tool-service",
         "wecom_bot_ops_tool_service": "wecom-ops-tool-service",
         "wecom_bot_status_tool_service": status_tool_service,
@@ -238,7 +247,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
 
     assert wecom_queue.started_with == ["chat"]
     assert kf_queue.started_with == ["chat"]
-    assert len(app.included_routers) == 22
+    assert len(app.included_routers) == 23
     assert app.included_routers[0] == ("webhook", "chat")
     wecom_router = app.included_routers[-2]
     assert wecom_router[0] == "wecom-intelligent-bot-router"
@@ -254,9 +263,25 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     created: dict[str, Any] = {}
 
     class FakeKnowledgeRetriever:
-        def __init__(self, knowledge_repo, vs, *, config_repo, bm25, audience) -> None:
+        def __init__(
+            self,
+            knowledge_repo,
+            vs,
+            *,
+            config_repo,
+            bm25,
+            audience,
+            youzan_product_repo,
+        ) -> None:
             created.setdefault("knowledge_retrievers", []).append(
-                (knowledge_repo, vs, config_repo, bm25, audience, self)
+                (
+                    knowledge_repo,
+                    vs,
+                    config_repo,
+                    bm25,
+                    audience,
+                    self,
+                )
             )
 
     class FakeYouzanClient:
@@ -454,6 +479,8 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "storefront_auth_service",
         "customer_address_service",
         "customer_group_service",
+        "customer_consent_service",
+        "privacy_lifecycle_service",
         "catalog_service",
         "order_service",
         "storefront_conversation_service",
@@ -517,12 +544,14 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "youzan_order_repo": "youzan-order-repo",
         "knowledge_retriever": services["employee_knowledge_retriever"],
         "youzan_client": services["youzan_client"],
+        "config_repo": "config-repo",
     }
     assert created["employee_agent_service"] == {
         "business_tool_service": services["wecom_bot_business_tool_service"],
         "ops_tool_service": services["wecom_bot_ops_tool_service"],
         "status_tool_service": services["wecom_bot_status_tool_service"],
         "order_lookup_service": services["wecom_order_lookup_service"],
+        "trace_sink": None,
     }
     assert created["order_service"]["event_repo"] == "order-event-repo"
     assert (

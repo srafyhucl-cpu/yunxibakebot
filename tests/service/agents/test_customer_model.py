@@ -10,7 +10,7 @@ from app.service.agents.customer.model import (
     CustomerModelRequest,
     request_customer_model_with_tools,
 )
-from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
+from app.service.llm.constants import LLM_FAILURE_REASON_KEY
 
 
 class _FakeBoundModel:
@@ -70,8 +70,8 @@ async def test_customer_model_uses_langchain_messages_and_bound_tools(
     result = await request_customer_model_with_tools(
         CustomerModelRequest(
             messages=[
-                {"role": "system", "content": "系统提示"},
-                {"role": "user", "content": "配送范围"},
+                SystemMessage(content="系统提示"),
+                HumanMessage(content="配送范围"),
             ],
             tools=tools,
             timing=timing,
@@ -140,7 +140,7 @@ async def test_customer_model_marks_tool_calls_without_metadata(
 
     result = await request_customer_model_with_tools(
         CustomerModelRequest(
-            messages=[{"role": "user", "content": "配送"}],
+            messages=[HumanMessage(content="配送")],
             tools=[],
             timing={},
             first_llm_started_at=None,
@@ -176,7 +176,7 @@ async def test_customer_model_uses_vision_model_when_image_present(
 
     result = await request_customer_model_with_tools(
         CustomerModelRequest(
-            messages=[{"role": "user", "content": "看图"}],
+            messages=[HumanMessage(content="看图")],
             tools=[],
             timing={},
             first_llm_started_at=None,
@@ -211,7 +211,7 @@ async def test_customer_model_returns_fallback_on_langchain_error(
 
     result = await request_customer_model_with_tools(
         CustomerModelRequest(
-            messages=[{"role": "user", "content": "hello"}],
+            messages=[HumanMessage(content="hello")],
             tools=[],
             timing=timing,
             first_llm_started_at=1.0,

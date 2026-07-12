@@ -9,7 +9,7 @@ import sys
 
 
 def main() -> int:
-    result = subprocess.run(
+    subprocess.run(
         ["mypy", "--config-file=mypy.ini", "app/"],
         capture_output=False,  # 实时输出到终端
     )

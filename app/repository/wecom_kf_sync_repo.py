@@ -100,7 +100,7 @@ class WecomKfSyncRepo(BaseRepository):
             ),
         )
         await self._db.commit()
-        return cursor.rowcount > 0
+        return bool(cursor.rowcount > 0)
 
 
 def _now() -> str:

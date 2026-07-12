@@ -10,7 +10,8 @@ from app.service.agents.customer.constants import (
     TRANSFER_TOOL_SUCCESS_MESSAGE,
 )
 from app.service.agents.customer.tool_messages import ToolExecutionContext
-from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
+from app.service.agents.messages import message_content, message_role
+from app.service.llm.constants import LLM_FAILURE_REASON_KEY
 from app.service.chat_transfer import HumanTransferContext, request_human_transfer
 
 
@@ -60,15 +61,15 @@ def record_tool_round_limit(timing: dict | None) -> None:
 
 def extend_guard_source_with_tool_outputs(
     timing: dict | None,
-    messages: list[dict],
+    messages: list[object],
 ) -> None:
     """把工具输出追加到回复 guard 的事实输入。"""
     if timing is None:
         return
     tool_outputs = [
-        str(message.get("content", ""))
+        str(message_content(message))
         for message in messages
-        if message.get("role") == "tool"
+        if message_role(message) == "tool"
     ]
     if tool_outputs:
         existing = str(timing.get("guard_source_text") or "")

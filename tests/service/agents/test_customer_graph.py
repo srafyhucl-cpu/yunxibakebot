@@ -9,10 +9,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, convert_to_openai_messages
+from langchain_core.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 from app.models.session import Session
-from app.service.agents.checkpoints import create_in_memory_checkpointer
 from app.service.agents.customer.contracts import (
     CustomerGraphDependencies,
     CustomerGraphRequest,
@@ -35,15 +36,28 @@ class _FakeKnowledgeRetriever:
         return []
 
 
-class _FakeTool:
-    name = "search_knowledge"
+class _SearchKnowledgeArgs(BaseModel):
+    query: str = Field(description="搜索关键词")
 
-    async def ainvoke(self, args: dict[str, Any]) -> str:
-        return f"tool:{args['query']}"
+
+def _build_fake_tool() -> StructuredTool:
+    async def search_knowledge(query: str) -> str:
+        return f"tool:{query}"
+
+    return StructuredTool.from_function(
+        coroutine=search_knowledge,
+        name="search_knowledge",
+        description="搜索知识库",
+        args_schema=_SearchKnowledgeArgs,
+    )
 
 
 async def _fake_alerter(message: str) -> None:
     raise AssertionError(message)
+
+
+def _openai_messages(messages: list[Any]) -> list[dict[str, Any]]:
+    return convert_to_openai_messages(messages)
 
 
 @pytest.mark.asyncio
@@ -52,22 +66,21 @@ async def test_customer_graph_runs_tool_round_then_returns_reply(
 ) -> None:
     from app.service.agents.customer import nodes as customer_nodes
 
-    tool_call = SimpleNamespace(
-        id="tool-1",
-        function=SimpleNamespace(
-            name="search_knowledge",
-            arguments='{"query": "配送范围"}',
-        ),
-    )
+    tool_call = {
+        "id": "tool-1",
+        "name": "search_knowledge",
+        "args": {"query": "配送范围"},
+        "type": "tool_call",
+    }
     requests: list[list[dict]] = []
 
     async def fake_request_customer_model_with_tools(context: Any) -> Any:
-        requests.append(context.messages)
+        requests.append(_openai_messages(context.messages))
         if len(requests) == 1:
             return SimpleNamespace(
                 fallback_reply=None,
                 finish_reason="tool_calls",
-                message=SimpleNamespace(content=None, tool_calls=[tool_call]),
+                message=AIMessage(content="", tool_calls=[tool_call]),
                 first_llm_started_at=1.0,
             )
         return SimpleNamespace(
@@ -77,9 +90,9 @@ async def test_customer_graph_runs_tool_round_then_returns_reply(
             first_llm_started_at=1.0,
         )
 
-    def fake_build_tools(scope: str, **kwargs: Any) -> list[_FakeTool]:
+    def fake_build_tools(scope: str, **kwargs: Any) -> list[StructuredTool]:
         assert scope == "customer"
-        return [_FakeTool()]
+        return [_build_fake_tool()]
 
     monkeypatch.setattr(
         customer_nodes,
@@ -176,33 +189,36 @@ async def test_customer_graph_reuses_compiled_graph_without_stale_tool_context(
 ) -> None:
     from app.service.agents.customer import nodes as customer_nodes
 
-    tool_call = SimpleNamespace(
-        id="tool-1",
-        function=SimpleNamespace(
-            name="search_knowledge",
-            arguments='{"query": "配送范围"}',
-        ),
-    )
+    tool_call = {
+        "id": "tool-1",
+        "name": "search_knowledge",
+        "args": {"query": "配送范围"},
+        "type": "tool_call",
+    }
     tool_sessions: list[str] = []
 
-    class SessionAwareTool:
-        name = "search_knowledge"
+    def build_session_aware_tool(session_id: str) -> StructuredTool:
+        async def search_knowledge(query: str) -> str:
+            return f"tool-session:{session_id}"
 
-        def __init__(self, session_id: str) -> None:
-            self._session_id = session_id
-
-        async def ainvoke(self, args: dict[str, Any]) -> str:
-            return f"tool-session:{self._session_id}"
+        return StructuredTool.from_function(
+            coroutine=search_knowledge,
+            name="search_knowledge",
+            description="搜索知识库",
+            args_schema=_SearchKnowledgeArgs,
+        )
 
     async def fake_request_customer_model_with_tools(context: Any) -> Any:
         tool_messages = [
-            message for message in context.messages if message.get("role") == "tool"
+            message
+            for message in _openai_messages(context.messages)
+            if message.get("role") == "tool"
         ]
         if not tool_messages:
             return SimpleNamespace(
                 fallback_reply=None,
                 finish_reason="tool_calls",
-                message=SimpleNamespace(content=None, tool_calls=[tool_call]),
+                message=AIMessage(content="", tool_calls=[tool_call]),
                 first_llm_started_at=1.0,
             )
         return SimpleNamespace(
@@ -214,11 +230,11 @@ async def test_customer_graph_reuses_compiled_graph_without_stale_tool_context(
             first_llm_started_at=1.0,
         )
 
-    def fake_build_tools(scope: str, **kwargs: Any) -> list[SessionAwareTool]:
+    def fake_build_tools(scope: str, **kwargs: Any) -> list[StructuredTool]:
         assert scope == "customer"
         session = kwargs["customer_context"].session
         tool_sessions.append(session.id)
-        return [SessionAwareTool(session.id)]
+        return [build_session_aware_tool(session.id)]
 
     monkeypatch.setattr(
         customer_nodes,
@@ -276,7 +292,9 @@ async def test_customer_graph_executes_langchain_native_tool_call(
 
     async def fake_request_customer_model_with_tools(context: Any) -> Any:
         tool_messages = [
-            message for message in context.messages if message.get("role") == "tool"
+            message
+            for message in _openai_messages(context.messages)
+            if message.get("role") == "tool"
         ]
         if not tool_messages:
             return SimpleNamespace(
@@ -300,7 +318,7 @@ async def test_customer_graph_executes_langchain_native_tool_call(
     monkeypatch.setattr(
         customer_nodes,
         "build_tools",
-        lambda scope, **_: [_FakeTool()],
+        lambda scope, **_: [_build_fake_tool()],
     )
     service = CustomerAgentGraphService(
         CustomerGraphDependencies(
@@ -425,7 +443,7 @@ async def test_customer_graph_records_read_only_memory(
     captured_messages: list[dict[str, Any]] = []
 
     async def fake_request_customer_model_with_tools(context: Any) -> Any:
-        captured_messages.extend(context.messages)
+        captured_messages.extend(_openai_messages(context.messages))
         return SimpleNamespace(
             fallback_reply=None,
             finish_reason="stop",
@@ -593,7 +611,7 @@ def test_customer_service_import_does_not_import_langgraph() -> None:
     assert result.returncode == 0
 
 
-def test_customer_graph_accepts_optional_checkpointer() -> None:
+def test_customer_graph_compiles_without_checkpoint() -> None:
     dependencies = CustomerGraphDependencies(
         session_mgr=_FakeSessionManager(),
         knowledge=_FakeKnowledgeRetriever(),
@@ -603,7 +621,6 @@ def test_customer_graph_accepts_optional_checkpointer() -> None:
         fallback_reply="fallback",
         timeout_reply="timeout",
         failure_alerter=_fake_alerter,
-        checkpointer=create_in_memory_checkpointer(),
     )
 
     graph = build_customer_agent_graph(dependencies)

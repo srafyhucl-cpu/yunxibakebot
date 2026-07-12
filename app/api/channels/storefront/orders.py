@@ -2,15 +2,22 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
-from app.api.channels.storefront._user import require_storefront_user_id
+from app.api.channels.storefront._user import (
+    authenticate_storefront_request,
+    require_storefront_user_id,
+)
 from app.service.order import OrderApplicationService
 
 
 def create_storefront_orders_router(service: OrderApplicationService) -> APIRouter:
     """创建前台订单公开路由。"""
-    router = APIRouter(prefix="/api/v1/miniapp/orders", tags=["miniapp-orders"])
+    router = APIRouter(
+        prefix="/api/v1/miniapp/orders",
+        tags=["miniapp-orders"],
+        dependencies=[Depends(authenticate_storefront_request)],
+    )
 
     @router.post("")
     async def create_order(

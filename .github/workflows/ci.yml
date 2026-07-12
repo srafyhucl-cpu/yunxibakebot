@@ -34,11 +34,6 @@ jobs:
 
       - name: Run ruff check
         run: ruff check app/ scripts/
-        continue-on-error: true
-
-      - name: Run mypy type check
-        run: mypy app/ --config-file=mypy.ini
-        continue-on-error: true
 
   test:
     name: Unit Tests
@@ -96,10 +91,9 @@ jobs:
         run: |
           cp .env.example .env
           mkdir -p data
-          touch data/embeddings.pkl
 
       - name: Seed Knowledge Database
-        run: python scripts/seed_knowledge.py
+        run: python scripts/seed_baseline_knowledge.py --db-path data/bot.db --apply
 
       - name: Start FastAPI Server
         run: |
@@ -116,13 +110,14 @@ jobs:
           exit 1
 
       - name: Run Smoke Test
-        run: python scripts/smoke_test.py
+        run: python scripts/smoke_test.py --http-only
 
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [smoke]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # R4-B 发布恢复门禁完成前，CI 不得自动触达生产。
+    if: false
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1

@@ -1,7 +1,7 @@
 """员工助手 LangGraph 节点。"""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 import json
 
 from app.models.employee_agent import AgentIntent, AgentPlan, ToolResult
@@ -22,6 +22,7 @@ from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 UNSUPPORTED_REPLY = (
     "我还没理解这个问题。你可以直接问订单、商品库存、配送规则、待人工或系统状态。"
 )
+EMPLOYEE_TOOL_CALL_ID_PREFIX = "employee"
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ class EmployeeGraphDependencies:
     status_tool_service: Any
     order_lookup_service: Any = None
     planner: EmployeeAgentPlanner | None = None
+    trace_sink: Any | None = None
 
 
 class EmployeeAgentNodes:
@@ -42,6 +44,7 @@ class EmployeeAgentNodes:
         self._dependencies = dependencies
         self._planner = dependencies.planner or EmployeeAgentPlanner()
         self._tools_by_name: dict[str, Any] | None = None
+        self._tool_node: Any | None = None
 
     async def load_employee_context(
         self,
@@ -164,20 +167,62 @@ class EmployeeAgentNodes:
         tool = self._tools().get(tool_name)
         if tool is None:
             return ToolResult(ok=False, summary=UNSUPPORTED_REPLY)
-        raw_result = await tool.ainvoke(_tool_args(tool_name, query, plan))
-        return tool_result_from_payload(_json_payload(raw_result))
+        return await self._execute_with_tool_node(
+            tool_name,
+            _tool_args(tool_name, query, plan),
+        )
 
     async def _run_order_tool(self, query: str, plan: AgentPlan) -> ToolResult:
         service = self._dependencies.order_lookup_service
         if service is not None and plan.query_plan is not None:
-            return await service.answer_agent_query(query, plan.query_plan)
+            return cast(
+                ToolResult,
+                await service.answer_agent_query(query, plan.query_plan),
+            )
         tool = self._tools().get("order_dynamic_query")
         if tool is None:
             return ToolResult(ok=False, summary=UNSUPPORTED_REPLY)
-        raw_result = await tool.ainvoke(
-            {"query": query, "limit": DEFAULT_EMPLOYEE_TOOL_LIMIT}
+        return await self._execute_with_tool_node(
+            "order_dynamic_query",
+            {"query": query, "limit": DEFAULT_EMPLOYEE_TOOL_LIMIT},
         )
-        return tool_result_from_payload(_json_payload(raw_result))
+
+    async def _execute_with_tool_node(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> ToolResult:
+        """通过 LangGraph 标准节点执行一个已选工具。"""
+        from langchain_core.messages import AIMessage
+
+        result = await self._tool_node_instance().ainvoke(
+            {
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {
+                                "name": tool_name,
+                                "args": arguments,
+                                "id": f"{EMPLOYEE_TOOL_CALL_ID_PREFIX}-{tool_name}",
+                                "type": "tool_call",
+                            }
+                        ],
+                    )
+                ]
+            }
+        )
+        messages = result.get("messages", [])
+        if not messages:
+            return ToolResult(ok=False, summary=UNSUPPORTED_REPLY)
+        return tool_result_from_payload(_json_payload(messages[-1].content))
+
+    def _tool_node_instance(self) -> Any:
+        if self._tool_node is None:
+            from langgraph.prebuilt import ToolNode
+
+            self._tool_node = ToolNode(list(self._tools().values()))
+        return self._tool_node
 
     def _tools(self) -> dict[str, Any]:
         if self._tools_by_name is None:
@@ -201,7 +246,7 @@ def deterministic_reply(
     """生成员工助手确定性回复。"""
     mixed_reply = build_mixed_tool_reply(query, plan, tool_results)
     if mixed_reply is not None:
-        return mixed_reply
+        return cast(str, mixed_reply)
     lines = [result.summary for result in tool_results if result.summary.strip()]
     if not lines:
         return UNSUPPORTED_REPLY
@@ -237,7 +282,7 @@ def _selected_tools(plan: AgentPlan) -> tuple[str, ...]:
     if plan.intent == AgentIntent.KNOWLEDGE_ANSWER:
         return ("knowledge_answer",)
     if plan.intent in (AgentIntent.OPS_QUERY, AgentIntent.MULTI_TOOL):
-        return plan.tools
+        return cast(tuple[str, ...], plan.tools)
     return ()
 
 

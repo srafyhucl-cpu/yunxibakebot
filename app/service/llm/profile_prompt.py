@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from app.models.customer_profile import CustomerProfile
+from app.service.privacy_redaction import redact_external_text
 
 PROFILE_EMPTY_SECTION = ""
 
@@ -41,7 +42,9 @@ def render_customer_profile(profile: CustomerProfile | None) -> str:
 
     if not lines:
         return PROFILE_EMPTY_SECTION
-    return "## 顾客档案\n" + "\n".join(f"- {line}" for line in lines) + "\n"
+    return redact_external_text(
+        "## 顾客档案\n" + "\n".join(f"- {line}" for line in lines) + "\n"
+    )
 
 
 def _render_json_value(raw_json: str) -> str:

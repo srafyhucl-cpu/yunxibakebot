@@ -489,7 +489,7 @@ START
 
 - `load_session_context` 复用既有 `prepare_ai_conversation_messages`，保持 RAG、会话摘要、客户画像、多模态图片和 context budget 观测。
 - `model_with_tools` 复用既有 `request_llm_choice`，保持 MiMo/视觉模型选择、LLM 失败兜底和告警逻辑。
-- `execute_tools` 使用阶段 2 的 LangChain `StructuredTool` 注册表执行客户工具，并继续按 OpenAI tool message 格式追加 assistant/tool 消息。
+- `execute_tools` 使用阶段 2 的 LangChain `StructuredTool` 注册表和 `ToolNode` 执行客户工具；graph state 使用 LangChain `BaseMessage`，只在外部边界转换消息格式。
 - `transfer_to_human` 在 LangChain tool context 中接回 `request_human_transfer`，保持转人工状态更新和摘要策略。
 - `tool_round_limit` 保留客户工具轮次限制和 `llm_failure_reason=tool_round_limit` 观测。
 - `record_trace` 保留工具输出进入 `guard_source_text` 的事实保护输入。

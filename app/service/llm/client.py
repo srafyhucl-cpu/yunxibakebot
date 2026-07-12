@@ -1,16 +1,11 @@
 """
 MiMo / DeepSeek API 调用层。
 
-封装 OpenAI SDK，提供异步聊天补全接口。
-主力使用小米 MiMo API（兼容 OpenAI 格式），
-DeepSeek 配置保留但已废弃。
+仅封装 OpenAI SDK 的 MiMo ASR 窄适配。
+文本模型调用统一由 LangChain model registry 提供。
 
 所有 LLM 调用异常统一抛出 LLMError，由上层处理降级兜底。
 """
-
-from collections.abc import Sequence
-
-from openai.types.chat import ChatCompletion
 
 import httpx
 from openai import AsyncOpenAI
@@ -21,12 +16,8 @@ from app.logger import setup_logger
 
 logger = setup_logger()
 
-# 聊天补全接口的默认 token 上限
-DEFAULT_CHAT_MAX_TOKENS = 2048
-
 # 全局单例客户端
 _mimo_client: AsyncOpenAI | None = None
-_deepseek_client: AsyncOpenAI | None = None
 
 
 def get_mimo_client() -> AsyncOpenAI:
@@ -43,61 +34,6 @@ def get_mimo_client() -> AsyncOpenAI:
             default_headers={"api-key": settings.MIMO_API_KEY},
         )
     return _mimo_client
-
-
-def get_deepseek_client() -> AsyncOpenAI:
-    """获取或初始化 DeepSeek 异步客户端（单例模式）。"""
-    global _deepseek_client
-    if _deepseek_client is None:
-        _deepseek_client = AsyncOpenAI(
-            api_key=settings.DEEPSEEK_API_KEY,
-            base_url=settings.DEEPSEEK_BASE_URL,
-            timeout=settings.DEEPSEEK_TIMEOUT_SECONDS,
-            http_client=httpx.AsyncClient(trust_env=False),
-        )
-    return _deepseek_client
-
-
-async def chat_completion(
-    messages: Sequence[dict],
-    tools: list | None = None,
-    temperature: float = 0.7,
-    max_tokens: int = DEFAULT_CHAT_MAX_TOKENS,
-    model: str = "",
-) -> ChatCompletion:
-    """
-    调用聊天补全接口（根据模型自动路由 MiMo 或 DeepSeek）。
-
-    参数：
-        messages: 消息列表（system + user + assistant + tool）
-        tools: Function Calling 工具定义
-        model: 可选模型名（为空则使用默认 DEEPSEEK_MODEL，多模态场景传 VISION 模型）
-    返回：
-        ChatCompletion SDK 原生响应对象
-    异常：
-        LLMError: API 调用失败时抛出
-    """
-    resolved_model = model or settings.DEEPSEEK_MODEL
-    is_mimo = "mimo" in resolved_model.lower()
-    client = get_mimo_client() if is_mimo else get_deepseek_client()
-
-    kwargs: dict = {
-        "model": resolved_model,
-        "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    if tools:
-        kwargs["tools"] = tools
-
-    try:
-        response = await client.chat.completions.create(**kwargs)
-    except Exception as exc:
-        provider = "MiMo" if is_mimo else "DeepSeek"
-        logger.error("%s API 调用失败(model=%s): %s", provider, resolved_model, exc)
-        raise LLMError(f"{provider} API 调用失败({resolved_model})") from exc
-
-    return response
 
 
 async def asr_transcribe(

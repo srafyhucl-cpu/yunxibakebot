@@ -30,6 +30,13 @@ class CustomerToolContext:
     session: Session | None = None
     knowledge_retriever: Any = None
     youzan_client: Any = None
+    order_repo: Any = None
+    config_repo: Any = None
+    product_repo: Any = None
+    knowledge_product_repo: Any = None
+    analytics_repo: Any = None
+    history_repo: Any = None
+    embedding_searcher: Any = None
     transfer_handler: Any = None
 
 
@@ -129,6 +136,8 @@ def _build_order_info_tool(context: CustomerToolContext, structured_tool: Any) -
             context.knowledge_retriever,
             youzan_client=context.youzan_client,
             order_no=order_no,
+            order_repo=context.order_repo,
+            config_repo=context.config_repo,
         )
 
     return structured_tool.from_function(
@@ -154,6 +163,11 @@ def _build_product_info_tool(context: CustomerToolContext, structured_tool: Any)
             youzan_client=context.youzan_client,
             product_name=product_name,
             product_id=product_id,
+            product_repo=context.product_repo,
+            knowledge_product_repo=context.knowledge_product_repo,
+            analytics_repo=context.analytics_repo,
+            history_repo=context.history_repo,
+            embedding_searcher=context.embedding_searcher,
         )
 
     return structured_tool.from_function(
@@ -177,6 +191,8 @@ def _build_logistics_info_tool(
             context.knowledge_retriever,
             youzan_client=context.youzan_client,
             order_no=order_no,
+            order_repo=context.order_repo,
+            config_repo=context.config_repo,
         )
 
     return structured_tool.from_function(

@@ -73,6 +73,8 @@ SCHEMA_STATEMENTS: list[str] = [
         bot_type TEXT NOT NULL DEFAULT '',
         audience TEXT NOT NULL DEFAULT 'all',
         query TEXT NOT NULL DEFAULT '',
+        query_hash TEXT NOT NULL DEFAULT '',
+        query_category TEXT NOT NULL DEFAULT '',
         retrieval_mode TEXT NOT NULL DEFAULT '',
         matched_entry_ids_json TEXT NOT NULL DEFAULT '[]',
         matched_titles_json TEXT NOT NULL DEFAULT '[]',
@@ -116,6 +118,12 @@ SCHEMA_STATEMENTS: list[str] = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(session_id)",
     "CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)",
+    """CREATE TABLE IF NOT EXISTS payment_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL UNIQUE REFERENCES orders(id),
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_payment_transactions_order ON payment_transactions(order_id)",
     # 小程序订单状态事件表
     """CREATE TABLE IF NOT EXISTS order_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -22,9 +22,10 @@ class CustomerAgentState(TypedDict, total=False):
     image_base64: str | None
     customer_profile: CustomerProfile | None
     memory_block: CustomerMemoryBlock
-    messages: list[dict]
+    messages: list[Any]
     tool_context: ToolExecutionContext
     tools_by_name: dict[str, Any]
+    tool_node: Any
     has_image: bool
     fallback_reply: str
     timeout_reply: str

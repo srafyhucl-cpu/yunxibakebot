@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from app.models.content_change_history import SyncSource, WriteResult
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.service.youzan.product_sync import sync_product_to_rag
 
 
@@ -61,8 +62,8 @@ async def test_product_embedding_text_excludes_realtime_stock(db) -> None:
     }
 
     result = await sync_product_to_rag(
-        db,
-        retriever,
+        KnowledgeProductRepo(db),
+        retriever._vs,
         parsed,
         1,
         "在售, 草莓, 动物奶油",

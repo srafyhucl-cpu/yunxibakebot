@@ -4,15 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.exceptions import LLMError
 from app.service import chat_message_flow as chat_message_flow_module
 from app.service import chat_ai_loop as chat_ai_loop_module
-from app.service import chat_llm_request as chat_llm_request_module
 from app.service.agents.customer.support import build_transfer_handler
 from app.service.agents.customer.tool_messages import (
     ToolExecutionContext,
-    append_tool_result_messages,
-    parse_tool_arguments,
 )
 from app.models.message import Message, MessageRole
 from app.models.customer_profile import CustomerProfile
@@ -46,12 +42,9 @@ from app.service.chat_message_flow import (
 from app.service.conversation_summary_scheduler import (
     ConversationSummaryAfterReplyRequest,
 )
-from app.service.chat_llm_request import (
-    LLM_FAILURE_REASON_KEY,
-    LlmRequestContext,
-    request_llm_choice,
-    select_llm_model,
-)
+from app.service.llm.constants import LLM_FAILURE_REASON_KEY
+from app.service.llm import provider as provider_module
+from app.service.llm.provider import select_llm_model
 from app.service.chat_multimodal import (
     apply_multimodal_image_message,
     normalize_image_data_uri,
@@ -486,7 +479,7 @@ async def test_prepare_chat_context_uses_hybrid_direct_search_by_default(
 
     def fake_build_adapter(*args: object, **kwargs: object) -> object:
         adapter_calls.append((args, kwargs))
-        return object()
+        return _FakeLangChainRetrieverAdapter(_FakeLangChainRetriever([]))
 
     monkeypatch.setattr(
         "app.service.chat_context.rewrite_query",
@@ -508,8 +501,8 @@ async def test_prepare_chat_context_uses_hybrid_direct_search_by_default(
         history=history,
     )
 
-    assert knowledge.search_calls == [("rewritten:cake", 8)]
-    assert adapter_calls == []
+    assert knowledge.search_calls == []
+    assert adapter_calls == [((knowledge,), {"mode": "hybrid", "limit": 8})]
 
 
 @pytest.mark.asyncio
@@ -738,16 +731,12 @@ def test_select_llm_model_uses_default_for_text() -> None:
 def test_select_llm_model_uses_vision_and_chat_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        chat_llm_request_module.settings, "MIMO_VISION_MODEL", "vision-model"
-    )
-    monkeypatch.setattr(
-        chat_llm_request_module.settings, "MIMO_CHAT_MODEL", "chat-model"
-    )
+    monkeypatch.setattr(provider_module.settings, "MIMO_VISION_MODEL", "vision-model")
+    monkeypatch.setattr(provider_module.settings, "MIMO_CHAT_MODEL", "chat-model")
 
     assert select_llm_model(has_image=True) == "vision-model"
 
-    monkeypatch.setattr(chat_llm_request_module.settings, "MIMO_VISION_MODEL", "")
+    monkeypatch.setattr(provider_module.settings, "MIMO_VISION_MODEL", "")
     assert select_llm_model(has_image=True) == "chat-model"
 
 
@@ -885,106 +874,12 @@ async def test_run_ai_reply_loop_passes_customer_profile(
 
 
 @pytest.mark.asyncio
-async def test_request_llm_choice_records_latency_and_uses_selected_model(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, object] = {}
-
-    async def fake_llm_chat(
-        messages: list[dict], tools: list[dict], model: str
-    ) -> object:
-        captured["messages"] = messages
-        captured["tools"] = tools
-        captured["model"] = model
-        message = SimpleNamespace(content="ok")
-        choice = SimpleNamespace(message=message, finish_reason="stop")
-        return SimpleNamespace(choices=[choice])
-
-    async def fake_alerter(message: str) -> None:
-        captured["alert"] = message
-
-    monkeypatch.setattr(chat_llm_request_module, "llm_chat", fake_llm_chat)
-    monkeypatch.setattr(
-        chat_llm_request_module.settings, "MIMO_VISION_MODEL", "vision-model"
-    )
-    timing: dict[str, int] = {}
-    messages = [{"role": "user", "content": "hello"}]
-
-    result = await request_llm_choice(
-        LlmRequestContext(
-            messages=messages,
-            timing=timing,
-            first_llm_started_at=None,
-            has_image=True,
-            fallback_reply="fallback",
-            failure_alerter=fake_alerter,
-        )
-    )
-
-    assert captured["messages"] == messages
-    assert captured["model"] == "vision-model"
-    assert result.message.content == "ok"
-    assert result.fallback_reply is None
-    assert isinstance(timing["llm_ms"], int)
-
-
-@pytest.mark.asyncio
-async def test_request_llm_choice_returns_fallback_on_llm_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    alerts: list[str] = []
-
-    async def fake_llm_chat(*args: object, **kwargs: object) -> object:
-        raise LLMError("boom")
-
-    async def fake_alerter(message: str) -> None:
-        alerts.append(message)
-
-    monkeypatch.setattr(chat_llm_request_module, "llm_chat", fake_llm_chat)
-    timing: dict[str, object] = {}
-
-    result = await request_llm_choice(
-        LlmRequestContext(
-            messages=[{"role": "user", "content": "hello"}],
-            timing=timing,
-            first_llm_started_at=1.0,
-            has_image=False,
-            fallback_reply="fallback",
-            failure_alerter=fake_alerter,
-        )
-    )
-
-    assert result.choice is None
-    assert result.message is None
-    assert result.fallback_reply == "fallback"
-    assert result.first_llm_started_at == 1.0
-    assert timing[LLM_FAILURE_REASON_KEY] == "llm_api_error"
-    assert alerts == ["LLMError: chat.py handle_message 返回兜底回复"]
-
-
-def test_parse_tool_arguments_rejects_invalid_json() -> None:
-    assert parse_tool_arguments("search_knowledge", '{"query": "cake"}') == {
-        "query": "cake"
-    }
-    assert parse_tool_arguments("search_knowledge", "{bad-json") == {}
-    assert parse_tool_arguments("search_knowledge", '["not", "object"]') == {}
-
-
-@pytest.mark.asyncio
-async def test_transfer_handler_appends_tool_result_message(
+async def test_transfer_handler_returns_canonical_tool_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     transfer_mgr = _FakeTransferManager()
     session_repo = _FakeSessionRepo()
     session = Session(id="session-1", channel="youzan", user_id="buyer-1")
-    messages: list[dict] = []
-    tool_call = SimpleNamespace(
-        id="tool-1",
-        function=SimpleNamespace(
-            name="transfer_to_human",
-            arguments='{"reason": "need staff"}',
-        ),
-    )
 
     async def fake_summary(reason: str, history_text: str) -> str:
         return f"客户请求人工接待：{reason}"
@@ -993,10 +888,6 @@ async def test_transfer_handler_appends_tool_result_message(
         "app.service.chat_transfer.build_transfer_summary", fake_summary
     )
 
-    tool_args = parse_tool_arguments(
-        tool_call.function.name,
-        tool_call.function.arguments,
-    )
     tool_context = ToolExecutionContext(
         session=session,
         history_text="old dialog " * 100,
@@ -1005,21 +896,11 @@ async def test_transfer_handler_appends_tool_result_message(
         knowledge=object(),
         youzan_client=object(),
     )
-    result = await build_transfer_handler(tool_context)(tool_args["reason"])
-    append_tool_result_messages(
-        messages,
-        tool_call,
-        tool_call.function.name,
-        tool_args,
-        result,
-    )
+    result = await build_transfer_handler(tool_context)("need staff")
 
     assert transfer_mgr.calls[0].reason == "need staff"
     assert session_repo.updated == [("session-1", SessionStatus.TRANSFER_PENDING)]
-    assert messages[0]["tool_calls"][0]["function"]["name"] == "transfer_to_human"
-    assert messages[1]["role"] == "tool"
-    assert messages[1]["tool_call_id"] == "tool-1"
-    assert '"status": "success"' in messages[1]["content"]
+    assert '"status": "success"' in result
 
 
 @pytest.mark.asyncio

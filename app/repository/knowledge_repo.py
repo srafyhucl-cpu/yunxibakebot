@@ -37,14 +37,15 @@ KNOWLEDGE_INSERT_SQL = (
     ") VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 RETRIEVAL_LOG_COLUMNS = (
-    "id, bot_type, audience, query, retrieval_mode, matched_entry_ids_json, "
-    "matched_titles_json, result_count, fallback_reason, created_at"
+    "id, bot_type, audience, query, query_hash, query_category, retrieval_mode, "
+    "matched_entry_ids_json, matched_titles_json, result_count, fallback_reason, "
+    "created_at"
 )
 RETRIEVAL_LOG_INSERT_SQL = (
     "INSERT INTO knowledge_retrieval_logs ("
-    "bot_type, audience, query, retrieval_mode, matched_entry_ids_json, "
-    "matched_titles_json, result_count, fallback_reason"
-    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "bot_type, audience, query, query_hash, query_category, retrieval_mode, "
+    "matched_entry_ids_json, matched_titles_json, result_count, fallback_reason"
+    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 
@@ -330,7 +331,9 @@ class KnowledgeRepo(BaseRepository):
             (
                 log_entry.bot_type,
                 log_entry.audience,
-                log_entry.query,
+                "",
+                log_entry.query_hash,
+                log_entry.query_category,
                 log_entry.retrieval_mode,
                 json.dumps(log_entry.matched_entry_ids, ensure_ascii=False),
                 json.dumps(log_entry.matched_titles, ensure_ascii=False),

@@ -20,6 +20,7 @@ from app.service.wecom.intelligent_bot_ops_tools import WeComBotOpsToolService
 from app.service.wecom.intelligent_bot_plugin import WeComBotPluginService
 from app.service.wecom.intelligent_bot_status_tools import WeComBotStatusToolService
 from app.service.wecom.intelligent_bot_tools import WeComBotBusinessToolService
+from app.service.wecom.employee_authorization import EmployeeActorAuthorizer
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 logger = setup_logger()
@@ -69,6 +70,7 @@ def _build_callback_service(
             ops_tool_service=operations_tool_service,
             status_tool_service=status_service,
             employee_agent_service=agent_service,
+            actor_authorizer=EmployeeActorAuthorizer(),
         ),
     )
 
@@ -96,6 +98,8 @@ def _register_callback_routes(
         nonce: str,
         echostr: str,
     ) -> PlainTextResponse:
+        if not callback_service.is_ready:
+            return PlainTextResponse("配置未就绪", status_code=503)
         try:
             plaintext = callback_service.verify_url(
                 msg_signature=msg_signature,
@@ -113,6 +117,8 @@ def _register_callback_routes(
 
     @router.post("/callback")
     async def receive_callback(request: Request) -> Response:
+        if not callback_service.is_ready:
+            return PlainTextResponse("配置未就绪", status_code=503)
         query = request.query_params
         try:
             payload = await request.json()

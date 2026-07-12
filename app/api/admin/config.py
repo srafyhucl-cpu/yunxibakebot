@@ -11,7 +11,6 @@ import json
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.api.admin import verify_token
-from app.config import settings
 from app.service.admin import AdminService
 
 

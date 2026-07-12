@@ -95,7 +95,7 @@ BUSINESS_CONTRACT_LABELS: tuple[tuple[str, str], ...] = (
 )
 
 READINESS_ACTIONS = {
-    "admin_token_configured": "设置非默认 ADMIN_API_TOKEN。",
+    "admin_token_configured": "设置非默认 ADMIN_API_TOKEN，并设置 ADMIN_SESSION_SECRET。",
     "mimo_api_key_configured": "设置 MIMO_API_KEY。",
     "database_path_exists": "确认 DB_PATH 指向生产数据库文件。",
     "database_schema_ready": "先查看 recovery_plan 或运行 scripts/apply_migrations.py dry-run；确认目标库路径后再 --apply。",
@@ -118,6 +118,7 @@ READINESS_ACTIONS = {
     "wecom_intelligent_bot_callback_token_configured": "设置 WECOM_INTELLIGENT_BOT_TOKEN，或复用 WECOM_TOKEN。",
     "wecom_intelligent_bot_encoding_aes_key_configured": "设置 WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY，或复用 WECOM_ENCODING_AES_KEY。",
     "handoff_staff_userid_ready": "设置 WECOM_STAFF_ID 或 WECOM_KF_SERVICER_USERID。",
+    "wecom_employee_auth_ready": "生产必须开启 WECOM_EMPLOYEE_AUTH_REQUIRED，并配置员工用户白名单和企业 ID。",
     "admin_frontend_index_exists": "在 web/admin 执行 npm run build:production。",
     "admin_frontend_assets_exist": "在 web/admin 执行 npm run build:production。",
     "admin_frontend_observability_summary_built": "重新构建或同步最新 web/admin/dist。",
@@ -230,6 +231,15 @@ def build_readiness_preflight_checks(
         checks["database_schema_ready"] = not get_missing_database_tables(database_path)
     if index_path is not None:
         checks["embedding_index_path_exists"] = embedding_index_files_exist(index_path)
+    if any(
+        str(value).strip()
+        for value in (settings.WECOM_TOKEN, settings.WECOM_INTELLIGENT_BOT_TOKEN)
+    ):
+        checks["wecom_employee_auth_ready"] = (
+            settings.WECOM_EMPLOYEE_AUTH_REQUIRED
+            and bool(settings.WECOM_EMPLOYEE_ALLOWED_USERS.strip())
+            and bool(settings.WECOM_EMPLOYEE_CORP_ID.strip())
+        )
     return [
         PreflightCheck(
             key=key,

@@ -2,15 +2,22 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
-from app.api.channels.storefront._user import require_storefront_user_id
+from app.api.channels.storefront._user import (
+    authenticate_storefront_request,
+    require_storefront_user_id,
+)
 from app.service.conversation import StorefrontConversationService
 
 
 def create_storefront_chat_router(service: StorefrontConversationService) -> APIRouter:
     """创建前台客服消息路由。"""
-    router = APIRouter(prefix="/api/v1/miniapp/chat", tags=["miniapp-chat"])
+    router = APIRouter(
+        prefix="/api/v1/miniapp/chat",
+        tags=["miniapp-chat"],
+        dependencies=[Depends(authenticate_storefront_request)],
+    )
 
     @router.post("/messages")
     async def send_message(

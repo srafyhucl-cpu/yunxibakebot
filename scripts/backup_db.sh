@@ -69,6 +69,6 @@ else
     exit 3
 fi
 
-# ── 旧备份清理（保留最近 72 小时） ──
-find "$BACKUP_DIR" -name "bot_backup_*.db" -mtime +3 -delete 2>/dev/null || true
-log_info "已清理 72 小时前的旧备份"
+# ── 旧备份保留 ──
+# 备份属于受控恢复资产，不在应用脚本中批量删除；按隐私保留策略由运维逐个审核并清理。
+log_info "备份保留策略: 30 天；过期文件由运维按单文件路径审核清理"

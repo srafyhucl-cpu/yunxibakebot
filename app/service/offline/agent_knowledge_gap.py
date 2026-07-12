@@ -9,11 +9,15 @@ from app.models.conversation_review import ConversationReview
 from app.models.knowledge_gap import KnowledgeGap, KnowledgeGapCreate
 from app.repository.knowledge_gap_repo import KnowledgeGapRepo
 from app.repository.message_repo import MessageRepo
-from app.service.llm.client import chat_completion as llm_chat
+from app.service.agents.llm import get_langchain_chat_model
 from app.service.offline.agent_shared import format_dialog
 from app.service.offline.json_utils import parse_json_object
 from app.service.offline.model_selection import select_offline_gap_model
 from app.service.offline.quality_signals import GapSignal, extract_gap_signals
+from app.service.privacy_redaction import redact_external_text
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -24,6 +28,9 @@ KNOWLEDGE_GAP_SYSTEM_PROMPT = (
     '{"question_norm": "归一化问题", "proposed_answer": "候选答案"}。'
     "只在知识库可能缺失时输出具体问题；如果没有明显缺口，question_norm 为空字符串。"
     "候选答案必须保守表达，等待人工审核，不要编造价格、库存或配送承诺。"
+)
+KNOWLEDGE_GAP_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
+    [("system", "{system_prompt}"), ("user", "{user_content}")]
 )
 
 
@@ -88,21 +95,31 @@ class KnowledgeGapAgent:
         review: ConversationReview,
         messages: list,
     ) -> ParsedKnowledgeGap:
-        response = await llm_chat(
-            [
-                {"role": "system", "content": KNOWLEDGE_GAP_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": _build_gap_input(review, messages),
-                },
-            ],
-            tools=None,
-            temperature=0,
-            max_tokens=512,
-            model=self._reviewer_model,
+        content = await _invoke_gap_chain(
+            model_name=self._reviewer_model,
+            user_content=_build_gap_input(review, messages),
         )
-        content = response.choices[0].message.content or "{}"
         return _parse_gap_json(content)
+
+
+async def _invoke_gap_chain(*, model_name: str, user_content: str) -> str:
+    """通过统一 LangChain Runnable 生成知识缺口候选。"""
+    provider = "mimo" if "mimo" in model_name.lower() else "deepseek"
+    try:
+        model = get_langchain_chat_model(
+            provider=provider,
+            model=model_name,
+            temperature=0,
+        ).bind(max_tokens=512)
+        chain = KNOWLEDGE_GAP_PROMPT_TEMPLATE | model | StrOutputParser()
+        return await chain.ainvoke(
+            {
+                "system_prompt": KNOWLEDGE_GAP_SYSTEM_PROMPT,
+                "user_content": redact_external_text(user_content),
+            }
+        )
+    except Exception as exc:
+        raise LLMError("知识缺口 LLM 调用失败") from exc
 
 
 def _build_gap_input(review: ConversationReview, messages: list) -> str:

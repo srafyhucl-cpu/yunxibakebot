@@ -36,9 +36,12 @@ class ConfigRepo(BaseRepository):
         if not raw:
             return []
         try:
-            return json.loads(raw)
+            parsed = json.loads(raw)
         except json.JSONDecodeError:
             return []
+        if not isinstance(parsed, list):
+            return []
+        return [item for item in parsed if isinstance(item, str)]
 
     async def set_list(self, key: str, items: list[str]) -> None:
         """将字符串列表序列化为 JSON 后写入配置。"""

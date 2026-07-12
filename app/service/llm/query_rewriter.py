@@ -4,9 +4,12 @@
 把用户口语/指代不清的查询改写为独立完整的搜索语句。
 """
 
-from app.config import settings
 from app.logger import setup_logger
-from app.service.llm.client import get_deepseek_client
+from app.service.agents.llm import get_langchain_chat_model
+from app.service.privacy_redaction import redact_external_text
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -54,6 +57,8 @@ AI：好的，请问要几寸的呢？
 {history}
 当前用户输入：{user_query}"""
 
+REWRITE_PROMPT_TEMPLATE = ChatPromptTemplate.from_template(REWRITE_PROMPT)
+
 
 async def rewrite_query(user_query: str, history: str = "") -> str:
     """
@@ -68,21 +73,12 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
     if len(user_query) < 2:
         return user_query
 
-    client = get_deepseek_client()
-
-    prompt = REWRITE_PROMPT.format(
-        history=history or "无",
-        user_query=user_query,
-    )
-
     try:
-        response = await client.chat.completions.create(
-            model=settings.DEEPSEEK_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=QUERY_REWRITER_MAX_TOKENS,
-        )  # type: ignore[union-attr]
-        rewritten = (response.choices[0].message.content or "").strip()
+        rewritten = await _invoke_rewrite_chain(
+            history=history or "无",
+            user_query=user_query,
+        )
+        rewritten = rewritten.strip()
         # 清理可能的引用标记
         for ch in ['"', "'", "“", "”", "‘", "’"]:
             rewritten = rewritten.strip(ch)
@@ -94,3 +90,17 @@ async def rewrite_query(user_query: str, history: str = "") -> str:
     except Exception as exc:
         logger.warning("Query 改写跳过: %s", exc)
         return user_query
+
+
+async def _invoke_rewrite_chain(*, history: str, user_query: str) -> str:
+    """通过统一 LangChain Runnable 执行查询改写。"""
+    model = get_langchain_chat_model(provider="mimo", temperature=0.1).bind(
+        max_tokens=QUERY_REWRITER_MAX_TOKENS
+    )
+    chain = REWRITE_PROMPT_TEMPLATE | model | StrOutputParser()
+    return await chain.ainvoke(
+        {
+            "history": redact_external_text(history),
+            "user_query": redact_external_text(user_query),
+        }
+    )

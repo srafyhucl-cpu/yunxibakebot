@@ -19,7 +19,6 @@ class OrderEventRepo(BaseRepository):
                 event.created_at,
             ),
         )
-        await self._db.commit()
         return int(cursor.lastrowid)
 
     async def list_by_order(self, order_id: str) -> list[OrderEvent]:

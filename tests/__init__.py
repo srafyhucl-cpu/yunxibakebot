@@ -1,1 +1,1 @@
-"""Bakery Commerce Platform 测试包。"""
+"""项目测试包。"""

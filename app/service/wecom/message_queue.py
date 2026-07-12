@@ -12,10 +12,12 @@
     lifespan shutdown:   await wecom_queue.stop()
 """
 
-import asyncio
+import json
 from dataclasses import dataclass
 
+from app.database import db_session_scope
 from app.logger import setup_logger
+from app.repository.inbox_repo import InboxRepo
 from app.service.wecom.base_queue import BaseWeComMessageQueue
 from app.service.wecom.ump import parse_ump_tags
 
@@ -39,22 +41,20 @@ class WeComMessageQueue(BaseWeComMessageQueue[WeComIncomingMessage]):
 
     def __init__(self) -> None:
         super().__init__(QUEUE_MAX_SIZE, "企微消息队列")
+        self._persistent_mode = True
 
     async def enqueue(self, msg: WeComIncomingMessage) -> bool:
         """
         入队（非阻塞）。
         返回 True 表示入队成功，False 表示队列已满。
         """
-        try:
-            self._queue.put_nowait(msg)
-            return True
-        except asyncio.QueueFull:
-            logger.warning(
-                "企微消息队列已满（%d），丢弃消息 user=%s",
-                QUEUE_MAX_SIZE,
-                msg.external_user_id,
+        async with db_session_scope():
+            await InboxRepo().enqueue(
+                "wecom",
+                self._persistent_message_key(msg),
+                json.dumps(msg.__dict__, ensure_ascii=False),
             )
-            return False
+        return True
 
     async def _process_one(self, msg: WeComIncomingMessage) -> None:
         """
@@ -135,6 +135,24 @@ class WeComMessageQueue(BaseWeComMessageQueue[WeComIncomingMessage]):
 
     def _message_log_context(self, msg: WeComIncomingMessage) -> str:
         return f"user={msg.external_user_id} msg_id={msg.channel_msg_id}"
+
+    def _persistent_message_key(self, msg: WeComIncomingMessage) -> str:
+        return f"wecom:{msg.channel_msg_id}"
+
+    async def _claim_persisted_message(self) -> WeComIncomingMessage | None:
+        async with db_session_scope():
+            row = await InboxRepo().claim("wecom")
+        if row is None:
+            return None
+        return WeComIncomingMessage(**json.loads(row["payload_json"]))
+
+    async def _mark_persisted_processed(self, message_key: str) -> None:
+        async with db_session_scope():
+            await InboxRepo().mark_processed(message_key)
+
+    async def _mark_persisted_failed(self, message_key: str, error: Exception) -> None:
+        async with db_session_scope():
+            await InboxRepo().mark_failed(message_key, str(error))
 
 
 # ── 全局单例 ────────────────────────────────────────────────

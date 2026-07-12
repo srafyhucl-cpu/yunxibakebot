@@ -11,7 +11,10 @@ import pytest
 
 from app.models.employee_agent import AgentIntent, AgentPlan
 from app.service.agents.employee.graph import build_employee_agent_graph
-from app.service.agents.employee.nodes import EmployeeGraphDependencies
+from app.service.agents.employee.nodes import (
+    EmployeeAgentNodes,
+    EmployeeGraphDependencies,
+)
 from app.service.agents.employee.service import EmployeeAgentGraphService
 
 
@@ -61,6 +64,20 @@ class _FakeStatusToolService:
 
     async def summarize_offline_review(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "result": "离线复盘"}
+
+
+def test_employee_nodes_use_langgraph_tool_node() -> None:
+    from langgraph.prebuilt import ToolNode
+
+    nodes = EmployeeAgentNodes(
+        EmployeeGraphDependencies(
+            business_tool_service=_FakeBusinessToolService(),
+            ops_tool_service=_FakeOpsToolService(),
+            status_tool_service=_FakeStatusToolService(),
+        )
+    )
+
+    assert isinstance(nodes._tool_node_instance(), ToolNode)
 
 
 @pytest.mark.asyncio

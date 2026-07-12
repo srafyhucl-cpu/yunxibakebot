@@ -7,6 +7,7 @@ from typing import Any
 from app.service.chat_reply import clean_plain_text_reply
 from app.service.agents.employee.nodes import EmployeeGraphDependencies
 from app.service.agents.employee.service import EmployeeAgentGraphService
+from app.service.agents.trace_sink import AgentTraceSink
 from app.service.wecom.employee_agent_planner import EmployeeAgentPlanner
 
 
@@ -21,6 +22,7 @@ class EmployeeAgentService:
         status_tool_service: Any,
         order_lookup_service: Any = None,
         planner: EmployeeAgentPlanner | None = None,
+        trace_sink: AgentTraceSink | None = None,
     ) -> None:
         self._business_tool_service = business_tool_service
         self._ops_tool_service = ops_tool_service
@@ -34,6 +36,7 @@ class EmployeeAgentService:
                 status_tool_service=status_tool_service,
                 order_lookup_service=order_lookup_service,
                 planner=self._planner,
+                trace_sink=trace_sink,
             )
         )
 

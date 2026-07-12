@@ -2,9 +2,12 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
-from app.api.channels.storefront._user import require_storefront_user_id
+from app.api.channels.storefront._user import (
+    authenticate_storefront_request,
+    require_storefront_user_id,
+)
 from app.service.customer import CustomerGroupOperationsService
 
 
@@ -15,6 +18,7 @@ def create_storefront_group_registrations_router(
     router = APIRouter(
         prefix="/api/v1/miniapp/group-registrations",
         tags=["miniapp-group-registrations"],
+        dependencies=[Depends(authenticate_storefront_request)],
     )
 
     @router.post("")

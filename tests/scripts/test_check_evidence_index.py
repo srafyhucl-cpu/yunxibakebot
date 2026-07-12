@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 
 from scripts import check_evidence_index as evidence_check
 
@@ -24,7 +25,18 @@ def _valid_entry(entry_id: str = evidence_check.PREFLIGHT_CONTRACT_EVIDENCE_ID) 
     )
 
 
+def _write_referenced_files(tmp_path: Path) -> tuple[Path, Path]:
+    checker_path = tmp_path / "scripts" / "check_preflight_business_contracts.py"
+    report_path = tmp_path / "reports" / "preflight-contract-check-20260706-232901.json"
+    checker_path.parent.mkdir()
+    report_path.parent.mkdir()
+    checker_path.write_text("checker", encoding="utf-8")
+    report_path.write_text("report", encoding="utf-8")
+    return checker_path, report_path
+
+
 def test_complete_evidence_index_passes(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
     evidence_file = tmp_path / "evidence-index.md"
     evidence_file.write_text("# Evidence Index\n\n" + _valid_entry(), encoding="utf-8")
 
@@ -36,6 +48,7 @@ def test_complete_evidence_index_passes(tmp_path: Path) -> None:
 
 
 def test_missing_required_field_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
     evidence_file = tmp_path / "evidence-index.md"
     evidence_file.write_text(
         "# Evidence Index\n\n" + _valid_entry().replace("- command:", "- missing:"),
@@ -49,6 +62,7 @@ def test_missing_required_field_fails(tmp_path: Path) -> None:
 
 
 def test_invalid_result_and_sensitive_flag_fail(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
     evidence_file = tmp_path / "evidence-index.md"
     evidence_file.write_text(
         "# Evidence Index\n\n"
@@ -68,6 +82,7 @@ def test_invalid_result_and_sensitive_flag_fail(tmp_path: Path) -> None:
 def test_preflight_contract_entry_requires_checker_and_report_refs(
     tmp_path: Path,
 ) -> None:
+    _write_referenced_files(tmp_path)
     evidence_file = tmp_path / "evidence-index.md"
     evidence_file.write_text(
         "# Evidence Index\n\n"
@@ -97,6 +112,7 @@ def test_preflight_contract_entry_requires_checker_and_report_refs(
 
 
 def test_duplicate_evidence_id_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
     evidence_file = tmp_path / "evidence-index.md"
     evidence_file.write_text(
         "# Evidence Index\n\n" + _valid_entry() + "\n" + _valid_entry(),
@@ -110,6 +126,7 @@ def test_duplicate_evidence_id_fails(tmp_path: Path) -> None:
 
 
 def test_main_outputs_summary_and_json(tmp_path: Path, capsys) -> None:
+    checker_path, report_path = _write_referenced_files(tmp_path)
     evidence_file = tmp_path / "evidence-index.md"
     evidence_file.write_text("# Evidence Index\n\n" + _valid_entry(), encoding="utf-8")
 
@@ -122,3 +139,16 @@ def test_main_outputs_summary_and_json(tmp_path: Path, capsys) -> None:
     assert "evidence_index status=passed" in summary_output
     assert json_exit_code == 0
     assert '"status": "passed"' in json_output
+    assert '"verified_files": 2' in json_output
+    assert hashlib.sha256(checker_path.read_bytes()).hexdigest() in json_output
+    assert hashlib.sha256(report_path.read_bytes()).hexdigest() in json_output
+
+
+def test_missing_evidence_file_fails(tmp_path: Path) -> None:
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text("# Evidence Index\n\n" + _valid_entry(), encoding="utf-8")
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any("evidence path missing" in issue for issue in result.issues)

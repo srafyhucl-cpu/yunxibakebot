@@ -44,6 +44,12 @@ REQUIRED_DATABASE_TABLES = (
     "knowledge_gaps",
     "wecom_kf_sync_states",
     "wecom_kf_message_ledger",
+    "payment_transactions",
+    "order_events",
+    "miniapp_addresses",
+    "miniapp_address_audit",
+    "inbox_events",
+    "customer_consent_ledger",
 )
 REQUIRED_DATABASE_COLUMNS = {
     "knowledge_base": (
@@ -62,7 +68,8 @@ def build_readiness_checks() -> dict[str, bool]:
     embedding_index_path = resolve_runtime_path(settings.EMBEDDING_INDEX_DIR)
     checks = {
         "admin_token_configured": _is_configured_secret(settings.ADMIN_API_TOKEN)
-        and settings.ADMIN_API_TOKEN != DEFAULT_ADMIN_TOKEN,
+        and settings.ADMIN_API_TOKEN != DEFAULT_ADMIN_TOKEN
+        and _is_configured_secret(settings.ADMIN_SESSION_SECRET),
         "mimo_api_key_configured": _is_configured_secret(settings.MIMO_API_KEY),
         "database_path_exists": database_path.exists(),
         "database_schema_ready": _database_schema_ready(database_path),
@@ -228,7 +235,14 @@ def build_runtime_feature_flags(
     return {
         "reply_guard": settings.ENABLE_REPLY_GUARD,
         "customer_memory": settings.ENABLE_CUSTOMER_MEMORY,
-        "offline_review": settings.ENABLE_OFFLINE_REVIEW,
+        "offline_review": (
+            settings.ENABLE_OFFLINE_QA
+            or settings.ENABLE_OFFLINE_KNOWLEDGE_GAP
+            or settings.ENABLE_OFFLINE_MEMORY
+        ),
+        "offline_qa": settings.ENABLE_OFFLINE_QA,
+        "offline_knowledge_gap": settings.ENABLE_OFFLINE_KNOWLEDGE_GAP,
+        "offline_memory": settings.ENABLE_OFFLINE_MEMORY,
         "offline_review_running": offline_review_running,
         "hybrid_retrieval": settings.ENABLE_HYBRID_RETRIEVAL,
         "youzan_mock_mode": settings.YOUZAN_MOCK_MODE,

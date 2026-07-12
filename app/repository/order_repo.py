@@ -37,7 +37,6 @@ class OrderRepo(BaseRepository):
                 order.updated_at,
             ),
         )
-        await self._db.commit()
 
     async def list_by_user(self, user_id: str, *, limit: int = 50) -> list[Order]:
         """按用户读取订单。"""
@@ -67,7 +66,6 @@ class OrderRepo(BaseRepository):
             "UPDATE orders SET status = ?, updated_at = ? WHERE id = ?",
             (status, updated_at, order_id),
         )
-        await self._db.commit()
         return await self.get_order(order_id)
 
     async def update_payment(
@@ -78,8 +76,26 @@ class OrderRepo(BaseRepository):
             "UPDATE orders SET payment = ?, updated_at = ? WHERE id = ?",
             (payment, updated_at, order_id),
         )
-        await self._db.commit()
         return await self.get_order(order_id)
+
+    async def get_payment_transaction_order_id(self, transaction_id: str) -> str | None:
+        """按微信交易号读取已绑定的订单号。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT order_id FROM payment_transactions WHERE transaction_id = ? LIMIT 1",
+            (transaction_id,),
+        )
+        return str(rows[0]["order_id"]) if rows else None
+
+    async def claim_payment_transaction(
+        self, transaction_id: str, order_id: str, created_at: str
+    ) -> bool:
+        """原子认领微信交易号，防止交易号重复入账。"""
+        cursor = await self._db.execute(
+            "INSERT OR IGNORE INTO payment_transactions "
+            "(transaction_id, order_id, created_at) VALUES (?, ?, ?)",
+            (transaction_id, order_id, created_at),
+        )
+        return bool(cursor.rowcount == 1)
 
     async def list_orders(
         self,

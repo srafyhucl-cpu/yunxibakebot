@@ -49,29 +49,25 @@ class OrderCreationService:
             raise ValueError("订单商品不能为空")
         delivery = await self._schedule_service.build_delivery(payload)
         await self._inventory_service.reserve_inventory(order_items)
-        try:
-            order = await self._build_order(
-                order_items,
-                delivery=delivery,
-                payload=payload,
-                user_id=user_id,
-            )
-            await self._order_repo.create_order(order)
-            await self._timeline_service.record_event(
-                order_id=order.id,
-                status=OrderStatus.PENDING.value,
-                operator=f"miniapp:{user_id}",
-                note="用户提交订单",
-                created_at=order.created_at,
-            )
-            return {
-                "orderId": order.id,
-                "status": OrderStatus.PENDING.value,
-                "totalFen": self._total_fen(order_items),
-            }
-        except Exception:
-            await self._inventory_service.release_reserved_inventory(order_items)
-            raise
+        order = await self._build_order(
+            order_items,
+            delivery=delivery,
+            payload=payload,
+            user_id=user_id,
+        )
+        await self._order_repo.create_order(order)
+        await self._timeline_service.record_event(
+            order_id=order.id,
+            status=OrderStatus.PENDING.value,
+            operator=f"miniapp:{user_id}",
+            note="用户提交订单",
+            created_at=order.created_at,
+        )
+        return {
+            "orderId": order.id,
+            "status": OrderStatus.PENDING.value,
+            "totalFen": self._total_fen(order_items),
+        }
 
     async def _build_order(
         self,

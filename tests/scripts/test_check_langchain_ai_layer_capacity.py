@@ -89,6 +89,15 @@ def test_capacity_report_requires_trace_when_probe_skipped() -> None:
     assert "fix_agent_trace_probe_before_capacity_gate" in report["missing_actions"]
 
 
+def test_local_probe_latency_is_observational_when_production_is_skipped() -> None:
+    report = capacity.build_capacity_report(
+        run_trace_probe=False,
+        trace_input_path=Path("missing-trace.json"),
+    )
+
+    assert report["assertions"]["trace_probe.latency_within_limit"] is True
+
+
 def test_capacity_report_detects_cold_import_failure(
     monkeypatch,
     tmp_path: Path,

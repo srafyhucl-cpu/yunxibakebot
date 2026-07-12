@@ -328,7 +328,7 @@ async def run_phase_c() -> bool:
     reply_ok = bool(reply and len(reply) > 20)
     if reply_ok:
         _ok("assistant 已回复", f"长度 {len(reply)} 字")
-        print(f"\n              ── 回复内容前 200 字 ──")
+        print("\n              ── 回复内容前 200 字 ──")
         for line in reply[:200].splitlines():
             print(f"              {line}")
     else:
@@ -338,7 +338,7 @@ async def run_phase_c() -> bool:
         )
 
     # ══════════════════════════════════════════════════════════════════════════
-    print(f"\n  ── Run 2（重复推送同 item_id，期望 doc_keys 幂等不增）──")
+    print("\n  ── Run 2（重复推送同 item_id，期望 doc_keys 幂等不增）──")
     # ══════════════════════════════════════════════════════════════════════════
 
     _step("构造 Run 2 消息（新 buyer_id，同 item_id）")

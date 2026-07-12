@@ -8,6 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "build:staging": "vue-tsc --noEmit && vite build --mode staging",
     "build:production": "vue-tsc --noEmit && vite build --mode production",
+    "e2e": "playwright test",
     "preview": "vite preview",
     "check:decoration": "node scripts/check-decoration-editor.mjs",
     "check:addresses": "node scripts/check-addresses-page.mjs",
@@ -36,6 +37,7 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@types/node": "^24.3.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "typescript": "^5.9.2",

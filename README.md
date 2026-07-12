@@ -187,8 +187,8 @@ Bakery Commerce Platform 是一个面向烘焙门店经营场景的 Platform 主
 | **LangChain** | 1.x | 大模型调用、工具绑定、Retriever adapter、structured output |
 | **LangGraph** | 1.x | 客户机器人和员工助手 Agent 编排 |
 | **LangSmith** | 可选 | LangChain tracing，默认不在启动期加载 |
-| **DeepSeek API** | - | 大语言模型，提供对话能力 |
-| **Mimo API** | - | 客户多模态与员工 planner 模型服务 |
+| **MiMo API** | - | 默认文本、多模态、ASR 与员工 planner 模型服务 |
+| **DeepSeek API** | - | 显式配置时的兼容 fallback，不是默认 provider |
 | **SQLite** | 3.x | 本地数据库，存储会话、消息、知识库 |
 | **aiosqlite** | 0.19+ | 异步 SQLite 驱动 |
 | **Pydantic** | 2.x | 数据验证和设置管理 |
@@ -532,7 +532,7 @@ VITE_ADMIN_TOKEN=your-admin-token
 python -m uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
 
 # 生产模式
-python -m uvicorn app.main:app --host 0.0.0.0 --port 7001 --workers 4
+python -m uvicorn app.main:app --host 0.0.0.0 --port 7001 --workers 1
 ```
 
 启动后访问：
@@ -558,7 +558,7 @@ npm run dev
 ```bash
 # 健康检查
 curl http://127.0.0.1:7001/health
-# 预期返回：{"status":"ok","version":"0.1.0"}
+# 预期返回：{"status":"ok","version":"0.105.19"}
 
 # 测试 AI 对话
 curl -X POST http://127.0.0.1:7001/api/v1/chat \
@@ -581,7 +581,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/path/to/YunxiBakeBot
-ExecStart=/path/to/YunxiBakeBot/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 7001 --workers 4
+ExecStart=/path/to/YunxiBakeBot/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 7001 --workers 1
 Restart=always
 
 [Install]
@@ -626,11 +626,11 @@ sudo systemctl status yunxibakebot
 # 查看实时日志
 sudo journalctl -u yunxibakebot -f
 
-# 备份数据库
-cp data/bot.db data/bot.db.backup.$(date +%Y%m%d)
+# 创建并验证加密数据库备份（密钥放在仓外受控路径）
+python scripts/encrypted_backup.py --db data/bot.db --output reports/backups/bot.db.enc --key-file <external-32-byte-key-file>
 
-# 恢复数据库
-cp data/bot.db.backup.20260104 data/bot.db
+# 使用独立 round-trip 脚本验证恢复结果
+python scripts/verify_backup_restore.py --db data/bot.db --backup <backup-file> --restore <restore-target>
 
 # 重新检查并导入基础知识种子
 python scripts/seed_baseline_knowledge.py
@@ -669,7 +669,7 @@ Platform (repo: YunxiBakeBot)/
 │   │   ├── integrations/         # 微信支付等第三方适配
 │   │   ├── offline/              # 离线质检、知识缺口和记忆沉淀
 │   │   └── llm/                  # LLM 服务
-│   │       ├── client.py         # DeepSeek API 客户端
+│   │       ├── client.py         # LangChain provider/client 适配
 │   │       ├── functions.py      # Function Calling 分发器
 │   │       ├── prompt.py         # System Prompt 构建器
 │   │       ├── intent.py         # 意图识别器
@@ -963,8 +963,8 @@ sudo journalctl -u yunxibakebot -f
 # 查看资源占用
 top -p $(pgrep -f uvicorn)
 
-# 数据库备份
-cp data/bot.db data/bot.db.backup.$(date +%Y%m%d)
+# 数据库备份：使用 AES-256-GCM 封装，不直接复制 SQLite 文件
+python scripts/encrypted_backup.py --db data/bot.db --output reports/backups/bot.db.enc --key-file <external-32-byte-key-file>
 
 # 日志轮转
 sudo nano /etc/logrotate.d/yunxibakebot

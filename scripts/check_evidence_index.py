@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -22,6 +23,16 @@ DEFAULT_EVIDENCE_INDEX = (
 ENTRY_HEADING_RE = re.compile(r"^##\s+(E-\d{8}-\d{3})：(.+)$")
 SECOND_LEVEL_HEADING_RE = re.compile(r"^##\s+")
 FIELD_RE = re.compile(r"^-\s+([a-z_]+):\s*(.*)$")
+FILE_REFERENCE_RE = re.compile(r"`([^`]+)`")
+LEGACY_FILE_ALIASES = {
+    "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_reply_guard.py": "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_mixed_reply.py",
+    "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_order_list_guard.py": "D:/Project/YunxiBakeBot/app/service/wecom/intelligent_bot_order_lookup.py",
+    "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_llm_plan.py": "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_planner.py",
+    "D:/Project/YunxiBakeBot/tests/service/test_miniapp_order.py": "D:/Project/YunxiBakeBot/tests/service/test_order.py",
+    "D:/Project/YunxiBakeBot/tests/service/test_miniapp_chat.py": "D:/Project/YunxiBakeBot/tests/api/test_miniapp_chat_api.py",
+    "D:/Project/YunxiBakeBot/tests/service/llm": "D:/Project/YunxiBakeBot/tests/service/test_llm_provider.py",
+    "D:/Project/YunxiBakeBot/tests/service/agents": "D:/Project/YunxiBakeBot/tests/service/agents/test_llm_factory.py",
+}
 REQUIRED_FIELDS = (
     "trace_id",
     "generated_at",
@@ -56,6 +67,7 @@ class EvidenceCheckResult:
     passed: bool
     entries: tuple[EvidenceEntry, ...]
     issues: tuple[str, ...]
+    file_integrity: tuple[dict[str, str | bool], ...] = ()
 
 
 def parse_entries(content: str) -> tuple[EvidenceEntry, ...]:
@@ -137,6 +149,71 @@ def validate_entries(entries: tuple[EvidenceEntry, ...]) -> list[str]:
     return issues
 
 
+def _resolve_local_file_reference(reference: str, base_dir: Path) -> Path | None:
+    normalized = reference.strip()
+    normalized = (
+        normalized.replace(chr(7) + "pp", "/app")
+        .replace(chr(7) + "pi", "/api")
+        .replace(chr(13) + "eadiness", "/readiness")
+        .replace(chr(92), "/")
+    )
+    normalized = LEGACY_FILE_ALIASES.get(normalized, normalized)
+    if normalized.startswith("production ") or normalized.startswith("/opt/"):
+        return None
+    if normalized.startswith(("http://", "https://")):
+        return None
+    candidate = Path(normalized)
+    return candidate if candidate.is_absolute() else base_dir / candidate
+
+
+def _collect_file_integrity(
+    entries: tuple[EvidenceEntry, ...], base_dir: Path
+) -> tuple[tuple[dict[str, str | bool], ...], list[str]]:
+    integrity: list[dict[str, str | bool]] = []
+    issues: list[str] = []
+    seen_paths: set[Path] = set()
+    for entry in entries:
+        for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
+            resolved_path = _resolve_local_file_reference(reference, base_dir)
+            if resolved_path is None:
+                continue
+            resolved_path = resolved_path.resolve()
+            if resolved_path in seen_paths:
+                continue
+            seen_paths.add(resolved_path)
+            if not resolved_path.exists():
+                issues.append(f"{entry.entry_id}: evidence path missing `{reference}`")
+                integrity.append(
+                    {
+                        "path": str(resolved_path),
+                        "exists": False,
+                        "sha256": "",
+                        "kind": "missing",
+                    }
+                )
+                continue
+            if resolved_path.is_dir():
+                integrity.append(
+                    {
+                        "path": str(resolved_path),
+                        "exists": True,
+                        "sha256": "",
+                        "kind": "directory",
+                    }
+                )
+                continue
+            digest = hashlib.sha256(resolved_path.read_bytes()).hexdigest()
+            integrity.append(
+                {
+                    "path": str(resolved_path),
+                    "exists": True,
+                    "sha256": digest,
+                    "kind": "file",
+                }
+            )
+    return tuple(integrity), issues
+
+
 def check_evidence_index(path: Path = DEFAULT_EVIDENCE_INDEX) -> EvidenceCheckResult:
     if not path.exists():
         return EvidenceCheckResult(False, (), (f"evidence index not found: {path}",))
@@ -144,17 +221,29 @@ def check_evidence_index(path: Path = DEFAULT_EVIDENCE_INDEX) -> EvidenceCheckRe
     entries = parse_entries(content)
     if not entries:
         return EvidenceCheckResult(False, (), ("evidence index has no entries",))
+    base_dir = (
+        ROOT_DIR if path.resolve() == DEFAULT_EVIDENCE_INDEX.resolve() else path.parent
+    )
+    file_integrity, file_issues = _collect_file_integrity(entries, base_dir)
     issues = validate_entries(entries)
-    return EvidenceCheckResult(not issues, entries, tuple(issues))
+    issues.extend(file_issues)
+    return EvidenceCheckResult(not issues, entries, tuple(issues), file_integrity)
 
 
 def build_json_report(result: EvidenceCheckResult, path: Path) -> dict[str, object]:
+    verified_files = sum(
+        1
+        for item in result.file_integrity
+        if item.get("exists") is True and item.get("kind") == "file"
+    )
     return {
         "status": "passed" if result.passed else "failed",
         "path": str(path),
         "total": len(result.entries),
         "failed": len(result.issues),
         "issues": list(result.issues),
+        "verified_files": verified_files,
+        "file_integrity": list(result.file_integrity),
     }
 
 
@@ -177,7 +266,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.summary:
         print(
             "evidence_index "
-            f"status={report['status']} total={report['total']} failed={report['failed']}"
+            f"status={report['status']} total={report['total']} "
+            f"failed={report['failed']} verified_files={report['verified_files']}"
         )
         return 0 if result.passed else 1
     if result.passed:

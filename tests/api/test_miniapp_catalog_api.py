@@ -190,6 +190,11 @@ async def test_miniapp_product_image_proxy_fetches_configured_product_image(
         content_type="image/jpeg",
     )
     monkeypatch.setattr("app.service.catalog.application.AsyncClient", _FakeImageClient)
+    monkeypatch.setattr("app.config.settings.REMOTE_IMAGE_ALLOWED_HOSTS", "img.example")
+    monkeypatch.setattr(
+        "app.service.security.url_policy._resolve_addresses",
+        lambda _hostname, _port: {"93.184.216.34"},
+    )
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(

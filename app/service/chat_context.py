@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 
 from app.logger import setup_logger
-from app.config import RAG_RETRIEVAL_MODE_HYBRID, settings
+from app.config import settings
 from app.models.customer_profile import CustomerProfile
 from app.models.knowledge import KnowledgeEntry
 from app.models.session import Session
@@ -146,8 +146,6 @@ async def _search_knowledge_with_configured_mode(
     knowledge: KnowledgeRetriever,
     query: str,
 ) -> list[KnowledgeEntry]:
-    if settings.RAG_RETRIEVAL_MODE == RAG_RETRIEVAL_MODE_HYBRID:
-        return await knowledge.search(query, limit=KNOWLEDGE_SEARCH_LIMIT)
     retriever = build_langchain_knowledge_retriever_for_mode(
         knowledge,
         mode=settings.RAG_RETRIEVAL_MODE,

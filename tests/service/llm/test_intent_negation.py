@@ -4,8 +4,6 @@
 关键词拦截器不会误触发转人工或售后异常意图（L-7.1）。
 """
 
-import pytest
-
 from app.service.llm.intent import _match_clear_intent, _has_negation
 from app.service.llm.intent_types import IntentType
 

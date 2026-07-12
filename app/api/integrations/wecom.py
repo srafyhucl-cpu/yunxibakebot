@@ -50,7 +50,7 @@ async def verify_url(
     """验证回调 URL（企微 GET 请求）。自建应用与微信共用此验证。"""
     if not settings.WECOM_ENCODING_AES_KEY or not settings.WECOM_TOKEN:
         logger.error("WECOM_ENCODING_AES_KEY 或 WECOM_TOKEN 未配置")
-        return PlainTextResponse("配置错误", status_code=500)
+        return PlainTextResponse("配置未就绪", status_code=503)
 
     if not verify_signature(
         settings.WECOM_TOKEN, timestamp, nonce, echostr, msg_signature
@@ -78,7 +78,7 @@ async def _handle_kf_callback(msg: dict) -> None:
 async def receive_message(request: Request) -> PlainTextResponse:
     """接收企微推送的消息和事件（POST）。根据类型分流处理。"""
     if not settings.WECOM_ENCODING_AES_KEY or not settings.WECOM_TOKEN:
-        return PlainTextResponse("配置错误", status_code=500)
+        return PlainTextResponse("配置未就绪", status_code=503)
 
     raw = await request.body()
     xml_str = raw.decode("utf-8")

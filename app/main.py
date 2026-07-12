@@ -14,7 +14,7 @@ from pathlib import Path
 
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -22,6 +22,8 @@ from app.config import APP_VERSION, settings
 from app.database import init_db, db_session_scope
 from app.exceptions import AppError
 from app.logger import setup_logger
+from app.middleware.edge_protection import edge_protection_middleware
+from app.api.runtime import build_ready_payload
 from app.readiness import (
     DEFAULT_ADMIN_TOKEN,
     build_readiness_checks,
@@ -34,6 +36,7 @@ from app.repository.conversation_summary_repo import ConversationSummaryRepo
 from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.repository.customer_profile_repo import CustomerProfileRepo
+from app.repository.privacy_repo import PrivacyRepo
 from app.repository.knowledge_gap_repo import KnowledgeGapRepo
 from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
@@ -72,6 +75,11 @@ def _check_startup_safety() -> None:
     if settings.ADMIN_API_TOKEN == DEFAULT_ADMIN_TOKEN:
         logger.critical(
             "启动安全检查失败：ADMIN_API_TOKEN 仍为默认值，请在 .env 中设置强密码"
+        )
+        raise SystemExit(1)
+    if not settings.ADMIN_SESSION_SECRET:
+        logger.critical(
+            "启动安全检查失败：ADMIN_SESSION_SECRET 未设置，后台短会话无法安全签发"
         )
         raise SystemExit(1)
 
@@ -149,6 +157,7 @@ async def _init_lifespan_services(app: FastAPI) -> set[asyncio.Task[None]]:
 
     # 8. 启动向量同步任务
     await _startup_sync(services["knowledge_sync_service"], bg_tasks)
+    app.state.readiness_checks = build_readiness_checks()
 
     return bg_tasks
 
@@ -176,6 +185,7 @@ def _init_repositories() -> dict[str, object]:
         "webhook_event_repo": YouzanWebhookEventRepo(None),
         "analytics_repo": AnalyticsRepo(None),
         "customer_profile_repo": CustomerProfileRepo(None),
+        "privacy_repo": PrivacyRepo(None),
         "conversation_summary_repo": ConversationSummaryRepo(None),
         "conversation_review_repo": ConversationReviewRepo(None),
         "knowledge_gap_repo": KnowledgeGapRepo(None),
@@ -283,6 +293,10 @@ async def _shutdown_lifespan_services(
 
     await kf_queue.stop()
 
+    from app.api.integrations.youzan_webhook import stop_webhook_dispatchers
+
+    await stop_webhook_dispatchers()
+
     from app.service.offline.bootstrap import stop_offline_review_scheduler
     from app.service.ops import stop_session_idle_closer
 
@@ -298,6 +312,10 @@ async def _shutdown_lifespan_services(
 
     await close_wecom_client()
 
+    from app.service.agents.llm import close_langchain_chat_models
+
+    await close_langchain_chat_models()
+
     # 发送关闭通知
     await alert_service.alert(
         AlertLevel.INFO,
@@ -312,17 +330,13 @@ app = FastAPI(
     description="Platform 主仓：统一承载经营中枢、后台与渠道集成",
     version=APP_VERSION,
     lifespan=lifespan,
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if settings.ENABLE_API_DOCS else None,
 )
 
 # ── 静态文件 ──
 BASE_DIR = Path(__file__).resolve().parent
-ADMIN_DIST_DIR = BASE_DIR.parent / "web" / "admin" / "dist"
-ADMIN_DIST_ASSET_SUFFIXES = frozenset({".js", ".css"})
-ADMIN_DIST_SUMMARY_MARKERS = (
-    "/observability/summary",
-    "上线值守",
-    "慢 Webhook",
-)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
@@ -347,6 +361,9 @@ async def db_session_middleware(request: Request, call_next):
 
     async with db_session_scope():
         return await call_next(request)
+
+
+app.middleware("http")(edge_protection_middleware)
 
 
 # ── 全局异常处理器 ──
@@ -380,20 +397,10 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/ready")
-async def ready() -> dict:
-    checks = build_readiness_checks()
-    is_ready = all(checks.values())
-    offline_review_scheduler = getattr(app.state, "offline_review_scheduler", None)
-    offline_review_summary = (
-        offline_review_scheduler.get_last_summary()
-        if offline_review_scheduler is not None
-        else None
+async def ready(response: Response = None) -> dict:  # type: ignore[assignment]
+    return build_ready_payload(
+        app,
+        checks_builder=build_readiness_checks,
+        feature_builder=build_runtime_feature_flags,
+        response=response,
     )
-    return {
-        "status": "ready" if is_ready else "degraded",
-        "version": APP_VERSION,
-        "checks": checks,
-        "features": build_runtime_feature_flags(
-            bool(offline_review_summary and offline_review_summary.ran)
-        ),
-    }

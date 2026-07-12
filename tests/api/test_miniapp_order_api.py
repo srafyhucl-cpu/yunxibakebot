@@ -13,6 +13,7 @@ from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.order import OrderApplicationService
+from app.service.channels.storefront import StorefrontAuthService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
 
 
@@ -70,6 +71,58 @@ async def test_miniapp_order_api_rejects_insufficient_stock(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "商品库存不足: 82001"
+
+
+@pytest.mark.asyncio
+async def test_miniapp_order_api_accepts_server_session_without_legacy_header(
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.channels.storefront._user.settings.STOREFRONT_AUTH_ALLOW_LEGACY_HEADER",
+        False,
+    )
+    token = StorefrontAuthService().issue_access_token("wx_secure_order_user")
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.post(
+            "/api/v1/miniapp/orders",
+            json={
+                "items": [
+                    {
+                        "productId": "secure-order-product",
+                        "title": "服务端身份蛋糕",
+                        "priceFen": 19800,
+                        "quantity": 1,
+                    }
+                ],
+                "expectTime": "2026-06-18 18:00",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_miniapp_order_api_rejects_missing_server_session(
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.channels.storefront._user.settings.STOREFRONT_AUTH_ALLOW_LEGACY_HEADER",
+        False,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.get("/api/v1/miniapp/orders")
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -262,6 +315,43 @@ async def test_miniapp_order_api_mock_pay_rejects_other_user(app: FastAPI) -> No
 
     assert pay_response.status_code == 404
     assert pay_response.json()["detail"] == "订单不存在"
+
+
+@pytest.mark.asyncio
+async def test_miniapp_order_api_mock_pay_is_disabled_by_default(
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.service.order.payment_runtime.settings.ALLOW_MOCK_PAYMENT", False
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        create_response = await client.post(
+            "/api/v1/miniapp/orders",
+            json={
+                "items": [
+                    {
+                        "productId": "disabled-mock-pay",
+                        "title": "禁用 mock 支付蛋糕",
+                        "priceFen": 19800,
+                        "quantity": 1,
+                    }
+                ],
+                "expectTime": "2026-06-18 18:00",
+            },
+            headers={"x-miniapp-user-id": "disabled-mock-user"},
+        )
+        order_id = create_response.json()["data"]["orderId"]
+        pay_response = await client.post(
+            f"/api/v1/miniapp/orders/{order_id}/mock-pay",
+            headers={"x-miniapp-user-id": "disabled-mock-user"},
+        )
+
+    assert pay_response.status_code == 400
+    assert pay_response.json()["detail"] == "生产环境已禁用 mock 支付"
 
 
 @pytest.mark.asyncio

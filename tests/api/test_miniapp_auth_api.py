@@ -110,9 +110,38 @@ async def test_miniapp_auth_login_returns_wechat_user_when_configured(
         )
 
     assert response.status_code == 200
-    assert response.json()["data"] == {
-        "userId": "wx_openid_abc",
-        "openid": "openid_abc",
-        "sessionReady": True,
-        "isDemo": False,
-    }
+    data = response.json()["data"]
+    assert data["userId"] == "wx_openid_abc"
+    assert data["openid"] == "openid_abc"
+    assert data["sessionReady"] is True
+    assert data["isDemo"] is False
+    assert data["tokenType"] == "Bearer"
+    assert data["expiresIn"] == 3600
+    assert StorefrontAuthService().verify_access_token(data["accessToken"]) == (
+        "wx_openid_abc"
+    )
+
+
+@pytest.mark.asyncio
+async def test_miniapp_auth_login_fails_closed_without_session_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_request(self, code: str) -> dict:
+        return {"openid": "openid_without_secret"}
+
+    monkeypatch.setattr(
+        "app.service.channels.storefront.auth.settings.WECHAT_MINIAPP_APP_ID",
+        "wx-app",
+    )
+    monkeypatch.setattr(
+        "app.service.channels.storefront.auth.settings.WECHAT_MINIAPP_APP_SECRET",
+        "secret",
+    )
+    monkeypatch.setattr(
+        "app.service.channels.storefront.auth.settings.STOREFRONT_AUTH_SECRET",
+        "",
+    )
+    monkeypatch.setattr(StorefrontAuthService, "_request_wechat_session", fake_request)
+
+    with pytest.raises(ValueError, match="会话密钥未配置"):
+        await StorefrontAuthService().login("wx-code")

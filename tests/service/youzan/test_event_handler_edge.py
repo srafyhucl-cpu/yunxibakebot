@@ -6,18 +6,16 @@ event_handler / event_item 边界场景测试：
 
 import json
 import pytest
-import aiosqlite
 
 from app.database import init_db
-from app.repository.session_repo import SessionRepo
-from app.repository.message_repo import MessageRepo
-from app.repository.transfer_repo import TransferRepo
 from app.service.youzan.event_handler import YouzanEventHandler
-from app.service.youzan.client import YouzanClient
 from app.service.knowledge_retriever import KnowledgeRetriever
 from app.service.embedding_search import EmbeddingSearcher
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.config_repo import ConfigRepo
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
+from app.repository.youzan_repo import YouzanProductRepo
 
 
 class _FakeYouzanClient:
@@ -279,11 +277,16 @@ async def test_live_refresh_preserves_inactive_status():
 
     vs = EmbeddingSearcher()
     vs.build([])
-    kr = KnowledgeRetriever(KnowledgeRepo(db), vs, config_repo=ConfigRepo(db))
+    from app.service.llm.function_tool_product_live import refresh_product_live
 
-    from app.service.llm.function_tool_product import _refresh_product_live
-
-    live_res = await _refresh_product_live(77777, _FakeClientForLive(), db, kr)
+    live_res = await refresh_product_live(
+        77777,
+        _FakeClientForLive(),
+        YouzanProductRepo(db),
+        KnowledgeProductRepo(db),
+        vs,
+        ContentChangeHistoryRepo(db),
+    )
 
     # 验证返回值和数据库中的状态
     assert live_res is not None

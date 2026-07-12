@@ -579,7 +579,6 @@ async def test_planner_gives_llm_all_capabilities_when_search_is_empty(
     async def fake_structured_planner(
         query: str,
         capabilities: list[Any],
-        today: date,
     ) -> Any:
         captured["capabilities"] = tuple(card.name for card in capabilities)
         return AgentPlan(

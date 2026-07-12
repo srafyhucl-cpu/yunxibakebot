@@ -14,6 +14,7 @@ services:
     restart: unless-stopped
     ports:
       - "7001:7001"
+    user: "10001:10001"
     env_file:
       - .env
     volumes:
@@ -24,10 +25,10 @@ services:
     environment:
       - TZ=Asia/Shanghai
       # 数据库路径（映射到持久化卷）
-      - DB_PATH=/app/data/yunxi_bakebot.db
+      - DB_PATH=/app/data/bot.db
       - EMBEDDING_INDEX_DIR=/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:7001/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:7001/ready').raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3

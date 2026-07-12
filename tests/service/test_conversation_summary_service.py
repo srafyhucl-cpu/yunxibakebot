@@ -1,9 +1,9 @@
 """客户会话短期摘要生成服务测试。"""
 
 import json
-from types import SimpleNamespace
 
 import pytest
+from langchain_core.runnables import RunnableLambda
 
 from app.exceptions import LLMError
 from app.models.message import Message, MessageRole
@@ -20,25 +20,24 @@ async def test_generate_conversation_summary_draft_parses_safe_json(
 ) -> None:
     captured_messages: list[dict] = []
 
-    async def fake_llm_chat(
-        messages: list[dict],
-        tools: list | None = None,
-        temperature: float = 0,
-        max_tokens: int = 0,
-        model: str = "",
-    ) -> object:
-        captured_messages.extend(messages)
-        return _llm_response(
+    async def fake_summary_chain(
+        messages: list[Message], existing_summary_text: str
+    ) -> str:
+        captured_messages.extend(
+            summary_module._build_summary_messages(messages, existing_summary_text)
+        )
+        return json.dumps(
             {
                 "customer_goal": "想确认生日蛋糕配送",
                 "confirmed_facts": ["偏好低糖"],
                 "pending_questions": ["配送时间待确认"],
                 "service_boundaries": ["库存和配送需以工具查询为准"],
                 "handoff_state": "none",
-            }
+            },
+            ensure_ascii=False,
         )
 
-    monkeypatch.setattr(summary_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(summary_module, "_invoke_summary_chain", fake_summary_chain)
 
     draft = await generate_conversation_summary_draft(
         ConversationSummaryGenerationRequest(
@@ -73,12 +72,10 @@ async def test_generate_conversation_summary_draft_parses_safe_json(
 async def test_generate_conversation_summary_draft_returns_none_for_invalid_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_llm_chat(*args: object, **kwargs: object) -> object:
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="not json"))]
-        )
+    async def fake_summary_chain(*args: object, **kwargs: object) -> str:
+        return "not json"
 
-    monkeypatch.setattr(summary_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(summary_module, "_invoke_summary_chain", fake_summary_chain)
 
     draft = await generate_conversation_summary_draft(
         ConversationSummaryGenerationRequest(
@@ -105,18 +102,19 @@ async def test_generate_conversation_summary_draft_discards_sensitive_output(
     monkeypatch: pytest.MonkeyPatch,
     sensitive_text: str,
 ) -> None:
-    async def fake_llm_chat(*args: object, **kwargs: object) -> object:
-        return _llm_response(
+    async def fake_summary_chain(*args: object, **kwargs: object) -> str:
+        return json.dumps(
             {
                 "customer_goal": sensitive_text,
                 "confirmed_facts": [],
                 "pending_questions": [],
                 "service_boundaries": [],
                 "handoff_state": "none",
-            }
+            },
+            ensure_ascii=False,
         )
 
-    monkeypatch.setattr(summary_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(summary_module, "_invoke_summary_chain", fake_summary_chain)
 
     draft = await generate_conversation_summary_draft(
         ConversationSummaryGenerationRequest(
@@ -134,18 +132,19 @@ async def test_generate_conversation_summary_draft_discards_sensitive_output(
 async def test_generate_conversation_summary_draft_discards_overlong_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_llm_chat(*args: object, **kwargs: object) -> object:
-        return _llm_response(
+    async def fake_summary_chain(*args: object, **kwargs: object) -> str:
+        return json.dumps(
             {
                 "customer_goal": "长" * 900,
                 "confirmed_facts": [],
                 "pending_questions": [],
                 "service_boundaries": [],
                 "handoff_state": "none",
-            }
+            },
+            ensure_ascii=False,
         )
 
-    monkeypatch.setattr(summary_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(summary_module, "_invoke_summary_chain", fake_summary_chain)
 
     draft = await generate_conversation_summary_draft(
         ConversationSummaryGenerationRequest(
@@ -163,10 +162,10 @@ async def test_generate_conversation_summary_draft_discards_overlong_output(
 async def test_generate_conversation_summary_draft_returns_none_on_llm_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_llm_chat(*args: object, **kwargs: object) -> object:
+    async def fake_summary_chain(*args: object, **kwargs: object) -> str:
         raise LLMError("llm failed")
 
-    monkeypatch.setattr(summary_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(summary_module, "_invoke_summary_chain", fake_summary_chain)
 
     draft = await generate_conversation_summary_draft(
         ConversationSummaryGenerationRequest(
@@ -184,10 +183,10 @@ async def test_generate_conversation_summary_draft_returns_none_on_llm_error(
 async def test_generate_conversation_summary_draft_skips_tool_only_messages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_llm_chat(**kwargs: object) -> object:
+    async def fake_summary_chain(*args: object, **kwargs: object) -> str:
         raise AssertionError("不应为纯工具消息调用 LLM")
 
-    monkeypatch.setattr(summary_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(summary_module, "_invoke_summary_chain", fake_summary_chain)
 
     draft = await generate_conversation_summary_draft(
         ConversationSummaryGenerationRequest(
@@ -201,20 +200,36 @@ async def test_generate_conversation_summary_draft_skips_tool_only_messages(
     assert draft is None
 
 
+@pytest.mark.asyncio
+async def test_summary_chain_redacts_inputs_before_prompt_runnable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[str] = []
+
+    def capture_prompt(prompt_value, **_kwargs) -> str:
+        captured.append(prompt_value.to_string())
+        return "{}"
+
+    monkeypatch.setattr(
+        summary_module,
+        "get_langchain_chat_model",
+        lambda **_kwargs: RunnableLambda(capture_prompt),
+    )
+
+    result = await summary_module._invoke_summary_chain(
+        [_message("msg-1", MessageRole.USER, "手机号 13812345678")],
+        "订单 E1234567890123",
+    )
+
+    assert result == "{}"
+    assert "13812345678" not in captured[0]
+    assert "E1234567890123" not in captured[0]
+
+
 def _message(message_id: str, role: MessageRole, content: str) -> Message:
     return Message(
         id=message_id,
         session_id="session-test",
         role=role,
         content=content,
-    )
-
-
-def _llm_response(payload: dict) -> object:
-    return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(content=json.dumps(payload, ensure_ascii=False))
-            )
-        ]
     )

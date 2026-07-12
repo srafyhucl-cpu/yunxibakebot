@@ -52,8 +52,14 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
     "app/service/llm/function_tool_product.py": (
         "存量职责评审：商品事实查询与 RAG 辅助存在候选边界，需避免拆分后泄漏会话和检索内部状态。"
     ),
+    "app/service/llm/function_tool_product_live.py": (
+        "本轮职责评审：商品缓存、实时 API 刷新、宽表/RAG/向量同步和变更历史记录共享同一条刷新事务语义；继续拆分会分散失败记录与写入结果关联，保留当前内聚边界并由独立入口调用。"
+    ),
     "app/service/llm/intent.py": (
         "存量职责评审：意图入口已把词表和 prompt 外置，当前保留解析编排内聚；不得回流词表职责。"
+    ),
+    "app/service/offline/agent_memory.py": (
+        "本轮职责评审：画像抽取、LLM 修复重试、规则信号合并、consent 校验和画像写入共同维护同一份长期记忆事实合同；Runnable 仅替换模型调用边界，拆分会增加事实状态穿透，保留当前内聚边界。"
     ),
     "app/service/youzan/client.py": (
         "存量职责评审：有赞开放接口客户端可按 API 领域形成稳定子客户端，拆分不得复制鉴权和重试逻辑。"
@@ -68,7 +74,21 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
         "存量职责评审：企微客服客户端按协议能力聚合，候选拆分需复用统一鉴权并避免 mixin 状态穿透。"
     ),
     "app/service/wecom/kf_message_queue.py": (
-        "存量职责评审：消息拉取、分类、处理和发送存在候选边界，需先冻结队列状态合同再拆分。"
+        "本轮职责评审：已将商品卡片发送独立为 kf_card_sender.py；队列仍集中持久化拉取、非文本预处理、会话状态同步和 AI 回复编排，需先冻结队列状态合同再拆分剩余边界。"
+    ),
+    "app/service/agents/employee/nodes.py": (
+        "本轮职责评审：员工 graph 节点、ToolNode 缓存、领域订单查询例外、确定性 finalizer 和 trace 记录共同维护同一 graph state 合同；拆分会增加状态穿透和工具装配重复。保留当前内聚边界，待 graph 生命周期与工具上下文进一步解耦后再按职责拆分。"
+    ),
+    "app/repository/privacy_repo.py": (
+        "本轮职责评审：主体导出、删除和保留期清理共享同一份个人数据表覆盖清单，"
+        "拆分会复制或漂移删除范围；保持一个隐私数据所有权仓库，service 负责事务编排。"
+    ),
+    "app/repository/youzan_order_repo.py": (
+        "本轮职责评审：有赞订单读取、订单事件幂等和履约字段回写共享订单数据所有权与事务连接；拆分会重复状态映射和唯一性约束。保留当前内聚边界，后续按稳定的订单读取/事件写入合同拆分。"
+    ),
+    "app/main.py": (
+        "存量职责评审：应用入口集中管理 lifespan、repository/service 装配和运行时路由，"
+        "本轮仅增加 readiness Response 注入，不新增独立业务职责；禁止为单行超线机械拆分。"
     ),
 }
 

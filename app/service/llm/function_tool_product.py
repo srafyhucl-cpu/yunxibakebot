@@ -6,196 +6,23 @@ Function Calling 工具实现：商品查询与知识库检索。
 
 from __future__ import annotations
 
-import datetime
 import json
 from typing import TYPE_CHECKING
 
 from app.logger import setup_logger
-from app.utils import now_beijing_naive, now_str
-from app.models.content_change_history import (
-    ChangeAction,
-    ChangeEntityType,
-    SyncSource,
-    WriteResult,
-)
+from app.utils import now_str
 from app.models.session import Session
-from app.repository.content_change_history_repo import ContentChangeHistoryRepo
 from app.service.llm.tool_constants import KNOWLEDGE_SEARCH_LIMIT, PRODUCT_SEARCH_LIMIT
-from app.service.observability import ContentChangeLogger, build_product_change_summary
+from app.service.llm.function_tool_product_live import (
+    get_cached_product_if_fresh,
+    refresh_product_live,
+)
 
 if TYPE_CHECKING:
     from app.service.knowledge_retriever import KnowledgeRetriever
     from app.service.youzan.client import YouzanClient
 
 logger = setup_logger()
-
-PRODUCT_CACHE_TTL_SECONDS = 300
-
-
-async def _get_cached_product_if_fresh(item_id: int, db) -> dict | None:
-    """
-    检查 youzan_products 表中商品是否在 TTL 内仍然新鲜。
-    若 updated_at 距现在不超过 PRODUCT_CACHE_TTL_SECONDS，返回基本信息字典；
-    否则返回 None，触发实时刷新。
-    """
-    from app.repository.youzan_repo import YouzanProductRepo
-
-    product = await YouzanProductRepo(db).get_by_id(item_id)
-    if not product or not product.get("updated_at"):
-        return None
-    try:
-        updated_dt = datetime.datetime.strptime(
-            product["updated_at"], "%Y-%m-%d %H:%M:%S"
-        )
-    except ValueError:
-        return None
-    age_seconds = (now_beijing_naive() - updated_dt).total_seconds()
-    if age_seconds > PRODUCT_CACHE_TTL_SECONDS:
-        return None
-    logger.debug("商品 TTL 缓存命中: item_id=%s age_seconds=%.1f", item_id, age_seconds)
-    return {
-        "item_id": item_id,
-        "title": product["title"],
-        "price_fen": product["price_fen"],
-        "stock": product["stock"],
-        "tags": product.get("tags", ""),
-        "updated_at": product["updated_at"],
-        "desc": product.get("desc", ""),
-        "skus": json.loads(product.get("skus_json") or "[]"),
-    }
-
-
-async def _refresh_product_live(
-    item_id: int,
-    youzan_client: YouzanClient,
-    db,
-    knowledge_retriever: KnowledgeRetriever,
-) -> dict | None:
-    """
-    调用有赞 API 获取商品实时数据，回写 youzan_products + knowledge_base + 向量索引。
-    返回商品基本信息字典，失败时返回 None。
-    """
-    from app.repository.youzan_repo import YouzanProductRepo
-    from app.service.youzan.product_sync import (
-        parse_product_from_api,
-        build_tags_str,
-        sync_product_to_db,
-        sync_product_to_rag,
-    )
-
-    history_logger = ContentChangeLogger(ContentChangeHistoryRepo(db))
-
-    try:
-        raw = await youzan_client.get_product(item_id)
-        if isinstance(raw, dict) and raw.get("gw_err_resp"):
-            logger.error(
-                "商品实时刷新 API 拒绝: item_id=%s err=%s", item_id, raw["gw_err_resp"]
-            )
-            await history_logger.log_failed(
-                entity_type=ChangeEntityType.PRODUCT,
-                entity_key=str(item_id),
-                category="product",
-                title=f"商品 {item_id}",
-                source=SyncSource.CHAT_LIVE_REFRESH,
-                source_ref=str(item_id),
-                action=ChangeAction.UPSERT,
-                error_type="gw_err_resp",
-                error_message=str(raw["gw_err_resp"]),
-            )
-            return None
-        parsed = parse_product_from_api(raw, item_id)
-        if parsed is None:
-            logger.error("商品实时刷新响应结构异常: item_id=%s", item_id)
-            await history_logger.log_failed(
-                entity_type=ChangeEntityType.PRODUCT,
-                entity_key=str(item_id),
-                category="product",
-                title=f"商品 {item_id}",
-                source=SyncSource.CHAT_LIVE_REFRESH,
-                source_ref=str(item_id),
-                action=ChangeAction.UPSERT,
-                error_type="missing_item",
-                error_message="商品接口响应缺少 item",
-            )
-            return None
-
-        product_repo = YouzanProductRepo(db)
-        local_product = await product_repo.get_by_id(item_id)
-        old_active = local_product["is_active"] if local_product else 1
-        tags_str = build_tags_str(parsed, "在售")
-        updated_at = now_str()
-
-        product_result = await sync_product_to_db(
-            product_repo,
-            parsed,
-            old_active,
-            updated_at,
-            tags_str,
-            SyncSource.CHAT_LIVE_REFRESH,
-            str(item_id),
-        )
-        knowledge_result = await sync_product_to_rag(
-            db,
-            knowledge_retriever,
-            parsed,
-            1,
-            tags_str,
-            "在售",
-            updated_at,
-            SyncSource.CHAT_LIVE_REFRESH,
-            str(item_id),
-        )
-        if (
-            product_result == WriteResult.APPLIED
-            or knowledge_result == WriteResult.APPLIED
-        ):
-            await history_logger.log_success(
-                entity_type=ChangeEntityType.PRODUCT,
-                entity_key=str(item_id),
-                category="product",
-                title=parsed["title"],
-                source=SyncSource.CHAT_LIVE_REFRESH,
-                source_ref=str(item_id),
-                action=ChangeAction.UPSERT,
-                change_summary=build_product_change_summary(
-                    item_id=item_id,
-                    title=parsed["title"],
-                    alias=parsed["alias"],
-                    price_fen=parsed["price_fen"],
-                    stock=parsed["stock"],
-                    is_active=1,
-                    tags=tags_str,
-                    updated_at=updated_at,
-                    product_result=product_result,
-                    knowledge_result=knowledge_result,
-                ),
-                occurred_at=updated_at,
-            )
-        logger.info(
-            "商品实时刷新写入成功: item_id=%s title=%s", item_id, parsed["title"]
-        )
-        return {
-            "item_id": item_id,
-            "title": parsed["title"],
-            "price_fen": parsed["price_fen"],
-            "stock": parsed["stock"],
-            "tags": tags_str,
-            "updated_at": updated_at,
-        }
-    except Exception as exc:
-        logger.error("商品实时刷新失败: item_id=%s err=%s", item_id, exc)
-        await history_logger.log_failed(
-            entity_type=ChangeEntityType.PRODUCT,
-            entity_key=str(item_id),
-            category="product",
-            title=f"商品 {item_id}",
-            source=SyncSource.CHAT_LIVE_REFRESH,
-            source_ref=str(item_id),
-            action=ChangeAction.UPSERT,
-            error_type=type(exc).__name__,
-            error_message=str(exc),
-        )
-        return None
 
 
 async def get_product_info(
@@ -204,18 +31,33 @@ async def get_product_info(
     youzan_client: YouzanClient | None = None,
     product_name: str = "",
     product_id: str = "",
+    product_repo=None,
+    knowledge_product_repo=None,
+    analytics_repo=None,
+    history_repo=None,
+    embedding_searcher=None,
 ) -> str:
     """查询商品信息。当 product_id 为数字 item_id 且 youzan_client 可用时，先实时调用有赞 API 刷新数据；
     否则按名称走 RAG 检索，并静默注入 AI 导购推荐埋点。"""
     if product_id and product_id.isdigit() and youzan_client is not None:
-        db = knowledge_retriever._repo._db
-        cached = await _get_cached_product_if_fresh(int(product_id), db)
+        if (
+            product_repo is None
+            or knowledge_product_repo is None
+            or history_repo is None
+        ):
+            return json.dumps({"message": "商品查询服务暂不可用"}, ensure_ascii=False)
+        cached = await get_cached_product_if_fresh(int(product_id), product_repo)
         if cached is not None:
             return json.dumps(
                 {"source": "db_cache", "product": cached}, ensure_ascii=False
             )
-        live = await _refresh_product_live(
-            int(product_id), youzan_client, db, knowledge_retriever
+        live = await refresh_product_live(
+            int(product_id),
+            youzan_client,
+            product_repo,
+            knowledge_product_repo,
+            embedding_searcher,
+            history_repo,
         )
         if live:
             return json.dumps(
@@ -242,18 +84,12 @@ async def get_product_info(
         )
 
     # 触点三：AI 会话导购推荐埋点（内置 1 小时排他防刷滑动窗口去重）
-    if session:
-        from app.repository.analytics_repo import AnalyticsRepo
-
-        db = knowledge_retriever._repo._db
-        analytics_repo = AnalyticsRepo(db)
-
+    if session and (analytics_repo is None or product_repo is None):
+        logger.warning("AI 推荐埋点依赖未注入，跳过商品推荐埋点")
+    if session and analytics_repo is not None and product_repo is not None:
         for entry in entries:
             if entry.youzan_item_id:
                 try:
-                    from app.repository.youzan_repo import YouzanProductRepo
-
-                    product_repo = YouzanProductRepo(db)
                     product = await product_repo.get_by_id(int(entry.youzan_item_id))
                     if product:
                         alias = product["alias"]

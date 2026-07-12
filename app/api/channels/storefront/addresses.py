@@ -2,15 +2,22 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
-from app.api.channels.storefront._user import require_storefront_user_id
+from app.api.channels.storefront._user import (
+    authenticate_storefront_request,
+    require_storefront_user_id,
+)
 from app.service.customer import CustomerAddressService
 
 
 def create_storefront_addresses_router(service: CustomerAddressService) -> APIRouter:
     """创建前台地址簿路由。"""
-    router = APIRouter(prefix="/api/v1/miniapp/addresses", tags=["miniapp-addresses"])
+    router = APIRouter(
+        prefix="/api/v1/miniapp/addresses",
+        tags=["miniapp-addresses"],
+        dependencies=[Depends(authenticate_storefront_request)],
+    )
 
     @router.get("")
     async def list_addresses(

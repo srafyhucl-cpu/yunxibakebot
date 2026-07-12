@@ -23,6 +23,11 @@ async def load_customer_profile(
         return None
 
     try:
+        get_consent_status = getattr(customer_profile_repo, "get_consent_status", None)
+        if get_consent_status is not None:
+            consent_status = await get_consent_status(channel, user_id)
+            if consent_status != "granted":
+                return None
         return await customer_profile_repo.get(channel, user_id)
     except Exception as exc:
         logger.warning(

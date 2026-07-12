@@ -10,6 +10,8 @@ from fastapi import FastAPI
 from app.api.miniapp_catalog import create_miniapp_catalog_router
 from app.config import settings
 from app.repository.config_repo import ConfigRepo
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
 from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
@@ -39,6 +41,9 @@ def app(db: aiosqlite.Connection) -> FastAPI:
         knowledge_repo=knowledge_repo,
         config_repo=config_repo,
         youzan_product_repo=youzan_product_repo,
+        knowledge_product_repo=product_repo,
+        knowledge_admin_repo=KnowledgeAdminRepo(db),
+        history_repo=ContentChangeHistoryRepo(db),
     )
     catalog_service = CatalogApplicationService(
         product_repo=product_repo,

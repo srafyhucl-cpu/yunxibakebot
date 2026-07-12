@@ -67,7 +67,6 @@ class SessionRepo(BaseRepository):
             "VALUES (?, ?, ?, ?, ?, ?)",
             (session_id, data.channel, data.user_id, data.staff_id, now, now),
         )
-        await self._db.commit()
         return Session(
             id=session_id,
             channel=data.channel,

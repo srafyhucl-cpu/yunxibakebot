@@ -4,7 +4,8 @@ import json
 
 from app.exceptions import LLMError
 from app.logger import setup_logger
-from app.service.llm.client import chat_completion as llm_chat
+from app.service.agents.llm import get_langchain_chat_model
+from app.service.privacy_redaction import redact_external_text
 from app.service.llm.intent_types import INTENT_ID_CHARACTERS
 from app.service.llm.intent_prompt import INTENT_PROMPT
 from app.service.llm.intent_domain_keywords import (
@@ -25,12 +26,16 @@ from app.service.llm.intent_behavior_keywords import (
 )
 from app.service.llm.intent_types import IntentType
 
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
 logger = setup_logger()
 
 # 闲聊拦截的最大查询字符数（超出此长度则放行到后续意图流程）
 SMALL_TALK_MAX_QUERY_LEN = 12
 # 意图识别 LLM 调用的 max_tokens（输出仅为小数字或简短 JSON，严格限制）
 INTENT_LLM_MAX_TOKENS = 32
+INTENT_PROMPT_TEMPLATE = ChatPromptTemplate.from_template(INTENT_PROMPT)
 
 
 def _contains_any(user_query: str, keywords: tuple[str, ...]) -> bool:
@@ -167,17 +172,32 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
         return matched_intent
 
     # 4. 大模型多标签打标与 Token 溢出防线
-    prompt = INTENT_PROMPT.format(history=history or "无", user_query=normalized_query)
     try:
-        response = await llm_chat(
-            [{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=INTENT_LLM_MAX_TOKENS,
+        raw_content = await _invoke_intent_chain(
+            history=history or "无",
+            user_query=normalized_query,
         )
-        raw_content = (response.choices[0].message.content or "1").strip()
+        raw_content = (raw_content or "1").strip()
         intent = _extract_intent(raw_content)
         logger.debug('意图识别: "%s" -> %s', normalized_query[:30], intent.name)
         return intent
     except (LLMError, KeyError, IndexError) as exc:
         logger.warning("意图识别失败，默认返回 PRODUCT_CONSULTATION: %s", exc)
         return IntentType.PRODUCT_CONSULTATION
+
+
+async def _invoke_intent_chain(*, history: str, user_query: str) -> str:
+    """通过统一 LangChain Runnable 执行意图识别。"""
+    try:
+        model = get_langchain_chat_model(provider="mimo", temperature=0).bind(
+            max_tokens=INTENT_LLM_MAX_TOKENS
+        )
+        chain = INTENT_PROMPT_TEMPLATE | model | StrOutputParser()
+        return await chain.ainvoke(
+            {
+                "history": redact_external_text(history),
+                "user_query": redact_external_text(user_query),
+            }
+        )
+    except Exception as exc:
+        raise LLMError("意图识别 LLM 调用失败") from exc

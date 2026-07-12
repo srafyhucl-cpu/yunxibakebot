@@ -38,6 +38,4 @@ def build_customer_agent_graph(dependencies: CustomerGraphDependencies) -> Any:
     graph.add_edge("finalize_reply", "record_trace")
     graph.add_edge("tool_round_limit", "record_trace")
     graph.add_edge("record_trace", END)
-    if dependencies.checkpointer is not None:
-        return graph.compile(checkpointer=dependencies.checkpointer)
     return graph.compile()

@@ -1,6 +1,9 @@
 """前台渠道认证服务。"""
 
 import httpx
+from datetime import datetime, timedelta, timezone
+
+from jose import JWTError, jwt
 
 from app.config import settings
 
@@ -18,13 +21,49 @@ class StorefrontAuthService:
         payload = await self._request_wechat_session(normalized_code)
         openid = str(payload.get("openid", "")).strip()
         if not openid:
-            raise ValueError(str(payload.get("errmsg") or "微信登录失败"))
+            raise ValueError("微信登录失败，请稍后重试")
+        user_id = f"wx_{openid}"
         return {
-            "userId": f"wx_{openid}",
+            "userId": user_id,
             "openid": openid,
             "sessionReady": True,
             "isDemo": False,
+            "accessToken": self.issue_access_token(user_id),
+            "tokenType": "Bearer",
+            "expiresIn": settings.STOREFRONT_AUTH_TTL_SECONDS,
         }
+
+    def issue_access_token(self, user_id: str) -> str:
+        """为已完成微信登录的用户签发短期服务端会话 token。"""
+        secret = self._require_auth_secret()
+        normalized_user_id = user_id.strip()
+        if not normalized_user_id:
+            raise ValueError("用户身份不能为空")
+        issued_at = datetime.now(timezone.utc)
+        payload = {
+            "sub": normalized_user_id,
+            "iat": issued_at,
+            "exp": issued_at + timedelta(seconds=settings.STOREFRONT_AUTH_TTL_SECONDS),
+        }
+        return jwt.encode(payload, secret, algorithm="HS256")
+
+    def verify_access_token(self, access_token: str) -> str:
+        """校验服务端会话 token 并返回唯一用户身份。"""
+        secret = self._require_auth_secret()
+        try:
+            payload = jwt.decode(access_token, secret, algorithms=["HS256"])
+        except JWTError as exc:
+            raise ValueError("登录会话无效或已过期") from exc
+        user_id = str(payload.get("sub", "")).strip()
+        if not user_id:
+            raise ValueError("登录会话缺少用户身份")
+        return user_id
+
+    def _require_auth_secret(self) -> str:
+        secret = settings.STOREFRONT_AUTH_SECRET.strip()
+        if not secret:
+            raise ValueError("前台会话密钥未配置")
+        return secret
 
     def _is_wechat_configured(self) -> bool:
         return bool(
@@ -47,8 +86,12 @@ class StorefrontAuthService:
                 )
                 response.raise_for_status()
                 data = response.json()
-        except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as exc:
-            raise ValueError(f"微信登录失败: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            raise ValueError("微信登录上游返回错误") from exc
+        except httpx.RequestError as exc:
+            raise ValueError("微信登录上游不可用") from exc
+        except ValueError as exc:
+            raise ValueError("微信登录响应无效") from exc
         return data if isinstance(data, dict) else {}
 
 

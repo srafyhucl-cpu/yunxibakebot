@@ -1,7 +1,5 @@
 """Repository for observability content change history."""
 
-import aiosqlite
-
 from app.models.content_change_history import (
     ContentChangeHistoryCreate,
     ContentChangeHistoryEntry,

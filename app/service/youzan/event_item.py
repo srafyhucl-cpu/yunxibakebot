@@ -21,10 +21,9 @@ from app.models.youzan_webhook_event import (
     YouzanWebhookStatus,
 )
 from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
-from app.service.knowledge_admin import DEFAULT_PRIORITY
 from app.service.youzan.audit_helper import mark_audit
-from app.service.youzan.client import YOUZAN_GOODS_H5_BASE_URL
 from app.service.observability import (
     ContentChangeLogger,
     build_product_change_summary,
@@ -33,175 +32,8 @@ from app.utils import now_str
 
 logger = setup_logger()
 
+
 # 知识库常见成分特征标签（用于 RAG 搜索词索引增强）
-SPECIAL_INGREDIENTS = [
-    "蜜红豆",
-    "抹茶",
-    "草莓",
-    "芒果",
-    "提拉米苏",
-    "巧克力",
-    "动物奶油",
-    "夹心",
-    "千层",
-    "乳酪",
-    "芝士",
-    "冷藏",
-    "保质期",
-]
-
-
-def _extract_item_tags(
-    title: str, skus: list, item_props: list, desc_clean: str
-) -> tuple[list, list, list]:
-    """从 SKU 和属性配置中提取规格名称、属性名称和成分标签。"""
-    spec_names: list[str] = []
-    for sku in skus:
-        prop_json = sku.get("properties_name_json", "")
-        if prop_json:
-            try:
-                props = json.loads(prop_json)
-                spec_names.extend(p.get("v", "") for p in props if p.get("v", ""))
-            except Exception as exc:
-                logger.warning("解析商品规格失败: %s", exc)
-
-    prop_names: list[str] = []
-    for prop in item_props:
-        if prop.get("prop_name", ""):
-            prop_names.append(prop["prop_name"])
-        for model in prop.get("text_models", []):
-            if model.get("prop_text_name", ""):
-                prop_names.append(model["prop_text_name"])
-
-    found_ingredients = [
-        ing for ing in SPECIAL_INGREDIENTS if ing in desc_clean or ing in title
-    ]
-    return spec_names, prop_names, found_ingredients
-
-
-def _build_rag_content(
-    title: str,
-    alias: str,
-    status_lbl: str,
-    skus: list,
-    item_props: list,
-    price_fen: int,
-    stock: int,
-    desc_clean: str,
-    tags_str: str,
-    item_id: int = 0,
-    image: str = "",
-) -> str:
-    """构建 RAG 知识库商品内容 Markdown 文本。末尾附 UMP 商品卡片标签供 LLM 原样输出。"""
-    sku_lines: list[str] = []
-    for sku in skus:
-        price_yuan = sku.get("price", price_fen) / 100.0
-        qty = sku.get("quantity", 0)
-        prop_json = sku.get("properties_name_json", "")
-        prop_desc = "标准规格"
-        if prop_json:
-            try:
-                props = json.loads(prop_json)
-                prop_desc = " | ".join(f"{p.get('k')}:{p.get('v')}" for p in props)
-            except Exception as exc:
-                logger.warning("解析 SKU 属性失败: %s", exc)
-        sku_lines.append(
-            f"- 规格型号【{prop_desc}】：售价 ￥{price_yuan:.2f} 元，当前可用库存 {qty} 件"
-        )
-    skus_text = (
-        "\n".join(sku_lines)
-        if sku_lines
-        else f"- 规格：单售价 ￥{price_fen / 100.0:.2f} 元，当前可用总库存 {stock} 件"
-    )
-
-    prop_lines: list[str] = []
-    for prop in item_props:
-        p_name = prop.get("prop_name", "")
-        is_mult = " (允许多选)" if prop.get("is_multiple") else " (单选)"
-        options = []
-        for model in prop.get("text_models", []):
-            opt_val = model.get("prop_text_name", "")
-            opt_price = model.get("price", 0) / 100.0
-            opt_price_desc = f" (加价: +￥{opt_price:.2f}元)" if opt_price > 0 else ""
-            options.append(f"{opt_val}{opt_price_desc}")
-        prop_lines.append(f"- 【{p_name}】{is_mult}：{'、'.join(options)}")
-    props_text = (
-        "\n".join(prop_lines) if prop_lines else "- 定制加料选项：暂无特殊定制属性"
-    )
-
-    from urllib.parse import quote as _q
-
-    detail_url = f"{YOUZAN_GOODS_H5_BASE_URL}?alias={alias}"
-    fallback_desc = "精品烘焙推荐，新西兰进口动物奶油调配，不含防腐剂。建议0-4℃冷藏并于3天内食用完毕。"
-    ump_line = ""
-    if item_id and image and alias:
-        min_price_fen = min(
-            (s.get("price", price_fen) for s in skus), default=price_fen
-        )
-        price_str = f"{min_price_fen / 100:.2f}"
-        ump_line = (
-            f"\n[UMP: type=card&id={item_id}&title={_q(title)}"
-            f"&price={price_str}&src={_q(image)}"
-            f"&url={_q(detail_url)}]"
-        )
-    return (
-        f"商品名称：{title}\n"
-        f"在售状态：{status_lbl}\n"
-        f"商品规格及秒级实时库存明细：\n{skus_text}\n\n"
-        f"可定制口味、蛋糕胚、夹心及甜度选项（SPU 自定义属性）：\n{props_text}\n\n"
-        f"商品特征与配方属性标签：{tags_str}\n"
-        f"直购下单链接：{detail_url}\n"
-        f"原料配方、保质期及夹心介绍：\n{desc_clean or fallback_desc}" + ump_line
-    )
-
-
-async def _sync_rag_knowledge(
-    db,
-    knowledge_retriever,
-    item_id: int,
-    title: str,
-    content_md: str,
-    tags_str: str,
-    updated_at_str: str,
-    is_active: int,
-) -> str:
-    """根据商品在售状态增量更新或擦除 RAG 知识库条目。"""
-    from app.repository.knowledge_product_repo import KnowledgeProductRepo
-
-    knowledge_repo = KnowledgeProductRepo(db)
-
-    if is_active == 1:
-        result = await knowledge_repo.upsert_product_knowledge(
-            youzan_item_id=str(item_id),
-            title=title,
-            content=content_md,
-            keywords=f"商品, 价格, 推荐, 蛋糕, {title}, {tags_str}",
-            priority=DEFAULT_PRIORITY,
-            updated_at=updated_at_str,
-            sync_source=SyncSource.YOUZAN_WEBHOOK,
-            sync_ref=str(item_id),
-        )
-        vs = knowledge_retriever._vs
-        if vs and result == WriteResult.APPLIED:
-            vector = (
-                vs._get_model()
-                .encode([f"{title} {content_md}"], normalize_embeddings=True)[0]
-                .tolist()
-            )
-            await vs.upsert_one(str(item_id), vector)
-        return result
-    else:
-        result = await knowledge_repo.delete_product_knowledge(
-            str(item_id),
-            sync_source=SyncSource.YOUZAN_WEBHOOK,
-            sync_ref=str(item_id),
-        )
-        vs = knowledge_retriever._vs
-        if vs and result == WriteResult.APPLIED:
-            await vs.delete_one(str(item_id))
-        return result
-
-
 async def handle_item_event(
     db,
     youzan_client,
@@ -262,6 +94,7 @@ async def handle_item_event(
     )
 
     product_repo = YouzanProductRepo(db)
+    knowledge_product_repo = KnowledgeProductRepo(db)
     analytics_repo = AnalyticsRepo(db)
     history_logger = ContentChangeLogger(ContentChangeHistoryRepo(db))
 
@@ -364,8 +197,8 @@ async def handle_item_event(
             str(item_id),
         )
         knowledge_result = await sync_product_to_rag(
-            db,
-            knowledge_retriever,
+            knowledge_product_repo,
+            knowledge_retriever.embedding_searcher,
             parsed,
             is_active,
             tags_str,

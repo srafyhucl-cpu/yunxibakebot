@@ -119,10 +119,9 @@ def build_assertions(
         "handoff_evidence_id.present": bool(handoff_evidence_id.strip()),
         "real_replay_intake_packet.passed": real_replay.get("status") == "passed",
         "rag_shadow_log_intake_packet.passed": rag_shadow_log.get("status") == "passed",
-        "portfolio_verified_evidence_ready": portfolio_report.get(
-            "verified_evidence_ready"
-        )
-        is True,
+        "portfolio_report_available": isinstance(
+            portfolio_report.get("stage_readiness"), dict
+        ),
         "external_missing_actions_visible": bool(
             portfolio_report.get("external_evidence_complete") is True
             or portfolio_report.get("missing_actions")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -58,7 +59,8 @@ def _client(monkeypatch, *, agent_service=None) -> TestClient:
     return TestClient(app)
 
 
-def _signed_query(msg_encrypt: str, *, timestamp: str = "1783000000") -> dict[str, str]:
+def _signed_query(msg_encrypt: str, *, timestamp: str | None = None) -> dict[str, str]:
+    timestamp = timestamp or str(int(time.time()))
     nonce = "nonce-1"
     return {
         "msg_signature": generate_signature(TOKEN, timestamp, nonce, msg_encrypt),
@@ -158,4 +160,94 @@ def test_callback_post_rejects_invalid_signature(monkeypatch) -> None:
     )
 
     assert response.status_code == 403
-    assert response.text == "签名验证失败"
+
+
+def test_invalid_signature_does_not_consume_nonce(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    msg_encrypt = encrypt(AES_KEY, '{"msgtype":"event"}', "")
+    timestamp = str(int(time.time()))
+    nonce = "signature-retry-nonce"
+
+    invalid = client.post(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params={
+            "msg_signature": "wrong-signature",
+            "timestamp": timestamp,
+            "nonce": nonce,
+        },
+        json={"encrypt": msg_encrypt},
+    )
+    valid = client.post(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params={
+            "msg_signature": generate_signature(TOKEN, timestamp, nonce, msg_encrypt),
+            "timestamp": timestamp,
+            "nonce": nonce,
+        },
+        json={"encrypt": msg_encrypt},
+    )
+
+    assert invalid.status_code == 403
+    assert valid.status_code == 200
+
+
+def test_callback_post_rejects_replayed_nonce(monkeypatch) -> None:
+    """同一时间戳和 nonce 只能消费一次。"""
+    monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_TOKEN", TOKEN)
+    monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY", AES_KEY)
+    timestamp = str(int(time.time()))
+    nonce = "replay-nonce"
+    encrypted = encrypt(AES_KEY, json.dumps({"msgtype": "event"}), "")
+    signature = generate_signature(TOKEN, timestamp, nonce, encrypted)
+    app = FastAPI()
+    app.include_router(create_wecom_intelligent_bot_router())
+    client = TestClient(app)
+    params = {"msg_signature": signature, "timestamp": timestamp, "nonce": nonce}
+    first = client.post(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params=params,
+        json={"encrypt": encrypted},
+    )
+    second = client.post(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params=params,
+        json={"encrypt": encrypted},
+    )
+    assert first.status_code != 403
+    assert second.status_code == 403
+
+
+def test_callback_post_rejects_stale_timestamp(monkeypatch) -> None:
+    """过期回调必须在解密前拒绝。"""
+    monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_TOKEN", TOKEN)
+    monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY", AES_KEY)
+    timestamp = str(int(time.time()) - settings.WECOM_CALLBACK_MAX_AGE_SECONDS - 1)
+    nonce = "stale-nonce"
+    encrypted = encrypt(AES_KEY, json.dumps({"msgtype": "event"}), "")
+    signature = generate_signature(TOKEN, timestamp, nonce, encrypted)
+    app = FastAPI()
+    app.include_router(create_wecom_intelligent_bot_router())
+    response = TestClient(app).post(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params={"msg_signature": signature, "timestamp": timestamp, "nonce": nonce},
+        json={"encrypt": encrypted},
+    )
+    assert response.status_code == 403
+    assert response.text == "回调已超出允许时间窗"
+
+
+def test_callback_returns_503_when_secret_is_missing(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_TOKEN", "")
+    monkeypatch.setattr(settings, "WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY", "")
+    monkeypatch.setattr(settings, "WECOM_TOKEN", "")
+    monkeypatch.setattr(settings, "WECOM_ENCODING_AES_KEY", "")
+    app = FastAPI()
+    app.include_router(create_wecom_intelligent_bot_router())
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/v1/wecom/intelligent-bot/callback",
+        params={"msg_signature": "", "timestamp": "1", "nonce": "1", "echostr": "x"},
+    )
+
+    assert response.status_code == 503

@@ -2,20 +2,20 @@
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 import time
 
 from app.config import settings
 from app.logger import setup_logger
 from app.service.agents.llm import get_langchain_chat_model
-from app.service.agents.messages import to_langchain_messages
 from app.service.agents.observability import get_agent_tracing_config
-from app.service.chat_llm_request import (
+from app.service.privacy_redaction import redact_external_langchain_messages
+from app.service.llm.constants import (
     LLM_FAILURE_REASON_API_ERROR,
     LLM_FAILURE_REASON_KEY,
     LLM_FAILURE_REASON_RESPONSE_PARSE,
-    select_llm_model,
 )
+from app.service.llm.provider import LLMProvider, select_llm_model
 
 logger = setup_logger()
 
@@ -24,7 +24,7 @@ logger = setup_logger()
 class CustomerModelRequest:
     """客户模型单次请求上下文。"""
 
-    messages: list[dict]
+    messages: list[Any]
     tools: list[Any]
     timing: dict | None
     first_llm_started_at: float | None
@@ -52,7 +52,7 @@ async def request_customer_model_with_tools(
     model_name = select_llm_model(request.has_image) or settings.MIMO_CHAT_MODEL
     try:
         message = await _bound_model(request, model_name).ainvoke(
-            to_langchain_messages(request.messages),
+            redact_external_langchain_messages(request.messages),
             config=_build_runnable_config(request),
         )
     except Exception as exc:
@@ -83,20 +83,23 @@ async def request_customer_model_with_tools(
 
 
 def _bound_model(request: CustomerModelRequest, model_name: str) -> Any:
-    provider = "mimo" if "mimo" in model_name.lower() else "deepseek"
+    provider: LLMProvider = "mimo" if "mimo" in model_name.lower() else "deepseek"
     return get_langchain_chat_model(provider=provider, model=model_name).bind_tools(
         request.tools
     )
 
 
 def _build_runnable_config(request: CustomerModelRequest) -> dict[str, Any]:
-    return get_agent_tracing_config().to_runnable_config(
-        run_name="customer_model_with_tools",
-        tags=("customer", "model"),
-        metadata={
-            "has_image": request.has_image,
-            "tool_count": len(request.tools),
-        },
+    return cast(
+        dict[str, Any],
+        get_agent_tracing_config().to_runnable_config(
+            run_name="customer_model_with_tools",
+            tags=("customer", "model"),
+            metadata={
+                "has_image": request.has_image,
+                "tool_count": len(request.tools),
+            },
+        ),
     )
 
 

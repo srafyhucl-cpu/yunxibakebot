@@ -27,8 +27,14 @@ class CustomerGraphDependencies:
     fallback_reply: str
     timeout_reply: str
     failure_alerter: Callable[[str], Awaitable[None]]
+    order_repo: Any = None
+    config_repo: Any = None
+    product_repo: Any = None
+    knowledge_product_repo: Any = None
+    analytics_repo: Any = None
+    history_repo: Any = None
     conversation_summary_repo: ConversationSummaryReader | None = None
-    checkpointer: Any | None = None
+    trace_sink: Any | None = None
 
 
 @dataclass(frozen=True)

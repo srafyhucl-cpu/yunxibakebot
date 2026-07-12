@@ -14,11 +14,15 @@ from app.models.message import Message
 from app.repository.conversation_review_repo import ConversationReviewRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
-from app.service.llm.client import chat_completion as llm_chat
+from app.service.agents.llm import get_langchain_chat_model
 from app.service.offline.agent_shared import format_dialog
 from app.service.offline.json_utils import parse_json_object
 from app.service.offline.model_selection import select_offline_review_model
 from app.service.offline.quality_signals import extract_review_issues
+from app.service.privacy_redaction import redact_external_text
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -33,6 +37,9 @@ QA_REVIEW_SYSTEM_PROMPT = (
 QA_REVIEW_REPAIR_PROMPT = (
     "上一次质检输出不合格。请重新检查同一段对话，只输出合法 JSON："
     '{"quality_score": 0-100, "issues": ["具体问题"]}。'
+)
+QA_REVIEW_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
+    [("system", "{system_prompt}"), ("user", "{user_content}")]
 )
 
 
@@ -93,14 +100,11 @@ class QaReviewAgent:
         last_content = ""
         max_attempts = settings.OFFLINE_LLM_REPAIR_RETRIES + 1
         for attempt in range(max_attempts):
-            response = await llm_chat(
-                _build_review_messages(dialog, last_content, attempt),
-                tools=None,
-                temperature=0,
-                max_tokens=512,
-                model=self._reviewer_model,
+            response = await _invoke_review_chain(
+                model_name=self._reviewer_model,
+                messages=_build_review_messages(dialog, last_content, attempt),
             )
-            last_content = response.choices[0].message.content or "{}"
+            last_content = response or "{}"
             try:
                 return _parse_review_json(last_content)
             except LLMError as exc:
@@ -115,6 +119,30 @@ class QaReviewAgent:
                         )
                     raise
         raise LLMError("质检结果修复失败")
+
+
+async def _invoke_review_chain(
+    *,
+    model_name: str,
+    messages: list[dict[str, str]],
+) -> str:
+    """通过统一 LangChain Runnable 执行离线质检。"""
+    provider = "mimo" if "mimo" in model_name.lower() else "deepseek"
+    try:
+        model = get_langchain_chat_model(
+            provider=provider,
+            model=model_name,
+            temperature=0,
+        ).bind(max_tokens=512)
+        chain = QA_REVIEW_PROMPT_TEMPLATE | model | StrOutputParser()
+        return await chain.ainvoke(
+            {
+                "system_prompt": messages[0]["content"],
+                "user_content": redact_external_text(messages[1]["content"]),
+            }
+        )
+    except Exception as exc:
+        raise LLMError("离线质检 LLM 调用失败") from exc
 
 
 def _build_review_messages(

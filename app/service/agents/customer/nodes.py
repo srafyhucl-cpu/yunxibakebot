@@ -1,7 +1,6 @@
 """客户机器人 LangGraph 节点。"""
 
 from typing import Any
-import json
 
 from app.service.agents.customer.contracts import CustomerGraphDependencies
 from app.service.agents.customer.state import CustomerAgentState
@@ -17,6 +16,7 @@ from app.service.agents.customer.support import (
 )
 from app.service.chat_context import prepare_ai_conversation_messages
 from app.service.chat_context_budget import record_tool_context_budget_delta
+from app.service.agents.messages import to_langchain_messages
 from app.service.agents.customer.model import (
     CustomerModelRequest,
     request_customer_model_with_tools,
@@ -27,11 +27,8 @@ from app.service.agents.observability import (
 )
 from app.service.agents.customer.tool_messages import (
     ToolExecutionContext,
-    append_tool_result_messages,
-    get_tool_call_args,
-    get_tool_call_name,
 )
-from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
+from app.service.llm.constants import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent import IntentType
 
 
@@ -71,10 +68,21 @@ class CustomerAgentNodes:
             session_repo=self._dependencies.session_repo,
             knowledge=self._dependencies.knowledge,
             youzan_client=self._dependencies.youzan_client,
+            order_repo=self._dependencies.order_repo,
+            config_repo=self._dependencies.config_repo,
+            product_repo=self._dependencies.product_repo,
+            knowledge_product_repo=self._dependencies.knowledge_product_repo,
+            analytics_repo=self._dependencies.analytics_repo,
+            history_repo=self._dependencies.history_repo,
+            embedding_searcher=getattr(
+                self._dependencies.knowledge,
+                "embedding_searcher",
+                None,
+            ),
         )
         return {
             **state,
-            "messages": messages,
+            "messages": to_langchain_messages(messages),
             "history_text": history_text,
             "memory_block": memory_block,
             "tool_context": tool_context,
@@ -139,12 +147,16 @@ class CustomerAgentNodes:
         }
 
     async def execute_tools(self, state: CustomerAgentState) -> CustomerAgentState:
-        """执行 LangChain customer tools 并追加 OpenAI tool 消息。"""
+        """通过 LangGraph ToolNode 执行 customer tools。"""
         message_count_before_tools = len(state["messages"])
-        tool_names: list[str] = []
-        for tool_call in state["llm_message"].tool_calls or []:
-            tool_names.append(get_tool_call_name(tool_call))
-            await self._execute_tool_call(tool_call, state)
+        tool_node = state.get("tool_node") or self._build_tool_node(state)
+        tool_result = await tool_node.ainvoke({"messages": [state["llm_message"]]})
+        tool_messages = tool_result.get("messages") or []
+        state["messages"].extend([state["llm_message"], *tool_messages])
+        tool_names = [
+            str(tool_call.get("name", ""))
+            for tool_call in state["llm_message"].tool_calls or []
+        ]
         record_tool_context_budget_delta(
             state.get("timing"),
             state["messages"][message_count_before_tools:],
@@ -153,6 +165,7 @@ class CustomerAgentNodes:
         return {
             **state,
             "tool_round": tool_round,
+            "tool_node": tool_node,
             "trace_events": append_trace_event(
                 state.get("trace_events"),
                 "execute_tools",
@@ -209,29 +222,6 @@ class CustomerAgentNodes:
             ),
         }
 
-    async def _execute_tool_call(
-        self,
-        tool_call: Any,
-        state: CustomerAgentState,
-    ) -> None:
-        tool_name = get_tool_call_name(tool_call)
-        tool_args = get_tool_call_args(tool_call)
-        tool = self._tools_by_name(state).get(tool_name)
-        if tool is None:
-            result = json.dumps(
-                {"status": "error", "message": f"未知工具: {tool_name}"},
-                ensure_ascii=False,
-            )
-        else:
-            result = await tool.ainvoke(tool_args)
-        append_tool_result_messages(
-            state["messages"],
-            tool_call,
-            tool_name,
-            tool_args,
-            str(result),
-        )
-
     def _tools_by_name(self, state: CustomerAgentState) -> dict[str, Any]:
         tools_by_name = state.get("tools_by_name")
         if tools_by_name is not None:
@@ -243,12 +233,26 @@ class CustomerAgentNodes:
             session=tool_context.session,
             knowledge_retriever=tool_context.knowledge,
             youzan_client=tool_context.youzan_client,
+            order_repo=tool_context.order_repo,
+            config_repo=tool_context.config_repo,
+            product_repo=tool_context.product_repo,
+            knowledge_product_repo=tool_context.knowledge_product_repo,
+            analytics_repo=tool_context.analytics_repo,
+            history_repo=tool_context.history_repo,
+            embedding_searcher=tool_context.embedding_searcher,
             transfer_handler=build_transfer_handler(tool_context),
         )
         return {
             tool.name: tool
             for tool in build_tools("customer", customer_context=context)
         }
+
+    def _build_tool_node(self, state: CustomerAgentState) -> Any:
+        from langgraph.prebuilt import ToolNode
+
+        return ToolNode(
+            list(self._tools_by_name(state).values()), handle_tool_errors=True
+        )
 
 
 def route_after_model(state: CustomerAgentState) -> str:

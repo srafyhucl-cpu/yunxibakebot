@@ -6,7 +6,16 @@
 
 除非你是在回顾历史决策，否则当前实施、迁移和双仓协作都应从本节进入；下方“历史方案”和“业务与技术背景”只用于参考，不作为执行起点。
 
-当前代码事实（2026-07-09，`VERSION=0.84.0`）：
+当前代码事实（2026-07-12，`VERSION=0.105.19`）：
+
+- `docs/architecture/global-risk-remediation-and-framework-convergence-plan.md`
+  - 当前全局风险整改唯一主计划；先处理订单伪造、快照 PII、认证支付、事务、消息可靠性和发布恢复，再恢复 LangChain E1-E6 扩大灰度。
+- `docs/architecture/privacy-data-retention-policy.md`
+  - R3-A 主体导出/删除、consent 撤回、检索日志哈希、数据库 TTL 和备份保留策略。
+- `docs/harness-engineering/adr/0005-framework-first-single-path.md`
+  - 固化“通用能力框架优先、AI 应用层 LangChain / LangGraph 单路径、业务领域层保持可审计”的长期约束。
+- `docs/harness-engineering/adr/0006-sqlite-inbox-outbox-exception.md`
+  - 固化单机阶段 SQLite 持久 inbox 的窄例外、恢复边界和后续退出条件。
 
 - `app/lifespan_routes.py` 是路由装配入口；对外仍暴露 `/api/v1/miniapp/*`、`/api/v1/admin/*`、`/api/v1/wecom/*`、`/api/v1/webhook/*` 等稳定路径。
 - `app/api/channels/storefront/` 是消费者前台渠道的 canonical API 目录，继续承接 MiniApp 兼容路径。
@@ -96,6 +105,10 @@
   - 固化逻辑总项目、双仓边界和 `Yunxi` 实例名定位的长期决策。
 - `docs/harness-engineering/adr/0003-langchain-ai-layer-boundary.md`
   - 固化 LangChain 生态接管 AI 应用层、但不接管业务领域层和数据库事实层的长期边界。
+- `docs/harness-engineering/adr/0005-framework-first-single-path.md`
+  - 固化框架优先决策顺序、禁止长期框架/自研双轨，以及迁移兼容路径的退出条件。
+- `docs/harness-engineering/adr/0006-sqlite-inbox-outbox-exception.md`
+  - 固化单机阶段 SQLite 持久 inbox 的窄例外、恢复边界和后续退出条件。
 - `docs/harness-engineering/core/evidence-index.md`
   - 历史证据索引，只做追溯，不作为当前架构口径来源。
 

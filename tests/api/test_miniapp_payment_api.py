@@ -100,6 +100,12 @@ async def test_miniapp_payment_notify_marks_order_paid(
         inventory_repo=YouzanInventoryRepo(db),
         config_repo=ConfigRepo(db),
     )
+    monkeypatch.setattr(
+        "app.service.order.payment_runtime.settings.WECHAT_PAY_MCH_ID", ""
+    )
+    monkeypatch.setattr(
+        "app.service.order.payment_runtime.settings.WECHAT_MINIAPP_APP_ID", ""
+    )
     payload = {
         "id": "notify-1",
         "resource": {
@@ -114,6 +120,10 @@ async def test_miniapp_payment_notify_marks_order_paid(
         {
             "out_trade_no": created["orderId"],
             "trade_state": "SUCCESS",
+            "mchid": "",
+            "appid": "",
+            "amount": {"total": 19800},
+            "currency": "CNY",
             "transaction_id": "4200000000202606171234567890",
             "success_time": "2026-06-17T12:00:00+08:00",
         },
@@ -140,6 +150,10 @@ async def test_miniapp_payment_notify_marks_order_paid(
         lambda self, resource: {
             "out_trade_no": created["orderId"],
             "trade_state": "SUCCESS",
+            "mchid": "",
+            "appid": "",
+            "amount": {"total": 19800},
+            "currency": "CNY",
             "transaction_id": "4200000000202606171234567890",
             "success_time": "2026-06-17T12:00:00+08:00",
         },
@@ -163,3 +177,13 @@ async def test_miniapp_payment_notify_marks_order_paid(
     assert detail["paymentStatus"] == "paid"
     assert detail["paymentMethod"] == "wechat"
     assert detail["paymentPaidAt"] == "2026-06-17 12:00:00"
+
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        duplicate = await client.post(
+            "/api/v1/miniapp/payments/wechat/notify",
+            content=json.dumps(payload).encode("utf-8"),
+            headers={"content-type": "application/json"},
+        )
+    assert duplicate.status_code == 200

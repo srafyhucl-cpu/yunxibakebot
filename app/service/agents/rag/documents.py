@@ -1,8 +1,8 @@
 """知识条目与 LangChain Document 转换。"""
 
-from typing import Any
+from typing import Any, cast
 
-from app.models.knowledge import KnowledgeEntry
+from app.models.knowledge import KnowledgeCategory, KnowledgeEntry
 
 
 def knowledge_entry_to_document(
@@ -51,7 +51,10 @@ def document_to_knowledge_entry(document: Any) -> KnowledgeEntry:
         id=_metadata_int(metadata, "knowledge_id"),
         title=str(metadata.get("title") or ""),
         content=str(getattr(document, "page_content", "") or ""),
-        category=str(metadata.get("category") or ""),
+        category=cast(
+            KnowledgeCategory,
+            str(metadata.get("category") or ""),
+        ),
         content_type=str(metadata.get("content_type") or ""),
         audience=str(metadata.get("audience") or ""),
         review_status=str(metadata.get("review_status") or ""),
@@ -68,4 +71,4 @@ def _metadata_int(metadata: dict[str, Any], key: str) -> int:
     value = metadata.get(key)
     if value in (None, ""):
         return 0
-    return int(value)
+    return int(value or 0)

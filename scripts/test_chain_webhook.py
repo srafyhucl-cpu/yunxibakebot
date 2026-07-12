@@ -7,9 +7,7 @@
 """
 
 import asyncio
-import datetime
 import json
-import os
 import sys
 import time
 import urllib.parse
@@ -219,14 +217,11 @@ async def run_phase_b() -> bool:
     _info(f"analytics_events(price_sync/stock_alert)={analytics_before}")
 
     # ══════════════════════════════════════════════════════════════════════════
-    print(f"\n  ── Run 1（首次推送，期望触发同步）──")
+    print("\n  ── Run 1（首次推送，期望触发同步）──")
     # ══════════════════════════════════════════════════════════════════════════
 
     emb_mtime_base, emb_keys_base = _snapshot_embeddings()
     test_start_ts = time.time()
-    test_start_str = datetime.datetime.fromtimestamp(test_start_ts).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
     _step("构造 item_ItemUpdate 事件并 POST")
     raw_body, sig = _build_system_event_body(item_id)
     payload_preview = json.loads(raw_body)
@@ -266,10 +261,10 @@ async def run_phase_b() -> bool:
     kb_updated = kb_r1 is not None and kb_r1["updated_at"] > _SENTINEL
     if kb_updated:
         _ok(
-            f"knowledge_base 已更新",
+            "knowledge_base 已更新",
             f"id={kb_r1['id']}  updated_at={kb_r1['updated_at']}  （测试前已降至 2000-01-01，现为新时间证明本次写入）",
         )
-        print(f"\n              ── 知识内容前 300 字 ──")
+        print("\n              ── 知识内容前 300 字 ──")
         for line in kb_r1["content_preview"].splitlines():
             print(f"              {line}")
     elif kb_r1:
@@ -294,7 +289,7 @@ async def run_phase_b() -> bool:
     emb_updated = emb_mtime_r1 > test_start_ts
     if emb_updated:
         _ok(
-            f"embeddings.json 已刷新落盘",
+            "embeddings.json 已刷新落盘",
             f"mtime 进阶 +{emb_mtime_r1 - test_start_ts:.2f}s，doc_keys 共 {len(emb_keys_r1)} 条",
         )
     else:
@@ -302,14 +297,14 @@ async def run_phase_b() -> bool:
     emb_key_hit = str(item_id) in emb_keys_r1
     if emb_key_hit:
         _ok(
-            f"doc_keys 包含目标商品",
+            "doc_keys 包含目标商品",
             f"item_id={item_id} 在向量矩阵中（共 {len(emb_keys_r1)} 条）",
         )
     else:
         _fail(f"doc_keys 未找到 item_id={item_id}（当前共 {len(emb_keys_r1)} 条）")
 
     # ══════════════════════════════════════════════════════════════════════════
-    print(f"\n  ── Run 2（重复推送，期望 analytics_events 无新增——幂等验证）──")
+    print("\n  ── Run 2（重复推送，期望 analytics_events 无新增——幂等验证）──")
     # ══════════════════════════════════════════════════════════════════════════
 
     _step("再次 POST 同 item_id 事件")
@@ -340,7 +335,7 @@ async def run_phase_b() -> bool:
     if emb_idempotent:
         _ok(
             f"doc_keys 数量未变（{len(emb_keys_r1)} → {len(emb_keys_r2)}）",
-            f"重复推送是原地替换而非追加，幂等性通过",
+            "重复推送是原地替换而非追加，幂等性通过",
         )
     else:
         _fail(

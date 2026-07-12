@@ -8,10 +8,14 @@ from app.exceptions import LLMError
 from app.logger import setup_logger
 from app.models.conversation_summary import ConversationSummaryCreate
 from app.models.message import Message, MessageRole
-from app.service.llm.client import chat_completion as llm_chat
+from app.service.agents.llm import get_langchain_chat_model
 from app.service.offline.agent_shared import format_dialog
 from app.service.offline.json_utils import parse_json_object
+from app.service.privacy_redaction import redact_external_text
 from app.service.session_manager import estimate_tokens
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -33,6 +37,12 @@ SUMMARY_SYSTEM_PROMPT = (
     "不要把订单、库存、物流、价格当作事实来源；这些必须由工具或知识库重新确认。"
 )
 SUMMARY_PARSE_ERROR = "会话摘要结果不是有效 JSON"
+SUMMARY_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
+    [
+        ("system", "{system_prompt}"),
+        ("user", "{user_content}"),
+    ]
+)
 
 
 @dataclass(frozen=True)
@@ -55,20 +65,14 @@ async def generate_conversation_summary_draft(
         return None
 
     try:
-        response = await llm_chat(
-            _build_summary_messages(
-                summarizable_messages,
-                request.existing_summary_text,
-            ),
-            tools=None,
-            temperature=0,
-            max_tokens=SUMMARY_LLM_MAX_TOKENS,
+        content = await _invoke_summary_chain(
+            summarizable_messages,
+            request.existing_summary_text,
         )
     except LLMError as exc:
         logger.warning("会话摘要生成失败 session=%s err=%s", request.session_id, exc)
         return None
 
-    content = response.choices[0].message.content or "{}"
     try:
         payload = parse_json_object(content, SUMMARY_PARSE_ERROR)
         summary_text = _render_summary_text(payload)
@@ -96,6 +100,27 @@ async def generate_conversation_summary_draft(
         source_until_message_id=summarizable_messages[-1].id,
         token_estimate=estimate_tokens(summary_text),
     )
+
+
+async def _invoke_summary_chain(
+    messages: list[Message],
+    existing_summary_text: str,
+) -> str:
+    """通过统一 LangChain Runnable 生成会话摘要文本。"""
+    model = get_langchain_chat_model(provider="mimo", temperature=0).bind(
+        max_tokens=SUMMARY_LLM_MAX_TOKENS
+    )
+    chain = SUMMARY_PROMPT_TEMPLATE | model | StrOutputParser()
+    summary_messages = _build_summary_messages(messages, existing_summary_text)
+    try:
+        return await chain.ainvoke(
+            {
+                "system_prompt": SUMMARY_SYSTEM_PROMPT,
+                "user_content": redact_external_text(summary_messages[1]["content"]),
+            }
+        )
+    except Exception as exc:
+        raise LLMError("会话摘要 LLM 调用失败") from exc
 
 
 def _build_summary_messages(

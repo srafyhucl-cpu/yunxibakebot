@@ -185,6 +185,24 @@ def test_build_preflight_checks_includes_actionable_readiness_failures(
     assert checks_by_key["business_contracts.static_checks"].passed is True
 
 
+def test_production_preflight_requires_employee_auth_allowlist(monkeypatch) -> None:
+    preflight = load_preflight_module()
+    monkeypatch.setattr(preflight.settings, "WECOM_TOKEN", "wecom-token")
+    monkeypatch.setattr(preflight.settings, "WECOM_INTELLIGENT_BOT_TOKEN", "")
+    monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_AUTH_REQUIRED", False)
+    monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_ALLOWED_USERS", "user-1")
+    monkeypatch.setattr(preflight.settings, "WECOM_EMPLOYEE_CORP_ID", "corp-1")
+
+    checks = preflight.build_readiness_preflight_checks()
+    checks_by_key = {check.key: check for check in checks}
+
+    assert checks_by_key["wecom_employee_auth_ready"].passed is False
+    assert (
+        "WECOM_EMPLOYEE_AUTH_REQUIRED"
+        in checks_by_key["wecom_employee_auth_ready"].action
+    )
+
+
 def test_build_preflight_checks_uses_path_overrides(
     monkeypatch,
     tmp_path: Path,

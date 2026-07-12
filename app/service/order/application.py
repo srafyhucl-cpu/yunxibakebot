@@ -43,7 +43,11 @@ class OrderApplicationService:
         self._serialization_service = OrderSerializationService()
         inventory_service = OrderInventoryService(product_repo, inventory_repo)
         schedule_service = OrderScheduleService(ShopOperationsService(config_repo))
-        payment_service = OrderPaymentRuntimeService(order_repo, inventory_service)
+        payment_service = OrderPaymentRuntimeService(
+            order_repo,
+            inventory_service,
+            event_repo=event_repo,
+        )
         self._timeline_service = OrderTimelineService(
             self._serialization_service,
             event_repo,
@@ -79,7 +83,8 @@ class OrderApplicationService:
         user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管下单创建链路。"""
-        return await self._creation_service.create_order(payload, user_id=user_id)
+        async with self._order_repo.transaction():
+            return await self._creation_service.create_order(payload, user_id=user_id)
 
     async def list_user_orders(
         self,
@@ -109,10 +114,11 @@ class OrderApplicationService:
         user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管小程序用户取消链路。"""
-        return await self._cancellation_service.cancel_user_order(
-            order_id,
-            user_id=user_id,
-        )
+        async with self._order_repo.transaction():
+            return await self._cancellation_service.cancel_user_order(
+                order_id,
+                user_id=user_id,
+            )
 
     async def confirm_mock_payment(
         self,
@@ -121,10 +127,11 @@ class OrderApplicationService:
         user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
         """由订单领域接管 mock 支付链路。"""
-        return await self._payment_service.confirm_mock_payment(
-            order_id,
-            user_id=user_id,
-        )
+        async with self._order_repo.transaction():
+            return await self._payment_service.confirm_mock_payment(
+                order_id,
+                user_id=user_id,
+            )
 
     async def prepare_payment(
         self,
@@ -145,18 +152,21 @@ class OrderApplicationService:
         headers: dict[str, str],
     ) -> dict:
         """由订单领域接管微信支付通知链路。"""
-        return await self._payment_service.handle_wechat_payment_notify(
-            raw_body=raw_body,
-            headers=headers,
-        )
+        async with self._order_repo.transaction():
+            return await self._payment_service.handle_wechat_payment_notify(
+                raw_body=raw_body,
+                headers=headers,
+            )
 
     async def expire_unpaid_order(self, order_id: str) -> dict:
         """由订单领域接管后台关闭未支付链路。"""
-        return await self._expiration_service.expire_unpaid_order(order_id)
+        async with self._order_repo.transaction():
+            return await self._expiration_service.expire_unpaid_order(order_id)
 
     async def expire_timeout_unpaid_orders(self) -> dict:
         """由订单领域接管超时未支付扫描链路。"""
-        return await self._expiration_service.expire_timeout_unpaid_orders()
+        async with self._order_repo.transaction():
+            return await self._expiration_service.expire_timeout_unpaid_orders()
 
     async def list_admin_orders(
         self,
@@ -216,9 +226,10 @@ class OrderApplicationService:
 
     async def update_admin_order_status(self, order_id: str, status: str) -> dict:
         """由订单领域接管后台状态流转链路。"""
-        return await self._admin_status_service.update_admin_order_status(
-            order_id, status
-        )
+        async with self._order_repo.transaction():
+            return await self._admin_status_service.update_admin_order_status(
+                order_id, status
+            )
 
 
 __all__ = ["OrderApplicationService"]

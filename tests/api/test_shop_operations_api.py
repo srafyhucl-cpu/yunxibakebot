@@ -9,6 +9,9 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.repository.config_repo import ConfigRepo
+from app.repository.content_change_history_repo import ContentChangeHistoryRepo
+from app.repository.knowledge_admin_repo import KnowledgeAdminRepo
+from app.repository.knowledge_product_repo import KnowledgeProductRepo
 from app.repository.knowledge_repo import KnowledgeRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.session_repo import SessionRepo
@@ -29,6 +32,9 @@ def app(db: aiosqlite.Connection) -> FastAPI:
         knowledge_repo=KnowledgeRepo(db),
         config_repo=ConfigRepo(db),
         youzan_product_repo=YouzanProductRepo(db),
+        knowledge_product_repo=KnowledgeProductRepo(db),
+        knowledge_admin_repo=KnowledgeAdminRepo(db),
+        history_repo=ContentChangeHistoryRepo(db),
     )
     test_app = FastAPI()
     test_app.include_router(admin_config.create_shop_config_router(admin_service))

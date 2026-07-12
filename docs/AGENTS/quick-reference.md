@@ -29,7 +29,7 @@ ______________________________________________________________________
 | 知识配置后台 | `app/api/admin/knowledge.py` |
 | 数据观察台后台 | `app/api/admin/observability.py` |
 | 数据库初始化 | `app/database.py` |
-| 商品实时刷新 | `app/service/llm/function_tool_product.py` |
+| 商品实时刷新 | `app/service/llm/function_tool_product_live.py` |
 | 版本号（唯一来源） | `VERSION` |
 | 版本同步门禁 | `scripts/sync_version.py` |
 | LOGBOOK 自动追加 | `scripts/append_logbook.py` |
@@ -58,7 +58,7 @@ python -m pytest tests/test_red_line_rules.py -q --tb=short
 uvicorn app.main:app --host 127.0.0.1 --port 7001 --reload
 
 # 健康检查
-curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.1.0"}
+curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.105.19"}
 
 # 知识种子导入（仅 FAQ / 规则 / 话术）
 python scripts/seed_baseline_knowledge.py

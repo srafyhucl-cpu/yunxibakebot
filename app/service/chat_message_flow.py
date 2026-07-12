@@ -31,7 +31,7 @@ from app.service.conversation_summary_scheduler import (
     ConversationSummaryAfterReplyRequest,
 )
 from app.service.customer_memory import load_customer_profile
-from app.service.chat_llm_request import LLM_FAILURE_REASON_KEY
+from app.service.llm.constants import LLM_FAILURE_REASON_KEY
 from app.service.llm.intent_types import is_transfer_intent
 from app.service.reply_guard import ReplyGuardContext, apply_reply_guard
 from app.service.session_manager import SessionManager
@@ -78,6 +78,9 @@ async def handle_chat_message(
         return None
 
     session = await prepare_session_and_save_user_message(dependencies, request)
+    if session is None:
+        logger.debug("消息已由其他处理器认领，跳过: %s", request.channel_msg_id)
+        return None
     if is_human_service_session(session):
         logger.info("会话 %s 处于人工服务状态，跳过 AI", session.id)
         return None
@@ -107,7 +110,7 @@ async def is_duplicate_message(
 async def prepare_session_and_save_user_message(
     dependencies: ChatMessageFlowDependencies,
     request: ChatMessageRequest,
-) -> Session:
+) -> Session | None:
     session = await dependencies.session_repo.get_or_create(
         SessionCreate(
             id="",
@@ -123,7 +126,8 @@ async def prepare_session_and_save_user_message(
         content=request.content,
         channel_msg_id=request.channel_msg_id,
     )
-    await dependencies.message_repo.save(user_msg)
+    if not await dependencies.message_repo.save_if_new(user_msg):
+        return None
     if hasattr(dependencies.session_repo, "touch"):
         await dependencies.session_repo.touch(session.id)
     return session

@@ -17,6 +17,7 @@ from app.database import close_db, init_db  # noqa: E402
 from app.models.knowledge import KnowledgeAudience  # noqa: E402
 from app.repository.knowledge_repo import KnowledgeRepo  # noqa: E402
 from app.service.knowledge_retriever import KnowledgeRetriever  # noqa: E402
+from app.service.knowledge_retrieval_logger import hash_retrieval_query  # noqa: E402
 
 CUSTOMER_QUERY = "retrieval log customer sentinel"
 EMPLOYEE_QUERY = "retrieval log employee sentinel"
@@ -130,7 +131,7 @@ def _check_log_present(
 
 def _matches_log(log: object, query: str, bot_type: str, audience: str) -> bool:
     return (
-        getattr(log, "query", "") == query
+        getattr(log, "query_hash", "") == hash_retrieval_query(query)
         and getattr(log, "bot_type", "") == bot_type
         and getattr(log, "audience", "") == audience
     )
@@ -138,7 +139,7 @@ def _matches_log(log: object, query: str, bot_type: str, audience: str) -> bool:
 
 def _check_no_match_log(logs: list[object]) -> RetrievalLogSmokeCheck:
     for log in logs:
-        if getattr(log, "query", "") != MISSING_QUERY:
+        if getattr(log, "query_hash", "") != hash_retrieval_query(MISSING_QUERY):
             continue
         passed = log.result_count == 0 and log.fallback_reason == "no_match"
         detail = (

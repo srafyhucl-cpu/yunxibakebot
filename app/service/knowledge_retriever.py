@@ -15,6 +15,7 @@ from app.models.config import FEATURED_PRODUCTS_KEY
 from app.models.knowledge import KnowledgeAudience, KnowledgeEntry
 from app.repository.config_repo import ConfigRepo
 from app.repository.knowledge_repo import KnowledgeRepo
+from app.repository.youzan_repo import YouzanProductRepo
 from app.service.bm25_search import BM25Searcher
 from app.service.embedding_search import EmbeddingSearcher
 from app.service.knowledge_live_data import (
@@ -47,6 +48,7 @@ class KnowledgeRetriever:
         rrf_k: int | None = None,
         audience: str = KnowledgeAudience.ALL.value,
         bot_type: str = "",
+        youzan_product_repo: YouzanProductRepo | None = None,
     ) -> None:
         self._repo = repo
         self._vs = vs
@@ -54,12 +56,18 @@ class KnowledgeRetriever:
         self._bm25 = bm25
         self._audience = audience
         self._bot_type = bot_type or bot_type_from_audience(audience)
+        self._youzan_product_repo = youzan_product_repo
         self._enable_hybrid_retrieval = (
             settings.ENABLE_HYBRID_RETRIEVAL
             if enable_hybrid_retrieval is None
             else enable_hybrid_retrieval
         )
         self._rrf_k = settings.RRF_K if rrf_k is None else rrf_k
+
+    @property
+    def embedding_searcher(self) -> EmbeddingSearcher | None:
+        """返回用于增量向量同步的检索器。"""
+        return self._vs
 
     async def search(self, query: str, limit: int = 8) -> list[KnowledgeEntry]:
         """
@@ -176,7 +184,11 @@ class KnowledgeRetriever:
     async def _prepend_live_data(
         self, entries: list[KnowledgeEntry]
     ) -> list[KnowledgeEntry]:
-        return await prepend_live_data(self._repo, entries)
+        return await prepend_live_data(
+            self._repo,
+            entries,
+            product_repo=self._youzan_product_repo,
+        )
 
     def _merge_entries(
         self,
@@ -221,6 +233,7 @@ class KnowledgeRetriever:
         ordered_featured = await filter_recommendable_featured_products(
             self._repo,
             matched_featured_entries,
+            product_repo=self._youzan_product_repo,
         )
         missing_titles = [title for title in products if title not in featured_by_title]
         if missing_titles:

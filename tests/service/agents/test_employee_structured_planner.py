@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 import subprocess
 import sys
@@ -79,7 +78,6 @@ async def test_request_employee_plan_with_langchain_returns_safe_agent_plan(
     plan = await request_employee_plan_with_langchain(
         "今天多少订单",
         capabilities,
-        date(2026, 7, 9),
     )
 
     assert chat_model.schema is EmployeeStructuredPlan

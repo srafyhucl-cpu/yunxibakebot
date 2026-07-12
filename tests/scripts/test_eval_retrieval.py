@@ -24,18 +24,13 @@ def test_resolve_db_path_prefers_explicit_path(tmp_path: Path) -> None:
     assert eval_retrieval.resolve_db_path(str(explicit_db)) == explicit_db
 
 
-def test_resolve_db_path_falls_back_to_local_raw_snapshot(
-    tmp_path: Path, capsys
-) -> None:
+def test_resolve_db_path_uses_safe_default_without_raw_fallback(tmp_path: Path) -> None:
     eval_retrieval = load_eval_module()
     default_db = tmp_path / "eval.db"
-    raw_db = tmp_path / "bot_raw.db"
-    raw_db.write_text("", encoding="utf-8")
     eval_retrieval.DEFAULT_EVALUATION_DB = default_db
-    eval_retrieval.LOCAL_RAW_SNAPSHOT_DB = raw_db
 
-    assert eval_retrieval.resolve_db_path("") == raw_db
-    assert "bot_raw.db" in capsys.readouterr().err
+    assert eval_retrieval.resolve_db_path("") == default_db
+    assert not hasattr(eval_retrieval, "LOCAL_RAW_SNAPSHOT_DB")
 
 
 def test_load_corpus_builds_stable_keys(tmp_path: Path) -> None:

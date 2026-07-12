@@ -89,7 +89,11 @@ async def test_search_prepends_only_sellable_featured_products(
         ],
     )
 
-    retriever = KnowledgeRetriever(knowledge_repo, config_repo=config_repo)
+    retriever = KnowledgeRetriever(
+        knowledge_repo,
+        config_repo=config_repo,
+        youzan_product_repo=product_repo,
+    )
 
     results = await retriever.search("recommend products", limit=3)
 
@@ -234,7 +238,9 @@ async def test_search_writes_knowledge_retrieval_log(
     assert len(logs) == 1
     assert logs[0].bot_type == "customer"
     assert logs[0].audience == "customer"
-    assert logs[0].query == "knowledge log sentinel"
+    assert logs[0].query == ""
+    assert len(logs[0].query_hash) == 64
+    assert logs[0].query_category == "other"
     assert logs[0].retrieval_mode == "keyword_only"
     assert logs[0].result_count == 1
     assert logs[0].fallback_reason == ""

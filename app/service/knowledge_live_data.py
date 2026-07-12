@@ -19,12 +19,14 @@ VIRTUAL_HIGH_STOCK_THRESHOLD = 200
 async def prepend_live_data(
     repo: KnowledgeRepo,
     entries: list[KnowledgeEntry],
+    product_repo: YouzanProductRepo | None = None,
 ) -> list[KnowledgeEntry]:
     """对于商品知识条目，拼接实时库存、售价和 UMP 标记。"""
     if not entries:
         return entries
 
-    product_repo = YouzanProductRepo(repo._db)
+    if product_repo is None:
+        return entries
     for entry in entries:
         if not entry.youzan_item_id:
             continue
@@ -44,12 +46,14 @@ async def prepend_live_data(
 async def filter_recommendable_featured_products(
     repo: KnowledgeRepo,
     entries: list[KnowledgeEntry],
+    product_repo: YouzanProductRepo | None = None,
 ) -> list[KnowledgeEntry]:
     """保留已上架且有库存的后台主推商品知识。"""
     if not entries:
         return []
 
-    product_repo = YouzanProductRepo(repo._db)
+    if product_repo is None:
+        return []
     recommendable_entries: list[KnowledgeEntry] = []
     for entry in entries:
         if not entry.youzan_item_id:

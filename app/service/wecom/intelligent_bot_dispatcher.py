@@ -9,6 +9,7 @@ from typing import Any
 
 from app.logger import setup_logger
 from app.service.wecom.intelligent_bot_messages import extract_message_text
+from app.service.wecom.employee_authorization import EmployeeActorAuthorizer
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
@@ -40,14 +41,21 @@ class WeComBotMessageDispatcher:
         ops_tool_service: Any,
         status_tool_service: Any,
         employee_agent_service: Any = None,
+        actor_authorizer: EmployeeActorAuthorizer | None = None,
     ) -> None:
         self._business_tool_service = business_tool_service
         self._ops_tool_service = ops_tool_service
         self._status_tool_service = status_tool_service
         self._employee_agent_service = employee_agent_service
+        self._actor_authorizer = actor_authorizer
 
     async def dispatch_message(self, message: dict[str, Any]) -> str:
         """处理企微消息回调并返回可发送文本。"""
+        actor = (
+            self._actor_authorizer.authorize(message)
+            if self._actor_authorizer is not None
+            else None
+        )
         text = extract_message_text(message)
         if not text:
             _log_dispatch_result(
@@ -67,6 +75,8 @@ class WeComBotMessageDispatcher:
             )
             return reply_text
         route = self._select_route(text)
+        if actor is not None:
+            self._actor_authorizer.authorize_tool(actor, route.name)
         payload = _build_tool_payload(text, route.name)
         tool_response = await route.handler(payload)
         reply_text = _extract_reply_text(tool_response)

@@ -46,11 +46,13 @@ class WeComOrderLookupService:
         youzan_order_repo: Any = None,
         knowledge_retriever: Any = None,
         youzan_client: Any = None,
+        config_repo: Any = None,
     ) -> None:
         self._order_service = order_service
         self._youzan_order_repo = youzan_order_repo
         self._knowledge_retriever = knowledge_retriever
         self._youzan_client = youzan_client
+        self._config_repo = config_repo
 
     async def lookup_orders(self, query: str, limit: int) -> dict[str, Any]:
         """执行订单查询并返回企微工具响应。"""
@@ -136,17 +138,28 @@ class WeComOrderLookupService:
         )
 
     async def _call_youzan_order_tool(self, query: str, order_no: str) -> str:
+        tool_kwargs = self._live_order_tool_kwargs()
         if is_logistics_query(query):
             return await get_logistics_info(
                 self._knowledge_retriever,
                 order_no,
                 self._youzan_client,
+                **tool_kwargs,
             )
         return await get_order_info(
             self._knowledge_retriever,
             order_no,
             self._youzan_client,
+            **tool_kwargs,
         )
+
+    def _live_order_tool_kwargs(self) -> dict[str, Any]:
+        if self._youzan_order_repo is None and self._config_repo is None:
+            return {}
+        return {
+            "order_repo": self._youzan_order_repo,
+            "config_repo": self._config_repo,
+        }
 
     async def _lookup_exact_order_from_repo(
         self, query: str, order_no: str

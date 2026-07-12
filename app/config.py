@@ -55,10 +55,14 @@ class Settings(BaseSettings):
     RAG_RETRIEVAL_MODE: str = RAG_RETRIEVAL_MODE_HYBRID
     RRF_K: int = 60
     ENABLE_CUSTOMER_MEMORY: bool = True
+    ENABLE_OFFLINE_QA: bool = False
+    ENABLE_OFFLINE_KNOWLEDGE_GAP: bool = False
+    ENABLE_OFFLINE_MEMORY: bool = False
     LANGCHAIN_TRACING_ENABLED: bool = False
     LANGCHAIN_PROJECT: str = "yunxi-bakebot"
     LANGSMITH_API_KEY: str = ""
     AGENT_LOCAL_TRACE_ENABLED: bool = True
+    AGENT_LOCAL_TRACE_PATH: str = ""
     ENABLE_REPLY_GUARD: bool = False
     ENABLE_OFFLINE_REVIEW: bool = False
     OFFLINE_REVIEW_NIGHT_START_HOUR: int = 22
@@ -108,6 +112,11 @@ class Settings(BaseSettings):
     WECHAT_MINIAPP_APP_SECRET: str = ""
     WECHAT_MINIAPP_AUTH_URL: str = "https://api.weixin.qq.com/sns/jscode2session"
     WECHAT_MINIAPP_HTTP_TIMEOUT_SECONDS: float = 10.0
+    REMOTE_IMAGE_ALLOWED_HOSTS: str = "img.yzcdn.cn"
+    STOREFRONT_AUTH_SECRET: str = ""
+    STOREFRONT_AUTH_TTL_SECONDS: int = 3600
+    STOREFRONT_AUTH_ALLOW_LEGACY_HEADER: bool = False
+    ALLOW_MOCK_PAYMENT: bool = False
     WECHAT_PAY_ENABLED: bool = False
     WECHAT_PAY_API_BASE: str = "https://api.mch.weixin.qq.com"
     WECHAT_PAY_MCH_ID: str = ""
@@ -121,6 +130,21 @@ class Settings(BaseSettings):
     # ── 管理后台 ──
     # 注意：生产环境必须在 .env 中设置强密码，不能使用默认值
     ADMIN_API_TOKEN: str = "CHANGE_ME_IN_PRODUCTION_ENV"
+    ADMIN_SESSION_SECRET: str = ""
+    ADMIN_SESSION_TTL_SECONDS: int = 1800
+    ADMIN_ALLOW_LEGACY_BEARER: bool = False
+    ADMIN_COOKIE_SECURE: bool = True
+    ADMIN_ALLOWED_ORIGINS: str = ""
+    ENABLE_API_DOCS: bool = False
+    MAX_REQUEST_BODY_BYTES: int = 1_048_576
+    MAX_CONCURRENT_REQUESTS: int = 100
+    REQUEST_ACQUIRE_TIMEOUT_SECONDS: float = 0.2
+    ADMIN_LOGIN_MAX_ATTEMPTS: int = 5
+    ADMIN_LOGIN_WINDOW_SECONDS: int = 300
+    REQUEST_RATE_LIMIT_MAX_REQUESTS: int = 300
+    REQUEST_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    ADMIN_AI_FAILURE_THRESHOLD: int = 3
+    ADMIN_AI_COOLDOWN_SECONDS: int = 60
 
     # ── 企业微信（客户联系） ──
     WECOM_CORP_ID: str = ""
@@ -135,6 +159,13 @@ class Settings(BaseSettings):
     WECOM_INTELLIGENT_BOT_ENCODING_AES_KEY: str = (
         ""  # 企微智能机器人 API URL 回调 AESKey
     )
+    WECOM_EMPLOYEE_AUTH_REQUIRED: bool = False
+    WECOM_EMPLOYEE_ALLOWED_USERS: str = ""
+    WECOM_EMPLOYEE_ALLOWED_CHATS: str = ""
+    WECOM_EMPLOYEE_CORP_ID: str = ""
+    WECOM_EMPLOYEE_OPS_ROLES: str = ""
+    WECOM_CALLBACK_MAX_AGE_SECONDS: int = 300
+    WECOM_CALLBACK_NONCE_CACHE_SIZE: int = 4096
     WECOM_API_BASE: str = "https://qyapi.weixin.qq.com/cgi-bin"
     WECOM_HTTP_TIMEOUT_SECONDS: float = 10.0
     # ── 企业微信（微信客服） ──

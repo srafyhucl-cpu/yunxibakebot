@@ -16,8 +16,7 @@ class YouzanInventoryRepo(BaseRepository):
             "WHERE item_id = ? AND is_active = 1 AND stock >= ?",
             (quantity, int(item_id), quantity),
         )
-        await self._db.commit()
-        return cursor.rowcount == 1
+        return bool(cursor.rowcount == 1)
 
     async def release_stock(self, item_id: str, quantity: int) -> bool:
         """释放已预占库存。"""
@@ -27,5 +26,4 @@ class YouzanInventoryRepo(BaseRepository):
             "UPDATE youzan_products SET stock = stock + ? WHERE item_id = ?",
             (quantity, int(item_id)),
         )
-        await self._db.commit()
-        return cursor.rowcount == 1
+        return bool(cursor.rowcount == 1)

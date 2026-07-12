@@ -2,10 +2,10 @@
 
 import asyncio
 import json
-from types import SimpleNamespace
 
 import aiosqlite
 import pytest
+from langchain_core.runnables import RunnableLambda
 
 from app.exceptions import LLMError
 from app.models.conversation_review import ConversationReview
@@ -91,13 +91,10 @@ async def test_qa_review_agent_writes_conversation_review(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(
-            content='{"quality_score": 82, "issues": ["价格回答需核对"]}'
-        )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return '{"quality_score": 82, "issues": ["价格回答需核对"]}'
 
-    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(qa_review_module, "_invoke_review_chain", fake_llm_chat)
     agent = _build_agent(db)
 
     reviews = await agent.run()
@@ -126,11 +123,10 @@ async def test_qa_review_agent_repairs_empty_low_score(
         '{"quality_score": 35, "issues": ["未回答生日蜡烛收费规则"]}',
     ]
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(content=responses.pop(0))
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return responses.pop(0)
 
-    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(qa_review_module, "_invoke_review_chain", fake_llm_chat)
     agent = _build_agent(db)
 
     reviews = await agent.run()
@@ -160,11 +156,10 @@ async def test_qa_review_agent_falls_back_when_low_score_has_no_issue(
         '{"quality_score": 0, "issues": []}',
     ]
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(content=responses.pop(0))
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return responses.pop(0)
 
-    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(qa_review_module, "_invoke_review_chain", fake_llm_chat)
     agent = _build_agent(db)
 
     reviews = await agent.run()
@@ -215,11 +210,10 @@ async def test_qa_review_agent_adds_actionable_issues_from_dialog_signals(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(content='{"quality_score": 95, "issues": []}')
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return '{"quality_score": 95, "issues": []}'
 
-    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(qa_review_module, "_invoke_review_chain", fake_llm_chat)
     reviews = await _build_agent(db).run()
 
     issues = json.loads(reviews[0].issues_json)
@@ -261,11 +255,10 @@ async def test_qa_review_agent_flags_repeated_greeting_stall(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(content='{"quality_score": 95, "issues": []}')
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return '{"quality_score": 95, "issues": []}'
 
-    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(qa_review_module, "_invoke_review_chain", fake_llm_chat)
     reviews = await _build_agent(db).run()
 
     issues = json.loads(reviews[0].issues_json)
@@ -343,7 +336,7 @@ async def test_qa_review_agent_isolates_single_session_llm_error(
     async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
         raise LLMError("boom")
 
-    monkeypatch.setattr(qa_review_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(qa_review_module, "_invoke_review_chain", fake_llm_chat)
     agent = _build_agent(db)
 
     reviews = await agent.run()
@@ -380,13 +373,10 @@ async def test_knowledge_gap_agent_upserts_open_gap_without_duplicate_session(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(
-            content='{"question_norm":"生日蜡烛收费吗","proposed_answer":"需人工审核后补充收费规则。"}'
-        )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_gap_chain(*_args: object, **_kwargs: object) -> str:
+        return '{"question_norm":"生日蜡烛收费吗","proposed_answer":"需人工审核后补充收费规则。"}'
 
-    monkeypatch.setattr(knowledge_gap_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(knowledge_gap_module, "_invoke_gap_chain", fake_gap_chain)
     agent = KnowledgeGapAgent(MessageRepo(db), KnowledgeGapRepo(db))
     reviews = [
         ConversationReview(
@@ -431,11 +421,10 @@ async def test_knowledge_gap_agent_adds_gap_from_dialog_signals(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(content='{"question_norm":"","proposed_answer":""}')
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    async def fake_gap_chain(*_args: object, **_kwargs: object) -> str:
+        return '{"question_norm":"","proposed_answer":""}'
 
-    monkeypatch.setattr(knowledge_gap_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(knowledge_gap_module, "_invoke_gap_chain", fake_gap_chain)
     agent = KnowledgeGapAgent(MessageRepo(db), KnowledgeGapRepo(db))
     reviews = [
         ConversationReview(
@@ -471,16 +460,16 @@ async def test_memory_agent_upserts_profile_and_skips_current_profile(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(
-            content=(
-                '{"display_name":"小林","preferences":{"sweetness":"less"},'
-                '"order_summary":{},"allergens":["坚果"],"consent_status":"unknown"}'
-            )
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return (
+            '{"display_name":"小林","preferences":{"sweetness":"less"},'
+            '"order_summary":{},"allergens":["坚果"],"consent_status":"unknown"}'
         )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(memory_module, "_invoke_memory_chain", fake_llm_chat)
+    await CustomerProfileRepo(db).set_consent_status(
+        "youzan", "user-memory-session-1", "granted"
+    )
     agent = MemoryAgent(
         OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
     )
@@ -526,17 +515,17 @@ async def test_memory_agent_merges_dialog_signals_when_model_returns_empty_profi
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(
-            content=(
-                '{"display_name":"","preferences":{},'
-                '"order_summary":{},"special_dates":[],'
-                '"allergens":[],"consent_status":"unknown"}'
-            )
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return (
+            '{"display_name":"","preferences":{},'
+            '"order_summary":{},"special_dates":[],'
+            '"allergens":[],"consent_status":"unknown"}'
         )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(memory_module, "_invoke_memory_chain", fake_llm_chat)
+    await CustomerProfileRepo(db).set_consent_status(
+        "youzan", "user-memory-signal-1", "granted"
+    )
     agent = MemoryAgent(
         OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
     )
@@ -582,18 +571,18 @@ async def test_memory_agent_merges_existing_profile_facts(
             last_interaction_at="2026-06-09 11:00:00",
         )
     )
+    await CustomerProfileRepo(db).set_consent_status(
+        "youzan", "user-memory-merge-1", "granted"
+    )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(
-            content=(
-                '{"display_name":"","preferences":{},'
-                '"order_summary":{},"special_dates":[],'
-                '"allergens":[],"consent_status":"unknown"}'
-            )
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return (
+            '{"display_name":"","preferences":{},'
+            '"order_summary":{},"special_dates":[],'
+            '"allergens":[],"consent_status":"unknown"}'
         )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(memory_module, "_invoke_memory_chain", fake_llm_chat)
     agent = MemoryAgent(
         OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
     )
@@ -641,19 +630,19 @@ async def test_memory_agent_ignores_assistant_only_birthday_prompts(
 
     call_count = 0
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
         nonlocal call_count
         call_count += 1
-        message = SimpleNamespace(
-            content=(
-                '{"display_name":"","preferences":{},'
-                '"order_summary":{},"special_dates":[],'
-                '"allergens":[],"consent_status":"unknown"}'
-            )
+        return (
+            '{"display_name":"","preferences":{},'
+            '"order_summary":{},"special_dates":[],'
+            '"allergens":[],"consent_status":"unknown"}'
         )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(memory_module, "_invoke_memory_chain", fake_llm_chat)
+    await CustomerProfileRepo(db).set_consent_status(
+        "youzan", "user-memory-scope-1", "granted"
+    )
     agent = MemoryAgent(
         OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
     )
@@ -681,17 +670,14 @@ async def test_memory_agent_skips_empty_profile_without_useful_facts(
         )
     )
 
-    async def fake_llm_chat(*_args: object, **_kwargs: object) -> object:
-        message = SimpleNamespace(
-            content=(
-                '{"display_name":"","preferences":{},'
-                '"order_summary":{},"special_dates":[],'
-                '"allergens":[],"consent_status":"unknown"}'
-            )
+    async def fake_llm_chat(*_args: object, **_kwargs: object) -> str:
+        return (
+            '{"display_name":"","preferences":{},'
+            '"order_summary":{},"special_dates":[],'
+            '"allergens":[],"consent_status":"unknown"}'
         )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(memory_module, "_invoke_memory_chain", fake_llm_chat)
     agent = MemoryAgent(
         OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
     )
@@ -848,17 +834,17 @@ async def test_memory_agent_records_partial_handoff_scope(
 
     captured: dict[str, object] = {}
 
-    async def fake_llm_chat(*args: object, **_kwargs: object) -> object:
-        captured["messages"] = args[0]
-        message = SimpleNamespace(
-            content=(
-                '{"display_name":"","preferences":{"interest":"草莓蛋糕"},'
-                '"order_summary":{},"allergens":[],"consent_status":"unknown"}'
-            )
+    async def fake_llm_chat(*_args: object, **kwargs: object) -> str:
+        captured["messages"] = kwargs["messages"]
+        return (
+            '{"display_name":"","preferences":{"interest":"草莓蛋糕"},'
+            '"order_summary":{},"allergens":[],"consent_status":"unknown"}'
         )
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    monkeypatch.setattr(memory_module, "llm_chat", fake_llm_chat)
+    monkeypatch.setattr(memory_module, "_invoke_memory_chain", fake_llm_chat)
+    await CustomerProfileRepo(db).set_consent_status(
+        "youzan", "user-memory-scope-1", "granted"
+    )
     agent = MemoryAgent(
         OfflineSessionRepo(db), MessageRepo(db), CustomerProfileRepo(db)
     )
@@ -873,6 +859,38 @@ async def test_memory_agent_records_partial_handoff_scope(
     assert evidence["session_scope"] == SessionScope.BOT_THEN_HANDOFF_PARTIAL.value
     assert evidence["handoff_occurred"] is True
     assert evidence["human_messages_available"] is False
+
+
+@pytest.mark.asyncio
+async def test_memory_chain_redacts_inputs_before_prompt_runnable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[str] = []
+
+    def capture_prompt(prompt_value, **_kwargs) -> str:
+        captured.append(prompt_value.to_string())
+        return "{}"
+
+    monkeypatch.setattr(
+        memory_module,
+        "get_langchain_chat_model",
+        lambda **_kwargs: RunnableLambda(capture_prompt),
+    )
+
+    result = await memory_module._invoke_memory_chain(
+        model_name="mimo-chat",
+        messages=[
+            {"role": "system", "content": memory_module.MEMORY_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": "手机号 13812345678，订单 E1234567890123",
+            },
+        ],
+    )
+
+    assert result == "{}"
+    assert "13812345678" not in captured[0]
+    assert "E1234567890123" not in captured[0]
 
 
 def _build_agent(db: aiosqlite.Connection) -> QaReviewAgent:

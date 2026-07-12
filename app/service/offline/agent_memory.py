@@ -17,7 +17,7 @@ from app.models.session_scope import SessionScopeSnapshot, snapshot_session_scop
 from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.message_repo import MessageRepo
 from app.repository.offline_session_repo import OfflineSessionRepo
-from app.service.llm.client import chat_completion as llm_chat
+from app.service.agents.llm import get_langchain_chat_model
 from app.service.offline.agent_shared import format_dialog, role_text
 from app.service.offline.json_utils import parse_json_object
 from app.service.offline.memory_merge import (
@@ -27,6 +27,10 @@ from app.service.offline.memory_merge import (
 )
 from app.service.offline.model_selection import select_offline_memory_model
 from app.service.offline.quality_signals import MemorySignal, extract_memory_signal
+from app.service.privacy_redaction import redact_external_text
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -49,6 +53,9 @@ MEMORY_REPAIR_PROMPT = (
     "上一次顾客画像输出不是合法 JSON。请重新检查对话，只输出 JSON："
     '{"display_name": "", "preferences": {}, "order_summary": {}, '
     '"special_dates": [], "allergens": [], "consent_status": "unknown"}。'
+)
+MEMORY_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
+    [("system", "{system_prompt}"), ("user", "{user_content}")]
 )
 MEMORY_SIGNAL_KEYWORDS = (
     "我叫",
@@ -138,14 +145,10 @@ class MemoryAgent:
         last_content = ""
         max_attempts = settings.OFFLINE_LLM_REPAIR_RETRIES + 1
         for attempt in range(max_attempts):
-            response = await llm_chat(
-                _build_memory_messages(memory_input, last_content, attempt),
-                tools=None,
-                temperature=0,
-                max_tokens=768,
-                model=self._reviewer_model,
+            last_content = await _invoke_memory_chain(
+                model_name=self._reviewer_model,
+                messages=_build_memory_messages(memory_input, last_content, attempt),
             )
-            last_content = response.choices[0].message.content or "{}"
             try:
                 parsed = _parse_memory_json(last_content)
             except LLMError:
@@ -164,6 +167,17 @@ class MemoryAgent:
         scope: SessionScopeSnapshot,
     ) -> CustomerProfile:
         existing = await self._profile_repo.get(session.channel, session.user_id)
+        consent_status = await self._profile_repo.get_consent_status(
+            session.channel, session.user_id
+        )
+        if consent_status != MemoryConsentStatus.GRANTED.value:
+            logger.info(
+                "顾客画像 consent 未 granted，跳过长期写入 channel=%s user=%s status=%s",
+                session.channel,
+                session.user_id,
+                consent_status,
+            )
+            raise PermissionError("顾客画像需要显式 consent granted")
         return await self._profile_repo.upsert(
             CustomerProfileUpsert(
                 channel=session.channel,
@@ -201,6 +215,30 @@ class MemoryAgent:
         )
 
 
+async def _invoke_memory_chain(
+    *,
+    model_name: str,
+    messages: list[dict[str, str]],
+) -> str:
+    """通过统一 LangChain Runnable 执行顾客画像抽取。"""
+    provider = "mimo" if "mimo" in model_name.lower() else "deepseek"
+    try:
+        model = get_langchain_chat_model(
+            provider=provider,
+            model=model_name,
+            temperature=0,
+        ).bind(max_tokens=768)
+        chain = MEMORY_PROMPT_TEMPLATE | model | StrOutputParser()
+        return await chain.ainvoke(
+            {
+                "system_prompt": messages[0]["content"],
+                "user_content": redact_external_text(messages[1]["content"]),
+            }
+        )
+    except Exception as exc:
+        raise LLMError("顾客画像 LLM 调用失败") from exc
+
+
 def _existing_value(profile: CustomerProfile | None, field_name: str) -> str:
     """Read a string field from an existing profile."""
     return str(getattr(profile, field_name, "")) if profile is not None else ""
@@ -228,11 +266,12 @@ def _build_memory_input(messages: list, scope: SessionScopeSnapshot) -> str:
         "handoff_occurred": scope.handoff_occurred,
         "human_messages_available": scope.human_messages_available,
     }
+    dialog = redact_external_text(format_dialog(messages))
     return (
         "会话可见范围："
         + json.dumps(scope_payload, ensure_ascii=False)
         + "\n\n对话内容：\n"
-        + format_dialog(messages)
+        + dialog
     )
 
 

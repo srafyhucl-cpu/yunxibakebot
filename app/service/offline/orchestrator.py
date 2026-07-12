@@ -19,7 +19,7 @@ class OfflineReviewOrchestrator:
 
     def __init__(
         self,
-        qa_review_agent: QaReviewAgent,
+        qa_review_agent: QaReviewAgent | None = None,
         knowledge_gap_agent: KnowledgeGapAgent | None = None,
         memory_agent: MemoryAgent | None = None,
     ) -> None:
@@ -29,7 +29,11 @@ class OfflineReviewOrchestrator:
 
     async def run_once(self) -> list[ConversationReview]:
         """执行一轮离线 Agent 流水线。"""
-        reviews = await _safe_run("qa_review", self._qa_review_agent.run)
+        reviews = (
+            await _safe_run("qa_review", self._qa_review_agent.run)
+            if self._qa_review_agent is not None
+            else []
+        )
         safe_reviews = reviews or []
         if self._knowledge_gap_agent is not None:
             await _safe_run(

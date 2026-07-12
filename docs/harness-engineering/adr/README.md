@@ -47,6 +47,8 @@ ______________________________________________________________________
 | [0002](0002-platform-storefront-boundaries-and-instance-naming.md) | accepted | 统一 Platform、storefront 边界与实例命名 |
 | [0003](0003-langchain-ai-layer-boundary.md) | accepted | LangChain 接管 AI 应用层但不接管业务领域层 |
 | [0004](0004-responsibility-first-file-size-governance.md) | accepted | 文件体量只触发职责评审，禁止为压行数机械拆分 |
+| [0005](0005-framework-first-single-path.md) | accepted | 通用能力框架优先，AI 应用层保持单一生产路径 |
+| [0006](0006-sqlite-inbox-outbox-exception.md) | accepted | 单机 SQLite 持久 inbox 的窄例外与退出条件 |
 
 ______________________________________________________________________
 

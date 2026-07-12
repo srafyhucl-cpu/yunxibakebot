@@ -71,7 +71,7 @@ def test_build_retrieval_log_report_summarizes_and_groups_trend() -> None:
     assert report["breakdown"]["by_bot_type"] == {"customer": 2, "employee": 1}
     assert report["trend"]["by_date"][0]["date"] == "2026-07-06"
     assert report["trend"]["by_date"][0]["no_match_rate"] == 0.5
-    assert report["top_no_match_queries"] == [{"query": "缺口", "count": 2}]
+    assert report["top_no_match_queries"] == [{"query_category": "缺口", "count": 2}]
     assert report["recent_logs"][0]["matched_titles"] == ["知识"]
 
 

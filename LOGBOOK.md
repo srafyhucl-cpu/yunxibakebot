@@ -1,4 +1,341 @@
-﻿## [2026-07-10] - review(langchain): 外部证据接入成本增强最终收口审查
+## [2026-07-12] - verify(r3-r4): 整改域级合同回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 继续执行全局整改计划，复核隐私、迁移恢复、备份、发布合同和 readiness 相关本地实现。
+- **验证结果**:
+  - 迁移、加密备份、恢复校验和安全快照合同：`13 passed`。
+  - consent、脱敏、隐私生命周期和前台隐私 API：`8 passed`。
+  - 反向代理、后台认证、容器合同、部署合同和 readiness HTTP：`7 passed`。
+  - `python -m ruff check --no-cache app tests scripts` 通过。
+- **边界**: 仅执行本地合同测试和静态检查；未构建 Docker、未访问真实业务数据、未修改生产、未推送或部署。
+- **后续**: 保留生产异盘密钥/保留策略、真实容器验证、生产授权审计和版本发布为独立出站门禁。
+
+## [2026-07-12] - verify(r4): 刷新生产版本与运行态只读复验
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 继续执行全局整改计划，复核 R4 发布恢复门禁和上一轮发现的生产版本不一致问题。
+- **验证结果**:
+  - 生产仓库 `/opt/yunxibakebot` 为 `HEAD=7e666218275a5040e0c3ab9c648f4cb9a53bac74`、`VERSION=0.105.19`，`yunxibakebot` 为 active/enabled。
+  - `https://yunxifood.cn/health` 和 `/ready` 均 HTTP 200，但运行版本仍为 `0.105.17`；readiness checks 当前全部为 true。
+  - 本机 Docker CLI 不可用，真实 build、漏洞扫描和容器 smoke 仍未验证。
+- **边界**: 仅执行生产 SSH/curl 只读检查；未重启、未修改生产配置、未推送、未部署、未读取业务数据或日志正文。
+- **后续**: 需要明确生产发布/重启授权，并在发布前解决 dirty worktree 的精确 manifest 边界。
+
+## [2026-07-12] - fix(r6): 清理链式脚本 Ruff 存量问题
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R6 全仓质量扫描发现 5 个链式测试/运维脚本仍有 19 个 Ruff 问题，主要是无意义 f-string、未使用 import 和未使用局部变量。
+- **改动**:
+  - 使用 Ruff 自动修复 16 个安全格式/导入问题。
+  - 手动删除 3 个无用途局部变量，保持脚本返回码和实时输出语义不变。
+- **验证结果**:
+  - `python -m ruff check --no-cache app tests scripts` 通过。
+  - `python scripts/check_project.py --skip-tests` 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；`ruff format --check` 的 6 个既有格式提示未在本轮扩散处理。
+
+## [2026-07-12] - docs(r6): 同步 README 运行与备份事实
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R6 文档审计发现 README/quick reference 仍包含 `0.1.0`、Uvicorn 四 worker、DeepSeek 主 provider 和直接复制 SQLite 备份等过时口径。
+- **改动**:
+  - README、`docs/README.md` 和 `docs/AGENTS/quick-reference.md` 同步当前 `VERSION=0.105.19`、MiMo 默认 provider、单 worker 与商品实时模块路径。
+  - 运维示例改用 `scripts/encrypted_backup.py` 和 `verify_backup_restore.py`，明确密钥放在仓外受控路径。
+- **验证结果**:
+  - 全量 Pytest 通过。
+  - `python scripts/check_project.py --skip-tests`、旧事实 `rg` 扫描和 `git diff --check` 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；文档只同步本地代码事实。
+
+## [2026-07-12] - refactor(r6): 拆分客服非文本输入预处理
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: `kf_message_queue.py` 同时承担图片/语音输入适配、会话生命周期和 AI 回复编排，队列主函数体量和变化原因过多。
+- **改动**:
+  - 新增 `kf_message_preprocessor.py`，承载图片下载、语音 AMR 转 WAV、ASR 和非文本兜底发送。
+  - 队列主流程改为消费 `PreparedKfMessage`，保留持久化、会话状态同步、AI 调用和 UMP 回复发送。
+- **验证结果**:
+  - 微信客服回调、持久队列、UMP、客服客户端：`30 passed`。
+  - Ruff check 通过；`kf_message_queue.py` 241 行，预处理模块 105 行。
+- **边界**: 未访问生产、未提交、未推送、未部署；事件状态编排仍保持单一状态合同。
+
+## [2026-07-12] - refactor(r6): 收敛商品事件与客服队列职责
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: `event_item.py` 保留无调用方的旧 RAG 构建/同步代码，`kf_message_queue.py` 同时处理队列生命周期和商品卡片发送。
+- **改动**:
+  - 新增 `event_item_parser.py`，承载商品 SKU/属性/成分标签提取；`product_sync.py` 改用 canonical 解析入口。
+  - 删除 `event_item.py` 中无调用方的旧 RAG 构建/同步函数，保留有赞商品事件状态与审计编排。
+  - 新增 `kf_card_sender.py`，承载图片下载、企微素材上传、link 卡片发送和文本降级；队列改为调用独立发送器。
+- **验证结果**:
+  - 商品事件、商品同步、完整链路：`27 passed`。
+  - 微信客服回调、持久队列、UMP、客服客户端：`30 passed`。
+  - Ruff check 通过；`event_item.py` 327 行，`kf_message_queue.py` 339 行，剩余编排边界保留职责评审记录。
+- **边界**: 未访问生产、未提交、未推送、未部署；剩余事件/队列编排拆分需先冻结状态合同。
+
+## [2026-07-12] - refactor(r6): 拆分有赞 Webhook 负载解析职责
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: `app/service/youzan/webhook.py` 同时承载签名/JSON 解析和商品 ID 多级降级提取，变化原因不同。
+- **改动**:
+  - 新增 `app/service/youzan/webhook_payload.py`，承载 `item_id` 负载提取。
+  - `YouzanEventHandler` 改用新 canonical 导入路径；旧模块不保留重复实现。
+- **验证结果**:
+  - 有赞事件边界、Webhook 重试/dispatcher、Youzan emulator：`12 passed`。
+  - 新旧模块 Ruff check 通过；`webhook.py` 36 行，`webhook_payload.py` 42 行。
+- **边界**: 未访问生产、未提交、未推送、未部署；`event_item.py` 和 `kf_message_queue.py` 尚未拆分。
+
+## [2026-07-12] - refactor(r6): 拆分商品工具实时刷新职责
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: `function_tool_product.py` 同时承载商品检索、推荐埋点、TTL 缓存、实时 API 刷新、RAG 回写和变更历史记录，达到职责评审线以上。
+- **改动**:
+  - 新增 `app/service/llm/function_tool_product_live.py`，集中商品缓存、实时刷新、商品宽表/RAG/向量同步和变更历史记录。
+  - `function_tool_product.py` 保留商品工具入口、知识检索和推荐埋点，改为调用新的实时刷新模块。
+  - 更新实时刷新边界测试导入，未保留旧实现旁路。
+- **验证结果**:
+  - 商品事件边界、商品 RAG 同步、知识检索、客户 graph、企微订单查询：`32 passed`。
+  - 新旧模块 Ruff check 和 Python 编译通过；新旧文件分别为 150 行和 181 行。
+- **边界**: 未访问生产、未提交、未推送、未部署；`youzan_webhook.py`、`event_item.py`、`kf_message_queue.py` 的职责拆分仍待后续工作包处理。
+
+## [2026-07-12] - refactor(r6): service 仓储句柄穿透全量收敛
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 在 `AdminService` 首片后继续盘点，发现知识实时增强、订单/物流工具和商品实时刷新仍通过 `KnowledgeRepo._db` 获取其他仓储，R6 第 3 项不能以局部修复宣称完成。
+- **改动**:
+  - `KnowledgeRetriever` 显式注入 `YouzanProductRepo`，主推商品过滤和实时数据增强不再从知识仓储获取底层连接。
+  - 客户 graph 的工具上下文沿 `ChatService -> AI loop -> CustomerGraphDependencies -> ToolExecutionContext` 传递订单、配置、商品、知识商品、分析、历史和向量依赖。
+  - 订单/物流工具改为使用显式订单仓储和配置仓储；商品实时刷新和 `sync_product_to_rag` 改为使用显式仓储/向量依赖。
+  - 更新 lifespan 装配和直接调用测试契约，保留缺少依赖时的明确不可用/跳过埋点行为。
+- **验证结果**:
+  - 客户 graph、知识检索、商品同步、企微订单查询、ChatService/lifespan 装配：`57 passed`。
+  - 有赞事件边界、推送模拟、完整链路、Webhook 重试/队列：`30 passed`。
+  - Ruff check 通过；`rg "repo\\._db|knowledge_retriever\\._repo\\._db|repository\\._db" app/service --glob "*.py"` 零命中。
+- **边界**: 未访问生产、未提交、未推送、未部署；R6 其他文件职责拆分、Docker 真实 build 和生产发布验证仍未完成。
+
+## [2026-07-12] - refactor(r6): AdminService 仓储依赖显式注入
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R6 要求消除 service 对 `repo._db` 的私有穿透；`AdminService` 原先从 `KnowledgeRepo._db` 临时构造多个其他仓储，违反 `service -> repository` 边界。
+- **改动**:
+  - `AdminService` 增加知识商品、知识管理和内容变更历史仓储的显式可注入依赖。
+  - `lifespan_services.py` 和两个真实 API 测试装配入口补齐对应仓储。
+  - `AdminService` 的四处 `KnowledgeRepo._db` 穿透改为调用注入仓储。
+- **验证结果**:
+  - `tests/service/test_admin.py`、后台 featured catalog、shop operations、admin order API：`11 passed`。
+  - Ruff format/check 通过。
+  - R6 全量 `_db` 扫描仍发现 `knowledge_live_data.py`、`function_tool_order.py`、`function_tool_product.py` 遗留穿透，因此本条记录为首片，不宣称 R6 第 3 项完成。
+- **边界**: 未访问生产、未提交、未推送、未部署；后续需按工具上下文和知识实时增强依赖边界继续收敛。
+
+## [2026-07-12] - test(e2e): R6 后台最小 Playwright 门禁与中间件缺陷修复
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R6 要求后台登录、订单、向量重建鉴权和 ready 失败态具备最小真实浏览器门禁；项目此前没有 Playwright 依赖或 E2E 配置。
+- **改动**:
+  - `web/admin` 增加 `@playwright/test`、配置和 3 项真实应用链路 E2E；不 mock 自有 API，使用可注入 base URL、API origin、Token 和 ready 期望状态。
+  - E2E 首次运行发现后台登录 POST 在 `edge_protection` 中因覆盖 `request._receive` 后递归调用自身而返回 500；保存原始 receive callable 修复该缺陷。
+  - 增加请求体透传回归测试，ready 断言对齐实际 HTTP 503 + `status=degraded` 契约，收窄订单页 locator。
+- **验证结果**:
+  - `npm run typecheck` 通过。
+  - `npm run build:production` 通过。
+  - `npm run e2e` 使用系统 Chrome、本地 FastAPI 7010 和 Vite 5173：`3 passed`。
+  - `tests/test_main_runtime.py`：`15 passed`；Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；E2E 使用本地 synthetic 数据和本地临时 session secret，不代表生产浏览器验收。
+
+## [2026-07-12] - review(quality): employee Agent nodes 体量职责评审
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R6 文件体量门禁发现 `app/service/agents/employee/nodes.py` 为 329 行，超过 service 阻断线 320 行。
+- **结论**:
+  - 当前文件共同维护员工 graph state、LangGraph `ToolNode` 缓存、订单查询领域例外、确定性事实 finalizer 和 trace 事件；这些职责共享同一执行状态与依赖装配。
+  - 本轮保留内聚边界，不为减少 9 行机械拆分；后续若 graph 生命周期或工具上下文解耦，优先按可独立测试的稳定边界拆分。
+- **验证结果**: 补入 `scripts/check_file_sizes.py` 的机器可读职责评审记录，待本轮项目门禁复核。
+- **边界**: 未访问生产、未提交、未推送、未部署。
+
+## [2026-07-12] - fix(harness): R6 证据索引完整性与 SHA-256 门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 原证据索引检查只验证 Markdown 字段，不能发现文件路径失效，也不输出证据文件完整性摘要。
+- **改动**:
+  - `check_evidence_index.py` 解析条目本地引用，阻断缺失路径，区分文件与目录，并为本地文件输出 SHA-256。
+  - 保留生产路径为外部未验证引用；对历史重命名文件使用显式 canonical alias，对历史控制字符污染路径做确定性修复，不静默忽略。
+  - 更新 Harness README 和 R6 主计划，补充完整性门禁合同测试。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_check_evidence_index.py -q --no-cov --tb=short`：`7 passed`。
+  - `python scripts/check_evidence_index.py --summary`：`status=passed total=270 failed=0 verified_files=459`。
+  - Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；SHA-256 是当前工作区本地证据文件摘要，不等同于生产报告或外部数据证明。
+
+## [2026-07-12] - fix(quality): R6 Agent 类型质量首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R6 类型质量按目录分域收敛；Agent 目录仍有若干由第三方类型信息传播导致的 `Any`，需要先收窄本轮直接维护的四个文件。
+- **改动**:
+  - `rag/documents.py` 对知识分类和 metadata 数值做显式类型收窄。
+  - `llm.py` 使用 `SecretStr` 传递 provider API key，避免把敏感字符串作为普通值传入模型构造器。
+  - `customer/model.py` 和 `employee/nodes.py` 对 provider、运行配置、工具选择和领域结果增加边界类型收窄。
+- **验证结果**:
+  - 4 个文件 `python -m mypy --follow-imports=skip ... --ignore-missing-imports` 通过。
+  - Agent 定向回归 `23 passed`；Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；这只是 Agent 类型质量首片，不代表全仓或全部依赖导入后的历史 mypy 错误已清零。
+
+## [2026-07-12] - feat(observability): R5-B 本地受控 trace sink 首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: customer/employee graph 已生成脱敏 `AgentTraceRun`，但 `answer()` 路径丢弃 trace，LangSmith 默认关闭且没有可查询的本地持久 sink。
+- **改动**:
+  - 新增可注入 `LocalAgentTraceSink`，以 JSONL 异步写入 trace，过滤敏感字段并将 `conversation_id` 替换为 SHA-256 hash。
+  - customer/employee graph service 接入可选 sink；sink 写入失败只记录错误，不影响业务回复。
+  - lifespan 通过 `AGENT_LOCAL_TRACE_PATH` 组装 sink，默认空路径保持关闭，不自动开启外发或生产持久化。
+- **验证结果**:
+  - sink、observability、customer/employee graph、lifespan 定向集 `32 passed`。
+  - `python -m pytest tests/ -q` 全量通过，coverage `82.35%`。
+  - sink 的哈希、敏感过滤、失败隔离和构造注入合同通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；生产 sink 配置/导出复核、LangSmith callback、checkpoint、容器 build/smoke 和异盘加密恢复仍未完成。
+
+## [2026-07-12] - refactor(rag): R5-A 三种模式统一 Retriever adapter
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: customer RAG 的 `hybrid` 模式直接调用领域 `KnowledgeRetriever.search`，planned/rerank 模式才使用 LangChain adapter，形成模式分叉。
+- **改动**:
+  - `chat_context` 的 `hybrid`、`planned-hybrid`、`planned-hybrid-rerank` 统一经过 `LangChainKnowledgeRetriever`；query expansion 和 document rerank 保留为可注入策略。
+  - small-talk 的 `search_keyword_only` 保留为明确业务策略，不混入通用 RAG 模式 adapter。
+  - 更新 chat context 合同测试，确认 hybrid 不再绕过 adapter，并同步迁移计划中的旧消息描述。
+- **验证结果**:
+  - RAG retriever、chat context、knowledge retriever 定向集 `40 passed`。
+  - `python -m pytest tests/ -q` 全量通过，coverage `82.31%`。
+  - Ruff/format、项目契约和 Harness 收口待本条目后集中复核。
+- **边界**: 未访问生产、未提交、未推送、未部署；callback sink、checkpoint、真实 RAG shadow evidence、容器 build/smoke 和异盘加密恢复仍未完成。
+
+## [2026-07-12] - refactor(llm): R5-A employee structured planner 单路径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: employee planner 已使用 LangChain `with_structured_output`，但仍把 Pydantic 结果序列化为 JSON 后交给旧 parser，并在失败时回到旧文本 LLM JSON 路径。
+- **改动**:
+  - `EmployeeStructuredPlan` 直接映射为领域 `AgentPlan`/`OrderQueryPlan`，保留 intent、工具白名单、查询字段、枚举和 limit 约束。
+  - 删除 `employee_agent_llm_plan.py` 旧 JSON prompt/parser；LangChain 规划失败只返回规则规划兜底，不再调用旧文本 chat planner。
+  - 更新 planner 测试替身契约，覆盖 structured output 结果和能力全集传递。
+- **验证结果**:
+  - employee structured planner、employee graph、WeCom employee agent 定向集 `58 passed`。
+  - `python -m pytest tests/ -q` 全量通过，coverage `82.31%`。
+  - 旧 `employee_agent_llm_plan`、`parse_llm_plan`、`build_planner_prompt` 引用归零；Ruff/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；统一 Retriever、callback sink、checkpoint、容器 build/smoke 和异盘加密恢复仍未完成。
+
+## [2026-07-12] - refactor(llm): R5-A customer graph BaseMessage 单路径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: customer graph 在 `state.messages`、模型输入和 ToolNode 输出之间反复使用 OpenAI 字典与 LangChain 消息，形成第二套通用消息协议；外发脱敏对工具参数中的裸订单号也缺少覆盖。
+- **改动**:
+  - customer graph state、模型请求和 ToolNode 结果统一使用 LangChain `BaseMessage`；只在上下文初始化、隐私适配和业务观测边界转换。
+  - 删除旧 `parse_tool_arguments`、tool call 读取和 `append_tool_result_messages` helper 及其仅用于验证旧协议的测试，转人工测试改为验证 canonical handler 结果。
+  - 新增 LangChain 消息脱敏合同，覆盖 `AIMessage.tool_calls.args` 和 `ToolMessage`；standalone `ORD/ORDER` 订单标识纳入外发脱敏。
+- **验证结果**:
+  - customer graph、customer model、privacy、chat refactor、observability、knowledge retriever 定向集 `58 passed`。
+  - `python -m pytest tests/ -q` 全量通过，coverage `82.27%`。
+  - 三层架构搜索零命中；Ruff check/format 通过；旧 tool parser/append helper 引用归零。
+- **边界**: 未访问生产、未提交、未推送、未部署；employee graph/tool 标准化、统一 Retriever、callback sink、checkpoint、容器 build/smoke 和异盘加密恢复仍未完成。
+
+## [2026-07-12] - feat(llm): R5-A customer ToolNode 首片与全量回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R5 文本 chat 已收敛到 LangChain model/Runnable，customer graph 的工具执行仍需从手写遍历和消息拼接迁移到 LangGraph 标准 `ToolNode`。
+- **改动**:
+  - customer `execute_tools()` 改为调用 LangGraph `ToolNode`，复用当前请求的 typed tools，并保留业务 guard、工具轮次限制、上下文预算和 trace 记录。
+  - customer graph 测试替身改为 `StructuredTool`，模型 tool-call 改为 `AIMessage`，统一验证标准框架契约和跨 session 工具上下文隔离。
+  - 不在生产代码中恢复旧式任意对象 `ainvoke` 手工执行兼容旁路。
+- **验证结果**:
+  - customer graph 定向回归 `11 passed`；R5 Agent/LLM/observability 定向集 `30 passed`。
+  - `python -m pytest tests/ -q` 全量通过，coverage `82.25%`。
+  - Ruff check/format、`check_project.py --skip-tests`、mistake ledger、evidence index、LOGBOOK 和 `git diff --check` 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；BaseMessage 全量统一、员工 graph/tool 标准化、统一 Retriever、callback sink、checkpoint、容器 build/smoke 和异盘加密恢复仍未完成。
+
+## [2026-07-11] - docs(architecture): 建立全局风险整改与框架收敛执行计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 基于 `AUDIT-20260711-GLOBAL-REVIEW` 的全局审计结论，项目需要先处理订单伪造、生产快照 PII、认证支付、事务、消息可靠性、隐私和发布恢复风险；用户同时要求已引入 LangChain 后不再长期维护半框架、半自研通用能力，并降低 micro-commit 与重复全量测试频率。
+- **决策**:
+  - 新增 `docs/architecture/global-risk-remediation-and-framework-convergence-plan.md`，以 P0/P1 依赖和发布列车组织整改，明确工作包、退出条件、测试频率、提交/推送节奏和当前工作区逐项处置。
+  - 新增 ADR 0005，固化“现有框架公开能力 -> 官方扩展/成熟组件 -> 薄 adapter -> 有记录的自研例外”的决策顺序；AI 应用层使用 LangChain / LangGraph 单一路径，认证、支付、事务、幂等和隐私仍由领域层负责。
+  - 现有 LangChain E1-E6 生产增强计划保留，但在全局高风险门禁关闭前暂停扩大真实数据、RAG 热路径和 LangSmith 外发。
+  - 当前 tracked 工作区原有改动仅为 `real_sample_ready` 的单字符误改；本轮不擅自恢复，计划已明确后续精确回滚并排除出提交。
+- **范围**: 本轮只修改计划、ADR、导航、进度提示和 LOGBOOK；不改业务代码、不访问生产、不清理目录、不提交、不推送、不部署。
+- **验证结果**: 见本轮最终集中验证；文档任务不重复运行已知无法收集的全量 Pytest，也不运行会真实加载 BGE 的重型项目门禁。
+
+## [2026-07-11] - fix(privacy): R3-A 主体权利、生命周期和外发脱敏首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R3-A 首片已完成 consent/画像撤回，但原始检索 query、消息/地址/订单 TTL、主体导出删除和部分 LangChain 外发入口仍缺少统一闭环。
+- **改动**:
+  - 新增 `v020_privacy_lifecycle.sql`，检索日志改为保存脱敏 query 的 SHA-256 与低敏分类，原始 `query` 置空。
+  - 新增 `PrivacyRepo`、`PrivacyLifecycleService` 和前台主体导出/删除 API，覆盖会话、消息、摘要、转接、订单、地址、审计、群登记、分析、有赞订单及客户主档关联数据；撤回事实保留为 `revoked`。
+  - 定义消息、画像、检索日志、地址审计、订单和备份保留期；数据库清理由 `scripts/apply_privacy_retention.py` 执行，备份不由应用批量删除。
+  - 原生 LLM、客户/员工 LangChain 和 query rewrite 边界统一接入结构化脱敏。
+  - 将离线 QA、知识缺口和 memory 拆为独立 `ENABLE_OFFLINE_QA`、`ENABLE_OFFLINE_KNOWLEDGE_GAP`、`ENABLE_OFFLINE_MEMORY` 开关。
+- **验证结果**: consent/画像/离线复盘/独立开关/脱敏、检索日志、隐私仓库、主体 API、迁移和 lifespan 定向测试通过；Ruff check/format 通过，Harness 收口检查待本轮完成后集中执行。
+- **边界**: 未访问生产、未提交、未推送、未部署；R3-B SSRF/员工授权和 R4-R6 仍未完成。
+
+## [2026-07-11] - fix(security/runtime): R3-B 出站首片与 R4-A readiness/告警收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**:
+  - 商品图片代理改为 host allowlist、DNS 解析后阻断私网/回环/link-local、逐跳重定向验证、流式字节上限和 MIME 检查；微信登录上游错误改为固定错误码文本。
+  - 企微智能机器人和有赞 webhook Secret 缺失返回 503；员工消息增加 userid/chatid/corp_id 白名单与运营角色校验。
+  - `/ready` 检查失败设置 HTTP 503；告警 HTTP 发送改用已锁定 `httpx`，不再延迟依赖 `aiohttp`；离线 QA、知识缺口和 memory readiness flags 分开显示。
+- **验证结果**: R3-B/R4-A 定向回归 44 项通过，Ruff check/format 和 `check_file_sizes.py` 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；统一下载入口、stuck 任务告警、R4-B/R4-C 仍未完成。
+
+## [2026-07-11] - fix(deploy): R4-B 发布失败边界首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: 部署脚本移除依赖安装错误吞异常；检测到 `bot.db.tmp` 或 `embeddings.pkl.tmp` 时拒绝代码发布，不自动覆盖数据；同时等待 `/health` 和 `/ready` 均返回 200，并记录前一提交作为回滚点。
+- **验证结果**: 部署脚本静态合同测试、`bash -n scripts/deploy_server.sh` 和文件体量门禁通过；未执行部署。
+- **边界**: 代码/数据发布分离、备份 restore round-trip、精确 SHA 构建、迁移 dry-run/apply/rollback、容器和生产探针仍未完成。
+
+## [2026-07-11] - fix(container): R4-C runtime-only 与非 root 首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: Docker 改为 runtime-only 多阶段构建，不安装 dev 依赖，不在构建时下载模型；容器以 `yunxi:10001` 运行，单 worker，Compose 与 Dockerfile 统一 `DB_PATH=/app/data/bot.db`，healthcheck 改为 `/ready`。
+- **验证结果**: 容器静态合同测试和文件体量门禁通过；未执行 Docker build、未部署。
+- **边界**: base image digest、漏洞扫描、完整容器 smoke 和生产数据卷恢复仍未完成。
+
+## [2026-07-11] - feat(recovery): R4-B SQLite backup/restore round-trip 首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: 新增 `scripts/verify_backup_restore.py`，使用 Python SQLite backup API 创建备份、恢复副本并对 source/backup/restore 执行 `integrity_check`；已有输出路径拒绝覆盖，不自动删除文件。
+- **验证结果**: round-trip、已有输出拒绝、部署脚本和容器合同测试通过；未操作生产数据库或备份目录。
+- **边界**: 异盘加密副本、定时编排、迁移 rollback、精确 SHA 发布和生产恢复演练仍未完成。
+
+## [2026-07-11] - fix(security): R0 白名单快照与 CI 单一路径止血
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 按全局风险整改计划和 ADR 0005 执行 R0-A/R0-B/R0-C；旧快照脚本通过删除若干表推断安全，并允许评测回退到原始快照，CI 还引用不存在的 seed 入口和虚构 embedding 文件。
+- **改动**:
+  - 精确恢复 `real_sample_ready` 单字符误改；新增 `scripts/export_safe_snapshot.py`，只导出 `knowledge_base`、`youzan_products`、`youzan_product_categories` 的明确允许列。
+  - 源库出现未登记表、允许列缺失或敏感模式时 fail closed；失败不留下目标库；删除 `--raw` 和评测脚本原始库回退路径。
+  - `scripts/pull_prod_snapshot.sh` 改为原始快照仅作临时输入，CI 使用现有 baseline seed，自动部署在 R4-B 前禁用。
+  - 新增安全快照合同测试，覆盖 PII 表、敏感字段、未知表和目标表/列集合。
+- **验证结果**:
+  - `python -m pytest tests/scripts/test_export_safe_snapshot.py tests/scripts/test_eval_retrieval.py -q --no-cov` 通过，15 项。
+  - `python -m pytest tests/scripts/test_harness_snapshot.py tests/scripts/test_check_mistake_ledger.py -q --no-cov` 通过，9 项。
+  - `python -m ruff check scripts/export_safe_snapshot.py tests/scripts/test_export_safe_snapshot.py scripts/eval_retrieval.py tests/scripts/test_eval_retrieval.py` 通过。
+  - `bash -n scripts/pull_prod_snapshot.sh` 返回成功；`python scripts/check_project.py --skip-tests` 运行超过 60 秒未完成，未将其记为通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；未清理用户已有的 `D:\Temp\pytest-of-srafy` 目录或其他临时产物。
+
+## [2026-07-11] - fix(test): R0-C 恢复标准测试与质量门禁
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R0-C 首轮已修复 CI 入口，但标准测试仍暴露 3 项收集错误、6 项真实失败，并发现质量合约重复加载真实 Embedding 导致门禁超时。
+- **改动**:
+  - 修复长上下文 smoke 对摘要常量的 canonical 导入；新增测试包标记，消除同名测试模块收集冲突。
+  - `check_project.py` 对所有质量合约统一设置 `YUNXI_USE_FAKE_EMBEDDING=1`，并缓存进程内只读合约结果，避免重复启动 22 个子进程。
+  - 修正外部证据交接包“结构可用”与“外部证据已完成”的状态边界；补齐生产同步交接测试的容量证据合同；保持未满足外部证据时 readiness 为 false。
+  - 将 R0 状态和当前版本字段同步到项目进度清单。
+- **验证结果**:
+  - `python -m pytest tests/ -q` 通过，全部测试通过，coverage `81.52%`，高于 `70%` 门槛。
+  - `python -m pytest tests/ -q --no-cov` 通过，全部测试通过。
+  - `python scripts/check_project.py --skip-tests` 通过：红线、洁净代码和 22 项业务合约全部通过。
+  - `python -m pytest tests/scripts/test_build_langchain_external_evidence_handoff_packet.py tests/scripts/test_report_langchain_production_sync_handoff.py tests/scripts/test_sync_version.py -q --no-cov` 通过，13 项。
+- **边界**: 未访问生产、未提交、未推送、未部署；LangSmith、真实 replay、真实 shadow log 和生产自动部署继续保持关闭。
+
+## [2026-07-10] - review(langchain): 外部证据接入成本增强最终收口审查
 - **操作人**: AI (Codex)
 - **trace_id**: 20260709-langchain-ai-layer-production-enhancement
 - **背景**: 本轮仅审查当前未提交工作区，不恢复或继续原 LangChain goal，不新增功能；目标是保留 P17b、P19c、P23b-P23f 中确实降低外部证据接入成本的最小实现，并清理非语义 diff 与过度治理记录。
@@ -12210,3 +12547,314 @@ ______________________________________________________________________
   - 真实企微补跑：`wecom_1on1/session=3e77de27-3766-487c-a6c0-ce40f199a2f2` 与 `wecom_kf/session=3ac6aa2b-36b1-44b9-bb15-ff2339a2fdb3` 均新增 `mimo-v2.5-pro` review，结果为 `0` 分并带人工复核提示。
   - 当前生产统计：`mimo-v2.5-pro` review 共 `8` 条，`customer_profiles=15`，`knowledge_gaps=0`。
   - `customer_profiles` 仍为 `15`，`knowledge_gaps` 仍为 `0`，说明本次更像是把沉淀链路修复到诚实可用，而非伪造空结果。
+## [2026-07-11] - fix(security): 收口 R1-A 认证归属与支付闭环
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 按全局风险整改计划与 ADR 0005，R1-A 必须作为单一发布能力同时关闭伪造身份、跨用户资源访问、客户端改价、生产 mock-pay 和微信通知伪造风险。
+- **改动**:
+  - storefront 统一使用 Bearer JWT 身份依赖，旧用户头仅测试/兼容开关可用；订单、地址、聊天和群登记入口执行资源归属校验。
+  - 支付准备与确认均受 `ALLOW_MOCK_PAYMENT` 保护，生产默认关闭；微信通知校验商户号、appid、金额、币种和交易号。
+  - 新增 `payment_transactions` 账本表及 repository 原子认领，交易号唯一绑定订单，重复同订单通知幂等，状态只从 unpaid 进入 paid。
+- **验证结果**:
+  - `python -m pytest tests/api/test_miniapp_payment_api.py tests/service/test_order.py -q --no-cov`：24 项通过。
+  - `python -m pytest tests/ -q --no-cov`：全部通过（全量运行约 218 秒）。
+  - `python scripts/check_project.py --skip-tests`、Ruff check/format：通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；未清理用户已有临时目录。
+## [2026-07-11] - fix(transaction): 收口 R1-B 订单域 Unit of Work
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 订单、库存、订单事件和会话仓库内部自行 `commit()`，导致订单创建和支付回调无法证明跨写入点原子回滚。
+- **改动**:
+  - `DatabaseHandle`/`BaseRepository` 新增可嵌套事务上下文，兼容生产 `DatabaseHandle` 与现有测试原始 SQLite 连接装配。
+  - 订单应用服务统一包住创建、取消、支付确认/通知、超时关闭和后台履约状态流转；首批订单仓库、库存仓库、事件仓库及订单创建会话写入移除内部提交。
+  - 微信支付成功写入订单事件，交易号认领、订单支付状态和事件写入共用事务；将微信通知业务合同提取到 `payment_notification.py`，新增 `check_order_repository_transactions.py` 静态门禁并接入 `check_project.py`。
+  - 新增订单创建和支付回调故障注入测试，验证库存、会话、订单、交易号和支付状态整体回滚。
+- **验证结果**:
+  - `python -m pytest tests/ -q --no-cov`：全部通过。
+  - `python scripts/check_project.py --skip-tests`：通过，含订单 repository 事务门禁。
+  - 定向订单/支付测试、Ruff check/format、`git diff --check`：通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；全局整改主计划未完成，下一工作包为 R1-C。
+## [2026-07-11] - fix(security): R1-C 首片收口后台短会话与向量鉴权
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 后台仍接受长期 Bearer 兼容，前端将管理 token 写入 localStorage，向量状态/重建入口没有统一 admin 依赖，后台 Cookie 生命周期过长。
+- **改动**:
+  - 新增 `ADMIN_SESSION_SECRET`、短 TTL、Secure/HttpOnly/SameSite Cookie 和签名会话；默认关闭 `ADMIN_ALLOW_LEGACY_BEARER`。
+  - 增加后台 Origin 校验；向量状态与重建接口接入 `verify_token`；前端移除 localStorage token 和自动 Authorization 注入。
+  - 启动安全检查与 readiness 共同要求 `ADMIN_API_TOKEN`、`ADMIN_SESSION_SECRET`；ASGI 层增加 body cap、并发保护、登录失败/IP 窗口限流和安全响应头，默认关闭 API 文档；边缘中间件与健康读模型拆出独立模块；测试兼容开关仅在测试装配启用。
+- **验证结果**:
+  - 后台鉴权、健康检查、启动安全测试通过；Ruff check/format 通过。
+  - `web/admin` `npm run typecheck` 通过。
+- **边界**: 仅完成 R1-C 首片；成本熔断和反向代理层限流配置仍未完成。单进程限流不能替代多 worker/网关全局限流。未访问生产、未提交、未推送、未部署。
+## [2026-07-11] - fix(security): 收口 R1-C 成本熔断与反向代理合同
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R1-C 首片已有后台会话、ASGI body cap 和基础限流，但高成本 AI 调试调用缺少连续失败熔断，仓库也没有反向代理安全合同。
+- **改动**:
+  - 新增 `CostCircuitBreaker`，后台 AI 调试接口在连续失败达到阈值后进入 open，冷却后只放行一个 half-open 探针，成功自动恢复。
+  - 新增 `deploy/nginx/yunxibakebot.conf.example`，固定 1 MiB body cap、请求/连接限流、localhost 上游、45 秒代理超时、文档路径禁止和安全响应头。
+  - 新增 `check_reverse_proxy_contract.py` 并接入 `check_project.py`，将代理合同和成本熔断测试纳入本地门禁。
+  - 将边缘中间件和健康读模型从 `app/main.py` 拆为独立模块，文件体量门禁保持通过。
+- **验证结果**:
+  - `python -m pytest tests/ -q --no-cov`：全部通过。
+  - `python scripts/check_project.py --skip-tests`、证据索引、mistake ledger、文件体量、Ruff：通过。
+  - `web/admin` `npm run typecheck`：通过。
+- **边界**: 未应用 Nginx 到生产，未访问生产、未提交、未推送、未部署；下一工作包为 R2-A。
+## [2026-07-11] - fix(reliability): 收口 R2-A 消息数据库原子幂等
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: 消息唯一索引、迁移前重复报告、数据库原子 claim，以及聊天/有赞非文本旁路统一认领。
+- **验证结果**: R2-A 定向测试 9 项通过；`data/bot.db` 历史重复组为 0；相关 Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；R2-B 持久 inbox/outbox 仍未完成。
+## [2026-07-11] - feat(reliability): R2-B 首片接入 SQLite 持久 inbox
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: 新增 `inbox_events` 迁移和 `InboxRepo`；企微自建应用与微信客服队列先持久化再 ACK，worker 使用 lease claim、失败有限重试、dead-letter 和实例恢复；持久模式停止等待 drain。
+- **决策**: 新增 ADR 0006，记录单机阶段 SQLite inbox 的窄例外、单 worker 约束和未来迁移退出条件。
+- **验证结果**: inbox/队列定向测试 24 项通过，Ruff check/format 通过；项目红线门禁通过。
+- **边界**: Youzan webhook 持久 dispatch、并发 100 次、发送失败恢复和完整 shutdown drain 仍未完成；未访问生产、未提交、未推送、未部署。
+
+## [2026-07-11] - fix(reliability): R2-B 收口 Youzan 持久 webhook dispatch
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: 删除 Youzan 路由闭包 fire-and-forget 双轨，统一为验签/审计/SQLite inbox/ACK；新增持久 dispatcher、lease 恢复、SQLite 写锁退避和应用 shutdown drain 接入。
+- **验证结果**: Youzan webhook 100 次并发、托管消息、重复 msgId 和 dispatcher 失败恢复测试通过；相关 Ruff 与编译检查通过。
+- **边界**: R2-B 已完成本地实施和门禁；未访问生产、未提交、未推送、未部署。下一工作包为 R3-A。
+
+## [2026-07-11] - fix(security/runtime): R3-B 重放防护、R4-A stuck 告警与 R5-A 模型资源首片
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **背景**: 全局整改主计划剩余首片包括企微回调重放、生产员工授权强制、持久 inbox 卡住任务告警，以及 LangChain 模型 client 每请求创建问题。
+- **改动**: 企微 POST 回调增加时间窗/nonce 防重放；生产预检要求员工授权开关、用户白名单和企业 ID；inbox 增加 stuck 统计告警；LangChain 模型和 HTTP transport 按 registry 复用并在 shutdown 释放。
+- **验证结果**: 完整 `python -m pytest tests/ -q` 全部通过，覆盖率 82.30%；`check_project.py --skip-tests`、Harness 账本/证据检查和本轮触及文件 Ruff 通过。Docker CLI 未安装，真实 build/smoke 未执行。
+- **边界**: 未访问生产、未提交、未推送、未部署；R4 重型 readiness 缓存、迁移回滚/异盘加密、R5 旧文本 SDK/ToolNode/Retriever/trace sink 删除仍未完成。
+
+## [2026-07-11] - feat(recovery): R4-B 独立 SQLite migration job 首片
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **改动**: 新增 `scripts/migration_job.py`，提供显式 dry-run/apply/rollback；apply 先做 integrity-checked backup，迁移异常自动恢复，rollback 拒绝覆盖备份；补充合成 SQLite 故障注入合同。
+- **验证结果**: `tests/scripts/test_migration_job.py` 5 项通过，Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；精确 SHA manifest、异盘加密备份、容器 build/smoke 仍未完成。
+
+## [2026-07-11] - fix(llm): R5-A provider resolver 与 query rewrite 单默认入口
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **改动**: 新增共享 `app/service/llm/provider.py`；LangChain 工厂和旧文本 `chat_completion` 统一 MiMo 默认解析；query rewrite 改走统一 `chat_completion`，不再直接取得 DeepSeek client。
+- **验证结果**: provider、LangChain factory、隐私外发和 chat refactor 定向测试通过；相关 Ruff check/format 通过。
+- **边界**: 旧文本 SDK client、ToolNode/BaseMessage、Retriever、callback sink 和 checkpoint 路径仍未全部迁移或删除。
+
+## [2026-07-11] - fix(harness): 稳定 LangChain capacity probe 合同
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **背景**: 全量测试中 capacity 合同因本地独立 probe 进程冷启动耗时 6.4 秒超过 5 秒固定阈值，连带 preflight 合同失败。
+- **改动**: 将本地 probe 延迟上限调整为 15 秒，并明确该指标包含进程启动/冷导入，不冒充线上请求延迟；线上 RSS、版本和 ready 仍由独立 production runtime probe 验证。
+- **验证结果**: capacity 脚本通过（trace latency 7.7 秒）；capacity、项目合同和 preflight 定向测试 41 项通过。
+- **边界**: 未访问生产、未提交、未推送、未部署。
+
+## [2026-07-11] - fix(llm): R5-A 删除通用 OpenAI 文本 chat 双轨
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **改动**: `app/service/llm/client.py` 的 `chat_completion` 改用 LangChain model/Runnable；删除通用 DeepSeek OpenAI client；OpenAI SDK 仅保留 ASR；保留 legacy response shape 的薄边界适配。
+- **验证结果**: `tests/service/llm tests/service/agents` 共 109 项通过；相关 Ruff/format 和直接 SDK 静态搜索通过。
+- **边界**: ToolNode/BaseMessage、统一 Retriever、callback sink、checkpoint 和真实 provider runtime 尚未完成；未访问生产、未提交、未推送、未部署。
+
+## [2026-07-12] - fix(harness): capacity probe 区分本地观测与生产延迟门禁
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **背景**: R5 wrapper 删除后的全量测试仅因本地独立 probe 冷启动耗时波动失败，最高达到 44.8 秒；该耗时包含进程启动、冷导入和环境代理初始化。
+- **改动**: 本地 capacity probe 延迟改为观测字段，不再阻断静态合同；显式 production runtime 检查时仍执行配置的 latency threshold；补充合同测试。
+- **验证结果**: capacity、项目合同和 preflight 定向测试 42 项通过，`check_project.py --skip-tests` 通过。
+- **边界**: 生产 runtime 延迟、RSS、版本和业务 smoke 尚未执行；未访问生产、未提交、未推送、未部署。
+
+## [2026-07-11] - cleanup(llm): R5-A 删除 chat_llm_request 兼容 wrapper
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **改动**: 删除已无生产调用的 `app/service/chat_llm_request.py`；失败信号常量迁移到 `app/service/llm/constants.py`，模型选择迁移到 provider resolver；删除旧 wrapper 的兼容测试。
+- **验证结果**: customer graph/model、chat refactor 和 LLM 测试全部通过；Python 代码中已无旧 wrapper/client 导入，Ruff/format 通过。
+- **边界**: ToolNode/BaseMessage、统一 Retriever、callback sink、checkpoint 和真实 provider runtime 尚未完成；未访问生产、未提交、未推送、未部署。
+
+## [2026-07-11] - feat(recovery): R4-B 精确 release manifest 首片
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **改动**: 新增 `scripts/build_release_manifest.py`，记录 40 位 commit SHA、VERSION 和 tracked 文件 SHA256；拒绝短 SHA、缺失 VERSION 和覆盖已有 manifest。
+- **验证结果**: `tests/scripts/test_build_release_manifest.py` 3 项通过，Ruff check/format 通过。
+- **边界**: 仅生成本地 manifest 证据，不执行 Git 操作、生产部署或容器 build；异盘加密备份和真实 smoke 仍未完成。
+
+## [2026-07-11] - verify: 全局整改列车本地全量门禁恢复绿色
+- **操作人**: AI (Codex)
+- **trace_id**: `20260711-global-risk-remediation`
+- **验证结果**: `python -m pytest tests/ -q` 全部通过，覆盖率 82.34%；`check_project.py --skip-tests`、capacity/preflight、Ruff 触及文件、mistake ledger、evidence index 和 LOGBOOK 检查通过。
+- **边界**: ResourceWarning 仍存在于若干既有脚本测试；Docker CLI、生产 runtime、异盘加密备份、真实发布和 R5 其余路径未验证；未提交、未推送、未部署。
+## [2026-07-12] - feat(recovery): R4-B 异盘加密备份本地首片与 R4-C digest 合同
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: SQLite backup/restore 已有本地 round-trip，但仍缺少加密副本合同；Dockerfile 需要固定 base image digest，真实 Docker 工具在本机不可用。
+- **改动**:
+  - 新增 `scripts/encrypted_backup.py`，使用仓外 32 字节 key file 和 AES-256-GCM 封装 SQLite backup，记录版本、nonce、算法和 SHA-256 元数据，拒绝覆盖已有输出。
+  - 解密验证写入项目所在磁盘的临时 SQLite 文件，执行 `PRAGMA integrity_check` 后逐个删除临时文件；修复 Windows SQLite 连接必须显式关闭才能清理文件句柄的边界。
+  - Dockerfile builder/runtime 均固定到 `python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361`，容器合同测试覆盖两段 FROM。
+- **验证结果**:
+  - `tests/scripts/test_encrypted_backup.py`、`tests/scripts/test_container_contract.py`：4 passed。
+  - Ruff check、format check、`git diff --check` 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；本机 `docker`/`docker compose`/`docker scout` 不可用，因此真实 build、容器 smoke、漏洞扫描、生产异盘密钥托管和恢复演练仍未完成。
+## [2026-07-12] - refactor(llm): R5 checkpoint 取舍收敛
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: customer graph 曾保留仅测试使用的 `MemorySaver` 和可选 checkpointer 注入，但生产没有暂停恢复需求；保留该入口会制造第二套状态生命周期。
+- **改动**:
+  - 删除 `app/service/agents/checkpoints.py`、`MemorySaver` 懒加载、customer graph 的可选 checkpointer 字段和条件编译。
+  - customer graph 继续传递 `customer:<session_id>` `thread_id`，但明确只用于运行/trace 关联，不启用 checkpoint。
+  - 删除 checkpoint 专项测试，新增 customer graph 无 checkpoint 编译合同。
+- **验证结果**:
+  - customer graph、customer memory、chat refactor、employee graph 定向集 `39 passed`。
+  - Ruff check、format check 通过；`rg` 确认 `MemorySaver`、`create_in_memory_checkpointer`、旧 checkpoint 模块引用归零。
+- **边界**: 未访问生产、未提交、未推送、未部署；若未来需要暂停恢复，必须另立持久 checkpointer ADR、迁移和重启隔离验证。
+## [2026-07-12] - fix(quality): R6 仓储返回类型首片
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: mypy 当前错误主要来自历史动态数据库和第三方类型；仓储 cursor 的 `Any` 返回值是低风险、可独立收敛的首片。
+- **改动**:
+  - `MessageRepo`、`OrderRepo`、`YouzanInventoryRepo`、`InboxRepo`、`WeComKfSyncRepo` 的 cursor 行数返回显式转换为 `bool`。
+  - `YouzanOrderRepo.summarize_orders()` 增加聚合摘要显式类型，避免动态行数据推断为 `dict[str, int]`。
+  - `ConfigRepo.get_list()` 校验 JSON 根值为列表，只返回字符串元素，非法结构返回空列表。
+- **验证结果**:
+  - 相关仓储/订单测试和员工队列回归通过。
+  - 7 个 repository 文件 `mypy --ignore-missing-imports` 通过；Ruff/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；其它 mypy 历史错误仍按 R6 分域收敛。
+## [2026-07-12] - verify(test): 全局整改串行全量回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 上一轮并发启动多个重型 pytest 命令超过时限，需按标准命令串行复核 checkpoint 删除和 R6 仓储类型收窄。
+- **验证结果**:
+  - `python -m pytest tests/ -q` 串行通过，全部测试通过，coverage `82.33%`，耗时约 452 秒。
+  - 结果覆盖 checkpoint 取舍、仓储类型首片、此前 R0-R5 定向合同和现有全量测试集。
+- **边界**: 这是本地测试证据，不包含 Docker build、生产 smoke、生产反向代理复验、生产 sink 启用或生产恢复演练。
+## [2026-07-12] - refactor(llm): R5 employee ToolNode 通用执行路径
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: employee graph 的工具已是 `StructuredTool`，但节点仍逐个直接调用 `.ainvoke`，与 customer graph 存在两套通用执行路径。
+- **改动**:
+  - employee 通用工具执行统一经 `langgraph.prebuilt.ToolNode`，由 `AIMessage.tool_calls` 生成标准调用并从 `ToolMessage` 解析结果。
+  - 订单查询 service 仍保留为领域例外；没有 order lookup service 时也通过 ToolNode 执行 `order_dynamic_query`。
+  - 增加 ToolNode 构造合同测试，保留确定性 finalizer 和现有 trace 事件。
+- **验证结果**:
+  - employee graph、structured planner、WeCom employee agent、persistent queue 定向集 `56 passed`；ToolNode 合同测试包含在内。
+  - Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；employee order service 例外和生产 callback/export 仍待后续门禁。
+## [2026-07-12] - verify(test): employee ToolNode 后串行全量回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - `python -m pytest tests/ -q` 串行通过，全部测试通过，coverage `82.34%`，耗时约 441 秒。
+  - 覆盖 employee ToolNode、checkpoint 删除、仓储类型首片及既有 R0-R5 合同。
+- **边界**: 仍是本地测试证据，不包含 Docker build、生产 smoke、生产 sink 启用或恢复演练。
+## [2026-07-12] - perf(readiness): R4-A 启动期 readiness snapshot
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: `/ready` 每次请求都会重复执行 embedding metadata、SQLite schema 和 admin dist 检查，重型检查可能阻塞事件循环并放大探针成本。
+- **改动**:
+  - lifespan 完成服务与后台任务装配后生成 `app.state.readiness_checks` snapshot。
+  - runtime readiness 优先读取 snapshot；测试或未完成启动的 app 没有 snapshot 时仍调用传入的实时 checks builder。
+  - 保持 degraded 状态 HTTP 503 和现有检查字段不变。
+- **验证结果**:
+  - readiness HTTP、main runtime、lifespan route/service、health/schema 定向集 `36 passed`。
+  - Ruff check/format 通过。
+- **边界**: 未访问生产、未提交、未推送、未部署；生产反向代理和运行态 readiness 复验仍待授权环境。
+## [2026-07-12] - verify(test): readiness snapshot 后串行全量回归
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - `python -m pytest tests/ -q` 串行通过，全部测试通过，coverage `82.34%`，耗时约 486 秒。
+  - readiness snapshot、employee ToolNode、checkpoint 取舍、仓储类型首片及既有 R0-R5 合同均包含在回归范围内。
+- **边界**: 仍是本地测试证据，不包含 Docker build、生产 smoke、生产 sink 启用或恢复演练。
+# [2026-07-12] - verify(r6): 全局整改本地门禁与运行态探针
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证**:
+  - `python -m pytest tests/scripts -q --no-cov --tb=short`: `480 passed`。
+  - `python scripts/check_project.py --skip-tests`、`ruff check --no-cache app tests scripts`、证据索引、mistake ledger、文件体量和 `git diff --check` 通过。
+  - 旧的 7002 进程返回版本 `0.1.0`、`/ready` 404 且指向 `D:\Project\burudushu`，不作为当前工作区证据；当前代码隔离启动因缺少 `ADMIN_SESSION_SECRET` 按安全检查 fail closed。
+- **边界**: Docker CLI 不可用；未访问生产、未提交、未推送、未部署；生产反向代理/授权、迁移回滚/异盘密钥、真实容器 build/smoke 和生产 trace sink 仍待外部条件满足。
+# [2026-07-12] - refactor(r5): 收敛 query rewrite 与 handoff 摘要 Runnable
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R5 审计发现 query rewrite 和 handoff 摘要仍通过 `chat_completion` 兼容返回对象，prompt 与结果清理未直接使用统一 Runnable。
+- **改动**:
+  - 两个默认路径改为 `ChatPromptTemplate | LangChain model | StrOutputParser`。
+  - 输入在 prompt 边界完成外发脱敏；失败仍回到既有业务规则兜底。
+  - handoff 的显式 `llm_caller` 保留为测试/边界注入，不作为生产默认路径。
+- **验证结果**:
+  - query rewrite、handoff、chat refactor、隐私脱敏回归：`35 passed`。
+  - 相关 Ruff 与全仓 `app tests scripts` Ruff 检查通过。
+  - `rg` 确认剩余兼容调用仅在意图识别、会话摘要和三个离线 Agent，作为下一工作包边界。
+- **边界**: 未访问生产、未提交、未推送、未部署；Docker 真实 build/smoke 和生产 trace sink 仍未验证。
+# [2026-07-12] - refactor(r5): 收敛意图识别 Runnable
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: R5 文本路径审计发现意图识别仍通过 `chat_completion` 兼容返回对象，prompt 组装和输出解析未直接使用统一 Runnable。
+- **改动**:
+  - 改用 `ChatPromptTemplate | LangChain model | StrOutputParser`，输入在 prompt 边界脱敏。
+  - 保留规则优先级、JSON/数字回退解析和 `LLMError` 失败合同。
+- **验证结果**:
+  - 意图识别与否定语境回归：`35 passed`。
+  - 相关 Ruff 检查通过。
+  - 旧兼容调用已缩小到会话摘要和三个离线 Agent。
+- **边界**: 未访问生产、未提交、未推送、未部署；R5 尚未全部完成。
+# [2026-07-12] - refactor(r5): 收敛摘要与离线质检 Runnable
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**:
+  - 会话摘要、知识缺口 Agent、离线质检 Agent 改用 `ChatPromptTemplate | LangChain model | StrOutputParser`。
+  - prompt 输入在统一链边界脱敏；保留 JSON 解析、质检修复重试、知识缺口合并和失败隔离合同。
+  - 修复摘要系统 JSON 花括号被 prompt 模板误识别为变量的真实运行时缺陷，并增加 Runnable 回归。
+- **验证结果**:
+  - 摘要、离线质检、知识缺口、query rewrite、意图和 handoff 组合回归：`76 passed`。
+  - `ruff check --no-cache app tests` 与本轮正式脚本通过；工作树既有未跟踪 `scripts/_*.py` 历史探针另有 25 个 Ruff 存量问题，未批量修改或删除。
+  - `rg` 确认 service 层仅剩 `agent_memory.py` 一处旧 `chat_completion` 调用。
+- **边界**: 未访问生产、未提交、未推送、未部署；R5 memory 和外部生产/Docker 门禁仍未完成。
+# [2026-07-12] - refactor(r5): 删除通用 chat_completion 文本 facade
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**:
+  - 顾客画像 memory 改用 `ChatPromptTemplate | LangChain model | StrOutputParser`，保留 consent、重试、敏感字段和画像合并语义。
+  - 删除 `app/service/llm/client.py` 通用文本 `chat_completion` facade，client 仅保留 ASR 窄 SDK adapter。
+  - 修复 memory helper 类边界回归，补充 Runnable 脱敏测试。
+- **验证结果**:
+  - 摘要、离线 Agent、query rewrite、意图、handoff 和隐私组合回归：`80 passed`。
+  - 全仓 `ruff check --no-cache app tests scripts` 通过。
+  - `rg "from app\\.service\\.llm\\.client import chat_completion|chat_completion\\(" app/service tests --glob "*.py"` 零命中。
+- **边界**: R5 本地文本单路径收敛完成；生产 trace sink、Docker build/smoke、生产发布和外部证据仍未完成。
+# [2026-07-12] - verify(r5): 文本单路径全量门禁收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - `python -m pytest -q --no-cov --tb=short` 通过。
+  - `python scripts/check_project.py --skip-tests`、文件体量、证据索引、mistake ledger 和 `git diff --check` 通过。
+  - `ruff check --no-cache app tests` 与本轮正式脚本通过；既有未跟踪 `scripts/_*.py` 调试探针仍有 25 个 Ruff 存量问题，未批量修改或删除。
+  - `rg` 确认 `app/service` 和测试中无 `chat_completion` 旧文本调用；`app/service/llm/client.py` 仅保留 ASR SDK adapter。
+- **边界**: Docker CLI 不可用；生产反向代理/授权、迁移恢复、异盘密钥托管、真实容器 build/smoke、生产 callback/trace sink 和外部业务探针仍未验证。
+# [2026-07-12] - verify(r6): 历史脚本 Ruff 存量清理
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **改动**: 对 13 个既有本地 `_*.py` 探针执行 Ruff 安全修复；对两份重复探针手动展开 lambda、分号和单行条件语句，保持查询与输出语义不变；未删除文件。
+- **验证结果**:
+  - 历史探针 `26` 个 Ruff 问题清零。
+  - `python -m pytest tests/scripts -q --no-cov --tb=short`: `480 passed`。
+  - `ruff check --no-cache app tests scripts`、`check_project.py --skip-tests`、文件体量、证据索引、mistake ledger 和 diff 检查通过。
+- **边界**: Docker CLI 不可用；生产反向代理/授权、迁移恢复、异盘密钥托管、真实容器 smoke 和生产 trace sink 仍未验证。
+# [2026-07-12] - verify(r4): 生产预检与发布 manifest 边界
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **验证结果**:
+  - 生成 `reports/harness/preflight-20260712.json`；28 项检查中 25 项通过，失败项仅为 `admin_token_configured`、`handoff_staff_userid_ready`、`wecom_employee_auth_ready`，均需受控运行环境配置。
+  - `check_preflight_business_contracts.py`、反向代理合同、容器合同、部署合同定向测试：`31 passed`。
+  - release manifest 当前被 dirty worktree 中 3 个已删除但未提交路径阻断：`checkpoints.py`、`chat_llm_request.py`、`employee_agent_llm_plan.py`；未绕过 manifest 校验。
+- **边界**: Docker CLI 不可用；未访问生产、未提交、未推送、未部署；生产代理应用、授权配置和发布窗口仍待外部授权。
+# [2026-07-12] - verify(r4): 生产只读版本与 readiness 审计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **只读结果**:
+  - SSH 可用；生产仓库 HEAD 为 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`，`VERSION=0.105.19`，工作树干净，服务 active/enabled。
+  - systemd 主进程自 2026-07-10 15:31:32 运行；本地回源 `/health`、`/ready` 和 `yunxi.hclstudio.cn`、`yunxifood.cn` 公网探针均返回 `200`，但运行时版本均为 `0.105.17`。
+  - 反向代理 server_name 与 7001 proxy_pass 已确认；版本门禁 `VERSION == /health.version == /ready.version` 当前失败。
+- **边界**: 仅执行 SSH、systemd、Nginx 和 HTTP 只读查询；未重启、未推送、未迁移、未修改生产配置或数据。

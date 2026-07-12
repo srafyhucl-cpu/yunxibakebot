@@ -4,7 +4,9 @@
 """
 
 from collections.abc import Sequence
+from contextlib import asynccontextmanager
 from typing import Any
+from typing import AsyncContextManager
 
 import aiosqlite
 
@@ -33,6 +35,34 @@ class DatabaseHandle:
     async def close(self) -> None:
         await self._connection.close()
 
+    @property
+    def in_transaction(self) -> bool:
+        """返回底层连接当前是否已经处于事务中。"""
+        return self._connection.in_transaction
+
+    @asynccontextmanager
+    async def transaction(self):
+        """提供可嵌套的事务边界。"""
+        if self._connection.in_transaction:
+            await self._connection.execute("SAVEPOINT yunxi_order_uow")
+            try:
+                yield
+            except Exception:
+                await self._connection.execute("ROLLBACK TO SAVEPOINT yunxi_order_uow")
+                await self._connection.execute("RELEASE SAVEPOINT yunxi_order_uow")
+                raise
+            else:
+                await self._connection.execute("RELEASE SAVEPOINT yunxi_order_uow")
+            return
+        await self._connection.execute("BEGIN")
+        try:
+            yield
+        except Exception:
+            await self._connection.rollback()
+            raise
+        else:
+            await self._connection.commit()
+
 
 class BaseRepository:
     """所有数据访问层仓库的基类。"""
@@ -52,3 +82,34 @@ class BaseRepository:
             raise RuntimeError(
                 "数据库操作未在 db_session_scope 上下文管理器中执行！"
             ) from exc
+
+    def transaction(self) -> AsyncContextManager[None]:
+        """返回供 service 层使用的事务上下文。"""
+        return self._transaction()
+
+    @asynccontextmanager
+    async def _transaction(self):
+        db = self._db
+        if hasattr(db, "transaction"):
+            async with db.transaction():
+                yield
+            return
+        if db.in_transaction:
+            await db.execute("SAVEPOINT yunxi_order_uow")
+            try:
+                yield
+            except Exception:
+                await db.execute("ROLLBACK TO SAVEPOINT yunxi_order_uow")
+                await db.execute("RELEASE SAVEPOINT yunxi_order_uow")
+                raise
+            else:
+                await db.execute("RELEASE SAVEPOINT yunxi_order_uow")
+            return
+        await db.execute("BEGIN")
+        try:
+            yield
+        except Exception:
+            await db.rollback()
+            raise
+        else:
+            await db.commit()

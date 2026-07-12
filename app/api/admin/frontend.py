@@ -9,8 +9,10 @@
 """
 
 from pathlib import Path
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse
+
+from app.api.admin import verify_token
 
 BASE_DIR = Path(__file__).resolve().parents[3]
 FRONTEND_DIST_DIR = BASE_DIR / "web" / "admin" / "dist"
@@ -33,7 +35,7 @@ def get_transition_html() -> str:
 def create_admin_frontend_router() -> APIRouter:
     router = APIRouter(tags=["admin-frontend"])
 
-    @router.get("/api/admin/vector-build-status")
+    @router.get("/api/admin/vector-build-status", dependencies=[Depends(verify_token)])
     async def get_vector_status(request: Request):
         vs = getattr(request.app.state, "vs", None)
         if not vs:
@@ -87,7 +89,7 @@ def create_admin_frontend_router() -> APIRouter:
             "msg": "获取向量状态成功",
         }
 
-    @router.post("/api/admin/vector-build-retry")
+    @router.post("/api/admin/vector-build-retry", dependencies=[Depends(verify_token)])
     async def retry_vector_build(request: Request):
         vs = getattr(request.app.state, "vs", None)
         if not vs:

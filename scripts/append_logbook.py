@@ -235,7 +235,7 @@ def main() -> int:
     prepend_to_logbook(entry)
 
     version = read_version()
-    print(f"\n[logbook] ✅ 条目已追加到 LOGBOOK.md")
+    print("\n[logbook] ✅ 条目已追加到 LOGBOOK.md")
     print(f"[logbook]    类型: {change_type} | 范围: {scope or '-'} | 版本: v{version}")
     print(f"[logbook]    描述: {desc}")
     print()

@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -97,6 +98,13 @@ TEST_COMMANDS: tuple[tuple[str, ...], ...] = (
 )
 
 CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
+    (sys.executable, "scripts/check_admin_auth_surface.py", "--summary"),
+    (sys.executable, "scripts/check_reverse_proxy_contract.py", "--summary"),
+    (
+        sys.executable,
+        "scripts/check_order_repository_transactions.py",
+        "--summary",
+    ),
     (
         sys.executable,
         "scripts/check_employee_agent_capability_contracts.py",
@@ -329,8 +337,8 @@ def scan_rule(rule: ScanRule) -> CheckResult:
 def run_command(command: tuple[str, ...]) -> CheckResult:
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
-    if "pytest" in command:
-        env.setdefault("YUNXI_USE_FAKE_EMBEDDING", "1")
+    # 质量门禁必须使用轻量编码器，避免本地或 CI 触发真实模型加载。
+    env.setdefault("YUNXI_USE_FAKE_EMBEDDING", "1")
     completed = subprocess.run(
         command,
         cwd=ROOT_DIR,
@@ -366,6 +374,7 @@ def run_tests() -> list[CheckResult]:
     return [run_command(command) for command in TEST_COMMANDS]
 
 
+@lru_cache(maxsize=1)
 def run_contract_checks() -> list[CheckResult]:
     """运行业务合约静态检查。"""
     return [run_command(command) for command in CONTRACT_COMMANDS]

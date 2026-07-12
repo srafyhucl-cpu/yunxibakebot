@@ -5,6 +5,11 @@ from dataclasses import asdict, dataclass
 
 from app.models.customer_profile import CustomerProfile
 from app.models.knowledge import KnowledgeEntry
+from app.service.agents.messages import (
+    message_content,
+    message_role,
+    message_tool_calls,
+)
 from app.service.llm.profile_prompt import render_customer_profile
 from app.service.session_manager import CONVERSATION_TOKEN_BUDGET, estimate_tokens
 
@@ -103,7 +108,7 @@ def build_chat_context_budget_snapshot(
 
 def record_tool_context_budget_delta(
     timing: dict | None,
-    tool_context_messages: list[dict],
+    tool_context_messages: list[object],
 ) -> None:
     """把工具轮次新增消息合并进上下文预算观测。"""
     if timing is None or not tool_context_messages:
@@ -119,7 +124,7 @@ def record_tool_context_budget_delta(
         for message in tool_context_messages
     )
     tool_result_messages = [
-        message for message in tool_context_messages if message.get("role") == "tool"
+        message for message in tool_context_messages if message_role(message) == "tool"
     ]
     tool_result_token_estimate = sum(
         estimate_tokens(_message_content_text(message))
@@ -154,8 +159,8 @@ def record_tool_context_budget_delta(
     context_budget["tool_context_policy"] = TOOL_CONTEXT_POLICY
 
 
-def _message_content_text(message: dict) -> str:
-    content = message.get("content", "")
+def _message_content_text(message: object) -> str:
+    content = message_content(message)
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -163,9 +168,9 @@ def _message_content_text(message: dict) -> str:
     return str(content)
 
 
-def _message_observable_text(message: dict) -> str:
+def _message_observable_text(message: object) -> str:
     parts = [_message_content_text(message)]
-    tool_calls = message.get("tool_calls")
+    tool_calls = message_tool_calls(message)
     if tool_calls:
         parts.append(json.dumps(tool_calls, ensure_ascii=False, default=str))
     return "\n".join(part for part in parts if part)

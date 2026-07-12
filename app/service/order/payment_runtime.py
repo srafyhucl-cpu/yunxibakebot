@@ -1,9 +1,10 @@
 """订单支付真实实现。"""
 
 from datetime import datetime, timedelta
-
+from app.config import settings
 from app.models.order import Order, OrderStatus
 from app.repository.order_repo import OrderRepo
+from app.repository.order_event_repo import OrderEventRepo
 from app.service.integrations.wechat_pay import (
     PAYMENT_SIGN_TYPE,
     WECHAT_PAY_SUCCESS_STATE,
@@ -11,6 +12,7 @@ from app.service.integrations.wechat_pay import (
     WechatPayPrepayResult,
 )
 from app.service.order.inventory import OrderInventoryService
+from app.service.order.payment_notification import WechatPaymentNotificationService
 from app.service.order.payment_state import (
     PAYMENT_METHOD_MOCK,
     PAYMENT_METHOD_WECHAT,
@@ -44,11 +46,15 @@ class OrderPaymentRuntimeService:
         order_repo: OrderRepo,
         inventory_service: OrderInventoryService,
         wechat_pay_service: WechatPayIntegrationService | None = None,
+        event_repo: OrderEventRepo | None = None,
     ) -> None:
         self._order_repo = order_repo
         self._inventory_service = inventory_service
         self._serializer = OrderSerializationService()
         self._wechat_pay_service = wechat_pay_service or WechatPayIntegrationService()
+        self._notification_service = WechatPaymentNotificationService(
+            order_repo, event_repo
+        )
 
     async def prepare_payment(self, order_id: str, *, user_id: str) -> PaymentSession:
         """准备订单支付会话。"""
@@ -72,6 +78,8 @@ class OrderPaymentRuntimeService:
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
         if not self._wechat_pay_ready():
+            if not settings.ALLOW_MOCK_PAYMENT:
+                raise ValueError("微信支付未配置，生产环境不提供 mock 支付")
             return build_mock_payment_session(order.id)
         prepay = await self._create_wechat_jsapi_prepay(order)
         payment_params = self._build_wechat_payment_params(prepay.prepay_id)
@@ -85,6 +93,8 @@ class OrderPaymentRuntimeService:
 
     async def confirm_mock_payment(self, order_id: str, *, user_id: str) -> dict:
         """MVP mock 支付确认，真实微信支付接入后复用同一状态流转。"""
+        if not settings.ALLOW_MOCK_PAYMENT:
+            raise ValueError("生产环境已禁用 mock 支付")
         order = await self._get_user_order(order_id, user_id=user_id)
         current_status = status_value(order)
         if current_status == OrderStatus.CANCELLED.value:
@@ -130,6 +140,7 @@ class OrderPaymentRuntimeService:
         trade_state = str(transaction.get("trade_state", "")).strip()
         if trade_state != WECHAT_PAY_SUCCESS_STATE:
             return {"orderId": order_id, "ignored": True, "tradeState": trade_state}
+        await self._validate_wechat_transaction(transaction)
         paid_at = self._wechat_pay_service.format_success_time(
             str(transaction.get("success_time", ""))
         )
@@ -218,27 +229,15 @@ class OrderPaymentRuntimeService:
             raise ValueError("订单不存在")
         if status_value(order) == OrderStatus.CANCELLED.value:
             raise ValueError("订单已取消")
-        payment = loads_payment(order.payment)
-        payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
-        if payment_status == PAYMENT_STATUS_PAID:
-            return order
-        if payment_status == PAYMENT_STATUS_EXPIRED:
-            raise ValueError("订单支付已超时")
-        now = paid_at or now_text()
-        payment.update(
-            {
-                "status": PAYMENT_STATUS_PAID,
-                "method": PAYMENT_METHOD_WECHAT,
-                "paidAt": now,
-                "transactionId": transaction_id,
-            }
+        return await self._notification_service.mark_paid(
+            order_id,
+            paid_at=paid_at,
+            transaction_id=transaction_id,
         )
-        updated = await self._order_repo.update_payment(
-            order.id, dumps_payment(payment), now
-        )
-        if updated is None:
-            raise ValueError("订单不存在")
-        return updated
+
+    async def _validate_wechat_transaction(self, transaction: dict) -> None:
+        """委托微信通知业务合同校验。"""
+        await self._notification_service.validate_transaction(transaction)
 
     def _is_expirable(self, order: Order, now: datetime) -> bool:
         if not self._is_unpaid_active(order):

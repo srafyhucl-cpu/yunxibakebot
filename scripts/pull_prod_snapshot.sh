@@ -9,8 +9,8 @@
 #
 # 安全设计：
 #   1. 服务器侧用 SQLite 官方 .backup 生成一致快照（WAL 安全，只读，不停机）
-#   2. 仅 scp 拉取该快照到本地 data/prod_snapshot/
-#   3. 本地脱敏：DROP / 清空所有含顾客 PII 的表，仅保留 knowledge_base + youzan_products
+#   2. 原始快照只作为本地临时输入，不作为评测产物
+#   3. Python 导出器只创建允许表和允许列，遇到未知表或敏感值即失败
 #   4. 产物位于 data/（已被 .gitignore 忽略），不会进入版本库
 #
 # 用法：
@@ -34,23 +34,23 @@ REMOTE_DB="${REMOTE_DIR}/data/bot.db"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SNAPSHOT_DIR="$PROJECT_DIR/data/prod_snapshot"
-RAW_SNAPSHOT="$SNAPSHOT_DIR/bot_raw.db"          # 服务器拉回的原始快照
+RAW_SNAPSHOT="$SNAPSHOT_DIR/.bot_raw.snapshot.db" # 仅用于导出过程的临时原始快照
 EVAL_DB="$SNAPSHOT_DIR/eval.db"                   # 脱敏后供评测使用的库
 REMOTE_TMP="/tmp/yunxi_eval_snapshot_$$.db"
 
 CONNECT_TIMEOUT=10
 
 # ---- 参数解析 ----
-# --raw : 跳过本地脱敏，原库直接落到 data/prod_snapshot/bot_raw.db（仍受 .gitignore 保护）
-RAW_MODE=0
 for arg in "$@"; do
     case "$arg" in
-        --raw) RAW_MODE=1 ;;
         -h|--help)
-            echo "用法: bash scripts/pull_prod_snapshot.sh [--raw]"
-            echo "  默认    : 拉取并本地脱敏（清除 messages/orders 等 PII），生成 eval.db"
-            echo "  --raw   : 跳过脱敏，保留原库 bot_raw.db（含顾客 PII，请用完即删）"
+            echo "用法: bash scripts/pull_prod_snapshot.sh"
+            echo "  从生产快照导出仅含允许表和允许列的 eval.db；不支持原始快照模式。"
             exit 0
+            ;;
+        *)
+            echo "不支持的参数: $arg" >&2
+            exit 2
             ;;
     esac
 done
@@ -70,6 +70,7 @@ fi
 
 cleanup() {
     [ -n "$TMP_SSH_KEY" ] && rm -f "$TMP_SSH_KEY" 2>/dev/null || true
+    rm -f "$RAW_SNAPSHOT" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -120,55 +121,13 @@ fi
 ssh_run "rm -f '$REMOTE_TMP'" || log_warn "服务器临时快照清理失败，请手动删除: $REMOTE_TMP"
 log_info "✓ 快照已拉取到本地"
 
-# ============================================================
-# Phase 3: 本地脱敏 —— 仅保留检索评测所需数据，清除顾客 PII
-#          （--raw 模式跳过本步，保留原库）
-# ============================================================
-if [ "$RAW_MODE" = "1" ]; then
-    log_warn "Phase 3/4: --raw 模式，跳过脱敏，保留原库（含顾客 PII）"
-    KB_COUNT=$(sqlite3 "$RAW_SNAPSHOT" "SELECT COUNT(*) FROM knowledge_base WHERE is_active=1;")
-    PROD_COUNT=$(sqlite3 "$RAW_SNAPSHOT" "SELECT COUNT(*) FROM youzan_products;")
-    FINAL_DB="$RAW_SNAPSHOT"
-    log_warn "⚠ 原库含真实顾客对话/订单 PII，评测完成后请执行: rm -f '$RAW_SNAPSHOT'"
-else
-    log_info "Phase 3/4: 本地脱敏，生成评测库 $EVAL_DB ..."
-    rm -f "$EVAL_DB"
-    cp "$RAW_SNAPSHOT" "$EVAL_DB"
-
-    # 评测只需要 knowledge_base（知识/FAQ）与 youzan_products（商品宽表）作为检索语料。
-    # 其余表一律清空，重点清除任何可能含顾客 PII 的对话 / 订单 / 工单 / 埋点数据。
-    sqlite3 "$EVAL_DB" <<'SQL'
-PRAGMA foreign_keys = OFF;
--- 顾客对话与画像类（PII 高风险）
-DELETE FROM messages;
-DELETE FROM sessions;
-DELETE FROM human_transfers;
-DELETE FROM analytics_events;
--- 订单类（含买家 ID / 物流地址等 PII）
-DELETE FROM orders;
-DELETE FROM youzan_orders;
--- 审计 / 历史类（可能含 payload 片段）
-DELETE FROM youzan_webhook_events;
-DELETE FROM content_change_history;
-VACUUM;
-SQL
-
-    # 校验脱敏结果：messages 必须为 0，knowledge_base 必须 > 0
-    REMAIN_MSG=$(sqlite3 "$EVAL_DB" "SELECT COUNT(*) FROM messages;")
-    KB_COUNT=$(sqlite3 "$EVAL_DB" "SELECT COUNT(*) FROM knowledge_base WHERE is_active=1;")
-    PROD_COUNT=$(sqlite3 "$EVAL_DB" "SELECT COUNT(*) FROM youzan_products;")
-    if [ "$REMAIN_MSG" != "0" ]; then
-        log_error "脱敏校验失败：messages 仍有 $REMAIN_MSG 条，已中止"
-        rm -f "$EVAL_DB"
-        exit 2
-    fi
-    log_info "✓ 脱敏完成：messages=0 | 启用知识=$KB_COUNT | 商品=$PROD_COUNT"
-
-    # 删除未脱敏的原始快照，避免本地滞留 PII
-    rm -f "$RAW_SNAPSHOT"
-    log_info "✓ 已删除未脱敏原始快照"
-    FINAL_DB="$EVAL_DB"
-fi
+log_info "Phase 3/4: 使用白名单导出器生成评测库 $EVAL_DB ..."
+rm -f "$EVAL_DB"
+python3 "$PROJECT_DIR/scripts/export_safe_snapshot.py" "$RAW_SNAPSHOT" "$EVAL_DB"
+KB_COUNT=$(sqlite3 "$EVAL_DB" "SELECT COUNT(*) FROM knowledge_base WHERE is_active=1;")
+PROD_COUNT=$(sqlite3 "$EVAL_DB" "SELECT COUNT(*) FROM youzan_products;")
+FINAL_DB="$EVAL_DB"
+log_info "✓ 白名单导出完成：启用知识=$KB_COUNT | 商品=$PROD_COUNT"
 
 # ============================================================
 # Phase 4: 报告
@@ -180,9 +139,6 @@ echo ""
 echo "  评测库:      $FINAL_DB"
 echo "  启用知识:    $KB_COUNT 条"
 echo "  商品:        $PROD_COUNT 条"
-if [ "$RAW_MODE" = "1" ]; then
-echo "  ⚠ 含 PII:    是（--raw 模式，用完请删: rm -f '$FINAL_DB'）"
-fi
 echo ""
 echo "  下一步:"
 echo "    python scripts/eval_retrieval.py --db $FINAL_DB"
