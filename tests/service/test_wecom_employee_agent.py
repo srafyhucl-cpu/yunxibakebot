@@ -836,6 +836,20 @@ async def test_employee_agent_product_miss_reply_keeps_guardrail_terms() -> None
     assert reply == "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
 
 
+async def test_employee_agent_uncertain_operations_query_transfers_to_human() -> None:
+    service = EmployeeAgentService(
+        business_tool_service=_FakeBusinessToolService(),
+        ops_tool_service=_FakeOpsToolService(),
+        status_tool_service=_FakeStatusToolService(),
+        order_lookup_service=_FakeOrderLookupService(),
+        planner=_planner(),
+    )
+
+    reply = await service.answer("今天订单有没有需要注意的")
+
+    assert reply == "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
+
+
 async def test_employee_agent_order_list_reply_keeps_row_shape() -> None:
     service = EmployeeAgentService(
         business_tool_service=_FakeBusinessToolService(),

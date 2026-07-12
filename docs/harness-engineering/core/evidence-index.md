@@ -4246,3 +4246,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录代码路径、测试汇总和安全边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或生产回复内容。
 - summary: 工具失败、事实未命中或无法可靠确认时，员工助手返回受控转人工回复；callback 探针允许该明确终态，但不放宽授权、隐私、纯文本、流式结构和禁止词检查。生产验证待发布后执行。
+## E-20260712-068：生产 callback 不确定事实转人工修正
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-12
+- evidence_type: production/callback-handoff-diagnosis-and-fix
+- file: `D:\Project\YunxiBakeBot\app\service\wecom\intelligent_bot_callback.py`; `D:\Project\YunxiBakeBot\app\service\agents\employee\nodes.py`; `D:\Project\YunxiBakeBot\scripts\check_wecom_employee_agent_callback.py`; `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\callback-handoff-policy-20260712-3.json`
+- command: `python scripts\check_wecom_employee_agent_callback.py --base-url https://yunxifood.cn --json --output reports\wecom-employee-agent\callback-handoff-policy-20260712-3.json`; `ssh root@47.94.102.250 journalctl -u yunxibakebot --since -5min --no-pager -o cat | grep route=`
+- result: pass
+- related_logbook: 2026-07-12 - fix(r3-r5): callback 异常和运营判断统一转人工
+- related_adr: 0005-framework-first-single-path
+- contains_sensitive_data: no
+- retention_note: 仅记录故障类别、路由状态和验证命令；不登记客户原文、订单明细、员工 ID、callback token、AES key 或回复正文。生产 JSON 位于 gitignored reports 目录。
+- summary: 生产 callback 已确认实际走 employee_agent 路径；22 个失败中 20 个为通用异常兜底文本，2 个为需要运营判断的订单关注问法。下一发布列车将这三类统一收敛到转人工，保留所有安全和格式门禁。

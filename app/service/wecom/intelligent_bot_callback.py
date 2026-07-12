@@ -25,7 +25,7 @@ from app.service.wecom.intelligent_bot_messages import (
 logger = setup_logger()
 
 RECEIVE_ID = ""
-ERROR_REPLY = "查询失败，请稍后重试或进入后台核对。"
+ERROR_REPLY = "当前信息无法可靠确认，我先为您转人工核对，请稍候。"
 STREAM_ID_FALLBACK_PREFIX = "yunxi"
 
 

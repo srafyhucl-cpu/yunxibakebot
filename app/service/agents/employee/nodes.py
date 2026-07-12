@@ -33,6 +33,7 @@ FACT_UNAVAILABLE_MARKERS = (
     "无法确认",
     "需要人工继续核对",
 )
+HANDOFF_QUERY_MARKERS = ("需要注意", "有什么要盯", "要盯")
 EMPLOYEE_TOOL_CALL_ID_PREFIX = "employee"
 
 
@@ -255,6 +256,8 @@ def deterministic_reply(
     tool_results: list[ToolResult],
 ) -> str:
     """生成员工助手确定性回复。"""
+    if any(marker in query for marker in HANDOFF_QUERY_MARKERS):
+        return HUMAN_HANDOFF_REPLY
     if any(not result.ok for result in tool_results):
         return HUMAN_HANDOFF_REPLY
     if any(

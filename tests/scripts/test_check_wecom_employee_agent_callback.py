@@ -277,6 +277,24 @@ def test_evaluate_reply_accepts_handoff_when_business_fact_is_uncertain() -> Non
     assert result.semantic_safe is True
 
 
+def test_evaluate_reply_accepts_handoff_for_callback_error_fallback() -> None:
+    result = callback_check.evaluate_reply(
+        callback_check.CallbackProbe("callback-error", "查询商品库存"),
+        200,
+        {
+            "msgtype": "stream",
+            "stream": {
+                "id": "msg",
+                "finish": True,
+                "content": "当前信息无法可靠确认，我先为您转人工核对，请稍候。",
+            },
+        },
+        5,
+    )
+
+    assert result.passed is True
+
+
 def test_evaluate_reply_accepts_alternative_required_all_groups() -> None:
     probe = callback_check.CallbackProbe(
         "no-stock-product",
