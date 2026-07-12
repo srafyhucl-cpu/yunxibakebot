@@ -51,6 +51,21 @@ ______________________________________________________________________
 - next_time_signal: 下次同类问题如何被自动发现
 ```
 
+## M-20260712-007：部署停机前未检查后台 session secret
+
+- status: guarded
+- first_seen: 2026-07-12
+- severity: critical
+- symptom: 发布 commit 后直接重启生产，启动安全检查发现 `ADMIN_SESSION_SECRET` 缺失，服务进入 systemd 自动重启，7001 短时不可用。
+- root_cause: 部署脚本只在启动后依赖应用发现必需配置，没有在停止现有服务前验证 `.env` 中的非空安全配置。
+- impact: 缺失配置会把可用旧版本服务变成不可用状态，必须依靠人工回滚恢复。
+- fix: `scripts/deploy_server.sh` 在停止服务前检查 `ADMIN_API_TOKEN` 和 `ADMIN_SESSION_SECRET` 非空；缺失时立即退出并保留现有服务。
+- new_guardrail: `tests/scripts/test_deploy_server_contract.py` 固定安全配置预检和“拒绝停止现有服务”合同。
+- verification: 部署合同测试、Bash 语法检查和提交前完整质量门禁通过；生产发布后 health/ready 版本门禁通过。
+- linked_trace: `20260711-global-risk-remediation`
+- linked_files: `scripts/deploy_server.sh`; `tests/scripts/test_deploy_server_contract.py`; `app/main.py`
+- next_time_signal: 所有会停止现有服务的部署脚本必须先检查启动必需配置、manifest 和版本；发现缺失时不得进入 stop 阶段。
+
 ## M-20260711-004：消息去重依赖先查后插
 
 - status: verified

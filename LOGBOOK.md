@@ -1,3 +1,14 @@
+## [2026-07-12] - fix(r4): 部署停机前安全配置预检
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **背景**: 生产发布曾因缺少 `ADMIN_SESSION_SECRET` 在重启后失败；部署脚本原先未在停止服务前检查必需安全配置。
+- **改动**:
+  - `scripts/deploy_server.sh` 在 stop 阶段前检查 `.env` 中 `ADMIN_API_TOKEN` 和 `ADMIN_SESSION_SECRET` 非空；缺失时立即退出并保留现有服务。
+  - `tests/scripts/test_deploy_server_contract.py` 增加安全配置预检合同。
+  - mistake ledger 新增 M-20260712-007，记录根因与防线。
+- **验证结果**: 部署合同测试通过；Bash 语法检查通过；提交前完整质量、Ruff、MyPy、红线和 Harness 门禁均通过。
+- **边界**: 未重启生产、未修改生产配置、未访问客户数据；本次只变更部署脚本、测试和治理记录。
+
 ## [2026-07-12] - verify(r4): 生产迁移 dry-run 与运行态复核
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

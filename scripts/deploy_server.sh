@@ -40,6 +40,16 @@ git reset --hard bundle/master
 rm -f server.bundle
 log_info "✓ 代码合入成功 (commit: $(git rev-parse --short HEAD))"
 
+# ---- Step 3: 启动安全配置预检 ----
+log_info "检查启动安全配置..."
+if [ ! -f ".env" ] \
+    || ! grep -Eq '^ADMIN_API_TOKEN=.+$' .env \
+    || ! grep -Eq '^ADMIN_SESSION_SECRET=.+$' .env; then
+    log_error "启动安全配置缺失；拒绝停止现有服务"
+    exit 1
+fi
+log_info "✓ 启动安全配置已就绪"
+
 # ---- Step 2: 安装/更新依赖 ----
 log_info "检查 Python 依赖..."
 if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "requirements.txt"; then
@@ -51,7 +61,7 @@ else
     log_info "依赖无变化，跳过安装"
 fi
 
-# ---- Step 3: 停止服务 ----
+# ---- Step 4: 停止服务 ----
 log_info "停止服务 ${SERVICE_NAME}..."
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     systemctl stop "$SERVICE_NAME"
@@ -61,7 +71,7 @@ else
     log_info "⚠ 服务未运行，跳过停止"
 fi
 
-# ---- Step 4: 数据库发布边界 ----
+# ---- Step 5: 数据库发布边界 ----
 log_info "检查数据库临时文件..."
 
 if [ -f "data/bot.db.tmp" ] || [ -f "data/embeddings.pkl.tmp" ]; then
@@ -69,12 +79,12 @@ if [ -f "data/bot.db.tmp" ] || [ -f "data/embeddings.pkl.tmp" ]; then
     exit 1
 fi
 
-# ---- Step 5: 启动服务 ----
+# ---- Step 6: 启动服务 ----
 log_info "启动服务 ${SERVICE_NAME}..."
 systemctl start "$SERVICE_NAME"
 log_info "✓ 服务已启动"
 
-# ---- Step 6: 健康检查（等待就绪）----
+# ---- Step 7: 健康检查（等待就绪）----
 log_info "等待服务就绪 (最多 ${MAX_WAIT}s)..."
 elapsed=0
 while [ $elapsed -lt $MAX_WAIT ]; do
