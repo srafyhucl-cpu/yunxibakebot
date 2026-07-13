@@ -23,7 +23,7 @@ def test_docker_runtime_is_non_root_and_single_worker() -> None:
     assert "--mount=type=cache,target=/root/.cache/pip,sharing=locked" in dockerfile
     assert "pip wheel --no-cache-dir" not in dockerfile
     assert "--no-index --find-links /wheels" in dockerfile
-    assert "pip uninstall --yes wheel jaraco.context" in dockerfile
+    assert "pip uninstall --yes pip setuptools wheel jaraco.context" in dockerfile
     assert "EMBEDDING_INDEX_DIR=/app/data/embeddings" in dockerfile
     assert "USER yunxi" in dockerfile
     assert '"--workers", "1"' in dockerfile

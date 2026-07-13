@@ -126,6 +126,21 @@ ______________________________________________________________________
 - linked_files: `Dockerfile`; `docker-compose.yml`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
 - next_time_signal: readiness smoke若需要额外覆盖`EMBEDDING_INDEX_DIR`才能通过，必须回到镜像/Compose默认路径修复，不得把覆盖值作为通过证据。
 
+## M-20260713-004：运行时保留安装工具的vendor漏洞
+
+- status: guarded
+- first_seen: 2026-07-13
+- severity: high
+- symptom: 最小 runtime smoke 已通过，但 Trivy 复扫仍发现 `wheel 0.45.1` 与 `jaraco.context 5.3.0` 的可修复HIGH；`pip show`不显示它们，实际来自pip/setuptools vendor目录。
+- root_cause: 只卸载顶层wheel/jaraco包，没有移除生产运行不需要的pip和setuptools，因此其vendor代码仍被镜像漏洞扫描器识别。
+- impact: 生产镜像保留不必要的安装工具和可被利用的依赖代码，HIGH漏洞门禁无法归零。
+- fix: runtime以root完成依赖离线安装后卸载`pip setuptools wheel jaraco.context`，应用运行时不依赖这些工具。
+- new_guardrail: 容器合同锁定四项runtime工具卸载；Trivy必须以最终镜像JSON报告证明HIGH/CRITICAL均为0。
+- verification: root临时容器验证卸载命令可执行；新精确HEAD需重建、复跑smoke和Trivy。
+- linked_trace: `20260711-global-risk-remediation`
+- linked_files: `Dockerfile`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
+- next_time_signal: 仅以`pip show`判断runtime工具是否消失不足；必须结合镜像扫描和vendor路径检查。
+
 ## M-20260711-004：消息去重依赖先查后插
 
 - status: verified

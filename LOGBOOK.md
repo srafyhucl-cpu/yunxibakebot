@@ -13,6 +13,7 @@
 - **builder收敛**: 复核锁定的Python3.11依赖全部有manylinux wheel，移除无用build-essential/gcc层；两段wheel构建强制`--only-binary=:all:`，缺wheel时fail closed，禁止悄悄源码编译。
 - **慢链路中断防线**: 精确HEAD重建在官方PyPI慢速下载约一小时后于transformers阶段退出，且无镜像产物；builder新增locked BuildKit pip cache mount并移除wheel阶段`--no-cache-dir`，中断后可复用已完成HTTP下载，runtime仍保持离线安装和无缓存。
 - **readiness路径修复**: 新镜像真实smoke发现`EMBEDDING_INDEX_DIR=/app/data`会把索引基名解析到volume之外，导致默认`/ready=503`；已确定修复为`/app/data/embeddings`并要求smoke不通过额外环境变量覆盖，防止掩盖Dockerfile/Compose默认配置缺陷。
+- **runtime工具漏洞修复**: Trivy复扫发现pip/setuptools vendor中的wheel 0.45.1与jaraco.context 5.3.0仍为可修复HIGH；root临时容器验证后，runtime安装链改为卸载pip、setuptools、wheel和jaraco.context，待新精确镜像复扫确认HIGH/CRITICAL归零。
 - **边界**: 不挂载生产数据库，不替换systemd服务，不保存生产环境变量或业务数据。
 
 ## [2026-07-12] - audit(plan): 完成当前 systemd 风险整改列车审计

@@ -19,6 +19,7 @@
 - PyTorch从官方CPU wheel索引获取，保留真实SentenceTransformer能力但不携带CUDA运行库。
 - builder通过BuildKit cache mount保留pip HTTP缓存，慢链路中断后可复用已完成下载；缓存不复制到runtime镜像。
 - runtime阶段只从wheelhouse离线安装锁定生产依赖。
+- runtime安装完成后移除pip、setuptools、wheel和jaraco.context等构建/安装工具，避免未使用的vendor代码进入生产层。
 - `.dockerignore` 排除 `.env`、数据库、密钥、reports和前端node_modules；已编译 `web/admin/dist` 必须进入镜像，满足readiness。
 - `DB_PATH`固定为`/app/data/bot.db`，`EMBEDDING_INDEX_DIR`固定为`/app/data/embeddings`；索引基名必须位于持久化数据目录内。
 - 记录镜像ID、实际大小和最大层；真实构建不得再次把根盘推到不可运行状态。
