@@ -24,10 +24,12 @@ def test_docker_runtime_is_non_root_and_single_worker() -> None:
     assert "pip wheel --no-cache-dir" not in dockerfile
     assert "--no-index --find-links /wheels" in dockerfile
     assert "pip uninstall --yes wheel jaraco.context" in dockerfile
+    assert "EMBEDDING_INDEX_DIR=/app/data/embeddings" in dockerfile
     assert "USER yunxi" in dockerfile
     assert '"--workers", "1"' in dockerfile
     assert "SentenceTransformer" not in dockerfile
     assert "DB_PATH=/app/data/bot.db" in compose
+    assert "EMBEDDING_INDEX_DIR=/app/data/embeddings" in compose
     assert "/ready" in dockerfile
     assert "/ready" in compose
     assert "reports/" in dockerignore

@@ -26,7 +26,7 @@ services:
       - TZ=Asia/Shanghai
       # 数据库路径（映射到持久化卷）
       - DB_PATH=/app/data/bot.db
-      - EMBEDDING_INDEX_DIR=/app/data
+      - EMBEDDING_INDEX_DIR=/app/data/embeddings
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:7001/ready').raise_for_status()"]
       interval: 30s

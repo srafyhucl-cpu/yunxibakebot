@@ -30,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUTF8=1 \
     TZ=Asia/Shanghai \
     DB_PATH=/app/data/bot.db \
-    EMBEDDING_INDEX_DIR=/app/data
+    EMBEDDING_INDEX_DIR=/app/data/embeddings
 
 WORKDIR /app
 

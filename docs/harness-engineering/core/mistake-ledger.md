@@ -111,6 +111,21 @@ ______________________________________________________________________
 - linked_files: `Dockerfile`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
 - next_time_signal: 任何远程大依赖构建若没有可跨失败复用的下载缓存，不得在低带宽生产窗口直接执行。
 
+## M-20260713-003：容器向量索引基名指向数据目录
+
+- status: guarded
+- first_seen: 2026-07-13
+- severity: high
+- symptom: 真实容器`/health=200`，但`/ready=503`；唯一失败项是`embedding_index_path_exists=false`，即使隔离volume内已有空索引文件也不生效。
+- root_cause: Dockerfile/Compose把`EMBEDDING_INDEX_DIR`设置为`/app/data`，应用把配置值当索引基名并解析为`/app/data.npy/.json`，文件落在volume挂载点之外。
+- impact: 容器部署表面启动但永远不可ready，发布门禁会错误失败；若用smoke环境变量临时覆盖，可能掩盖生产默认配置缺陷。
+- fix: Dockerfile和Compose统一设置`EMBEDDING_INDEX_DIR=/app/data/embeddings`，空索引预置到volume内的`embeddings.npy/.json`。
+- new_guardrail: 容器合同同时断言Dockerfile/Compose的DB和embedding基名；真实smoke不覆盖该环境变量，必须以镜像默认值通过ready。
+- verification: 新精确HEAD镜像默认环境变量下隔离`/health`、`/ready`、Docker health和version全部通过。
+- linked_trace: `20260711-global-risk-remediation`
+- linked_files: `Dockerfile`; `docker-compose.yml`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
+- next_time_signal: readiness smoke若需要额外覆盖`EMBEDDING_INDEX_DIR`才能通过，必须回到镜像/Compose默认路径修复，不得把覆盖值作为通过证据。
+
 ## M-20260711-004：消息去重依赖先查后插
 
 - status: verified
