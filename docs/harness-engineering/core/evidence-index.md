@@ -4563,3 +4563,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录版本、测试/门禁计数、布尔状态和后置项；不保存 callback 回复、客户内容、订单明细、员工/群/企业 ID、密钥或数据库内容。
 - summary: 当前 HEAD 全量 `1303/1303` 通过；生产 `0.109.5` 的 systemd、health/ready、隐私 `8/8`、安全 `10/10`、LangChain版本/容量和 callback `61/61` 均通过；备份任务最近结果 0。当前 systemd 生产列车完成，Docker真实 build/漏洞扫描/smoke 按用户决定后置，因此长期目标保持 active。
+## E-20260713-001：Docker 真实验证解除后置并启动最终构建
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-13
+- evidence_type: partial/production-container-verification-start
+- file: `D:\Project\YunxiBakeBot\Dockerfile`; `D:\Project\YunxiBakeBot\docker-compose.yml`; `D:\Project\YunxiBakeBot\tests\scripts\test_container_contract.py`; `D:\Project\YunxiBakeBot\docs\architecture\global-risk-remediation-and-framework-convergence-plan.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests\scripts\test_container_contract.py -q --no-cov`; `python scripts\check_text_encoding.py`; `ssh -o BatchMode=yes -o ConnectTimeout=8 root@47.94.102.250 "docker image inspect yunxibakebot:0.109.12-cad759f"`; `Invoke-WebRequest https://yunxifood.cn/health -TimeoutSec 10`
+- result: partial
+- related_logbook: 2026-07-13 - ops(r4-c): 解除 Docker 后置并启动最终容器收口
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录 Docker 合同、目标版本和可达性结果；不包含生产环境变量、客户/订单内容、日志正文、镜像凭据或密钥。远端 build/smoke/Trivy/systemd 结果待 SSH 恢复后补齐。
+- summary: 用户解除 Docker 后置后，最终 `cad759f / 0.109.12` 容器验证进入执行态；本地静态合同通过，但生产构建机 SSH banner 和公网 HTTPS 请求超时，故未把启动命令或静态合同伪装成真实容器完成证据。

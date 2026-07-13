@@ -1,3 +1,12 @@
+## [2026-07-13] - ops(r4-c): 解除 Docker 后置并启动最终容器收口
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **决策**: 用户已解除 Docker 后置，并授权发布与重启；按最终提交 `cad759f` / `0.109.12` 执行真实 build、隔离 smoke 和漏洞扫描。
+- **本地验证**: `tests/scripts/test_container_contract.py` 通过；Dockerfile/Compose 静态约束、非 root、单 worker、默认数据库与向量路径合同保持通过。本机无 Docker CLI，因此不把本地静态合同当作真实容器证据。
+- **远端状态**: 最终镜像 build 已在生产构建机 detached 启动；后续只读 SSH banner、生产 HTTPS health 和服务端镜像查询均超时，当前无法确认 build 是否完成、镜像是否存在、磁盘空间或服务状态。
+- **当前结论**: R4-C 保持进行中；未宣称镜像、Trivy、隔离 volume smoke、systemd 重启或最终 `/health`/`/ready` 已通过。远端恢复后按同一 trace 继续核验。
+- **边界**: 未挂载生产数据库、未读取客户或订单内容、未输出密钥；未在远端不可读期间执行删除、prune 或盲目重启。
+
 ## [2026-07-13] - fix(r4-c): 修复真实容器构建不可ready和超大镜像
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

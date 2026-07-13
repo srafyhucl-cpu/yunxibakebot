@@ -4,7 +4,7 @@
 > source: `AUDIT-20260711-GLOBAL-REVIEW`
 > 日期：2026-07-11
 > 基线：生产当前版本 `0.109.4`；计划基线提交为历史审计提交 `7e666218275a5040e0c3ab9c648f4cb9a53bac74`
-> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R4-C、R5-A 和 R6 已完成对应实现与门禁。隔离 Harness 的主体删除/消息重领 `8/8`、生产真实 JWT/API 合成主体删除 `8/8`、生产真实 SQLite/InboxRepo processing 崩溃重领 `8/8` 均已通过，全部零残留且不使用真实客户或业务消息。R3-B 已统一远程下载和员工 Agent 服务端授权单一路径；生产员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证。无法可靠确认的业务事实和 callback 异常统一转人工。本地 D 盘长期加密备份每天 03:30 运行，默认保留 30 天且至少 3 份；生产无独立磁盘，长期灾难恢复由本地加密备份承担。Docker 真实 build/smoke 按用户决定后置。全量测试已串行通过。
+> 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R5-A 和 R6 已完成对应实现与门禁；R4-C 已完成本地实现与静态合同门禁，最终真实容器 build/smoke/漏洞扫描进行中。隔离 Harness 的主体删除/消息重领 `8/8`、生产真实 JWT/API 合成主体删除 `8/8`、生产真实 SQLite/InboxRepo processing 崩溃重领 `8/8` 均已通过，全部零残留且不使用真实客户或业务消息。R3-B 已统一远程下载和员工 Agent 服务端授权单一路径；生产员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证。无法可靠确认的业务事实和 callback 异常统一转人工。本地 D 盘长期加密备份每天 03:30 运行，默认保留 30 天且至少 3 份；生产无独立磁盘，长期灾难恢复由本地加密备份承担。Docker 真实 build/smoke/漏洞扫描已解除后置，正在按最终提交执行；在 L4/L5 证据闭环前主计划保持 active。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
 ## 一、执行结论
@@ -348,7 +348,7 @@ manifest 拒绝短 SHA、缺失版本和覆盖已有输出，并记录 tracked �
 
 ### R4-C：容器和进程模型
 
-状态：已完成容器运行时首片本地实施、base image digest 合同验证（2026-07-12）：runtime-only 多阶段镜像、非 root、单 worker、统一 `/app/data/bot.db` 和 `/ready` healthcheck 已落地；本机 Docker 不可用，真实 build、漏洞扫描和完整容器 smoke 尚未执行。
+状态：已完成容器运行时首片本地实施、base image digest 合同验证（2026-07-12）：runtime-only 多阶段镜像、非 root、单 worker、统一 `/app/data/bot.db` 和 `/ready` healthcheck 已落地。Docker 真实 build、漏洞扫描和完整容器 smoke 已解除后置，当前针对最终提交 `cad759f / 0.109.12` 执行；远端构建机恢复可访问后补齐 L4/L5 证据。
 
 - Node/Python 多阶段构建，生产只装 runtime 依赖，以非 root 用户运行。
 - 显式 COPY allowlist，统一应用、Compose、备份和脚本的 DB 路径。
@@ -516,7 +516,7 @@ service active
 - 每个结论都有 L3 以上命令或报告证据，生产发布达到 L4/L5。
 - LOGBOOK、进度表、ADR 和 evidence index 能追溯到同一 trace。
 
-2026-07-12 当前 systemd 生产列车完成审计：以上 7 类要求全部通过，证据见 `reports/harness/global-risk-remediation-completion-audit-20260712.md` 和 `E-20260712-091`。Docker真实 build、漏洞扫描和容器 smoke 按用户决定后置，因此主计划长期目标仍保持 active，不将静态容器合同伪装为完成证据。
+2026-07-12 当前 systemd 生产列车完成审计：以上 7 类要求全部通过，证据见 `reports/harness/global-risk-remediation-completion-audit-20260712.md` 和 `E-20260712-091`。Docker真实 build、漏洞扫描和容器 smoke 已由用户解除后置，正在补齐最终容器证据；主计划在该证据及最终发布复核完成前保持 active，不将静态容器合同伪装为完成证据。
 
 ## 十七、当前收口顺序
 
@@ -524,5 +524,5 @@ service active
 
 1. 复核主计划完成定义与 evidence index，清除过时的未完成口径。
 2. 以本地 D 盘每日 AES-256-GCM 备份作为当前无生产独立磁盘条件下的长期灾难恢复资产，持续观察计划任务结果。
-3. Docker 真实 build、漏洞扫描和容器 smoke 按用户决定后置，不阻断当前 systemd 生产列车。
+3. 执行最终提交的 Docker 真实 build、隔离 smoke 和漏洞扫描；在镜像、资源、挂载、`/health`、`/ready`、版本和 HIGH/CRITICAL 证据全部闭环前，不把 R4-C 标记为最终完成。
 4. 除非发现新的证据缺口，不重新开放离线复盘或 LangSmith 外发。
