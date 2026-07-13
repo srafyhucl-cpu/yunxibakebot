@@ -1,3 +1,12 @@
+## [2026-07-13] - fix(r4-c): 收口 Docker 与部署脚本的递归删除红线
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **问题**: Dockerfile 使用 `rm -rf` 删除 runtime wheelhouse，deploy.sh 使用递归删除工作区缓存、构建目录、日志和 node_modules，违反项目禁止批量/递归删除约束。
+- **修复**: Docker 改为独立 dependency-installer 阶段，runtime 只复制已安装的 site-packages，并用 pip 卸载安装工具；deploy.sh 移除工作区递归清理函数，只保留自身明确创建的 bundle 和临时密钥文件清理。
+- **防线**: 新增 `test_deployment_safety_contract.py`，与容器合同测试一起阻止 `rm -rf`、递归 find 删除和 truncate 回归。
+- **验证**: 容器/部署合同 `3 passed`，Ruff check/format 通过，Git Bash `bash -n scripts/deploy.sh` 通过；真实 Docker build、Trivy、隔离 smoke 仍待远端构建机恢复。
+- **边界**: 未执行任何递归删除；未读取生产数据、环境变量或密钥；新提交必须以精确 SHA 重新 build 后才能进入最终发布收口。
+
 ## [2026-07-13] - ops(r4-c): 解除 Docker 后置并启动最终容器收口
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

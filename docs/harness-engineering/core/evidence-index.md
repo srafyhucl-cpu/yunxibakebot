@@ -4576,3 +4576,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录 Docker 合同、目标版本和可达性结果；不包含生产环境变量、客户/订单内容、日志正文、镜像凭据或密钥。远端 build/smoke/Trivy/systemd 结果待 SSH 恢复后补齐。
 - summary: 用户解除 Docker 后置后，最终 `cad759f / 0.109.12` 容器验证进入执行态；本地静态合同通过，但生产构建机 SSH banner 和公网 HTTPS 请求超时，故未把启动命令或静态合同伪装成真实容器完成证据。
+## E-20260713-002：Docker 与部署脚本删除红线收口
+
+- trace_id: 20260711-global-risk-remediation
+- generated_at: 2026-07-13
+- evidence_type: local/deployment-cleanup-safety-contract
+- file: `D:\Project\YunxiBakeBot\Dockerfile`; `D:\Project\YunxiBakeBot\scripts\deploy.sh`; `D:\Project\YunxiBakeBot\tests\scripts\test_container_contract.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_deployment_safety_contract.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests\scripts\test_container_contract.py tests\scripts\test_deployment_safety_contract.py -q --no-cov`; `python -m ruff check tests\scripts\test_container_contract.py tests\scripts\test_deployment_safety_contract.py`; `python -m ruff format --check tests\scripts\test_container_contract.py tests\scripts\test_deployment_safety_contract.py`; `D:\\Work\\Git\\bin\\bash.exe -n scripts/deploy.sh`; `rg -n -i "rm\\s+-rf|find \\.([^\\r\\n])*(delete|-exec)|truncate" Dockerfile scripts/deploy.sh`
+- result: pass
+- related_logbook: 2026-07-13 - fix(r4-c): 收口 Docker 与部署脚本的递归删除红线
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 只记录删除边界和本地合同结果；未读取生产环境变量、客户/订单内容、日志正文或密钥。真实 Docker build/smoke/Trivy 仍需使用本轮新提交的精确 SHA。
+- summary: Dockerfile 不再把 wheelhouse 复制到最终 runtime 层后递归删除，deploy.sh 不再对工作区做批量清理；本地合同和 shell 语法通过，形成可重复的机械防线。

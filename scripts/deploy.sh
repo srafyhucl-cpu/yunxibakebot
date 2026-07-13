@@ -5,7 +5,7 @@
 # 用法：
 #   1. 配置下方服务器连接信息（或通过环境变量传入）
 #   2. 执行: bash scripts/deploy.sh
-#   3. 脚本自动完成：打包→传输→部署→清理
+#   3. 脚本自动完成：打包→传输→部署；不自动递归清理工作区
 #
 # 环境变量（可选覆盖默认值）：
 #   SSH_HOST    - 服务器地址
@@ -97,29 +97,6 @@ ssh_with_retry() {
         attempt=$((attempt + 1))
     done
     return 1
-}
-
-# 清理工作区临时文件
-cleanup_workspace() {
-    log_info "清理工作区临时文件..."
-
-    # 删除 Python 缓存
-    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    find . -type f -name "*.pyc" -delete 2>/dev/null || true
-
-    # 删除测试缓存
-    rm -rf .pytest_cache htmlcov coverage.xml .coverage 2>/dev/null || true
-
-    # 删除构建产物
-    rm -rf dist build *.egg-info 2>/dev/null || true
-
-    # 截断过期日志 (>7天)
-    find . -name "*.log" -mtime +7 -exec truncate -s 0 {} + 2>/dev/null || true
-
-    # 清理 node_modules（如果存在）
-    rm -rf web/admin/node_modules 2>/dev/null || true
-
-    log_info "✓ 工作区清理完成"
 }
 
 # ============================================================
@@ -216,15 +193,14 @@ fi
 log_info "✓ 服务器部署完成"
 
 # ============================================================
-# Phase 4: 清理工作区
+# Phase 4: 输出部署结果
 # ============================================================
 echo ""
-log_info "Phase 4/5: 清理本地工作区..."
-
-cleanup_workspace
+log_info "Phase 4/4: 跳过工作区递归清理（按项目删除红线执行）"
+log_info "部署脚本只删除自身明确创建的 bundle 和临时密钥文件"
 
 # ============================================================
-# Phase 5: 输出报告
+# 输出报告
 # ============================================================
 END_TIME=$(date +%s)
 DURATION=$(( END_TIME - START_TIME ))

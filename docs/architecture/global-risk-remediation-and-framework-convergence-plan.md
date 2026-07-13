@@ -348,7 +348,7 @@ manifest 拒绝短 SHA、缺失版本和覆盖已有输出，并记录 tracked �
 
 ### R4-C：容器和进程模型
 
-状态：已完成容器运行时首片本地实施、base image digest 合同验证（2026-07-12）：runtime-only 多阶段镜像、非 root、单 worker、统一 `/app/data/bot.db` 和 `/ready` healthcheck 已落地。Docker 真实 build、漏洞扫描和完整容器 smoke 已解除后置，当前针对最终提交 `cad759f / 0.109.12` 执行；远端构建机恢复可访问后补齐 L4/L5 证据。
+状态：已完成容器运行时首片本地实施、base image digest 合同验证（2026-07-12）：runtime-only 多阶段镜像、非 root、单 worker、统一 `/app/data/bot.db` 和 `/ready` healthcheck 已落地。Dockerfile 与 deploy.sh 的递归删除红线已修复并有合同测试；Docker 真实 build、漏洞扫描和完整容器 smoke 已解除后置，需在本轮新提交形成后重新执行精确 SHA 验证；远端构建机恢复可访问后补齐 L4/L5 证据。
 
 - Node/Python 多阶段构建，生产只装 runtime 依赖，以非 root 用户运行。
 - 显式 COPY allowlist，统一应用、Compose、备份和脚本的 DB 路径。

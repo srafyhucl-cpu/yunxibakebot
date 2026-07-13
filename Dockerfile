@@ -23,6 +23,16 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip wheel --wheel-dir /wheels \
         --only-binary=:all: --find-links /wheels -r requirements.txt
 
+FROM python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361 AS dependency-installer
+
+WORKDIR /install
+
+COPY --from=builder /wheels /wheels
+COPY --from=builder /build/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --no-index --find-links /wheels \
+        -r /tmp/requirements.txt && \
+    pip uninstall --yes pip setuptools wheel jaraco.context
+
 FROM python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -34,12 +44,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY --from=builder /wheels /wheels
-COPY --from=builder /build/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --no-index --find-links /wheels \
-        -r /tmp/requirements.txt && \
-    pip uninstall --yes pip setuptools wheel jaraco.context && \
-    rm -rf /wheels /tmp/requirements.txt
+COPY --from=dependency-installer /usr/local/lib/python3.11/site-packages/ \
+    /usr/local/lib/python3.11/site-packages/
+RUN python -m pip uninstall --yes pip setuptools wheel jaraco.context
 
 # 复制应用代码
 COPY . .
@@ -58,4 +65,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 EXPOSE 7001
 
 # 启动命令
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7001", "--workers", "1"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7001", "--workers", "1"]
