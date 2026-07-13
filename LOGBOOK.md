@@ -1,3 +1,13 @@
+## [2026-07-13] - fix(r4-c): 修复真实容器构建不可ready和超大镜像
+- **操作人**: AI (Codex)
+- **trace_id**: 20260711-global-risk-remediation
+- **真实发现**: 首次生产Docker build成功，但镜像列表显示14.5GB并把40GB根盘推到100%；隔离容器以UID10001、单Uvicorn worker启动且health返回`0.109.5`，ready因embedding空索引和后台dist缺失返回503。
+- **根因**: `.dockerignore`错误排除已编译`web/admin/dist`；通用PyPI torch wheel带来5.58GB运行依赖层；reports未明确排除。
+- **修复**: Docker builder先从PyTorch官方CPU索引构建`torch 2.12.0+cpu`，runtime从wheelhouse离线安装；dist进入镜像，reports和node_modules排除；合同测试新增对应断言。
+- **资源处置**: 已按明确名称删除单个smoke容器和单个首次镜像，根盘从100%恢复到84%；未运行任何prune或批量删除，systemd和health正常。
+- **本地验证**: 容器静态合同测试通过，第二次真实build/smoke和漏洞扫描继续执行。
+- **边界**: 不挂载生产数据库，不替换systemd服务，不保存生产环境变量或业务数据。
+
 ## [2026-07-12] - audit(plan): 完成当前 systemd 风险整改列车审计
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation

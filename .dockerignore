@@ -14,6 +14,7 @@ env/
 htmlcov/
 .pytest_cache/
 coverage.xml
+reports/
 
 # Git 与 IDE
 .git/
@@ -44,9 +45,8 @@ data/
 *.pem
 *.key
 
-# 前端构建产物（已编译，不参与容器内重复构建）
+# 前端依赖不进入镜像；已编译 dist 必须进入生产镜像
 web/admin/node_modules/
-web/admin/dist/
 
 # 测试与脚本
 tests/

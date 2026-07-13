@@ -81,6 +81,21 @@ ______________________________________________________________________
 - linked_files: `tests/api/test_wecom_intelligent_bot_callback_api.py`; `app/service/wecom/employee_authorization.py`; `app/service/wecom/intelligent_bot_dispatcher.py`
 - next_time_signal: callback actor 或工具授权接口变更时，无完整 user/chat/corp 或未接收 allowed_tools 的 API 夹具必须在全量测试中失败。
 
+## M-20260713-001：静态容器合同未发现不可ready和超大镜像
+
+- status: guarded
+- first_seen: 2026-07-13
+- severity: critical
+- symptom: Docker静态合同通过，但首次真实构建得到14.5GB镜像并把40GB生产根盘推到100%；隔离容器虽health通过，ready因后台dist被dockerignore排除而503。
+- root_cause: 合同只搜索Dockerfile中的非root、单worker和digest字符串，没有验证真实构建上下文、最终镜像层、后台产物和PyTorch CPU/CUDA依赖来源。
+- impact: 容器发布会因readiness永久失败；构建可耗尽生产磁盘并影响systemd服务日志、数据库和后续发布。
+- fix: 已编译后台dist进入镜像，reports排除；PyTorch固定从官方CPU wheel索引构建，runtime只从wheelhouse离线安装；smoke使用隔离tmpfs和独立端口。
+- new_guardrail: 容器合同新增CPU torch、离线wheelhouse、reports排除和dist包含断言；真实build必须记录镜像大小并执行ready/version smoke。
+- verification: 静态合同测试通过；真实精确HEAD重建、镜像层检查、隔离health/ready和漏洞扫描作为最终验证。
+- linked_trace: `20260711-global-risk-remediation`
+- linked_files: `Dockerfile`; `.dockerignore`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
+- next_time_signal: 静态容器合同不能作为R4-C完成证据；没有真实镜像大小、dist文件、ready 200和scanner结果时必须保持未完成。
+
 ## M-20260711-004：消息去重依赖先查后插
 
 - status: verified

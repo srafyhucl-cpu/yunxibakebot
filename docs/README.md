@@ -123,6 +123,8 @@
   - 使用生产真实 JWT、loopback API 和随机合成主体验证隐私导出删除闭环，不触碰真实客户。
 - `docs/harness-engineering/specs/2026-07-12-production-synthetic-inbox-crash-design.md`
   - 使用生产真实 `InboxRepo`、专用合成队列和独立子进程验证 processing 崩溃后的 lease 重领，不触发外部发送。
+- `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
+  - 使用隔离端口和 tmpfs 完成生产 Docker build、非 root/单 worker smoke、镜像资源审计和漏洞扫描。
 
 ## 历史评估与报告
 

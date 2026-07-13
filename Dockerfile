@@ -12,6 +12,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /build
 
+ARG PYTORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
+
 # 安装系统依赖（用于密码学库编译）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -21,7 +23,10 @@ RUN apt-get update && \
 
 # 依赖层缓存（先复制锁文件，利用 Docker 层缓存）
 COPY requirements.txt ./
-RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+RUN pip wheel --no-cache-dir --wheel-dir /wheels \
+        --index-url "${PYTORCH_CPU_INDEX_URL}" 'torch==2.12.0+cpu' && \
+    pip wheel --no-cache-dir --wheel-dir /wheels \
+        --find-links /wheels -r requirements.txt
 
 FROM python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361 AS runtime
 
@@ -35,7 +40,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY --from=builder /wheels /wheels
-RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
+COPY --from=builder /build/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --no-index --find-links /wheels \
+        -r /tmp/requirements.txt && \
+    rm -rf /wheels /tmp/requirements.txt
 
 # 复制应用代码
 COPY . .
