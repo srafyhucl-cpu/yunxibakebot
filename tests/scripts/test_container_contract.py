@@ -17,9 +17,9 @@ def test_docker_runtime_is_non_root_and_single_worker() -> None:
     assert "pip install --no-cache-dir -r requirements-dev.txt" not in dockerfile
     assert "https://download.pytorch.org/whl/cpu" in dockerfile
     assert "torch==2.12.0+cpu" in dockerfile
-    assert dockerfile.index("apt-get update") < dockerfile.index(
-        "ARG PYTORCH_CPU_INDEX_URL"
-    )
+    assert "build-essential" not in dockerfile
+    assert "apt-get" not in dockerfile
+    assert dockerfile.count("--only-binary=:all:") == 2
     assert "--no-index --find-links /wheels" in dockerfile
     assert "pip uninstall --yes wheel jaraco.context" in dockerfile
     assert "USER yunxi" in dockerfile
