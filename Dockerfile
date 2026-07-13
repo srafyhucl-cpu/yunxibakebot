@@ -43,6 +43,7 @@ COPY --from=builder /wheels /wheels
 COPY --from=builder /build/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --no-index --find-links /wheels \
         -r /tmp/requirements.txt && \
+    pip uninstall --yes wheel jaraco.context && \
     rm -rf /wheels /tmp/requirements.txt
 
 # 复制应用代码

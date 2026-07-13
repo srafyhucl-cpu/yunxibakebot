@@ -18,6 +18,7 @@ def test_docker_runtime_is_non_root_and_single_worker() -> None:
     assert "https://download.pytorch.org/whl/cpu" in dockerfile
     assert "torch==2.12.0+cpu" in dockerfile
     assert "--no-index --find-links /wheels" in dockerfile
+    assert "pip uninstall --yes wheel jaraco.context" in dockerfile
     assert "USER yunxi" in dockerfile
     assert '"--workers", "1"' in dockerfile
     assert "SentenceTransformer" not in dockerfile

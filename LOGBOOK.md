@@ -6,6 +6,9 @@
 - **修复**: Docker builder先从PyTorch官方CPU索引构建`torch 2.12.0+cpu`，runtime从wheelhouse离线安装；dist进入镜像，reports和node_modules排除；合同测试新增对应断言。
 - **资源处置**: 已按明确名称删除单个smoke容器和单个首次镜像，根盘从100%恢复到84%；未运行任何prune或批量删除，systemd和health正常。
 - **本地验证**: 容器静态合同测试通过，第二次真实build/smoke和漏洞扫描继续执行。
+- **第二次构建/smoke**: CPU镜像内容大小约776MB、Docker展开显示2.8GB，torch为`2.12.0+cpu`；隔离容器UID10001、单worker、health/ready `0.109.6`、Docker health healthy，未挂载生产数据。
+- **首次漏洞扫描**: Trivy 0.69.3对有修复版本的HIGH/CRITICAL扫描得到CRITICAL=0、HIGH=4；命中cryptography、starlette及runtime无用的wheel/jaraco.context，因此保持阻断。
+- **安全修复**: 依赖源新增cryptography/starlette安全下限并由pip-compile生成锁文件；runtime安装后移除wheel和jaraco.context，待第三次增量构建复扫归零。
 - **边界**: 不挂载生产数据库，不替换systemd服务，不保存生产环境变量或业务数据。
 
 ## [2026-07-12] - audit(plan): 完成当前 systemd 风险整改列车审计
