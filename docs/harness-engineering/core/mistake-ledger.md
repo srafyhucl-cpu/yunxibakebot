@@ -96,6 +96,21 @@ ______________________________________________________________________
 - linked_files: `Dockerfile`; `.dockerignore`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
 - next_time_signal: 静态容器合同不能作为R4-C完成证据；没有真实镜像大小、dist文件、ready 200和scanner结果时必须保持未完成。
 
+## M-20260713-002：容器依赖下载中断导致整层重做
+
+- status: guarded
+- first_seen: 2026-07-13
+- severity: medium
+- symptom: 生产机从官方PyPI下载锁定wheel超过一小时，在transformers下载阶段构建会话退出；builder未产出镜像，已完成的约100MB依赖下载随失败层全部丢失。
+- root_cause: builder同时使用`pip wheel --no-cache-dir`且没有BuildKit cache mount，网络中断或外层会话结束后无法复用任何已完成HTTP下载。
+- impact: 低带宽生产环境的真实镜像验证耗时不可控，重复构建增加发布窗口、带宽和磁盘压力，并放大人工切换第三方镜像的诱因。
+- fix: builder两段`pip wheel`共享`/root/.cache/pip` BuildKit cache mount，移除builder的`--no-cache-dir`；runtime继续从wheelhouse离线安装并保持`--no-cache-dir`。
+- new_guardrail: 容器合同要求builder存在locked pip cache mount、禁止`pip wheel --no-cache-dir`，并继续断言runtime离线wheelhouse安装。
+- verification: 容器合同定向测试与中断后真实重建；最终镜像检查确认cache mount内容不进入runtime层。
+- linked_trace: `20260711-global-risk-remediation`
+- linked_files: `Dockerfile`; `tests/scripts/test_container_contract.py`; `docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md`
+- next_time_signal: 任何远程大依赖构建若没有可跨失败复用的下载缓存，不得在低带宽生产窗口直接执行。
+
 ## M-20260711-004：消息去重依赖先查后插
 
 - status: verified

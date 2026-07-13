@@ -20,6 +20,8 @@ def test_docker_runtime_is_non_root_and_single_worker() -> None:
     assert "build-essential" not in dockerfile
     assert "apt-get" not in dockerfile
     assert dockerfile.count("--only-binary=:all:") == 2
+    assert "--mount=type=cache,target=/root/.cache/pip,sharing=locked" in dockerfile
+    assert "pip wheel --no-cache-dir" not in dockerfile
     assert "--no-index --find-links /wheels" in dockerfile
     assert "pip uninstall --yes wheel jaraco.context" in dockerfile
     assert "USER yunxi" in dockerfile

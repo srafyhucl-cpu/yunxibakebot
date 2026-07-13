@@ -11,6 +11,7 @@
 - **安全修复**: 依赖源新增cryptography/starlette安全下限并由pip-compile生成锁文件；runtime安装后移除wheel和jaraco.context，待第三次增量构建复扫归零。
 - **构建缓存修复**: 第三次构建发现PyTorch索引ARG位于apt层之前，依赖策略变化会使系统依赖缓存失效；已将ARG移到稳定apt层之后并补顺序合同。
 - **builder收敛**: 复核锁定的Python3.11依赖全部有manylinux wheel，移除无用build-essential/gcc层；两段wheel构建强制`--only-binary=:all:`，缺wheel时fail closed，禁止悄悄源码编译。
+- **慢链路中断防线**: 精确HEAD重建在官方PyPI慢速下载约一小时后于transformers阶段退出，且无镜像产物；builder新增locked BuildKit pip cache mount并移除wheel阶段`--no-cache-dir`，中断后可复用已完成HTTP下载，runtime仍保持离线安装和无缓存。
 - **边界**: 不挂载生产数据库，不替换systemd服务，不保存生产环境变量或业务数据。
 
 ## [2026-07-12] - audit(plan): 完成当前 systemd 风险整改列车审计

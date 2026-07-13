@@ -17,6 +17,7 @@
 
 - Python base image固定 digest。
 - PyTorch从官方CPU wheel索引获取，保留真实SentenceTransformer能力但不携带CUDA运行库。
+- builder通过BuildKit cache mount保留pip HTTP缓存，慢链路中断后可复用已完成下载；缓存不复制到runtime镜像。
 - runtime阶段只从wheelhouse离线安装锁定生产依赖。
 - `.dockerignore` 排除 `.env`、数据库、密钥、reports和前端node_modules；已编译 `web/admin/dist` 必须进入镜像，满足readiness。
 - 记录镜像ID、实际大小和最大层；真实构建不得再次把根盘推到不可运行状态。
