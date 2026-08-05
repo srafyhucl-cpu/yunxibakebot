@@ -1,3 +1,11 @@
+## [2026-08-05] - docs(auth): 冻结小程序 Bearer 鉴权闭环设计
+- **操作人**: AI (Codex)
+- **trace_id**: 20260805-storefront-auth-contract
+- **来源**: 全局风险复盘确认安全默认配置下，小程序会丢弃登录接口已返回的 `accessToken`，HTTP 层仍发送 legacy `x-miniapp-user-id`，导致订单、地址、聊天、隐私和客户群登记无法完成真实会话鉴权。
+- **决策**: 采用 Bearer-only 小程序客户端。会话持久化 token 元数据并计算过期时间；401 只允许一次受控重新登录和一次重试；后端 legacy 头保留为显式迁移开关，不作为小程序运行时回退。
+- **测试与发布**: 测试默认对齐安全配置并迁移五个小程序 API 测试文件；新增登录到受保护接口合同测试；DevTools service smoke 改为真实 `wx.login -> Bearer -> 只读受保护接口`，报告不得记录 token 或客户身份数据。
+- **边界**: 本记录仅冻结设计，未修改运行时代码、数据库、支付取消或库存逻辑；书面规格待审阅后才进入实施计划。
+
 ## [2026-07-13] - fix(r4-c): 收口 Docker 与部署脚本的递归删除红线
 - **操作人**: AI (Codex)
 - **trace_id**: 20260711-global-risk-remediation
