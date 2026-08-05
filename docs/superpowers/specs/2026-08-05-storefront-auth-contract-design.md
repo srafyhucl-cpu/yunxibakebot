@@ -1,6 +1,6 @@
 # 小程序 Bearer 鉴权闭环设计
 
-- 状态：待书面审阅
+- 状态：已批准，P0 鉴权切片实现完成；DevTools 运行时证据 blocked
 - trace_id：`20260805-storefront-auth-contract`
 - 来源：2026-08-05 全局风险复盘，P0 小程序登录契约断裂
 - 范围：`YunxiBakeBot` 与 `YunxiBakeMiniApp` 的小程序前台鉴权、测试、发布 smoke 和当前接口文档

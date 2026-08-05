@@ -1,3 +1,11 @@
+## [2026-08-05] - fix(auth): 收口小程序 Bearer 鉴权双仓闭环
+- **操作人**: AI (Codex)
+- **trace_id**: 20260805-storefront-auth-contract
+- **变更**: Bot 侧测试默认关闭 `STOREFRONT_AUTH_ALLOW_LEGACY_HEADER`，新增登录到真实订单接口合同测试并迁移小程序 API 测试到 Bearer。MiniApp 侧新增 session store 与无认证 transport，保存 `accessToken/tokenType/expiresIn/expiresAt`，统一注入 `Authorization: Bearer`，401 只允许一次续登与重放，并移除运行时及 service smoke 的 `x-miniapp-user-id`。
+- **文档**: 更新 `platform-miniapp-api-contract-v1.md`、`platform-domain-migration-inventory.md` 和 MiniApp `docs/api-contract.md`，明确 JWT `sub` 为身份来源，legacy 头仅在显式开关下可用。
+- **验证**: Bot 目标测试 `31 passed`；MiniApp `npm run typecheck`、`npm run check:miniapp`、`npm run check:page-api-coverage`、`npm run check:observability-contract` 通过；`git diff --check` 通过。真实 DevTools service smoke 未执行，原因是本轮未具备已连接 DevTools、测试微信账号和合法域名运行条件。
+- **剩余**: 真实 DevTools service smoke 仍 blocked；不得把静态门禁当作真实微信运行时证据。支付取消与库存一致性仍是下一独立 P0。
+
 ## [2026-08-05] - test(auth): 小程序后端测试切换 Bearer 安全默认
 - **操作人**: AI (Codex)
 - **trace_id**: 20260805-storefront-auth-contract

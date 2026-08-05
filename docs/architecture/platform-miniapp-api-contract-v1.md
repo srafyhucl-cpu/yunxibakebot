@@ -78,18 +78,26 @@
 }
 ```
 
-### 用户隔离头
+### Bearer 会话与用户隔离
 
-以下接口按 `x-miniapp-user-id` 做用户隔离：
+以下接口要求使用服务端签发的 Bearer 会话，并按 JWT `sub` 做用户隔离：
 
 - `/api/v1/miniapp/addresses/*`
 - `/api/v1/miniapp/chat/*`
 - `/api/v1/miniapp/orders/*`
 
+请求头：
+
+```http
+Authorization: Bearer <accessToken>
+```
+
 当前兼容行为：
 
-- 如果未传 `x-miniapp-user-id`，部分接口会回退到 demo 用户，便于本地联调。
-- 这属于当前兼容行为，不应被长期商业化版本当成正式身份方案。
+- `x-miniapp-user-id` 仅在 `STOREFRONT_AUTH_ALLOW_LEGACY_HEADER=true` 时作为历史迁移头接受。
+- MiniApp 运行时不得发送 `x-miniapp-user-id`；生产默认关闭该兼容开关。
+- 缺少、过期或无效 Bearer token 返回 `401`；token 身份与显式请求身份不一致返回 `403`。
+- 资源不存在或不属于当前用户的订单、地址等资源继续按资源接口语义返回 `404`。
 
 ### 错误语义
 
@@ -115,11 +123,15 @@
 - `openid`
 - `sessionReady`
 - `isDemo`
+- `accessToken`
+- `tokenType`，当前固定为 `Bearer`
+- `expiresIn`，单位为秒
 
 当前行为约束：
 
 - 未配置微信 `AppID/Secret` 时，后端应明确返回失败，不应伪装成已登录会话。
 - 已配置时，后端按 `openid` 生成 `userId`，当前格式为 `wx_<openid>`。
+- 客户端用 `expiresIn` 计算本地过期时间；服务端身份真相来自 Bearer token 的 JWT `sub`，不是客户端提交的 `userId`。
 
 真相说明：
 
@@ -424,7 +436,7 @@
 ### 必须做
 
 - 所有小程序前台能力统一走本文件列出的公开接口。
-- `x-miniapp-user-id` 由登录结果或正式身份体系统一注入。
+- 所有受保护请求统一注入 `Authorization: Bearer <accessToken>`；历史 `x-miniapp-user-id` 只允许显式迁移配置开启。
 - 页面装修、店铺配置按“后端投影”使用，不在前台再造一套配置中心。
 - 客户群登记页只调用 `/api/v1/miniapp/group-registrations`，不直连后台客户群 API。
 

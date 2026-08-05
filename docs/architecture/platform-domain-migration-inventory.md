@@ -8,7 +8,7 @@
 - 真实服务实现已主要落在 `customer / order / catalog / conversation / channels/storefront / integrations / ops`。
 - 订单域、前台认证服务和 MiniApp API 内部默认用户已经改为依赖 `app.constants.storefront`，`app.constants.miniapp` 只保留兼容导出。
 - 服务测试文件名和商品测试 helper 已切到 canonical 语义；API 测试继续保留 `test_miniapp_*`，因为它们验证 `/api/v1/miniapp/*` 外部契约。
-- `app/api/channels/storefront/*` 已承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出；外部 `/api/v1/miniapp/*` 路径和 `x-miniapp-user-id` 请求头不变。
+- `app/api/channels/storefront/*` 已承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出；外部 `/api/v1/miniapp/*` 路径保持不变，正式身份头为 Bearer，`x-miniapp-user-id` 仅保留为显式 legacy 兼容头。
 - 后端主仓 API 目录已按职责统一为 `admin/`、`channels/storefront/`、`integrations/`；根目录旧 API 文件仅保留兼容模块别名，不再承载真实 Router。
 - 下一阶段不应优先改 HTTP 路径、数据库表名或 MiniApp API 契约，而应继续压缩内部引用和文档入口里的历史命名。
 
@@ -34,7 +34,7 @@
 - `YunxiBakeBot` / `YunxiBakeMiniApp` 仓库路径名。
 - 第三个总仓或 monorepo。
 - `/api/v1/miniapp/*` HTTP 路径。
-- `x-miniapp-user-id` 请求头。
+- `x-miniapp-user-id` 历史兼容请求头（仅当 `STOREFRONT_AUTH_ALLOW_LEGACY_HEADER=true` 时接受）。
 - `miniapp_addresses`、`miniapp_address_audit` 数据库表名。
 - 历史迁移文件名，例如 `v008_miniapp_addresses.sql`。
 - `WECHAT_MINIAPP_*` 微信平台配置名。
@@ -120,7 +120,7 @@ app/api/
 
 - 是否把 `/api/v1/miniapp/*` 对外路径另起 `/api/v1/storefront/*`。
 - 是否改仓库 slug。
-- 是否把 `x-miniapp-user-id` 升级为通用渠道身份头。
+- 是否彻底移除 `x-miniapp-user-id` legacy 兼容头，并统一到多渠道 Bearer 身份模型。
 - 是否引入租户级配置目录，或把 `Yunxi` 全部降级为 seed data / tenant config。
 - 是否新增更多 `tenant_id` 隔离策略。
 - 是否将前台渠道从微信小程序扩展到 H5、抖音、小红书或其他入口。
