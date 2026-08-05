@@ -1,3 +1,10 @@
+## [2026-08-05] - docs(auth): 完成小程序 Bearer 鉴权实施计划
+- **操作人**: AI (Codex)
+- **trace_id**: 20260805-storefront-auth-contract
+- **计划**: 已将批准的鉴权设计拆为七个可验证任务，覆盖后端测试 fail-closed、MiniApp session store、无认证 transport、登录单飞、Bearer 注入、401 单次续登、静态合同、DevTools smoke、当前契约文档和双仓收口。
+- **执行边界**: 计划提交不改变运行时代码和产品版本；下一步从后端路由合同测试开始，再进入 MiniApp 实现。
+- **验证**: 计划占位符扫描通过；文件尚未进入运行时代码验证。
+
 ## [2026-08-05] - docs(auth): 冻结小程序 Bearer 鉴权闭环设计
 - **操作人**: AI (Codex)
 - **trace_id**: 20260805-storefront-auth-contract
