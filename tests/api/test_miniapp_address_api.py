@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.api.miniapp_addresses import create_miniapp_addresses_router
 from app.repository.customer_address_repo import CustomerAddressRepo
 from app.service.customer import CustomerAddressService
+from tests.helpers.storefront_auth import storefront_auth_headers
 
 
 @pytest.fixture
@@ -25,7 +26,7 @@ async def test_miniapp_address_api_save_list_set_default_and_delete(
 ) -> None:
     """小程序地址 API 应支持完整地址簿链路。"""
     transport = httpx.ASGITransport(app=app)
-    headers = {"x-miniapp-user-id": "address-api-user"}
+    headers = storefront_auth_headers("address-api-user")
 
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
@@ -84,7 +85,7 @@ async def test_miniapp_address_api_isolates_users(app: FastAPI) -> None:
     ) as client:
         await client.post(
             "/api/v1/miniapp/addresses",
-            headers={"x-miniapp-user-id": "address-owner"},
+            headers=storefront_auth_headers("address-owner"),
             json={
                 "id": "addr-api-owner",
                 "receiverName": "归属 API",
@@ -94,11 +95,11 @@ async def test_miniapp_address_api_isolates_users(app: FastAPI) -> None:
         )
         other_list = await client.get(
             "/api/v1/miniapp/addresses",
-            headers={"x-miniapp-user-id": "address-other"},
+            headers=storefront_auth_headers("address-other"),
         )
         other_default = await client.post(
             "/api/v1/miniapp/addresses/addr-api-owner/default",
-            headers={"x-miniapp-user-id": "address-other"},
+            headers=storefront_auth_headers("address-other"),
         )
 
     assert other_list.status_code == 200
@@ -116,7 +117,7 @@ async def test_miniapp_address_api_rejects_invalid_payload(app: FastAPI) -> None
     ) as client:
         response = await client.post(
             "/api/v1/miniapp/addresses",
-            headers={"x-miniapp-user-id": "address-invalid"},
+            headers=storefront_auth_headers("address-invalid"),
             json={
                 "receiverName": "",
                 "receiverPhone": "18800000010",

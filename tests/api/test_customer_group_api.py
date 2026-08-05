@@ -12,6 +12,7 @@ from app.api.miniapp_group_registrations import (
 from app.config import settings
 from app.repository.customer_group_repo import CustomerGroupRepo
 from app.service.customer import CustomerGroupOperationsService
+from tests.helpers.storefront_auth import storefront_auth_headers
 
 
 @pytest.fixture
@@ -36,7 +37,7 @@ async def test_customer_group_api_registration_and_summary(
     """后台建群建批次后，前台可提交登记，后台可读取汇总。"""
     transport = httpx.ASGITransport(app=app)
     admin_headers = {"Authorization": f"Bearer {settings.ADMIN_API_TOKEN}"}
-    miniapp_headers = {"x-miniapp-user-id": "group-api-user"}
+    miniapp_headers = storefront_auth_headers("group-api-user")
 
     async with httpx.AsyncClient(
         transport=transport,

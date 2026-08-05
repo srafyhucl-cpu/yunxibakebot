@@ -1,3 +1,10 @@
+## [2026-08-05] - test(auth): 小程序后端测试切换 Bearer 安全默认
+- **操作人**: AI (Codex)
+- **trace_id**: 20260805-storefront-auth-contract
+- **变更**: 新增 `tests/helpers/storefront_auth.py` 和 `tests/api/test_miniapp_storefront_auth_contract.py`；测试默认关闭 `STOREFRONT_AUTH_ALLOW_LEGACY_HEADER`；五个小程序 API 测试和客户群测试改用签发的 Bearer token。
+- **验证**: `python -m pytest tests/api/test_miniapp_auth_api.py tests/api/test_miniapp_storefront_auth_contract.py tests/api/test_miniapp_address_api.py tests/api/test_miniapp_chat_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_privacy_api.py tests/api/test_customer_group_api.py -q --no-cov`，`31 passed`。
+- **剩余**: MiniApp 运行时尚未保存或注入 Bearer token；下一批实现 session store、无认证 transport 和 401 续登。
+
 ## [2026-08-05] - docs(auth): 完成小程序 Bearer 鉴权实施计划
 - **操作人**: AI (Codex)
 - **trace_id**: 20260805-storefront-auth-contract

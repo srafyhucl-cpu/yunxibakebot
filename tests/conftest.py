@@ -15,7 +15,7 @@ import pytest
 # 必须在任何 app 模块导入前设置，确保首个 EmbeddingSearcher 即走 fallback 分支。
 os.environ.setdefault("YUNXI_USE_FAKE_EMBEDDING", "1")
 os.environ.setdefault("STOREFRONT_AUTH_SECRET", "test-storefront-auth-secret")
-os.environ.setdefault("STOREFRONT_AUTH_ALLOW_LEGACY_HEADER", "1")
+os.environ.setdefault("STOREFRONT_AUTH_ALLOW_LEGACY_HEADER", "0")
 os.environ.setdefault("ALLOW_MOCK_PAYMENT", "1")
 os.environ.setdefault("ADMIN_SESSION_SECRET", "test-admin-session-secret")
 os.environ.setdefault("ADMIN_ALLOW_LEGACY_BEARER", "1")

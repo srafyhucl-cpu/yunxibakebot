@@ -9,6 +9,7 @@ from app.repository.customer_profile_repo import CustomerProfileRepo
 from app.repository.privacy_repo import PrivacyRepo
 from app.service.customer_consent import CustomerConsentService
 from app.service.privacy_lifecycle import PrivacyLifecycleService
+from tests.helpers.storefront_auth import storefront_auth_headers
 
 
 @pytest.mark.asyncio
@@ -31,7 +32,7 @@ async def test_subject_export_and_delete_api_uses_authenticated_user_scope(db) -
         )
     )
     transport = httpx.ASGITransport(app=app)
-    headers = {"x-miniapp-user-id": "api-privacy-user"}
+    headers = storefront_auth_headers("api-privacy-user")
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
     ) as client:

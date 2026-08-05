@@ -15,6 +15,7 @@ from app.repository.youzan_repo import YouzanProductRepo
 from app.service.order import OrderApplicationService
 from app.service.channels.storefront import StorefrontAuthService
 from tests.helpers.miniapp_catalog_seed import seed_miniapp_product
+from tests.helpers.storefront_auth import storefront_auth_headers
 
 
 @pytest.fixture
@@ -66,7 +67,7 @@ async def test_miniapp_order_api_rejects_insufficient_stock(
                 "receiverPhone": "18800000005",
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "stock-api-user"},
+            headers=storefront_auth_headers("stock-api-user"),
         )
 
     assert response.status_code == 400
@@ -158,7 +159,7 @@ async def test_miniapp_order_api_creates_order_when_stock_is_enough(
                 "receiverPhone": "18800000006",
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "stock-api-user"},
+            headers=storefront_auth_headers("stock-api-user"),
         )
 
     assert response.status_code == 200
@@ -173,7 +174,7 @@ async def test_miniapp_order_api_creates_order_when_stock_is_enough(
 async def test_miniapp_order_api_detail_returns_timeline(app: FastAPI) -> None:
     """小程序订单详情应返回订单状态时间线。"""
     transport = httpx.ASGITransport(app=app)
-    headers = {"x-miniapp-user-id": "timeline-api-user"}
+    headers = storefront_auth_headers("timeline-api-user")
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
     ) as client:
@@ -237,12 +238,12 @@ async def test_miniapp_order_api_user_can_cancel_own_pending_order(
                 "receiverPhone": "18800000010",
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "cancel-api-user"},
+            headers=storefront_auth_headers("cancel-api-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         cancel_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/cancel",
-            headers={"x-miniapp-user-id": "cancel-api-user"},
+            headers=storefront_auth_headers("cancel-api-user"),
         )
 
     row = await YouzanProductRepo(db).get_by_id(82003)
@@ -272,12 +273,12 @@ async def test_miniapp_order_api_mock_pay_marks_order_paid(app: FastAPI) -> None
                 ],
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "mock-pay-api-user"},
+            headers=storefront_auth_headers("mock-pay-api-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         pay_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/mock-pay",
-            headers={"x-miniapp-user-id": "mock-pay-api-user"},
+            headers=storefront_auth_headers("mock-pay-api-user"),
         )
 
     assert pay_response.status_code == 200
@@ -305,12 +306,12 @@ async def test_miniapp_order_api_mock_pay_rejects_other_user(app: FastAPI) -> No
                 ],
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "mock-pay-owner-user"},
+            headers=storefront_auth_headers("mock-pay-owner-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         pay_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/mock-pay",
-            headers={"x-miniapp-user-id": "mock-pay-other-user"},
+            headers=storefront_auth_headers("mock-pay-other-user"),
         )
 
     assert pay_response.status_code == 404
@@ -342,12 +343,12 @@ async def test_miniapp_order_api_mock_pay_is_disabled_by_default(
                 ],
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "disabled-mock-user"},
+            headers=storefront_auth_headers("disabled-mock-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         pay_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/mock-pay",
-            headers={"x-miniapp-user-id": "disabled-mock-user"},
+            headers=storefront_auth_headers("disabled-mock-user"),
         )
 
     assert pay_response.status_code == 400
@@ -376,12 +377,12 @@ async def test_miniapp_order_api_prepare_payment_falls_back_to_mock(
                 ],
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "prepare-payment-api-user"},
+            headers=storefront_auth_headers("prepare-payment-api-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         prepare_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/prepare-payment",
-            headers={"x-miniapp-user-id": "prepare-payment-api-user"},
+            headers=storefront_auth_headers("prepare-payment-api-user"),
         )
 
     assert prepare_response.status_code == 200
@@ -413,12 +414,12 @@ async def test_miniapp_order_api_prepare_payment_rejects_other_user(
                 ],
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "prepare-payment-owner-user"},
+            headers=storefront_auth_headers("prepare-payment-owner-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         prepare_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/prepare-payment",
-            headers={"x-miniapp-user-id": "prepare-payment-other-user"},
+            headers=storefront_auth_headers("prepare-payment-other-user"),
         )
 
     assert prepare_response.status_code == 404
@@ -449,12 +450,12 @@ async def test_miniapp_order_api_user_cannot_cancel_other_users_order(
                 "receiverPhone": "18800000011",
                 "expectTime": "2026-06-18 18:00",
             },
-            headers={"x-miniapp-user-id": "cancel-owner-user"},
+            headers=storefront_auth_headers("cancel-owner-user"),
         )
         order_id = create_response.json()["data"]["orderId"]
         cancel_response = await client.post(
             f"/api/v1/miniapp/orders/{order_id}/cancel",
-            headers={"x-miniapp-user-id": "cancel-other-user"},
+            headers=storefront_auth_headers("cancel-other-user"),
         )
 
     assert cancel_response.status_code == 404
@@ -481,7 +482,7 @@ async def test_miniapp_order_api_rejects_invalid_expect_time(app: FastAPI) -> No
                 ],
                 "expectTime": "明天下午",
             },
-            headers={"x-miniapp-user-id": "invalid-time-api-user"},
+            headers=storefront_auth_headers("invalid-time-api-user"),
         )
 
     assert response.status_code == 400
@@ -510,7 +511,7 @@ async def test_miniapp_order_api_rejects_time_outside_business_hours(
                 ],
                 "expectTime": "2026-06-18 08:30",
             },
-            headers={"x-miniapp-user-id": "closed-time-api-user"},
+            headers=storefront_auth_headers("closed-time-api-user"),
         )
 
     assert response.status_code == 400

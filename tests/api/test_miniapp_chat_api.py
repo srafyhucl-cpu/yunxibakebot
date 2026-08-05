@@ -11,6 +11,7 @@ from app.api.channels.storefront._user import require_storefront_user_id
 from app.api.miniapp_chat import create_miniapp_chat_router
 from app.constants.miniapp import MINIAPP_DEMO_USER_ID
 from app.constants.storefront import DEFAULT_STOREFRONT_HUMAN_TRANSFER_REASON
+from tests.helpers.storefront_auth import storefront_auth_headers
 
 
 class FakeStorefrontConversationService:
@@ -120,7 +121,7 @@ async def test_miniapp_chat_post_uses_user_header(
         response = await client.post(
             "/api/v1/miniapp/chat/messages",
             json={"content": "我想订蛋糕"},
-            headers={"x-miniapp-user-id": "wx_user_001"},
+            headers=storefront_auth_headers("wx_user_001"),
         )
 
     assert response.status_code == 200
@@ -160,7 +161,7 @@ async def test_miniapp_chat_rejects_blank_message(app: FastAPI) -> None:
         response = await client.post(
             "/api/v1/miniapp/chat/messages",
             json={"content": "   "},
-            headers={"x-miniapp-user-id": "wx_user_001"},
+            headers=storefront_auth_headers("wx_user_001"),
         )
 
     assert response.status_code == 400
@@ -179,7 +180,7 @@ async def test_miniapp_chat_transfer_uses_user_header(
         response = await client.post(
             "/api/v1/miniapp/chat/transfer",
             json={"reason": "需要人工确认配送"},
-            headers={"x-miniapp-user-id": "wx_user_transfer"},
+            headers=storefront_auth_headers("wx_user_transfer"),
         )
 
     assert response.status_code == 200
@@ -203,7 +204,7 @@ async def test_miniapp_chat_transfer_uses_default_reason(
         response = await client.post(
             "/api/v1/miniapp/chat/transfer",
             json={},
-            headers={"x-miniapp-user-id": "wx_user_transfer"},
+            headers=storefront_auth_headers("wx_user_transfer"),
         )
 
     assert response.status_code == 200
