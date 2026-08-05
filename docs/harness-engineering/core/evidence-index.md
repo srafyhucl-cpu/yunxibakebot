@@ -4589,3 +4589,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 只记录删除边界和本地合同结果；未读取生产环境变量、客户/订单内容、日志正文或密钥。真实 Docker build/smoke/Trivy 仍需使用本轮新提交的精确 SHA。
 - summary: Dockerfile 不再把 wheelhouse 复制到最终 runtime 层后递归删除，deploy.sh 不再对工作区做批量清理；本地合同和 shell 语法通过，形成可重复的机械防线。
+## E-20260805-001：Storefront MiniApp Bearer 鉴权闭环本地收口
+
+- trace_id: 20260805-storefront-auth-contract
+- generated_at: 2026-08-05
+- evidence_type: local/cross-repo-storefront-bearer-auth-closeout
+- file: `D:\Project\YunxiBakeBot\reports\harness\handoff-20260805-storefront-auth-contract.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\docs\architecture\platform-miniapp-api-contract-v1.md`; `D:\Project\YunxiBakeMiniApp\docs\api-contract.md`
+- command: `python -m pytest tests/api/test_miniapp_auth_api.py tests/api/test_miniapp_storefront_auth_contract.py tests/api/test_miniapp_address_api.py tests/api/test_miniapp_chat_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_privacy_api.py tests/api/test_customer_group_api.py -q --no-cov`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_evidence_index.py --summary`; `python scripts/check_logbook.py`; MiniApp `npm run typecheck`; MiniApp `npm run check:miniapp`; MiniApp `npm run check:page-api-coverage`; MiniApp `npm run check:observability-contract`; `node --check` on three DevTools probes; legacy-header audit with `rg`
+- result: partial-pass
+- related_logbook: 2026-08-05 - fix(auth): 收口小程序 Bearer 鉴权双仓闭环
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录本地测试、静态合同、提交 SHA 和运行时条件；不包含 access token、openid、userId、订单内容、地址、聊天原文、API key 或生产凭证。DevTools service smoke 未执行，不以静态证据替代运行时证据。
+- summary: Bot 安全默认鉴权合同和 MiniApp Bearer 客户端已分别提交并通过本地门禁；关联提交为 `85764a7`、`33fdd92`、`a482f66`。运行时统一使用 `Authorization: Bearer`，legacy 身份头仅保留为显式迁移开关。真实微信 DevTools smoke、生产部署和支付链路不在本次证据范围内。
