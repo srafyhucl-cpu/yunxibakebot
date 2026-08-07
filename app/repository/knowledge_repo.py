@@ -313,11 +313,12 @@ class KnowledgeRepo(BaseRepository):
         return int(cursor.lastrowid)
 
     async def get_pending_sync_entries(self, limit: int = 500) -> list[KnowledgeEntry]:
-        """获取所有待同步（pending/failed）的知识条目，跨所有分类和类型。"""
+        """获取非商品类待同步知识条目。商品向量由商品状态机独立负责。"""
         rows = await self._db.execute_fetchall(
-            ENTRY_SELECT_SQL + "WHERE vector_sync_status IN ('pending', 'failed') "
+            ENTRY_SELECT_SQL
+            + "WHERE category != ? AND vector_sync_status IN ('pending', 'failed') "
             "ORDER BY updated_at ASC LIMIT ?",
-            (limit,),
+            ("product", limit),
         )
         return [KnowledgeEntry(**dict(row)) for row in rows]
 

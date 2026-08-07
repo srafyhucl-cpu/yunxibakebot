@@ -127,6 +127,94 @@ class FakeKnowledgeProductRepo:
         return f"{sync_source}:{sync_ref}"
 
 
+class FakeVectorKnowledgeRepo:
+    def __init__(self, candidates: list[dict[str, Any]]) -> None:
+        self.candidates = candidates
+        self.claimed: list[tuple[str, str]] = []
+        self.successful: list[tuple[str, str]] = []
+        self.failed: list[tuple[str, str, str]] = []
+        self.allow_success = True
+
+    async def list_product_vector_sync_candidates(
+        self,
+        *,
+        stale_before: str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        assert stale_before
+        return self.candidates[:limit]
+
+    async def claim_product_vector_sync(
+        self,
+        item_id: str,
+        revision: str,
+        *,
+        stale_before: str | None = None,
+    ) -> bool:
+        self.claimed.append((item_id, revision))
+        return True
+
+    async def mark_product_vector_sync_success(
+        self,
+        item_id: str,
+        revision: str,
+    ) -> bool:
+        self.successful.append((item_id, revision))
+        return self.allow_success
+
+    async def mark_product_vector_sync_failed(
+        self,
+        item_id: str,
+        revision: str,
+        error: str,
+    ) -> bool:
+        self.failed.append((item_id, revision, error))
+        return True
+
+
+class FakeVectorSearcher:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.upserted: list[str] = []
+        self.deleted: list[str] = []
+
+    def _get_model(self) -> Any:
+        return self
+
+    def encode(self, texts: list[str], normalize_embeddings: bool = True) -> list[Any]:
+        assert texts
+        assert normalize_embeddings is True
+        return [[0.1, 0.2, 0.3]]
+
+    async def upsert_one(self, item_id: str, vector: list[float]) -> None:
+        self.upserted.append(item_id)
+        if self.fail:
+            raise RuntimeError("retry vector failure")
+        assert vector
+
+    async def delete_one(self, item_id: str) -> None:
+        self.deleted.append(item_id)
+
+
+def _vector_candidate(
+    item_id: str,
+    *,
+    status: str = "pending",
+    retry_count: int = 0,
+    is_active: int = 1,
+) -> dict[str, Any]:
+    return {
+        "youzan_item_id": item_id,
+        "title": f"商品 {item_id}",
+        "content": "商品正文",
+        "is_active": is_active,
+        "updated_at": "2026-08-07 10:00:00",
+        "vector_sync_status": status,
+        "vector_sync_retry_count": retry_count,
+        "vector_synced_at": "",
+    }
+
+
 async def test_product_reconcile_deactivates_missing_items_and_syncs_sold_num() -> None:
     product_payloads = {
         101: {"response": {"item": {"sold_num": 7, "item_no": "SKU-101"}}},
@@ -342,3 +430,76 @@ async def test_product_reconcile_item_base_only_uses_onsale_ids() -> None:
 
     assert client.item_base_batches == [[101, 303]]
     assert sorted(product_repo.item_base_category_updates) == [101, 303]
+
+
+async def test_product_reconcile_retries_failed_vector_and_reports_counts() -> None:
+    knowledge_repo = FakeVectorKnowledgeRepo(
+        [_vector_candidate("10001", status="failed", retry_count=1)]
+    )
+    searcher = FakeVectorSearcher()
+    service = ProductReconcileService(
+        youzan_client=FakeYouzanClient(set()),  # type: ignore[arg-type]
+        product_repo=FakeProductRepo([], []),  # type: ignore[arg-type]
+        history_repo=FakeHistoryRepo(),  # type: ignore[arg-type]
+        knowledge_product_repo=knowledge_repo,  # type: ignore[arg-type]
+        embedding_searcher=searcher,  # type: ignore[arg-type]
+    )
+
+    summary = await service.reconcile_product_vectors()
+
+    assert summary == {
+        "claimed": 1,
+        "succeeded": 1,
+        "failed": 0,
+        "skipped_stale": 0,
+        "exhausted": 0,
+    }
+    assert knowledge_repo.claimed == [("10001", "2026-08-07 10:00:00")]
+    assert searcher.upserted == ["10001"]
+
+
+async def test_product_reconcile_marks_vector_failure_and_skips_exhausted() -> None:
+    knowledge_repo = FakeVectorKnowledgeRepo(
+        [
+            _vector_candidate("10002", status="pending"),
+            _vector_candidate("10003", status="failed", retry_count=3),
+        ]
+    )
+    searcher = FakeVectorSearcher(fail=True)
+    service = ProductReconcileService(
+        youzan_client=FakeYouzanClient(set()),  # type: ignore[arg-type]
+        product_repo=FakeProductRepo([], []),  # type: ignore[arg-type]
+        history_repo=FakeHistoryRepo(),  # type: ignore[arg-type]
+        knowledge_product_repo=knowledge_repo,  # type: ignore[arg-type]
+        embedding_searcher=searcher,  # type: ignore[arg-type]
+    )
+
+    summary = await service.reconcile_product_vectors()
+
+    assert summary == {
+        "claimed": 1,
+        "succeeded": 0,
+        "failed": 1,
+        "skipped_stale": 0,
+        "exhausted": 1,
+    }
+    assert len(knowledge_repo.failed) == 1
+    assert "retry vector failure" in knowledge_repo.failed[0][2]
+
+
+async def test_product_reconcile_does_not_overwrite_stale_completion() -> None:
+    knowledge_repo = FakeVectorKnowledgeRepo([_vector_candidate("10004")])
+    knowledge_repo.allow_success = False
+    service = ProductReconcileService(
+        youzan_client=FakeYouzanClient(set()),  # type: ignore[arg-type]
+        product_repo=FakeProductRepo([], []),  # type: ignore[arg-type]
+        history_repo=FakeHistoryRepo(),  # type: ignore[arg-type]
+        knowledge_product_repo=knowledge_repo,  # type: ignore[arg-type]
+        embedding_searcher=FakeVectorSearcher(),  # type: ignore[arg-type]
+    )
+
+    summary = await service.reconcile_product_vectors()
+
+    assert summary["claimed"] == 1
+    assert summary["succeeded"] == 0
+    assert summary["skipped_stale"] == 1

@@ -23,17 +23,21 @@ from app.service.youzan.product_rag_text import (
 logger = setup_logger()
 
 
-def parse_product_from_api(raw_product: dict, item_id: int) -> dict | None:
+def parse_product_from_api(raw_product: object, item_id: int) -> dict | None:
     """
     解析有赞 API 返回的商品原始数据。
 
     返回标准化字段字典，解析失败返回 None。
     """
+    if not isinstance(raw_product, dict):
+        return None
     outer = raw_product.get("data") or raw_product.get("response")
     if not isinstance(outer, dict) or "item" not in outer:
         return None
 
     item = outer["item"]
+    if not isinstance(item, dict):
+        return None
     title = item.get("title", "")
     alias = item.get("alias", "") or str(item_id)
     price_fen = item.get("price", 0)
@@ -163,7 +167,16 @@ async def sync_product_to_rag(
             sync_source=sync_source,
             sync_ref=sync_ref,
         )
-        if embedding_searcher and result == WriteResult.APPLIED:
+        if result != WriteResult.APPLIED:
+            return result
+        if not await knowledge_product_repo.claim_product_vector_sync(
+            str(item_id),
+            updated_at,
+        ):
+            return WriteResult.SKIPPED
+        try:
+            if embedding_searcher is None:
+                raise RuntimeError("向量索引服务不可用")
             vector = (
                 embedding_searcher._get_model()
                 .encode(
@@ -173,13 +186,49 @@ async def sync_product_to_rag(
                 .tolist()
             )
             await embedding_searcher.upsert_one(str(item_id), vector)
-        return result
+        except Exception as exc:
+            logger.error("商品向量写入失败 item_id=%s err=%s", item_id, exc)
+            marked_failed = (
+                await knowledge_product_repo.mark_product_vector_sync_failed(
+                    str(item_id),
+                    updated_at,
+                    str(exc),
+                )
+            )
+            return WriteResult.FAILED if marked_failed else WriteResult.SKIPPED
+        marked_success = await knowledge_product_repo.mark_product_vector_sync_success(
+            str(item_id),
+            updated_at,
+        )
+        return WriteResult.APPLIED if marked_success else WriteResult.SKIPPED
 
     result = await knowledge_product_repo.delete_product_knowledge(
         str(item_id),
         sync_source=sync_source,
         sync_ref=sync_ref,
     )
-    if embedding_searcher and result == WriteResult.APPLIED:
+    if result != WriteResult.APPLIED:
+        return result
+    revision = await knowledge_product_repo.get_product_vector_revision(str(item_id))
+    if not revision or not await knowledge_product_repo.claim_product_vector_sync(
+        str(item_id),
+        revision,
+    ):
+        return WriteResult.SKIPPED
+    try:
+        if embedding_searcher is None:
+            raise RuntimeError("向量索引服务不可用")
         await embedding_searcher.delete_one(str(item_id))
-    return result
+    except Exception as exc:
+        logger.error("商品向量删除失败 item_id=%s err=%s", item_id, exc)
+        marked_failed = await knowledge_product_repo.mark_product_vector_sync_failed(
+            str(item_id),
+            revision,
+            str(exc),
+        )
+        return WriteResult.FAILED if marked_failed else WriteResult.SKIPPED
+    marked_success = await knowledge_product_repo.mark_product_vector_sync_success(
+        str(item_id),
+        revision,
+    )
+    return WriteResult.APPLIED if marked_success else WriteResult.SKIPPED

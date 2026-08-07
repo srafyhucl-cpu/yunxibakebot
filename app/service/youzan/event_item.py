@@ -207,6 +207,8 @@ async def handle_item_event(
             SyncSource.YOUZAN_WEBHOOK,
             str(item_id),
         )
+        if knowledge_result == WriteResult.FAILED:
+            raise RuntimeError(f"商品向量同步失败: item_id={item_id}")
 
         price_fen = parsed["price_fen"]
         stock = parsed["stock"]
@@ -326,3 +328,4 @@ async def handle_item_event(
             error_message=str(exc),
             business_key=str(item_id),
         )
+        raise

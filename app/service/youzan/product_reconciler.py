@@ -10,7 +10,8 @@
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Any
 
 from app.logger import setup_logger
 from app.models.content_change_history import ContentChangeHistoryCreate
@@ -27,6 +28,8 @@ RECONCILE_SOURCE = "product_reconcile"
 # 并发拉取 sold_num 时的最大并发数（避免触发有赞频率限制）
 _SOLD_NUM_CONCURRENCY = 10
 _ITEM_BASE_BATCH_SIZE = 10
+VECTOR_SYNC_RETRY_CEILING = 3
+VECTOR_SYNC_LEASE_SECONDS = 900
 
 
 class ProductReconcileService:
@@ -38,11 +41,13 @@ class ProductReconcileService:
         product_repo: YouzanProductRepo,
         history_repo: ContentChangeHistoryRepo,
         knowledge_product_repo: KnowledgeProductRepo | None = None,
+        embedding_searcher: Any = None,
     ) -> None:
         self._client = youzan_client
         self._product_repo = product_repo
         self._history_repo = history_repo
         self._knowledge_product_repo = knowledge_product_repo
+        self._embedding_searcher = embedding_searcher
 
     async def run(self) -> dict:
         """
@@ -91,13 +96,15 @@ class ProductReconcileService:
                     logger.error("对账同步销量失败: %s", exc)
 
         duration_ms = int((datetime.now() - start_ts).total_seconds() * 1000)
+        vector_sync = await self.reconcile_product_vectors()
         logger.info(
-            "商品全量对账完成：检查 %d 条，下架 %d 条，销量同步 %d 条，分类同步 %d 条（全量 %d 条），错误 %d 条，耗时 %d ms",
+            "商品全量对账完成：检查 %d 条，下架 %d 条，销量同步 %d 条，分类同步 %d 条（全量 %d 条），向量同步 %s，错误 %d 条，耗时 %d ms",
             len(local_ids),
             len(deactivated),
             sold_updated,
             category_synced,
             len(all_local_ids),
+            vector_sync,
             len(errors),
             duration_ms,
         )
@@ -109,8 +116,84 @@ class ProductReconcileService:
             "sold_num_synced": sold_updated,
             "category_synced": category_synced,
             "errors": errors,
+            "product_vector_sync": vector_sync,
             "duration_ms": duration_ms,
         }
+
+    async def reconcile_product_vectors(self) -> dict[str, int]:
+        """按 revision 条件重试商品向量，并返回本轮处理计数。"""
+        summary = {
+            "claimed": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "skipped_stale": 0,
+            "exhausted": 0,
+        }
+        if self._knowledge_product_repo is None or self._embedding_searcher is None:
+            return summary
+
+        stale_before = (
+            datetime.now() - timedelta(seconds=VECTOR_SYNC_LEASE_SECONDS)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        candidates = (
+            await self._knowledge_product_repo.list_product_vector_sync_candidates(
+                stale_before=stale_before,
+            )
+        )
+        for candidate in candidates:
+            retry_count = int(candidate.get("vector_sync_retry_count", 0) or 0)
+            if retry_count >= VECTOR_SYNC_RETRY_CEILING:
+                summary["exhausted"] += 1
+                continue
+            item_id = str(candidate["youzan_item_id"])
+            revision = str(candidate["updated_at"])
+            status = str(candidate.get("vector_sync_status", ""))
+            stale_lease = stale_before if status == "syncing" else None
+            claimed = await self._knowledge_product_repo.claim_product_vector_sync(
+                item_id,
+                revision,
+                stale_before=stale_lease,
+            )
+            if not claimed:
+                summary["skipped_stale"] += 1
+                continue
+            summary["claimed"] += 1
+            try:
+                if int(candidate.get("is_active", 0) or 0):
+                    vector_data = self._embedding_searcher._get_model().encode(
+                        [
+                            f"{candidate.get('title', '')} "
+                            f"{candidate.get('content', '')}"
+                        ],
+                        normalize_embeddings=True,
+                    )[0]
+                    vector = (
+                        vector_data.tolist()
+                        if hasattr(vector_data, "tolist")
+                        else list(vector_data)
+                    )
+                    await self._embedding_searcher.upsert_one(item_id, vector)
+                else:
+                    await self._embedding_searcher.delete_one(item_id)
+            except Exception as exc:
+                logger.error("商品向量对账失败 item_id=%s err=%s", item_id, exc)
+                if await self._knowledge_product_repo.mark_product_vector_sync_failed(
+                    item_id,
+                    revision,
+                    str(exc),
+                ):
+                    summary["failed"] += 1
+                else:
+                    summary["skipped_stale"] += 1
+                continue
+            if await self._knowledge_product_repo.mark_product_vector_sync_success(
+                item_id,
+                revision,
+            ):
+                summary["succeeded"] += 1
+            else:
+                summary["skipped_stale"] += 1
+        return summary
 
     def _extract_onsale_ids(self, items: list[dict]) -> set[int]:
         """从有赞在售列表提取商品 ID。"""

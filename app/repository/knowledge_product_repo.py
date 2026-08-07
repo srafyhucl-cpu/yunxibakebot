@@ -4,9 +4,11 @@
 """
 
 from app.models.content_change_history import WriteResult
+from app.models.knowledge import VectorSyncStatus
 from app.repository.base import BaseRepository
 
 PRODUCT_CATEGORY = "product"
+VECTOR_SYNC_ERROR_MAX_LENGTH = 500
 
 
 class KnowledgeProductRepo(BaseRepository):
@@ -215,8 +217,10 @@ class KnowledgeProductRepo(BaseRepository):
                 "INSERT INTO knowledge_base ("
                 "category, content_type, title, content, keywords, priority, youzan_item_id, "
                 "is_active, last_sync_source, last_sync_ref, content_origin, "
-                "vector_sync_status, vector_synced_at, updated_at"
-                ") VALUES ('product', 'product', ?, ?, ?, ?, ?, 1, ?, ?, 'youzan_runtime', 'success', ?, ?) "
+                "vector_sync_status, vector_synced_at, vector_sync_error, "
+                "vector_sync_retry_count, updated_at"
+                ") VALUES ('product', 'product', ?, ?, ?, ?, ?, 1, ?, ?, "
+                "'youzan_runtime', 'pending', '', '', 0, ?) "
                 "ON CONFLICT(youzan_item_id) DO UPDATE SET "
                 "title = excluded.title, "
                 "content = excluded.content, "
@@ -230,6 +234,7 @@ class KnowledgeProductRepo(BaseRepository):
                 "vector_sync_status = excluded.vector_sync_status, "
                 "vector_synced_at = excluded.vector_synced_at, "
                 "vector_sync_error = '', "
+                "vector_sync_retry_count = 0, "
                 "updated_at = excluded.updated_at "
                 "WHERE excluded.updated_at > knowledge_base.updated_at",
                 (
@@ -241,13 +246,148 @@ class KnowledgeProductRepo(BaseRepository):
                     sync_source,
                     sync_ref,
                     updated_at,
-                    updated_at,
                 ),
             )
             await self._db.commit()
             return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED
-        except Exception:
+        except Exception as exc:
+            from app.logger import setup_logger
+
+            setup_logger().error(
+                "商品知识 upsert 失败 item_id=%s err=%s",
+                youzan_item_id,
+                exc,
+            )
             return WriteResult.FAILED
+
+    async def get_product_vector_revision(self, youzan_item_id: str) -> str | None:
+        """读取商品知识当前内容 revision。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT updated_at FROM knowledge_base "
+            "WHERE category = ? AND youzan_item_id = ?",
+            (PRODUCT_CATEGORY, youzan_item_id),
+        )
+        return str(rows[0]["updated_at"]) if rows else None
+
+    async def claim_product_vector_sync(
+        self,
+        youzan_item_id: str,
+        revision: str,
+        *,
+        stale_before: str | None = None,
+    ) -> bool:
+        """条件认领商品向量任务并写入租约时间。"""
+        status_clause = (
+            "vector_sync_status IN (?, ?) "
+            "OR (vector_sync_status = ? AND vector_synced_at <= ?)"
+        )
+        parameters: tuple[object, ...] = (
+            VectorSyncStatus.PENDING.value,
+            VectorSyncStatus.FAILED.value,
+            VectorSyncStatus.SYNCING.value,
+            stale_before or "",
+            youzan_item_id,
+            revision,
+        )
+        if stale_before is None:
+            status_clause = "vector_sync_status IN (?, ?)"
+            parameters = (
+                VectorSyncStatus.PENDING.value,
+                VectorSyncStatus.FAILED.value,
+                youzan_item_id,
+                revision,
+            )
+        cursor = await self._db.execute(
+            "UPDATE knowledge_base SET "
+            "vector_sync_status = ?, vector_synced_at = datetime('now'), "
+            "vector_sync_error = '' "
+            "WHERE category = ? AND youzan_item_id = ? AND updated_at = ? "
+            "AND (" + status_clause + ")",
+            (
+                VectorSyncStatus.SYNCING.value,
+                PRODUCT_CATEGORY,
+                *parameters[-2:],
+                *parameters[:-2],
+            ),
+        )
+        await self._db.commit()
+        return bool(cursor.rowcount)
+
+    async def mark_product_vector_sync_success(
+        self,
+        youzan_item_id: str,
+        revision: str,
+    ) -> bool:
+        """在向量写入成功后条件标记商品向量状态。"""
+        cursor = await self._db.execute(
+            "UPDATE knowledge_base SET "
+            "vector_sync_status = ?, vector_synced_at = datetime('now'), "
+            "vector_sync_error = '' "
+            "WHERE category = ? AND youzan_item_id = ? AND updated_at = ? "
+            "AND vector_sync_status = ?",
+            (
+                VectorSyncStatus.SUCCESS.value,
+                PRODUCT_CATEGORY,
+                youzan_item_id,
+                revision,
+                VectorSyncStatus.SYNCING.value,
+            ),
+        )
+        await self._db.commit()
+        return bool(cursor.rowcount)
+
+    async def mark_product_vector_sync_failed(
+        self,
+        youzan_item_id: str,
+        revision: str,
+        error: str,
+    ) -> bool:
+        """条件记录商品向量失败并原子增加重试次数。"""
+        cursor = await self._db.execute(
+            "UPDATE knowledge_base SET "
+            "vector_sync_status = ?, vector_synced_at = '', "
+            "vector_sync_error = substr(?, 1, ?), "
+            "vector_sync_retry_count = vector_sync_retry_count + 1 "
+            "WHERE category = ? AND youzan_item_id = ? AND updated_at = ? "
+            "AND vector_sync_status = ?",
+            (
+                VectorSyncStatus.FAILED.value,
+                error,
+                VECTOR_SYNC_ERROR_MAX_LENGTH,
+                PRODUCT_CATEGORY,
+                youzan_item_id,
+                revision,
+                VectorSyncStatus.SYNCING.value,
+            ),
+        )
+        await self._db.commit()
+        return bool(cursor.rowcount)
+
+    async def list_product_vector_sync_candidates(
+        self,
+        *,
+        stale_before: str,
+        limit: int = 100,
+    ) -> list[dict]:
+        """列出待同步、失败和过期租约的商品知识条目。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT youzan_item_id, title, content, is_active, updated_at, "
+            "vector_sync_status, vector_sync_retry_count, vector_synced_at "
+            "FROM knowledge_base "
+            "WHERE category = ? AND ("
+            "vector_sync_status IN (?, ?) "
+            "OR (vector_sync_status = ? AND vector_synced_at <= ?)"
+            ") ORDER BY updated_at ASC LIMIT ?",
+            (
+                PRODUCT_CATEGORY,
+                VectorSyncStatus.PENDING.value,
+                VectorSyncStatus.FAILED.value,
+                VectorSyncStatus.SYNCING.value,
+                stale_before,
+                limit,
+            ),
+        )
+        return [dict(row) for row in rows]
 
     async def delete_product_knowledge(
         self,
@@ -261,11 +401,20 @@ class KnowledgeProductRepo(BaseRepository):
             "UPDATE knowledge_base SET is_active = 0, "
             "last_sync_source = CASE WHEN ? != '' THEN ? ELSE last_sync_source END, "
             "last_sync_ref = CASE WHEN ? != '' THEN ? ELSE last_sync_ref END, "
-            "vector_sync_status = 'success', "
-            "vector_synced_at = datetime('now'), "
+            "vector_sync_status = 'pending', "
+            "vector_synced_at = '', "
             "vector_sync_error = '', "
-            "updated_at = datetime('now') WHERE youzan_item_id = ?",
-            (sync_source, sync_source, sync_ref, sync_ref, youzan_item_id),
+            "vector_sync_retry_count = 0, "
+            "updated_at = datetime('now') "
+            "WHERE category = ? AND youzan_item_id = ? AND is_active = 1",
+            (
+                sync_source,
+                sync_source,
+                sync_ref,
+                sync_ref,
+                PRODUCT_CATEGORY,
+                youzan_item_id,
+            ),
         )
         await self._db.commit()
         return WriteResult.APPLIED if cursor.rowcount else WriteResult.SKIPPED

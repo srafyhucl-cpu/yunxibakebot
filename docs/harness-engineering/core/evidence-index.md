@@ -4717,3 +4717,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录身份范围合同、测试统计、静态门禁和边界状态；不包含客户原文、金额、地址、物流号、令牌、密钥或支付凭证。
 - summary: 客户订单与物流工具只能通过可信会话身份调用带范围查询；同买家可读、不同买家和缺失身份安全拒绝；实时有赞身份不匹配时不返回、不缓存。员工侧既有订单查询合同未改为客户身份模式；真实生产和外部运行时证据仍未执行。
+## E-20260807-006：商品知识向量状态机与对账重试本地收口
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-07
+- evidence_type: local/product-vector-sync-state-machine
+- file: `D:\Project\YunxiBakeBot\app\repository\knowledge_product_repo.py`; `D:\Project\YunxiBakeBot\app\repository\knowledge_repo.py`; `D:\Project\YunxiBakeBot\app\service\youzan\product_sync.py`; `D:\Project\YunxiBakeBot\app\service\youzan\product_reconciler.py`; `D:\Project\YunxiBakeBot\app\service\youzan\event_item.py`; `D:\Project\YunxiBakeBot\scripts\check_product_vector_sync_contract.py`; `D:\Project\YunxiBakeBot\tests\repository\test_knowledge_product_sync_state.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_product_vector_sync.py`; `D:\Project\YunxiBakeBot\tests\service\youzan\test_product_reconciler.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_product_vector_sync_contract.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests\repository\test_knowledge_product_sync_state.py tests\service\youzan\test_product_vector_sync.py tests\service\youzan\test_product_reconciler.py tests\service\youzan\test_product_rag_text.py tests\scripts\test_check_product_vector_sync_contract.py -q --no-cov`; `python -m pytest tests\ -q --no-cov --basetemp D:\Temp\pytest-yunxi-post-p0-closure-rerun`; `python scripts\check_product_vector_sync_contract.py --summary`; `python scripts\check_project.py --skip-tests`; `python scripts\check_mistake_ledger.py`; `python scripts\check_evidence_index.py --summary`; `python scripts\check_file_sizes.py`; `python -m ruff check --no-cache ...`; `python -m ruff format --check ...`; `git diff --check`
+- result: pass
+- related_logbook: 2026-08-07 - fix(product): close vector sync state machine
+- related_adr: 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 仅记录商品向量状态机代码、自动化合同、测试命令和当前外部门禁边界；不包含客户原文、订单明细、向量正文、令牌、密钥、支付凭证或生产数据库内容。
+- summary: 商品知识写入从 pending 开始，向量任务通过 revision 条件 claim；只有向量写入成功后才标记 success，失败原子递增 retry_count 并进入 failed；过期 syncing 租约由商品对账服务有界重试，旧 revision 不能覆盖新内容，商品 Webhook 向量失败会进入失败审计并向上抛出。全量后端测试通过，但 R4-C、MiniApp、支付/退款、生产部署和独立备份仍无真实外部证据，不能生成 completed handoff。

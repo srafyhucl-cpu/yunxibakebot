@@ -130,6 +130,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         product_repo=repos["youzan_product_repo"],
         history_repo=repos["history_repo"],
         knowledge_product_repo=repos["knowledge_product_repo"],
+        embedding_searcher=vs,
     )
 
     chat_service = ChatService(

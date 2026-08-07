@@ -1,3 +1,11 @@
+## [2026-08-07] - fix(product): close vector sync state machine
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 商品知识 upsert 先写 `vector_sync_status='success'`，向量写入失败时数据库状态与可重建索引可能漂移；通用知识同步也可能重新认领商品条目。
+- 变更: 商品知识 upsert 改为 `pending`；新增 revision 条件的 `claim/success/failed` 状态迁移、失败重试计数和错误截断；新增过期租约对账与有界重试；商品下架同步改为向量删除后才标记成功；Webhook 向量失败向上抛出，避免错误标记 processed；新增商品向量静态合同并接入 `check_project.py --skip-tests`；商品 API 非字典响应改为 fail-closed 解析失败。
+- 测试: 工作包目标测试 `23 passed`；全量后端测试 `python -m pytest tests/ -q --no-cov --basetemp D:\Temp\pytest-yunxi-post-p0-closure-rerun` 通过；`python scripts/check_product_vector_sync_contract.py --summary`、`python scripts/check_project.py --skip-tests`、`python scripts/check_mistake_ledger.py`、`python scripts/check_evidence_index.py --summary`、Ruff 和 `git diff --check` 通过。
+- 真值: 工作包 2 本地实现与自动化验证 `passed`；R4-C 真实容器 build/smoke/Trivy、MiniApp DevTools、真实支付/退款、生产部署和独立持久化备份没有执行，继续按计划保持 `blocked`/未开始；不生成 completed handoff。
+
 ## [2026-08-07] - fix(agent): enforce customer order ownership scope
 - 操作人: AI (Codex)
 - trace_id: `20260807-post-p0-production-closure`
