@@ -1,6 +1,5 @@
 """订单支付真实实现。"""
 
-from datetime import datetime, timedelta
 from app.config import settings
 from app.models.order import Order, OrderStatus
 from app.repository.order_repo import OrderRepo
@@ -11,7 +10,6 @@ from app.service.integrations.wechat_pay import (
     WechatPayIntegrationService,
     WechatPayPrepayResult,
 )
-from app.service.order.inventory import OrderInventoryService
 from app.service.order.payment_notification import WechatPaymentNotificationService
 from app.service.order.payment_state import (
     PAYMENT_METHOD_MOCK,
@@ -21,9 +19,7 @@ from app.service.order.payment_state import (
     PAYMENT_STATUS_EXPIRED,
     PAYMENT_STATUS_PAID,
     PAYMENT_STATUS_UNPAID,
-    PAYMENT_TIMEOUT_MINUTES,
     PaymentSession,
-    TIME_FORMAT,
     build_initial_payment,
     build_mock_payment_session,
     build_order_description,
@@ -32,24 +28,21 @@ from app.service.order.payment_state import (
     loads_json_object,
     loads_payment,
     now_text,
-    parse_time,
     status_value,
 )
 from app.service.order.serialization import OrderSerializationService
 
 
 class OrderPaymentRuntimeService:
-    """处理支付确认和未支付超时释放。"""
+    """处理支付会话、支付确认和微信支付通知。"""
 
     def __init__(
         self,
         order_repo: OrderRepo,
-        inventory_service: OrderInventoryService,
         wechat_pay_service: WechatPayIntegrationService | None = None,
         event_repo: OrderEventRepo | None = None,
     ) -> None:
         self._order_repo = order_repo
-        self._inventory_service = inventory_service
         self._serializer = OrderSerializationService()
         self._wechat_pay_service = wechat_pay_service or WechatPayIntegrationService()
         self._notification_service = WechatPaymentNotificationService(
@@ -113,11 +106,22 @@ class OrderPaymentRuntimeService:
                 "paidAt": now,
             }
         )
-        updated = await self._order_repo.update_payment(
+        updated = await self._order_repo.update_payment_if_unpaid_active(
             order.id, dumps_payment(payment), now
         )
         if updated is None:
-            raise ValueError("订单不存在")
+            latest = await self._order_repo.get_order(order.id)
+            if latest is None:
+                raise ValueError("订单不存在")
+            latest_payment = loads_payment(latest.payment)
+            if status_value(latest) == OrderStatus.CANCELLED.value:
+                raise ValueError("订单已取消")
+            if (
+                str(latest_payment.get("status", PAYMENT_STATUS_UNPAID))
+                == PAYMENT_STATUS_PAID
+            ):
+                return self._serializer.serialize(latest)
+            raise ValueError("订单支付状态更新冲突")
         return self._serializer.serialize(updated)
 
     async def handle_wechat_payment_notify(
@@ -152,70 +156,11 @@ class OrderPaymentRuntimeService:
         )
         return self._serializer.serialize(updated)
 
-    async def expire_unpaid_order(
-        self,
-        order_id: str,
-        *,
-        now: datetime | None = None,
-        force: bool = False,
-    ) -> dict:
-        """关闭单个未支付订单并释放预占库存。"""
-        order = await self._order_repo.get_order(order_id)
-        if order is None:
-            raise ValueError("订单不存在")
-        current_time = now or datetime.now()
-        if force and not self._is_unpaid_active(order):
-            return self._serializer.serialize(order)
-        if not force and not self._is_expirable(order, current_time):
-            return self._serializer.serialize(order)
-        expired = await self._expire_order(order, current_time)
-        return self._serializer.serialize(expired)
-
-    async def expire_unpaid_orders(
-        self, orders: list[Order], *, now: datetime | None = None
-    ) -> list[dict]:
-        """批量关闭超时未支付订单。"""
-        current_time = now or datetime.now()
-        expired_orders: list[dict] = []
-        for order in orders:
-            if not self._is_expirable(order, current_time):
-                continue
-            expired = await self._expire_order(order, current_time)
-            expired_orders.append(self._serializer.serialize(expired))
-        return expired_orders
-
     async def _get_user_order(self, order_id: str, *, user_id: str) -> Order:
         order = await self._order_repo.get_order(order_id)
         if order is None or order.user_id != user_id:
             raise ValueError("订单不存在")
         return order
-
-    async def _expire_order(self, order: Order, now: datetime) -> Order:
-        payment = loads_payment(order.payment)
-        now_text = now.strftime(TIME_FORMAT)
-        payment.update(
-            {
-                "status": PAYMENT_STATUS_EXPIRED,
-                "expiredAt": now_text,
-                "expiredReason": "payment_timeout",
-            }
-        )
-        updated = await self._order_repo.update_payment(
-            order.id, dumps_payment(payment), now_text
-        )
-        if updated is None:
-            raise ValueError("订单不存在")
-        await self._inventory_service.release_reserved_inventory(
-            self._inventory_service.items_from_order(updated)
-        )
-        cancelled = await self._order_repo.update_status(
-            order.id,
-            OrderStatus.CANCELLED.value,
-            now_text,
-        )
-        if cancelled is None:
-            raise ValueError("订单不存在")
-        return cancelled
 
     async def _mark_wechat_payment_paid(
         self,
@@ -238,23 +183,6 @@ class OrderPaymentRuntimeService:
     async def _validate_wechat_transaction(self, transaction: dict) -> None:
         """委托微信通知业务合同校验。"""
         await self._notification_service.validate_transaction(transaction)
-
-    def _is_expirable(self, order: Order, now: datetime) -> bool:
-        if not self._is_unpaid_active(order):
-            return False
-        payment = loads_payment(order.payment)
-        created_at = parse_time(str(payment.get("createdAt") or order.created_at))
-        return created_at is not None and now - created_at >= timedelta(
-            minutes=PAYMENT_TIMEOUT_MINUTES
-        )
-
-    def _is_unpaid_active(self, order: Order) -> bool:
-        if status_value(order) == OrderStatus.CANCELLED.value:
-            return False
-        payment = loads_payment(order.payment)
-        return (
-            str(payment.get("status", PAYMENT_STATUS_UNPAID)) == PAYMENT_STATUS_UNPAID
-        )
 
     def _wechat_pay_ready(self) -> bool:
         return self._wechat_pay_service.is_ready()
@@ -299,9 +227,7 @@ __all__ = [
     "PAYMENT_STATUS_EXPIRED",
     "PAYMENT_STATUS_PAID",
     "PAYMENT_STATUS_UNPAID",
-    "PAYMENT_TIMEOUT_MINUTES",
     "PaymentSession",
-    "TIME_FORMAT",
     "WECHAT_PAY_SUCCESS_STATE",
     "WechatPayPrepayResult",
     "build_initial_payment",

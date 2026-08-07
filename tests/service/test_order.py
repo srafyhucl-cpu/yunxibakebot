@@ -16,7 +16,6 @@ from app.repository.youzan_repo import YouzanProductRepo
 from app.service.integrations import wechat_pay
 from app.service.integrations.wechat_pay import WechatPayPrepayResult
 from app.service.order import OrderApplicationService
-from app.service.order.inventory import OrderInventoryService
 from app.service.order.payment_runtime import OrderPaymentRuntimeService
 from app.service.order.payment_state import (
     PAYMENT_TIMEOUT_MINUTES,
@@ -209,6 +208,229 @@ async def test_mock_payment_marks_order_paid(service: OrderApplicationService) -
     assert paid["paymentStatus"] == "paid"
     assert paid["paymentMethod"] == "mock"
     assert paid["paymentPaidAt"]
+
+
+async def test_paid_order_cannot_be_cancelled_or_release_inventory(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+) -> None:
+    """已支付订单不能被用户取消，也不能错误释放预占库存。"""
+    await seed_catalog_product(
+        db,
+        item_id=81011,
+        title="已支付不可取消蛋糕",
+        price_fen=19800,
+        stock=1,
+    )
+    user_id = "paid-cancel-user"
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "81011",
+                    "title": "已支付不可取消蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id=user_id,
+    )
+    await service.confirm_mock_payment(created["orderId"], user_id=user_id)
+
+    with pytest.raises(ValueError, match="已支付"):
+        await service.cancel_user_order(created["orderId"], user_id=user_id)
+
+    detail = await service.get_user_order(created["orderId"], user_id=user_id)
+    row = await YouzanProductRepo(db).get_by_id(81011)
+    assert detail["status"] == "pending"
+    assert detail["paymentStatus"] == "paid"
+    assert row is not None
+    assert row["stock"] == 0
+
+
+async def test_admin_cannot_cancel_paid_order(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+) -> None:
+    """后台取消也必须遵守已支付订单不可直接取消的合同。"""
+    await seed_catalog_product(
+        db,
+        item_id=81012,
+        title="后台已支付不可取消蛋糕",
+        price_fen=19800,
+        stock=1,
+    )
+    user_id = "admin-paid-cancel-user"
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "81012",
+                    "title": "后台已支付不可取消蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id=user_id,
+    )
+    await service.confirm_mock_payment(created["orderId"], user_id=user_id)
+
+    with pytest.raises(ValueError, match="已支付"):
+        await service.update_admin_order_status(created["orderId"], "cancelled")
+
+    detail = await service.get_admin_order(created["orderId"])
+    row = await YouzanProductRepo(db).get_by_id(81012)
+    assert detail["status"] == "pending"
+    assert detail["paymentStatus"] == "paid"
+    assert row is not None
+    assert row["stock"] == 0
+
+
+async def test_payment_and_cancellation_interleavings_are_terminal(
+    service: OrderApplicationService,
+) -> None:
+    """支付与取消的任一先行结果都不能被另一条路径覆盖。"""
+    cancelled = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "p_cancel_first",
+                    "title": "先取消蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="cancel-first-user",
+    )
+    await service.cancel_user_order(cancelled["orderId"], user_id="cancel-first-user")
+    with pytest.raises(ValueError, match="已取消"):
+        await service.confirm_mock_payment(
+            cancelled["orderId"], user_id="cancel-first-user"
+        )
+
+    paid = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "p_pay_first",
+                    "title": "先支付蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="pay-first-user",
+    )
+    await service.confirm_mock_payment(paid["orderId"], user_id="pay-first-user")
+    with pytest.raises(ValueError, match="已支付"):
+        await service.cancel_user_order(paid["orderId"], user_id="pay-first-user")
+
+
+async def test_wechat_notification_and_cancellation_cannot_overwrite_each_other(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+) -> None:
+    """微信到账通知与取消的两个先行顺序都必须保持终态。"""
+    runtime = service._payment_service._payment_service
+    cancelled = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "p_wechat_cancel_first",
+                    "title": "微信先取消蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="wechat-cancel-first-user",
+    )
+    await service.cancel_user_order(
+        cancelled["orderId"], user_id="wechat-cancel-first-user"
+    )
+    with pytest.raises(ValueError, match="已取消"):
+        await runtime._mark_wechat_payment_paid(
+            cancelled["orderId"],
+            paid_at="2026-06-18 12:00:00",
+            transaction_id="4200000000202606171234567893",
+        )
+
+    paid = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "p_wechat_paid_first",
+                    "title": "微信先支付蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id="wechat-paid-first-user",
+    )
+    await runtime._mark_wechat_payment_paid(
+        paid["orderId"],
+        paid_at="2026-06-18 12:00:00",
+        transaction_id="4200000000202606171234567894",
+    )
+    with pytest.raises(ValueError, match="已支付"):
+        await service.cancel_user_order(
+            paid["orderId"], user_id="wechat-paid-first-user"
+        )
+
+    events = await OrderEventRepo(db).list_by_order(paid["orderId"])
+    assert len(events) == 2
+    assert {event.status for event in events} == {"pending", "paid"}
+
+
+async def test_repeated_cancellation_releases_inventory_once(
+    db: aiosqlite.Connection,
+    service: OrderApplicationService,
+) -> None:
+    """重复取消只能产生一次状态事件和一次库存释放。"""
+    await seed_catalog_product(
+        db,
+        item_id=81013,
+        title="重复取消幂等蛋糕",
+        price_fen=19800,
+        stock=1,
+    )
+    user_id = "duplicate-cancel-user"
+    created = await service.create_order(
+        {
+            "items": [
+                {
+                    "productId": "81013",
+                    "title": "重复取消幂等蛋糕",
+                    "priceFen": 19800,
+                    "quantity": 1,
+                }
+            ],
+            "expectTime": "2026-06-18 18:00",
+        },
+        user_id=user_id,
+    )
+
+    await service.cancel_user_order(created["orderId"], user_id=user_id)
+    await service.cancel_user_order(created["orderId"], user_id=user_id)
+
+    row = await YouzanProductRepo(db).get_by_id(81013)
+    detail = await service.get_user_order(created["orderId"], user_id=user_id)
+    assert row is not None
+    assert row["stock"] == 1
+    assert [event["status"] for event in detail["timeline"]] == [
+        "pending",
+        "cancelled",
+    ]
 
 
 async def test_prepare_payment_falls_back_to_mock_without_wechat_config(
@@ -578,24 +800,15 @@ async def test_unpaid_timeout_releases_reserved_stock(
     assert reserved is not None
     assert reserved["stock"] == 0
 
-    order = await OrderRepo(db).get_order(created["orderId"])
-    assert order is not None
-    payment_service = OrderPaymentRuntimeService(
-        order_repo=OrderRepo(db),
-        inventory_service=OrderInventoryService(
-            YouzanProductRepo(db),
-            YouzanInventoryRepo(db),
-        ),
-    )
-    expired = await payment_service.expire_unpaid_order(
-        order.id,
-        now=datetime.strptime(order.created_at, "%Y-%m-%d %H:%M:%S")
-        + timedelta(minutes=PAYMENT_TIMEOUT_MINUTES),
-    )
+    expired = await service.expire_unpaid_order(created["orderId"])
+    repeated = await service.expire_unpaid_order(created["orderId"])
+    events = await OrderEventRepo(db).list_by_order(created["orderId"])
 
     released = await YouzanProductRepo(db).get_by_id(81009)
     assert expired["status"] == "cancelled"
     assert expired["paymentStatus"] == "expired"
+    assert repeated == expired
+    assert [event.status for event in events] == ["pending", "cancelled"]
     assert released is not None
     assert released["stock"] == 1
 

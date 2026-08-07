@@ -14,6 +14,18 @@
 
 ## E-20260807-001：生产目录与发布工作流同步
 
+- trace_id: 20260807-production-layout-sync
+- generated_at: 2026-08-07
+- evidence_type: local/production-layout-and-release-workflow-sync
+- file: `D:\Project\YunxiBakeBot\docs\release\server-layout.md`; `D:\Project\YunxiBakeBot\.agents\skills\yunxibakebot-production-release\SKILL.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-08-07-production-layout-sync-plan.md`; `D:\Project\YunxiBakeBot\tests\scripts\test_deploy_server_contract.py`; `D:\Project\YunxiBakeMiniApp\scripts\run-production-admin-browser-smoke.mjs`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_deploy_server_contract.py tests/scripts/test_deployment_safety_contract.py -q --no-cov`; `bash -n scripts/deploy.sh`; `bash -n scripts/deploy_server.sh`; `python -m compileall -q scripts/check_langchain_ai_layer_capacity.py scripts/check_privacy_outbound_contract.py scripts/check_security_outbound_contract.py scripts/local_production_backup.py scripts/report_langchain_production_sync_handoff.py`; MiniApp `node --check scripts/run-production-admin-browser-smoke.mjs`; MiniApp `npm run check:miniapp`; MiniApp `npm run typecheck`; `git diff --check`
+- result: pass
+- related_logbook: 2026-08-07 - docs(ops): 同步生产目录与发布工作流
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录路径合同、发布流程和本地验证结果；不包含生产配置、客户/订单内容、令牌、密钥、服务器密码或私钥。
+- summary: 已将活动生产拓扑、Git Bundle 发布顺序、systemd/readiness 验证边界和 MiniApp 生产 smoke 入口同步到当前路径；本地合同和静态检查通过，生产发布验证另由 E-20260807-002 单独记录。
+
 ## E-20260807-002: Production release and online verification after layout migration
 
 - trace_id: 20260807-production-layout-release
@@ -4630,3 +4642,15 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录本地测试、静态合同、提交 SHA 和运行时条件；不包含 access token、openid、userId、订单内容、地址、聊天原文、API key 或生产凭证。DevTools service smoke 未执行，不以静态证据替代运行时证据。
 - summary: Bot 安全默认鉴权合同和 MiniApp Bearer 客户端已分别提交并通过本地门禁；关联提交为 `85764a7`、`33fdd92`、`a482f66`。运行时统一使用 `Authorization: Bearer`，legacy 身份头仅保留为显式迁移开关。真实微信 DevTools smoke、生产部署和支付链路不在本次证据范围内。
+## E-20260807-003：订单支付、取消与库存一致性本地收口
+- trace_id: 20260807-order-payment-consistency
+- generated_at: 2026-08-07
+- evidence_type: local/order-payment-cancellation-inventory-consistency
+- file: `D:\Project\YunxiBakeBot\app\repository\order_repo.py`; `D:\Project\YunxiBakeBot\app\service\order\application.py`; `D:\Project\YunxiBakeBot\app\service\order\cancellation.py`; `D:\Project\YunxiBakeBot\app\service\order\expiration.py`; `D:\Project\YunxiBakeBot\app\service\order\payment_notification.py`; `D:\Project\YunxiBakeBot\app\service\order\payment_runtime.py`; `D:\Project\YunxiBakeBot\app\service\order\status_flow.py`; `D:\Project\YunxiBakeBot\tests\service\test_order.py`; `D:\Project\YunxiBakeBot\docs\superpowers\specs\2026-08-07-order-payment-consistency-design.md`; `D:\Project\YunxiBakeBot\reports\harness\handoff-20260807-order-payment-consistency.md`
+- command: `python -m pytest tests/service/test_order.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_payment_api.py -q --no-cov`; `python -m pytest tests/ -q --no-cov --basetemp D:\Temp\pytest-yunxi-order-consistency`; `python -m ruff check app/repository/order_repo.py app/service/order/application.py app/service/order/cancellation.py app/service/order/expiration.py app/service/order/payment_notification.py app/service/order/payment_runtime.py app/service/order/payment_state.py app/service/order/status_flow.py tests/service/test_order.py`; `python -m ruff format --check app/repository/order_repo.py app/service/order/application.py app/service/order/cancellation.py app/service/order/expiration.py app/service/order/payment_notification.py app/service/order/payment_runtime.py app/service/order/payment_state.py app/service/order/status_flow.py tests/service/test_order.py`; `python scripts/check_order_repository_transactions.py`; `python scripts/check_project.py --skip-tests`; `git diff --check`
+- result: partial-pass
+- related_logbook: `LOGBOOK.md` 2026-08-07 `fix(order): 收口支付取消与库存一致性`
+- related_adr: 0005-framework-first-single-path; 0006-sqlite-inbox-outbox-exception
+- contains_sensitive_data: no
+- retention_note: 仅记录代码路径、测试计数、状态迁移合同和验证命令；不包含支付密钥、微信交易号、客户身份、订单明细、库存数据或生产数据库内容。
+- summary: 已支付订单不能被用户或后台取消；支付通知、mock 支付和超时关闭均使用 unpaid 条件更新；过期服务原子写入 expired 与 cancelled，且只有成功状态迁移才释放库存或写过期事件。订单服务与小程序订单/支付 API 目标测试 46/46 和使用 D 盘临时根目录的全量后端测试通过。默认 pytest 临时目录在 C 盘时，本地备份测试会按安全策略失败。证据索引仍有 30 个历史缺失文件；真实微信支付、生产数据库和部署未执行。

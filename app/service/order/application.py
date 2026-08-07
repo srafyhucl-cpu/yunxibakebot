@@ -45,7 +45,6 @@ class OrderApplicationService:
         schedule_service = OrderScheduleService(ShopOperationsService(config_repo))
         payment_service = OrderPaymentRuntimeService(
             order_repo,
-            inventory_service,
             event_repo=event_repo,
         )
         self._timeline_service = OrderTimelineService(
@@ -72,7 +71,7 @@ class OrderApplicationService:
         )
         self._expiration_service = OrderExpirationService(
             order_repo=order_repo,
-            payment_service=payment_service,
+            inventory_service=inventory_service,
             timeline_service=self._timeline_service,
         )
 

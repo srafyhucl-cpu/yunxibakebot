@@ -78,7 +78,6 @@ class WechatPaymentNotificationService:
             raise ValueError("订单支付已超时")
         if not transaction_id:
             raise ValueError("微信支付通知缺少交易号")
-        await self._claim_transaction(transaction_id, order_id)
         payment.update(
             {
                 "status": PAYMENT_STATUS_PAID,
@@ -87,11 +86,25 @@ class WechatPaymentNotificationService:
                 "transactionId": transaction_id,
             }
         )
-        updated = await self._order_repo.update_payment(
+        updated = await self._order_repo.update_payment_if_unpaid_active(
             order.id, dumps_payment(payment), payment["paidAt"]
         )
         if updated is None:
-            raise ValueError("订单不存在")
+            latest = await self._order_repo.get_order(order.id)
+            if latest is None:
+                raise ValueError("订单不存在")
+            latest_payment = loads_payment(latest.payment)
+            if status_value(latest) == OrderStatus.CANCELLED.value:
+                raise ValueError("订单已取消")
+            if (
+                str(latest_payment.get("status", PAYMENT_STATUS_UNPAID))
+                == PAYMENT_STATUS_PAID
+            ):
+                if str(latest_payment.get("transactionId", "")) == transaction_id:
+                    return latest
+                raise ValueError("订单已绑定其他支付交易号")
+            raise ValueError("订单支付状态更新冲突")
+        await self._claim_transaction(transaction_id, order_id)
         await self._record_paid_event(updated, payment["paidAt"])
         return updated
 

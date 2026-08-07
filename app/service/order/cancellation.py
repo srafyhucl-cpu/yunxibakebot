@@ -6,6 +6,7 @@ from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 from app.models.order import Order, OrderStatus
 from app.repository.order_repo import OrderRepo
 from app.service.order.inventory import OrderInventoryService
+from app.service.order.payment_state import PAYMENT_STATUS_PAID, payment_status_value
 from app.service.order.timeline import OrderTimelineService
 
 USER_CANCELABLE_STATUSES = {
@@ -38,9 +39,18 @@ class OrderCancellationService:
         current_status = self._status_value(order.status)
         if current_status == OrderStatus.CANCELLED.value:
             return await self._timeline_service.serialize(order)
+        if payment_status_value(order) == PAYMENT_STATUS_PAID:
+            raise ValueError("已支付订单不允许取消")
         if current_status not in USER_CANCELABLE_STATUSES:
             raise ValueError("当前订单状态不允许用户取消")
         updated = await self._cancel_order(order_id)
+        if updated is None:
+            latest = await self._get_owned_order(order_id, user_id=user_id)
+            if self._status_value(latest.status) == OrderStatus.CANCELLED.value:
+                return await self._timeline_service.serialize(latest)
+            if payment_status_value(latest) == PAYMENT_STATUS_PAID:
+                raise ValueError("已支付订单不允许取消")
+            raise ValueError("当前订单状态不允许用户取消")
         await self._timeline_service.record_event(
             order_id=order_id,
             status=OrderStatus.CANCELLED.value,
@@ -57,15 +67,11 @@ class OrderCancellationService:
             raise ValueError("订单不存在")
         return order
 
-    async def _cancel_order(self, order_id: str) -> Order:
-        updated = await self._order_repo.update_status(
+    async def _cancel_order(self, order_id: str) -> Order | None:
+        return await self._order_repo.cancel_unpaid_order(
             order_id,
-            OrderStatus.CANCELLED.value,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
-        if updated is None:
-            raise ValueError("订单不存在")
-        return updated
 
     async def _release_inventory(self, order: Order) -> None:
         await self._inventory_service.release_reserved_inventory(

@@ -1,3 +1,12 @@
+## [2026-08-07] - fix(order): 收口支付取消与库存一致性
+- **操作人**: AI (Codex)
+- **trace_id**: `20260807-order-payment-consistency`
+- **来源**: 全局复盘确认取消逻辑只检查履约状态，已支付订单仍可能被取消并释放库存。
+- **变更**: `OrderRepo` 新增取消、支付和超时关闭条件更新；用户取消、后台取消、mock 支付、微信通知和未支付关闭统一使用 `unpaid` 条件迁移。取消/关闭只有条件更新成功后才释放库存；支付通知先写入条件支付状态，再认领唯一交易号。
+- **测试**: 订单服务与小程序订单/支付 API 目标测试 `46 passed`；`python -m pytest tests/ -q --no-cov --basetemp D:\Temp\pytest-yunxi-order-consistency` 全量通过。默认 pytest 临时目录位于 C 盘时，3 项本地备份测试按 C 盘禁止策略失败；该结果是环境约束，不是本轮订单回归。
+- **文档**: 新增 `docs/superpowers/specs/2026-08-07-order-payment-consistency-design.md`，同步全局风险计划和项目进度清单。
+- **边界**: 真实微信支付、生产数据库、退款流程和生产部署未执行；本地测试不作为线上支付证据。
+
 ## [2026-08-07] - docs(ops): 同步生产目录与发布工作流
 - **操作人**: AI (Codex)
 ## [2026-08-07] - deploy(ops): production release and online verification after layout migration

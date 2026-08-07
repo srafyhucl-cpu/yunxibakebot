@@ -64,6 +64,12 @@ def loads_payment(raw: str) -> dict:
     return value if isinstance(value, dict) else build_initial_payment("")
 
 
+def payment_status_value(order: Order) -> str:
+    """读取订单支付状态字符串。"""
+    payment = loads_payment(order.payment)
+    return str(payment.get("status", PAYMENT_STATUS_UNPAID))
+
+
 def dumps_payment(payment: dict) -> str:
     """序列化订单支付 JSON。"""
     return json.dumps(payment, ensure_ascii=False)
@@ -144,6 +150,7 @@ __all__ = [
     "loads_json_object",
     "loads_payment",
     "now_text",
+    "payment_status_value",
     "parse_time",
     "status_value",
 ]

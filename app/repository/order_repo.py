@@ -1,6 +1,6 @@
 """自研小程序订单数据访问层。"""
 
-from app.models.order import Order
+from app.models.order import Order, OrderStatus
 from app.repository.base import BaseRepository
 
 PAYMENT_STATUS_SQL = (
@@ -68,6 +68,18 @@ class OrderRepo(BaseRepository):
         )
         return await self.get_order(order_id)
 
+    async def cancel_unpaid_order(self, order_id: str, updated_at: str) -> Order | None:
+        """原子取消未支付且仍可取消的订单。"""
+        cursor = await self._db.execute(
+            "UPDATE orders SET status = ?, updated_at = ? "
+            "WHERE id = ? AND status IN ('pending', 'confirmed') "
+            "AND " + PAYMENT_STATUS_SQL + " = 'unpaid'",
+            (OrderStatus.CANCELLED.value, updated_at, order_id),
+        )
+        if cursor.rowcount != 1:
+            return None
+        return await self.get_order(order_id)
+
     async def update_payment(
         self, order_id: str, payment: str, updated_at: str
     ) -> Order | None:
@@ -76,6 +88,41 @@ class OrderRepo(BaseRepository):
             "UPDATE orders SET payment = ?, updated_at = ? WHERE id = ?",
             (payment, updated_at, order_id),
         )
+        return await self.get_order(order_id)
+
+    async def update_payment_if_unpaid_active(
+        self, order_id: str, payment: str, updated_at: str
+    ) -> Order | None:
+        """原子写入支付状态，拒绝取消订单或已处理订单的覆盖写。"""
+        cursor = await self._db.execute(
+            "UPDATE orders SET payment = ?, updated_at = ? "
+            "WHERE id = ? AND status != 'cancelled' AND "
+            + PAYMENT_STATUS_SQL
+            + " = 'unpaid'",
+            (payment, updated_at, order_id),
+        )
+        if cursor.rowcount != 1:
+            return None
+        return await self.get_order(order_id)
+
+    async def close_unpaid_order(
+        self, order_id: str, payment: str, updated_at: str
+    ) -> Order | None:
+        """原子关闭未支付订单并写入超时支付状态。"""
+        cursor = await self._db.execute(
+            "UPDATE orders SET payment = ?, status = ?, updated_at = ? "
+            "WHERE id = ? AND status != 'cancelled' AND "
+            + PAYMENT_STATUS_SQL
+            + " = 'unpaid'",
+            (
+                payment,
+                OrderStatus.CANCELLED.value,
+                updated_at,
+                order_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            return None
         return await self.get_order(order_id)
 
     async def get_payment_transaction_order_id(self, transaction_id: str) -> str | None:

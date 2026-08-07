@@ -5,6 +5,7 @@ from datetime import datetime
 from app.models.order import Order, OrderStatus
 from app.repository.order_repo import OrderRepo
 from app.service.order.inventory import OrderInventoryService
+from app.service.order.payment_state import PAYMENT_STATUS_PAID, payment_status_value
 from app.service.order.timeline import OrderTimelineService
 
 ADMIN_ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
@@ -54,7 +55,17 @@ class OrderAdminStatusService:
             return await self._timeline_service.serialize(order)
         if not self._can_transition(current_status, target_status):
             raise ValueError("当前订单状态不允许切换到目标状态")
-        updated = await self._update_status(order_id, target_status)
+        if target_status == OrderStatus.CANCELLED.value:
+            updated = await self._cancel_order(order_id)
+            if updated is None:
+                latest = await self._get_order(order_id)
+                if self._status_value(latest.status) == OrderStatus.CANCELLED.value:
+                    return await self._timeline_service.serialize(latest)
+                if payment_status_value(latest) == PAYMENT_STATUS_PAID:
+                    raise ValueError("已支付订单不允许取消")
+                raise ValueError("当前订单状态不允许切换到目标状态")
+        else:
+            updated = await self._update_status(order_id, target_status)
         await self._release_inventory_if_needed(updated, target_status)
         await self._timeline_service.record_event(
             order_id=order_id,
@@ -93,6 +104,12 @@ class OrderAdminStatusService:
         if updated is None:
             raise ValueError("订单不存在")
         return updated
+
+    async def _cancel_order(self, order_id: str) -> Order | None:
+        return await self._order_repo.cancel_unpaid_order(
+            order_id,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        )
 
     async def _release_inventory_if_needed(
         self,
