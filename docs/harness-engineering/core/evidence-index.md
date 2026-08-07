@@ -4703,3 +4703,17 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录代码路径、测试计数、状态迁移合同和验证命令；不包含支付密钥、微信交易号、客户身份、订单明细、库存数据或生产数据库内容。
 - summary: 已支付订单不能被用户或后台取消；支付通知、mock 支付和超时关闭均使用 unpaid 条件更新；过期服务原子写入 expired 与 cancelled，且只有成功状态迁移才释放库存或写过期事件。订单服务与小程序订单/支付 API 目标测试 46/46 和使用 D 盘临时根目录的全量后端测试通过。默认 pytest 临时目录在 C 盘时，本地备份测试会按安全策略失败。证据索引仍有 30 个历史缺失文件；真实微信支付、生产数据库和部署未执行。
+
+## E-20260807-005：客户 Agent 订单归属隔离本地验证
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-07
+- evidence_type: local/customer-order-ownership-scope
+- file: `D:\Project\YunxiBakeBot\app\repository\youzan_order_repo.py`; `D:\Project\YunxiBakeBot\app\service\agents\tools\customer.py`; `D:\Project\YunxiBakeBot\app\service\llm\function_tool_order.py`; `D:\Project\YunxiBakeBot\scripts\check_customer_order_access_contract.py`; `D:\Project\YunxiBakeBot\tests\repository\test_youzan_order_repo_buyer_id.py`; `D:\Project\YunxiBakeBot\tests\service\agents\test_customer_order_access.py`; `D:\Project\YunxiBakeBot\tests\scripts\test_check_customer_order_access_contract.py`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: `python -m pytest tests/repository/test_youzan_order_repo_buyer_id.py tests/service/agents/test_customer_order_access.py tests/service/agents/test_customer_tool_registry.py tests/scripts/test_check_customer_order_access_contract.py tests/service/test_wecom_intelligent_bot_order_lookup.py -q --no-cov`; `python -m ruff check --no-cache app/service/agents/tools/customer.py app/service/llm/function_tool_order.py app/repository/youzan_order_repo.py scripts/check_customer_order_access_contract.py tests/scripts/test_check_customer_order_access_contract.py tests/repository/test_youzan_order_repo_buyer_id.py tests/service/agents/test_customer_order_access.py`; `python -m ruff format --check app/service/agents/tools/customer.py app/service/llm/function_tool_order.py app/repository/youzan_order_repo.py scripts/check_customer_order_access_contract.py tests/scripts/test_check_customer_order_access_contract.py tests/repository/test_youzan_order_repo_buyer_id.py tests/service/agents/test_customer_order_access.py`; `python scripts/check_customer_order_access_contract.py --summary`; `python scripts/check_file_sizes.py`; `python scripts/check_project.py --skip-tests`; `git diff --check`
+- result: pass
+- related_logbook: 2026-08-07 - fix(agent): enforce customer order ownership scope
+- related_adr: 0004-responsibility-first-file-size-governance
+- contains_sensitive_data: no
+- retention_note: 仅记录身份范围合同、测试统计、静态门禁和边界状态；不包含客户原文、金额、地址、物流号、令牌、密钥或支付凭证。
+- summary: 客户订单与物流工具只能通过可信会话身份调用带范围查询；同买家可读、不同买家和缺失身份安全拒绝；实时有赞身份不匹配时不返回、不缓存。员工侧既有订单查询合同未改为客户身份模式；真实生产和外部运行时证据仍未执行。

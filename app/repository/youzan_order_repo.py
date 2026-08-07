@@ -45,6 +45,33 @@ class YouzanOrderRepo(BaseRepository):
         )
         return dict(rows[0]) if rows else None
 
+    async def get_by_order_no_for_identity(
+        self,
+        order_no: str,
+        *,
+        buyer_id: str | None,
+        outer_user_id: str | None,
+    ) -> dict | None:
+        """按订单号和可信买家身份获取订单宽表数据。"""
+        normalized_buyer_id = (buyer_id or "").strip()
+        normalized_outer_user_id = (outer_user_id or "").strip()
+        if not normalized_buyer_id and not normalized_outer_user_id:
+            return None
+        rows = await self._db.execute_fetchall(
+            "SELECT " + ORDER_SELECT_FIELDS + " FROM youzan_orders "
+            "WHERE order_no = ? "
+            "AND ((? <> '' AND buyer_id = ?) "
+            "OR (? <> '' AND outer_user_id = ?))",
+            (
+                order_no,
+                normalized_buyer_id,
+                normalized_buyer_id,
+                normalized_outer_user_id,
+                normalized_outer_user_id,
+            ),
+        )
+        return dict(rows[0]) if rows else None
+
     async def search_orders(self, keyword: str, limit: int = 5) -> list[dict]:
         """按订单号、买家标识、商品和配送字段搜索有赞订单。"""
         normalized_keyword = keyword.strip()

@@ -1,3 +1,11 @@
+## [2026-08-07] - fix(agent): enforce customer order ownership scope
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 客户 Agent 订单和物流工具原先可按 `order_no` 无范围读取有赞订单，存在跨客户泄露金额、商品、地址和物流信息的风险。
+- 变更: `YouzanOrderRepo` 新增带 `buyer_id` / `outer_user_id` 条件的参数化订单查询；客户工具从可信 `Session.user_id` 和显式持久化 `extra_info.outer_user_id` 解析身份；订单与物流工具统一传递身份范围；实时有赞订单身份不匹配时拒绝返回且不写本地缓存；新增静态客户订单归属合同并接入 `check_project.py --skip-tests`。
+- 测试: 工作包目标测试 `23 passed`；`python -m ruff check --no-cache ...` 通过；`python scripts/check_customer_order_access_contract.py --summary` 通过；`python scripts/check_project.py --skip-tests` 通过；`python scripts/check_file_sizes.py` 通过；`git diff --check` 通过。
+- 边界: 仅完成本地代码和自动化合同验证，未执行 MiniApp DevTools、真实支付/退款、Docker R4-C、生产部署或生产订单读取；这些门禁继续按计划保持未完成/blocked。
+
 ## [2026-08-07] - chore(harness): 退役不可取回历史 UI 证据
 - 操作人: AI (Codex)
 - trace_id: 20260807-evidence-retirement

@@ -107,6 +107,11 @@ CONTRACT_COMMANDS: tuple[tuple[str, ...], ...] = (
     ),
     (
         sys.executable,
+        "scripts/check_customer_order_access_contract.py",
+        "--summary",
+    ),
+    (
+        sys.executable,
         "scripts/check_employee_agent_capability_contracts.py",
         "--summary",
     ),

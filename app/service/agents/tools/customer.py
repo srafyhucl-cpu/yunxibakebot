@@ -6,7 +6,9 @@ import json
 
 from pydantic import BaseModel, Field
 
-from app.models.session import Session
+from app.models.session import Channel, Session
+
+ORDER_OWNERSHIP_DENIAL_MESSAGE = "无法确认订单归属，请转人工客服"
 
 ORDER_INFO_DESCRIPTION = "查询订单详细信息：状态、商品、金额、收货地址等"
 PRODUCT_INFO_DESCRIPTION = (
@@ -38,6 +40,14 @@ class CustomerToolContext:
     history_repo: Any = None
     embedding_searcher: Any = None
     transfer_handler: Any = None
+
+
+@dataclass(frozen=True)
+class CustomerOrderIdentity:
+    """客户订单查询使用的可信身份范围。"""
+
+    buyer_id: str | None = None
+    outer_user_id: str | None = None
 
 
 class OrderInfoArgs(BaseModel):
@@ -126,8 +136,32 @@ def _service_unavailable(message: str) -> str:
     return json.dumps({"message": message}, ensure_ascii=False)
 
 
+def resolve_customer_order_identity(
+    session: Session | None,
+) -> CustomerOrderIdentity | None:
+    """从可信会话字段解析客户订单身份。"""
+    if session is None:
+        return None
+    user_id = (session.user_id or "").strip()
+    if not user_id:
+        return None
+    extra_info = _load_session_extra_info(session.extra_info)
+    outer_user_id = _normalize_identity(extra_info.get("outer_user_id"))
+    if session.channel == Channel.YOUZAN.value:
+        return CustomerOrderIdentity(
+            buyer_id=user_id,
+            outer_user_id=outer_user_id or None,
+        )
+    if outer_user_id:
+        return CustomerOrderIdentity(outer_user_id=outer_user_id)
+    return None
+
+
 def _build_order_info_tool(context: CustomerToolContext, structured_tool: Any) -> Any:
     async def get_order_info_tool(order_no: str) -> str:
+        identity = resolve_customer_order_identity(context.session)
+        if identity is None:
+            return _ownership_denied(order_no)
         if context.knowledge_retriever is None:
             return _service_unavailable("订单查询服务暂不可用")
         from app.service.llm.function_tool_order import get_order_info
@@ -138,6 +172,8 @@ def _build_order_info_tool(context: CustomerToolContext, structured_tool: Any) -
             order_no=order_no,
             order_repo=context.order_repo,
             config_repo=context.config_repo,
+            buyer_id=identity.buyer_id,
+            outer_user_id=identity.outer_user_id,
         )
 
     return structured_tool.from_function(
@@ -183,6 +219,9 @@ def _build_logistics_info_tool(
     structured_tool: Any,
 ) -> Any:
     async def get_logistics_info_tool(order_no: str) -> str:
+        identity = resolve_customer_order_identity(context.session)
+        if identity is None:
+            return _ownership_denied(order_no)
         if context.knowledge_retriever is None:
             return _service_unavailable("物流查询服务暂不可用")
         from app.service.llm.function_tool_order import get_logistics_info
@@ -193,6 +232,8 @@ def _build_logistics_info_tool(
             order_no=order_no,
             order_repo=context.order_repo,
             config_repo=context.config_repo,
+            buyer_id=identity.buyer_id,
+            outer_user_id=identity.outer_user_id,
         )
 
     return structured_tool.from_function(
@@ -239,3 +280,26 @@ def _build_search_knowledge_tool(
         description=SEARCH_KNOWLEDGE_DESCRIPTION,
         args_schema=SearchKnowledgeArgs,
     )
+
+
+def _ownership_denied(order_no: str) -> str:
+    return json.dumps(
+        {
+            "order_no": order_no,
+            "available": False,
+            "message": ORDER_OWNERSHIP_DENIAL_MESSAGE,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _load_session_extra_info(extra_info: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(extra_info or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _normalize_identity(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""

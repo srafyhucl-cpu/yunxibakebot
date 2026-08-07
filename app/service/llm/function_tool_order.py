@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
 logger = setup_logger()
 
+ORDER_OWNERSHIP_DENIAL_MESSAGE = "无法确认订单归属，请转人工客服"
+
 
 async def get_order_info(
     knowledge_retriever: KnowledgeRetriever,
@@ -26,6 +28,8 @@ async def get_order_info(
     youzan_client: YouzanClient | None = None,
     order_repo=None,
     config_repo=None,
+    buyer_id: str | None = None,
+    outer_user_id: str | None = None,
 ) -> str:
     """
     查询订单详细信息（内置已完成/已关闭订单状态机本地短路流控防线）。
@@ -44,7 +48,12 @@ async def get_order_info(
         )
 
     try:
-        local_order = await order_repo.get_by_order_no(order_no)
+        local_order = await _get_local_order(
+            order_repo,
+            order_no,
+            buyer_id=buyer_id,
+            outer_user_id=outer_user_id,
+        )
         if local_order and local_order["status"] in ("TRADE_SUCCESS", "TRADE_CLOSED"):
             logger.info(
                 "已完成/已关闭订单触发本地状态机短路秒回: order_no=%s", order_no
@@ -66,6 +75,8 @@ async def get_order_info(
             from app.service.youzan.client import YouzanClient as _YZC
 
             if config_repo is None:
+                if _has_order_identity(buyer_id, outer_user_id) and local_order is None:
+                    return _ownership_denied(order_no)
                 return json.dumps(
                     {
                         "order_no": order_no,
@@ -86,6 +97,15 @@ async def get_order_info(
                 },
                 ensure_ascii=False,
             )
+
+        if _has_order_identity(buyer_id, outer_user_id) and not _matches_order_identity(
+            parsed.buyer_id,
+            parsed.outer_user_id,
+            buyer_id=buyer_id,
+            outer_user_id=outer_user_id,
+        ):
+            logger.warning("有赞订单身份不匹配，拒绝返回或缓存: order_no=%s", order_no)
+            return _ownership_denied(order_no)
 
         await order_repo.upsert_order(
             YouzanOrderData(
@@ -155,6 +175,8 @@ async def get_logistics_info(
     youzan_client: YouzanClient | None = None,
     order_repo=None,
     config_repo=None,
+    buyer_id: str | None = None,
+    outer_user_id: str | None = None,
 ) -> str:
     """
     查询物流配送进度并反写更新 orders 交易物理大宽表。
@@ -173,6 +195,15 @@ async def get_logistics_info(
         )
 
     try:
+        local_order = await _get_local_order(
+            order_repo,
+            order_no,
+            buyer_id=buyer_id,
+            outer_user_id=outer_user_id,
+        )
+        if _has_order_identity(buyer_id, outer_user_id) and local_order is None:
+            return _ownership_denied(order_no)
+
         if youzan_client is None:
             from app.service.youzan.client import YouzanClient as _YZC
 
@@ -210,7 +241,6 @@ async def get_logistics_info(
             for s in express_data.get("transit_step_infos", [])
         ]
 
-        local_order = await order_repo.get_by_order_no(order_no)
         if local_order:
             await order_repo.upsert_order(
                 YouzanOrderData(
@@ -261,3 +291,55 @@ async def get_logistics_info(
             },
             ensure_ascii=False,
         )
+
+
+async def _get_local_order(
+    order_repo,
+    order_no: str,
+    *,
+    buyer_id: str | None,
+    outer_user_id: str | None,
+) -> dict | None:
+    if _has_order_identity(buyer_id, outer_user_id):
+        return await order_repo.get_by_order_no_for_identity(
+            order_no,
+            buyer_id=buyer_id,
+            outer_user_id=outer_user_id,
+        )
+    return await order_repo.get_by_order_no(order_no)
+
+
+def _has_order_identity(
+    buyer_id: str | None,
+    outer_user_id: str | None,
+) -> bool:
+    return bool((buyer_id or "").strip() or (outer_user_id or "").strip())
+
+
+def _matches_order_identity(
+    actual_buyer_id: str,
+    actual_outer_user_id: str,
+    *,
+    buyer_id: str | None,
+    outer_user_id: str | None,
+) -> bool:
+    normalized_buyer_id = (buyer_id or "").strip()
+    normalized_outer_user_id = (outer_user_id or "").strip()
+    return bool(
+        (normalized_buyer_id and actual_buyer_id == normalized_buyer_id)
+        or (
+            normalized_outer_user_id
+            and actual_outer_user_id == normalized_outer_user_id
+        )
+    )
+
+
+def _ownership_denied(order_no: str) -> str:
+    return json.dumps(
+        {
+            "order_no": order_no,
+            "available": False,
+            "message": ORDER_OWNERSHIP_DENIAL_MESSAGE,
+        },
+        ensure_ascii=False,
+    )
