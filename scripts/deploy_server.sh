@@ -6,7 +6,7 @@ set -euo pipefail
 # 职责：合入代码 → 停服务 → 替换数据 → 启服务 → 验证
 # ============================================================
 
-PROJECT_DIR="/opt/yunxibakebot"
+PROJECT_DIR="/opt/apps/yunxibakebot"
 SERVICE_NAME="yunxibakebot"
 HEALTH_URL="http://127.0.0.1:7001/health"
 READY_URL="http://127.0.0.1:7001/ready"

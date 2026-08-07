@@ -580,8 +580,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/path/to/YunxiBakeBot
-ExecStart=/path/to/YunxiBakeBot/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 7001 --workers 1
+WorkingDirectory=/opt/apps/yunxibakebot
+ExecStart=/opt/apps/yunxibakebot/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 7001 --workers 1
 Restart=always
 
 [Install]
@@ -600,8 +600,11 @@ sudo systemctl status yunxibakebot   # 查看状态
 #### 2.2 使用 SSH 远程部署
 
 ```bash
-# 部署到远程服务器
-ssh root@your-server-ip "cd /path/to/YunxiBakeBot && git pull && systemctl restart yunxibakebot"
+# 发布到生产服务器（SSH Git Bundle，不依赖 Yunxi bare Git Hook）
+bash scripts/deploy.sh
+
+# 发布后验证
+curl https://yunxifood.cn/health
 ```
 
 #### 2.3 查看日志
@@ -867,12 +870,12 @@ sudo apt install nginx -y
 
 ```bash
 # 1. 克隆代码
-git clone https://github.com/srafyhucl-cpu/yunxibakebot.git /opt/yunxibakebot
-cd /opt/yunxibakebot
+git clone https://github.com/srafyhucl-cpu/yunxibakebot.git /opt/apps/yunxibakebot
+cd /opt/apps/yunxibakebot
 
 # 2. 创建虚拟环境
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 
 # 3. 安装依赖
 pip install -r requirements.txt
@@ -907,11 +910,9 @@ cd web/admin
 npm install
 npm run build
 
-# 2. 部署到 Nginx
-sudo cp -r dist/* /var/www/html/yunxibakebot/
-
-# 3. 配置 Nginx
-sudo nano /etc/nginx/sites-available/yunxibakebot
+# 2. 云溪烘焙 Web 静态入口
+# 静态站点目录：/www/wwwroot/yunxi.hclstudio.cn
+# 后端 API / 健康检查域名：yunxifood.cn
 ```
 
 Nginx 配置示例：
@@ -919,24 +920,25 @@ Nginx 配置示例：
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name yunxi.hclstudio.cn;
 
     # 前端静态文件
     location / {
-        root /var/www/html/yunxibakebot;
+        root /www/wwwroot/yunxi.hclstudio.cn;
         try_files $uri $uri/ /index.html;
     }
 
-    # 后端 API 反向代理
+    # 后端 API 反向代理（生产 API 由 yunxifood.cn 提供）
     location /api/ {
-        proxy_pass http://127.0.0.1:7001;
-        proxy_set_header Host $host;
+        proxy_pass https://yunxifood.cn;
+        proxy_set_header Host yunxifood.cn;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
     # 健康检查
     location /health {
-        proxy_pass http://127.0.0.1:7001;
+        proxy_pass https://yunxifood.cn;
+        proxy_set_header Host yunxifood.cn;
     }
 }
 ```
@@ -1184,9 +1186,7 @@ pip cache purge
 **A**: 使用以下命令：
 
 ```bash
-cd /opt/yunxibakebot
-git pull
-sudo systemctl restart yunxibakebot
+bash scripts/deploy.sh
 ```
 
 ---

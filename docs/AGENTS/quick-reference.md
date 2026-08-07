@@ -58,10 +58,10 @@ python -m pytest tests/test_red_line_rules.py -q --tb=short
 python scripts/run_isolated_remediation_harness.py --work-dir D:\Temp\yunxi-remediation-harness --json
 
 # 生产真实 API 合成主体删除专项（仅在生产主机 loopback 执行）
-venv/bin/python scripts/verify_production_subject_deletion.py --db /opt/yunxibakebot/data/bot.db --base-url http://127.0.0.1:7001 --confirm-production-synthetic-subject --json
+venv/bin/python scripts/verify_production_subject_deletion.py --db /opt/apps/yunxibakebot/data/bot.db --base-url http://127.0.0.1:7001 --confirm-production-synthetic-subject --json
 
 # 生产真实 InboxRepo 合成消息崩溃恢复专项（专用队列，不触发渠道发送）
-venv/bin/python scripts/verify_production_synthetic_inbox_crash.py --db /opt/yunxibakebot/data/bot.db --confirm-production-synthetic-inbox-crash --json
+venv/bin/python scripts/verify_production_synthetic_inbox_crash.py --db /opt/apps/yunxibakebot/data/bot.db --confirm-production-synthetic-inbox-crash --json
 
 # 完整隐私出站合同（本地静态/合成检查）
 python scripts/check_privacy_outbound_contract.py --summary
@@ -89,8 +89,12 @@ curl http://127.0.0.1:7001/health  # 预期: {"status":"ok","version":"0.107.13"
 python scripts/seed_baseline_knowledge.py
 python scripts/seed_baseline_knowledge.py --apply
 
-# 远程重启
-ssh root@47.94.102.250 "systemctl restart yunxibakebot && systemctl is-active yunxibakebot"
+# 远程服务状态与后端健康检查
+ssh root@47.94.102.250 "cd /opt/apps/yunxibakebot && systemctl is-active yunxibakebot"
+curl https://yunxifood.cn/health
+
+# 代码发布：SSH Git Bundle 传输、服务器端合入并重启服务
+bash scripts/deploy.sh
 ```
 
 ---

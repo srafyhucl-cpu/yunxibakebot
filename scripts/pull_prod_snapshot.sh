@@ -27,7 +27,7 @@ SSH_HOST="${SSH_HOST:-47.94.102.250}"
 SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 SSH_KEY="${SSH_KEY:-/mnt/c/Users/srafy/.ssh/id_ed25519}"
-REMOTE_DIR="/opt/yunxibakebot"
+REMOTE_DIR="/opt/apps/yunxibakebot"
 REMOTE_DB="${REMOTE_DIR}/data/bot.db"
 
 # ---- 本地路径 ----

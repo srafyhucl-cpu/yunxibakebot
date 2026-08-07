@@ -9,7 +9,7 @@ DOMAIN="yunxifood.cn"
 APP_PORT=7001
 NGINX_CONF="/etc/nginx/sites-available/${DOMAIN}.conf"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}.conf"
-PROJECT_DIR="/opt/yunxibakebot"
+PROJECT_DIR="/opt/apps/yunxibakebot"
 
 echo "==== 1. 更新 .env 企微配置 ===="
 cd "$PROJECT_DIR"

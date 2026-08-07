@@ -25,6 +25,7 @@ ______________________________________________________________________
 | **新功能 / 新需求设计** | `brainstorming` | 探索需求、提 2-3 方案、用户确认后再实现；禁止跳过 |
 | **查阅外部 API 文档**（有赞、DeepSeek、微信） | `defuddle` | 清洁提取网页正文，去噪省 token，替代 WebFetch |
 | **创建或改进 Guard Skill** | `skill-creator` | 草稿 → 测试 → 迭代，优化 description 触发精度 |
+| **YunxiBakeBot 生产推送/发布** | `yunxibakebot-production-release` | 双远端推送后执行 Git Bundle 发布、systemd 和 HTTP 验证 |
 | **向飞书发送开发通知**（部署结果、生产告警） | `lark-im` | 推送消息到开发群或个人 |
 | **Skill 发现习惯建立** | `using-superpowers` | 任务开始前查找可用 skill 的元协议 |
 

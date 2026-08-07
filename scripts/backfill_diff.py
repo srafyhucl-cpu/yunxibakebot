@@ -1,7 +1,7 @@
 import sqlite3
 import json
 
-db_path = "/opt/yunxibakebot/data/bot.db"
+db_path = "/opt/apps/yunxibakebot/data/bot.db"
 conn = sqlite3.connect(db_path)
 conn.row_factory = sqlite3.Row
 cursor = conn.cursor()

@@ -1,3 +1,11 @@
+## [2026-08-07] - docs(ops): 同步生产目录与发布工作流
+- **操作人**: AI (Codex)
+- **trace_id**: 20260807-production-layout-sync
+- **变更**: 将当前生产应用根目录从 `/opt/yunxibakebot` 统一迁移为 `/opt/apps/yunxibakebot`，覆盖 SSH Git Bundle 发布、服务器端合入、企微配置、生产快照、加密备份、生产只读合同、容量门禁和同步交接命令；本地 `server` Git 远端更新为 `ssh://root@47.94.102.250/opt/apps/yunxibakebot/.git`。
+- **工作流**: `/commit` 和 `docs/AGENTS/commit-workflow.md` 明确 `git push origin/server` 仅同步版本控制，生产发布必须显式执行 `bash scripts/deploy.sh`；README 同步 systemd `venv` 路径、`yunxifood.cn` API/健康检查域名与 `yunxi.hclstudio.cn` 静态入口。
+- **验证**: `python -m pytest tests/scripts/test_deploy_server_contract.py tests/scripts/test_deployment_safety_contract.py -q --no-cov` 4 passed；`bash -n scripts/deploy.sh`、`bash -n scripts/deploy_server.sh`、相关生产检查脚本 `compileall`、`git diff --check` 均通过；MiniApp `node --check scripts/run-production-admin-browser-smoke.mjs`、`npm run check:miniapp`、`npm run typecheck` 均通过。
+- **边界**: 历史架构方案、规格与 Harness 证据中的旧路径保留为当时记录，不做批量改写。`check_evidence_index.py` 仍报告 20 个 2026-06 历史 UI 截图/JSON 缺失；本轮新增 `E-20260807-001` 路径均可解析，未篡改历史证据以规避该遗留门禁。
+
 ## [2026-08-05] - fix(auth): 收口小程序 Bearer 鉴权双仓闭环
 - **操作人**: AI (Codex)
 - **trace_id**: 20260805-storefront-auth-contract

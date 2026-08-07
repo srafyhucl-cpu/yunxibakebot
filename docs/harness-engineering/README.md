@@ -30,6 +30,7 @@ ______________________________________________________________________
 | 上下文要重置或换 Agent | [core/agent-handoff-template.md](core/agent-handoff-template.md) |
 | 需要追溯架构决策 | [adr/README.md](adr/README.md) |
 | 需要登记上线或交接证据 | [core/evidence-index.md](core/evidence-index.md) |
+| 需要确认当前生产目录、静态入口或发布目标 | [../release/server-layout.md](../release/server-layout.md) |
 | 需要更新或审计项目 Skill | `.agents/SKILL_AUDIT.md`、`.agents/skills/yunxi-harness-engineering/SKILL.md`、`docs/AGENTS/skill-reference.md` |
 | 终端或文件中文乱码 | [../AGENTS/encoding-and-terminal.md](../AGENTS/encoding-and-terminal.md) |
 | 了解完整设计 | [specs/2026-06-11-vibe-coding-harness-engineering-design.md](specs/2026-06-11-vibe-coding-harness-engineering-design.md) |

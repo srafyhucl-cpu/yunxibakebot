@@ -127,7 +127,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 2222
           script: |
-            cd /opt/yunxibakebot
+            cd /opt/apps/yunxibakebot
             git pull server main
             systemctl restart yunxibakebot
             sleep 2

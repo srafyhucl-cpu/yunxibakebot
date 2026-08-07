@@ -142,7 +142,8 @@ git status
 
 # 提交（中文 Conventional Commits 格式）
 git commit -m "feat(chat): 新增功能描述"
-git push
+git push origin master
+git push server master
 ```
 
 ## 提交类型速查
@@ -169,3 +170,5 @@ bug | `fix(wecom): 修复企微消息解密失败问题` | | `docs` | 文档更�
 代码改动 → 测试验证 → LOGBOOK 与文档更新 → 提交 → 推送
 
 严格按此顺序执行，不可跳过任何步骤。
+
+> `git push server master` 仅同步 Git 远端，不会自动发布到生产。需要生产同步时，提交和双远端推送成功后执行 `bash scripts/deploy.sh`；该脚本将 Git Bundle 发布到 `/opt/apps/yunxibakebot`，重启 `yunxibakebot` 并验证 loopback `/health` 与 `/ready`，再用 `curl https://yunxifood.cn/health` 验证公网 API。

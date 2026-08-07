@@ -17,8 +17,8 @@ ______________________________________________________________________
    - **版本号自动递增**：根据提交信息自动递增 `VERSION`，同步项目进度表头，并把两个文件加入同一次提交；未知表头会阻断（feat→minor, fix→patch, feat!→major）
    - **文档同步检查**：校验 LOGBOOK.md 和项目进度与配置清单.md 已暂存
    - **质量门禁**：密钥扫描 + 文件体量 + 红线规则自测 + 全套测试
-8. **推送到两个远端**：`git push origin master && git push server master`
-9. **如本轮涉及生产同步**，才重启服务器：`ssh root@47.94.102.250 "systemctl restart yunxibakebot"`
+8. **推送代码到版本远端**：`git push origin master && git push server master`。这一步只同步 Git，不代表生产发布完成。
+9. **如本轮涉及生产同步**，执行 `bash scripts/deploy.sh`。该脚本通过 SSH Git Bundle 发布到 `/opt/apps/yunxibakebot`，由服务器端脚本执行安全预检、服务重启和 loopback 健康检查；完成后再验证 `https://yunxifood.cn/health`。
 
 ---
 

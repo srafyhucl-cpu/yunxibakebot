@@ -45,7 +45,7 @@ SENSITIVE_VALUES = (
     "sample-secret-token",
 )
 REMOTE_RUNTIME_COMMAND = (
-    'cd /opt/yunxibakebot && venv/bin/python -c "'
+    'cd /opt/apps/yunxibakebot && venv/bin/python -c "'
     "import json, os; from app.config import settings as s; "
     "truth=lambda v: str(v).strip().lower() in ('1','true','yes','on'); "
     "print(json.dumps({"

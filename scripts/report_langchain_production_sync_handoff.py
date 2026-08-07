@@ -165,7 +165,7 @@ def build_manual_actions(
 ) -> list[str]:
     return [
         "用具备生产权限的账号登录服务器。",
-        "cd /opt/yunxibakebot",
+        "cd /opt/apps/yunxibakebot",
         "git status --short",
         f"git rev-parse HEAD  # 目标应为 {target_commit}",
         f"cat VERSION  # 目标应为 {expected_version}",

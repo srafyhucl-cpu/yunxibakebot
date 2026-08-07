@@ -27,7 +27,7 @@ PRODUCTION_FIELDS = (
     "remote_image_allowed_hosts_count",
 )
 REMOTE_RUNTIME_COMMAND = (
-    'cd /opt/yunxibakebot && venv/bin/python -c "'
+    'cd /opt/apps/yunxibakebot && venv/bin/python -c "'
     "import json; from app.config import settings as s; "
     "split=lambda value:[item.strip() for item in str(value).split(',') if item.strip()]; "
     "print(json.dumps({"

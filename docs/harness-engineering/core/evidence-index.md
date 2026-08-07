@@ -12,6 +12,20 @@
 - retention_note: 仅登记本地收口审查、验证命令和 readiness 边界；不包含客户原文、query 原文、生产日志、手机号、地址、open_id、订单明细、API key、callback token、AES key、服务器密码或私钥。
 - summary: 本轮最终收口只保留 P17b/P19c 提交前自检、P23b-P23f 外部证据交接汇总的最小可用增强，并清理 LOGBOOK/evidence-index 的微切片记录和非语义换行重写。该收口不接入真实数据、不访问生产、不改变 `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false`、`external_evidence_complete=false` 或 `portfolio_complete=false`。
 
+## E-20260807-001：生产目录与发布工作流同步
+
+- trace_id: 20260807-production-layout-sync
+- generated_at: 2026-08-07
+- evidence_type: local/production-layout-and-release-workflow-sync
+- file: `D:\Project\YunxiBakeBot\docs\release\server-layout.md`; `D:\Project\YunxiBakeBot\.agents\skills\yunxibakebot-production-release\SKILL.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-08-07-production-layout-sync-plan.md`; `D:\Project\YunxiBakeBot\tests\scripts\test_deploy_server_contract.py`; `D:\Project\YunxiBakeMiniApp\scripts\run-production-admin-browser-smoke.mjs`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
+- command: `python -m pytest tests/scripts/test_deploy_server_contract.py tests/scripts/test_deployment_safety_contract.py -q --no-cov`; `bash -n scripts/deploy.sh`; `bash -n scripts/deploy_server.sh`; `python -m compileall -q scripts/check_langchain_ai_layer_capacity.py scripts/check_privacy_outbound_contract.py scripts/check_security_outbound_contract.py scripts/local_production_backup.py scripts/report_langchain_production_sync_handoff.py`; `node --check D:\Project\YunxiBakeMiniApp\scripts\run-production-admin-browser-smoke.mjs`; MiniApp `npm run check:miniapp`; MiniApp `npm run typecheck`; `git diff --check`
+- result: pass
+- related_logbook: 2026-08-07 - docs(ops): 同步生产目录与发布工作流
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录当前路径映射、静态检查和文件引用；不连接生产、不读取 `.env` 值、不输出 token、私钥、数据库或业务数据。
+- summary: 将当前服务器布局沉淀为可发现的拓扑文档和项目内发布 skill；部署合同测试固定 `/opt/apps/yunxibakebot`；MiniApp 生产后台浏览器 smoke 从当前后端 `.env` 位置受控读取管理员 token。历史证据保留旧路径作为当时审计事实。本轮未执行 SSH、部署、服务重启或公网探活。
+
 ## E-20260710-053：P23a 外部证据交接汇总包生产同步验证
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
