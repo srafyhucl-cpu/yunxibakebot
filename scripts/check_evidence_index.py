@@ -47,6 +47,7 @@ REQUIRED_FIELDS = (
 )
 ALLOWED_RESULTS = frozenset({"pass", "fail", "partial", "partial-pass"})
 ALLOWED_SENSITIVE_FLAGS = frozenset({"yes", "no"})
+ALLOWED_EVIDENCE_STATUSES = frozenset({"active", "retired"})
 PREFLIGHT_CONTRACT_EVIDENCE_ID = "E-20260706-001"
 PREFLIGHT_CONTRACT_REQUIRED_SNIPPETS = (
     "check_preflight_business_contracts.py",
@@ -118,6 +119,9 @@ def validate_entry(entry: EvidenceEntry) -> list[str]:
         issues.append(
             f"{entry.entry_id}: invalid contains_sensitive_data `{sensitive_flag}`"
         )
+    evidence_status = entry.fields.get("evidence_status", "active")
+    if evidence_status not in ALLOWED_EVIDENCE_STATUSES:
+        issues.append(f"{entry.entry_id}: invalid evidence_status {evidence_status}")
     return issues
 
 
@@ -173,6 +177,8 @@ def _collect_file_integrity(
     issues: list[str] = []
     seen_paths: set[Path] = set()
     for entry in entries:
+        if entry.fields.get("evidence_status", "active") == "retired":
+            continue
         for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
             resolved_path = _resolve_local_file_reference(reference, base_dir)
             if resolved_path is None:
@@ -240,6 +246,11 @@ def build_json_report(result: EvidenceCheckResult, path: Path) -> dict[str, obje
         "status": "passed" if result.passed else "failed",
         "path": str(path),
         "total": len(result.entries),
+        "retired": sum(
+            1
+            for entry in result.entries
+            if entry.fields.get("evidence_status", "active") == "retired"
+        ),
         "failed": len(result.issues),
         "issues": list(result.issues),
         "verified_files": verified_files,
@@ -267,7 +278,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "evidence_index "
             f"status={report['status']} total={report['total']} "
-            f"failed={report['failed']} verified_files={report['verified_files']}"
+            f"retired={report['retired']} failed={report['failed']} "
+            f"verified_files={report['verified_files']}"
         )
         return 0 if result.passed else 1
     if result.passed:

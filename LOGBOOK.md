@@ -1,3 +1,11 @@
+## [2026-08-07] - chore(harness): 退役不可取回历史 UI 证据
+- 操作人: AI (Codex)
+- trace_id: 20260807-evidence-retirement
+- 背景: evidence index 中 18 条历史 UI smoke 记录引用的 20 个截图/JSON 产物已不在工作区，继续按 active 文件处理会阻断当前发布门禁。
+- 变更: 新增 evidence_status 生命周期字段；历史条目标记为 retired 并记录不可取回原因；检查器跳过 retired 条目的文件存在性校验，但继续校验必填字段和非法状态。
+- 验证: evidence checker 单测、历史证据索引摘要和项目质量门禁在本轮完成后记录；retired 条目不伪造 pass，不删除原始索引和审计说明。
+- 边界: 不恢复、不生成缺失截图，不改变业务代码、生产数据或线上证据结论。
+
 ## [2026-08-07] - fix(order): 收口支付取消与库存一致性
 - **操作人**: AI (Codex)
 - **trace_id**: `20260807-order-payment-consistency`

@@ -7,6 +7,18 @@
 > 状态：R0-A/R0-B/R0-C、R1-A、R1-B、R1-C、R2-A、R2-B、R3-A、R3-B、R4-A、R4-B、R5-A 和 R6 已完成对应实现与门禁；R4-C 已完成本地实现与静态合同门禁，最终真实容器 build/smoke/漏洞扫描进行中。隔离 Harness 的主体删除/消息重领 `8/8`、生产真实 JWT/API 合成主体删除 `8/8`、生产真实 SQLite/InboxRepo processing 崩溃重领 `8/8` 均已通过，全部零残留且不使用真实客户或业务消息。R3-B 已统一远程下载和员工 Agent 服务端授权单一路径；生产员工授权、反向代理、readiness、callback `61/61`、本地受控 trace sink、迁移 dry-run 及独立设备 staging 的 migration apply/rollback 均已验证。无法可靠确认的业务事实和 callback 异常统一转人工。本地 D 盘长期加密备份每天 03:30 运行，默认保留 30 天且至少 3 份；生产无独立磁盘，长期灾难恢复由本地加密备份承担。Docker 真实 build/smoke/漏洞扫描已解除后置，正在按最终提交执行；在 L4/L5 证据闭环前主计划保持 active。全量测试已串行通过。
 > 决策依据：[ADR 0005：框架优先与单一路径治理](../harness-engineering/adr/0005-framework-first-single-path.md)
 
+## 当前状态快照（2026-08-07）
+
+按主计划的工作包章节统计：R0-A/R0-B/R0-C、R1-A/R1-B/R1-C/R1-D、R2-A/R2-B、R3-A/R3-B、R4-A/R4-B、R5-A 和 R6 已完成本地实施或首片验证，共 15 个工作包；R4-C 仍未完成最终真实容器 build、隔离 smoke 和漏洞扫描。R0-T0 属于生产止血动作，不以本地代码测试判定完成。
+
+当前仍未形成完整闭环的事项：
+
+1. 客户 Agent 订单与物流查询仍需把当前 session 映射到 buyer_id/outer_user_id，再允许按订单号读取。
+2. 商品知识向量仍需补齐 pending -> syncing -> success/failed 的对账与失败重试证据。
+3. MiniApp 真实 DevTools smoke、真实微信支付/退款和本次提交的生产部署尚未执行。
+4. R4-C 的真实容器证据和生产独立持久化备份能力仍是发布阻断项。
+5. LangSmith 外发、真实 replay 和 RAG 扩大灰度继续保持关闭，等待隐私、发布和外部样本条件。
+
 ## 一、执行结论
 
 当前不应继续把主要精力投入新功能、作品集增强或 LangSmith / RAG 扩大灰度。先完成两条 P0 风险链和关键 P1 生产底座：
@@ -535,7 +547,7 @@ service active
 
 计划启动步骤、R0 止血、R1-R3 风险链及主要 R4/R5/R6 实施已完成，不再重复执行历史“立即下一步”。当前只按以下顺序收口：
 
-1. 复核主计划完成定义与 evidence index，清除过时的未完成口径。
+1. 复核主计划完成定义与 evidence index；历史不可取回的 UI 证据保留原记录并标记 retired，不伪造 pass。
 2. 以本地 D 盘每日 AES-256-GCM 备份作为当前无生产独立磁盘条件下的长期灾难恢复资产，持续观察计划任务结果。
 3. 执行最终提交的 Docker 真实 build、隔离 smoke 和漏洞扫描；在镜像、资源、挂载、`/health`、`/ready`、版本和 HIGH/CRITICAL 证据全部闭环前，不把 R4-C 标记为最终完成。
 4. 除非发现新的证据缺口，不重新开放离线复盘或 LangSmith 外发。

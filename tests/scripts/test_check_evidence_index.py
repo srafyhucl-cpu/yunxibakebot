@@ -79,6 +79,40 @@ def test_invalid_result_and_sensitive_flag_fail(tmp_path: Path) -> None:
     assert any("invalid contains_sensitive_data" in issue for issue in result.issues)
 
 
+def test_retired_missing_evidence_is_explicitly_excluded(tmp_path: Path) -> None:
+    evidence_file = tmp_path / "evidence-index.md"
+    entry = _valid_entry().replace(
+        "- result: pass",
+        "- result: pass\n- evidence_status: retired\n",
+    )
+    evidence_file.write_text("# Evidence Index\n\n" + entry, encoding="utf-8")
+
+    result = evidence_check.check_evidence_index(evidence_file)
+    report = evidence_check.build_json_report(result, evidence_file)
+
+    assert result.passed is True
+    assert report["retired"] == 1
+    assert report["verified_files"] == 0
+
+
+def test_invalid_evidence_status_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n"
+        + _valid_entry().replace(
+            "- result: pass",
+            "- result: pass\n- evidence_status: archived",
+        ),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any("invalid evidence_status" in issue for issue in result.issues)
+
+
 def test_preflight_contract_entry_requires_checker_and_report_refs(
     tmp_path: Path,
 ) -> None:

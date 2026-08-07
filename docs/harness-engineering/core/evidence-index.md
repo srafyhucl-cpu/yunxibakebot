@@ -1957,6 +1957,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.json`; `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260617-131610.json`
 - command: `npm run smoke:production-navigation` in `YunxiBakeBot\web\admin`; `npm run check:production-admin-browser`; `npm run release:readiness`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 产物已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(production): 生产后台浏览器只读导航 smoke
 - related_adr: none
 - contains_sensitive_data: no
@@ -2419,6 +2421,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\mobile-operations-smoke.png`
 - command: `python -m py_compile web\admin\scripts\smoke_mobile_operations.py`; `npm run check:mobile-ops`; `npm run typecheck` in `web/admin`; `npm run smoke:mobile-ops`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - feat(admin): 手机端轻量运营入口
 - related_adr: none
 - contains_sensitive_data: no
@@ -2433,6 +2437,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\decoration-product-picker-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\shop-settings-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\addresses-editing-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\orders-summary-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\orders-confirmation-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\products-active-toggle-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\transfers-queue-smoke.png`
 - command: miniapp `npm run check:miniapp`; miniapp `npm run typecheck`; `npm run typecheck` in `web/admin`; `npm run check:decoration`; `npm run check:orders`; `npm run check:addresses`; `npm run check:products`; `npm run check:shop-settings`; `npm run smoke:decoration-product-picker`; `npm run smoke:shop-settings`; `npm run smoke:addresses-editing`; `npm run smoke:orders-summary`; `npm run smoke:orders-confirmation`; `npm run smoke:products-active-toggle`; `npm run smoke:transfers-queue`; backend API target pytest 40 passed; backend transfer pytest 15 passed
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(mvp): 主链路巡检复跑
 - related_adr: none
 - contains_sensitive_data: no
@@ -2447,6 +2453,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\transfers-queue-smoke.png`
 - command: `python -m pytest -o addopts="" tests/api/test_admin_transfer_api.py tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py`; `python -m py_compile app\api\admin_transfer.py web\admin\scripts\smoke_transfers_queue.py tests\api\test_admin_transfer_api.py tests\service\test_miniapp_chat.py tests\api\test_miniapp_chat_api.py`; `npm run typecheck` in `web/admin`; `npm run smoke:transfers-queue`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 人工回复接口与转人工 smoke 收口
 - related_adr: none
 - contains_sensitive_data: no
@@ -2475,6 +2483,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\transfers-queue-smoke.png`
 - command: `npm run smoke:transfers-queue`; `npm run typecheck` in `web/admin`; `python -m py_compile web\admin\scripts\smoke_transfers_queue.py`; `python -m pytest -o addopts="" tests/service/test_miniapp_chat.py tests/api/test_miniapp_chat_api.py tests/test_lifespan_routes_services.py`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 转人工队列浏览器 smoke
 - related_adr: none
 - contains_sensitive_data: no
@@ -2503,6 +2513,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\orders-summary-smoke.png`
 - command: `npm run smoke:orders-summary`; `npm run check:orders`; `npm run typecheck` in `web/admin`; `python -m py_compile web\admin\scripts\smoke_orders_summary.py`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 订单经营看板浏览器 smoke
 - related_adr: none
 - contains_sensitive_data: no
@@ -2573,6 +2585,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\addresses-editing-smoke.png`
 - command: `python -m pytest -o addopts="" tests/api/test_admin_address_api.py tests/test_lifespan_routes_services.py`; `python -m py_compile app\api\admin_addresses.py app\service\miniapp_address.py app\repository\miniapp_address_audit_repo.py app\repository\miniapp_address_repo.py app\models\miniapp_address.py app\lifespan_services.py app\main.py tests\api\test_admin_address_api.py tests\test_lifespan_routes_services.py`; `npm run check:addresses`; `npm run typecheck` in `web/admin`; `npm run smoke:addresses-editing`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - feat(admin): 顾客地址操作审计
 - related_adr: none
 - contains_sensitive_data: no
@@ -2769,6 +2783,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\orders-confirmation-smoke.png`
 - command: `npm run smoke:orders-confirmation`; `npm run check:orders`; backend admin `npm run typecheck`; `python -m pytest --no-cov tests/service/test_miniapp_order.py`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 小程序下单到后台完整履约 smoke 跑通
 - related_adr: none
 - contains_sensitive_data: no
@@ -2783,6 +2799,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\products-active-toggle-smoke.png`
 - command: `npm run smoke:products-active-toggle`; `npm run smoke:decoration-product-picker`; `npm run check:products`; `npm run check:decoration`; backend admin `npm run typecheck`; `python -m pytest --no-cov tests/api/test_admin_featured_catalog_api.py tests/api/test_miniapp_catalog_api.py tests/service/test_miniapp_catalog.py`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 商品上下架驱动小程序目录 smoke 跑通
 - related_adr: none
 - contains_sensitive_data: no
@@ -2797,6 +2815,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\decoration-product-picker-smoke.png`
 - command: `npm run smoke:decoration-product-picker` in `YunxiBakeBot\web\admin`; `npm run check:decoration`; backend admin `npm run typecheck`; `python -m pytest --no-cov tests/api/test_shop_page_config_api.py tests/service/test_shop_page_config.py`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 装修商品选择器浏览器 smoke 跑通
 - related_adr: none
 - contains_sensitive_data: no
@@ -2839,6 +2859,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\admin-decoration-grid-link-smoke.png`
 - command: 使用临时 SQLite DB 启动本地后端 `127.0.0.1:7001`、后台 Vite `127.0.0.1:5173`、headless Chrome CDP `127.0.0.1:9224`；浏览器进入 `/admin-v2/decoration`，切换到 `products` 页面通过分类宫格表单发布 `smoke-category-a-202606170121`、`smoke-category-b-202606170121`，再切换到 `profile` 页面通过服务入口表单发布 `smoke-service-title-202606170121` 和 `smoke-service-target-202606170121`；随后调用小程序页面 API 核对 published 配置
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - feat(admin): 装修分类与服务入口支持结构化编辑
 - related_adr: none
 - contains_sensitive_data: no
@@ -2867,6 +2889,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\admin-decoration-page-switcher-smoke.png`
 - command: 使用临时 SQLite DB 启动本地后端 `127.0.0.1:7001`、后台 Vite `127.0.0.1:5173`、headless Chrome CDP `127.0.0.1:9224`；浏览器进入 `/admin-v2/decoration`，切换到 `products` 页面，修改商品货架标题为 `smoke-products-shelf-20260617010822`，保存草稿并发布；随后调用 `/api/v1/miniapp/pages/products` 核对小程序 published 配置
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - feat(admin): 装修编辑器支持多页面切换
 - related_adr: none
 - contains_sensitive_data: no
@@ -2965,6 +2989,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\admin-featured-products-smoke.png`
 - command: 使用临时 SQLite DB 启动本地后端 `127.0.0.1:7001`、后台 Vite `127.0.0.1:5173`、headless Chrome CDP `127.0.0.1:9223`；浏览器打开 `/admin/products/featured`，搜索 `烟测`，添加两条候选商品，保存主推款，并调用 `/api/v1/miniapp/products?featured=true` 核对小程序公开商品列表；随后运行商品/主推后端测试、分层红线搜索、小程序静态/type checks、后台 typecheck。
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-16 - test(admin): 浏览器验证主推商品页面保存链路
 - related_adr: none
 - contains_sensitive_data: no
@@ -3035,6 +3061,8 @@ ______________________________________________________________________
 - file: local command output (no persisted artifact)
 - command: `python -m pytest --no-cov tests/service/test_shop_page_config.py tests/service/test_miniapp_order.py`; `python -m py_compile app\service\shop_page_config.py tests\service\test_shop_page_config.py`; architecture rg checks; miniapp/admin type checks
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-16 - test(decoration): 验证装修草稿发布到小程序
 - related_adr: none
 - contains_sensitive_data: no
@@ -3049,6 +3077,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\admin-decoration-publish-smoke.png`
 - command: Chrome 远程调试打开 `/admin-v2/login?redirect=%2Fadmin-v2%2Fdecoration`，登录后在装修页修改商品货架标题、保存草稿、发布，并通过 API 核对小程序 published 配置
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-16 - test(decoration): 验证装修草稿发布到小程序
 - related_adr: none
 - contains_sensitive_data: no
@@ -3105,6 +3135,8 @@ ______________________________________________________________________
 - file: `reports/ui/admin-order-detail-drawer-smoke.png`; `reports/ui/admin-order-confirmed-smoke.png`; `reports/ui/admin-shop-settings-save-smoke.png`
 - command: Chrome DevTools smoke for `/admin/orders?status=pending` and `/admin/settings/shop`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-16 - test(admin): 验证订单履约与店铺配置交互
 - related_adr: none
 - contains_sensitive_data: no
@@ -3119,6 +3151,8 @@ ______________________________________________________________________
 - file: `reports/ui/admin-overview-smoke.png`; `reports/ui/admin-settings-api-smoke.png`; `reports/ui/admin-orders-pending-smoke.png`
 - command: `rg -n "webhookTokenConfigured|deepseek|DeepSeek" web/admin/src app/service/admin.py app/api/admin_config.py app/models/config.py`; `npm run typecheck` and `npm run build` in `web/admin`; `python -m py_compile` for miniapp/admin MVP modules; architecture rg checks; Chrome DevTools smoke for `/admin/overview`, `/admin/settings/api`, `/admin/orders?status=pending`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-16 - fix(admin): 收口设置摘要 MiMo 字段引用和后台本地路由
 - related_adr: none
 - contains_sensitive_data: no
@@ -3155,6 +3189,8 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\reports\ui\shop-settings-smoke.png`
 - command: `npm run smoke:shop-settings`; `npm run smoke:orders-confirmation`; `npm run smoke:products-active-toggle`; `npm run smoke:decoration-product-picker`; `npm run check:shop-settings`; `npm run check:products`; `npm run check:orders`; `npm run check:decoration`; `npm run typecheck` in `web/admin`; `python -m pytest --no-cov tests/api/test_shop_operations_api.py`; miniapp `npm run check:miniapp`; miniapp `npm run typecheck`
 - result: pass
+- evidence_status: retired
+- retirement_reason: 历史 UI smoke 截图已不可取回，不纳入当前发布验证
 - related_logbook: 2026-06-17 - test(admin): 店铺配置保存到小程序公开配置 smoke 跑通
 - related_adr: none
 - contains_sensitive_data: no
@@ -4642,6 +4678,19 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录本地测试、静态合同、提交 SHA 和运行时条件；不包含 access token、openid、userId、订单内容、地址、聊天原文、API key 或生产凭证。DevTools service smoke 未执行，不以静态证据替代运行时证据。
 - summary: Bot 安全默认鉴权合同和 MiniApp Bearer 客户端已分别提交并通过本地门禁；关联提交为 `85764a7`、`33fdd92`、`a482f66`。运行时统一使用 `Authorization: Bearer`，legacy 身份头仅保留为显式迁移开关。真实微信 DevTools smoke、生产部署和支付链路不在本次证据范围内。
+## E-20260807-004：历史 UI 证据退役治理
+- trace_id: 20260807-evidence-retirement
+- generated_at: 2026-08-07
+- evidence_type: local/harness-evidence-retirement
+- file: D:\Project\YunxiBakeBot\scripts\check_evidence_index.py; D:\Project\YunxiBakeBot\tests\scripts\test_check_evidence_index.py; D:\Project\YunxiBakeBot\reports\harness\handoff-20260807-evidence-retirement.md; D:\Project\YunxiBakeBot\LOGBOOK.md
+- command: python -m pytest tests/scripts/test_check_evidence_index.py -q --no-cov; python scripts/check_evidence_index.py --summary; python scripts/check_project.py --skip-tests; git diff --check
+- result: pass
+- related_logbook: 2026-08-07 - chore(harness): 退役不可取回历史 UI 证据
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 保留历史索引和退役原因；不恢复缺失截图，不包含客户数据、令牌或密钥。
+- summary: 18 条历史证据记录引用的 20 个不可取回 UI 截图/JSON 文件已标记为 retired；检查器跳过 retired 条目的文件存在性校验，仍校验必填字段和非法状态，索引摘要通过。
+
 ## E-20260807-003：订单支付、取消与库存一致性本地收口
 - trace_id: 20260807-order-payment-consistency
 - generated_at: 2026-08-07
