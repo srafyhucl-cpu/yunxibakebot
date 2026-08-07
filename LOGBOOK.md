@@ -1,5 +1,14 @@
 ## [2026-08-07] - docs(ops): 同步生产目录与发布工作流
 - **操作人**: AI (Codex)
+## [2026-08-07] - deploy(ops): production release and online verification after layout migration
+- **operator**: AI (Codex)
+- **trace_id**: 20260807-production-layout-release
+- **target**: `51d315748bc37058419ea72121d1dda10d82ddea` / `VERSION=0.109.16`; active production worktree `/opt/apps/yunxibakebot`.
+- **release**: `bash scripts/deploy.sh` completed through Git Bundle transfer, server merge, security configuration check, service restart, and loopback `/health` plus `/ready` checks.
+- **online verification**: `yunxibakebot=active`; public `/health` and `/ready` returned `200` with `ok` and `ready`, both version `0.109.16`; employee-agent callback probe `61/61`, failed `0`; post-release high-priority journal error count `0`.
+- **preflight boundary**: local Windows checkout has no `venv\\Scripts\\python.exe`; system-Python preflight produced no report. Deployment-contract tests passed and production security/readiness checks were executed by the release script.
+- **evidence boundary**: no production configuration, database, or static hosting directory was modified; callback probe output did not retain tokens, AES keys, ciphertext, or business data.
+
 - **trace_id**: 20260807-production-layout-sync
 - **变更**: 将当前生产应用根目录从 `/opt/yunxibakebot` 统一迁移为 `/opt/apps/yunxibakebot`，覆盖 SSH Git Bundle 发布、服务器端合入、企微配置、生产快照、加密备份、生产只读合同、容量门禁和同步交接命令；本地 `server` Git 远端更新为 `ssh://root@47.94.102.250/opt/apps/yunxibakebot/.git`。
 - **工作流**: `/commit` 和 `docs/AGENTS/commit-workflow.md` 明确 `git push origin/server` 仅同步版本控制，生产发布必须显式执行 `bash scripts/deploy.sh`；README 同步 systemd `venv` 路径、`yunxifood.cn` API/健康检查域名与 `yunxi.hclstudio.cn` 静态入口。

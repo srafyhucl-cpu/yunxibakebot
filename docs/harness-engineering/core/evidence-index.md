@@ -14,6 +14,20 @@
 
 ## E-20260807-001：生产目录与发布工作流同步
 
+## E-20260807-002: Production release and online verification after layout migration
+
+- trace_id: 20260807-production-layout-release
+- generated_at: 2026-08-07
+- evidence_type: production/release-and-online-verification
+- file: `D:\Project\YunxiBakeBot\docs\release\server-layout.md`; `D:\Project\YunxiBakeBot\.agents\skills\yunxibakebot-production-release\SKILL.md`; `D:\Project\YunxiBakeBot\scripts\deploy.sh`; `D:\Project\YunxiBakeBot\scripts\deploy_server.sh`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/apps/yunxibakebot`
+- command: Git Bash `bash scripts/deploy.sh`; production commit/version; `systemctl is-active yunxibakebot`; loopback and public `/health`, `/ready`; `venv/bin/python scripts/check_wecom_employee_agent_callback.py --base-url http://127.0.0.1:7001 --json`; production high-priority journal error count.
+- result: pass
+- related_logbook: 2026-08-07 - deploy(ops): production release and online verification after layout migration
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: records only commit, version, service state, health checks, callback totals, and error count; no customer text, order details, identifiers, API keys, callback tokens, AES keys, passwords, or private keys.
+- summary: `51d3157 / 0.109.16` deployed to `/opt/apps/yunxibakebot`; loopback and public health/readiness checks passed, callback probe `61/61` with `0` failures, and post-release high-priority journal errors were `0`. Local preflight had no report because the Windows checkout lacks the project virtual environment; production security and readiness were still verified.
+
 - trace_id: 20260807-production-layout-sync
 - generated_at: 2026-08-07
 - evidence_type: local/production-layout-and-release-workflow-sync
