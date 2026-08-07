@@ -1,3 +1,10 @@
+## [2026-08-07] - block(ops): external release evidence prerequisites unavailable
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 检查: `docker`、`docker compose` 和 `trivy` 均不在 PATH；MiniApp 仓库 `D:\Project\YunxiBakeMiniApp` 存在且 Node/npm 可用，但微信开发者工具命令不可用；生产发布需要服务器访问、双远端同步、`/opt/apps/yunxibakebot` 部署和 `/health`/`/ready` 真实验证；独立备份需要生产异盘挂载与密钥权限。
+- 结论: 工作包 3 R4-C 容器 build/smoke/Trivy blocked；工作包 4 MiniApp DevTools、真实支付/退款和生产发布 blocked；工作包 5 生产独立持久化备份 blocked。未安装工具、未访问生产、未伪造外部通过证据。
+- 证据: `E-20260807-007`；本地代码与工作包 2 提交 `1d312c0` 已完成，计划仍保持 active。
+
 ## [2026-08-07] - fix(product): close vector sync state machine
 - 操作人: AI (Codex)
 - trace_id: `20260807-post-p0-production-closure`

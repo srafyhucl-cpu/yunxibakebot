@@ -4730,3 +4730,16 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录商品向量状态机代码、自动化合同、测试命令和当前外部门禁边界；不包含客户原文、订单明细、向量正文、令牌、密钥、支付凭证或生产数据库内容。
 - summary: 商品知识写入从 pending 开始，向量任务通过 revision 条件 claim；只有向量写入成功后才标记 success，失败原子递增 retry_count 并进入 failed；过期 syncing 租约由商品对账服务有界重试，旧 revision 不能覆盖新内容，商品 Webhook 向量失败会进入失败审计并向上抛出。全量后端测试通过，但 R4-C、MiniApp、支付/退款、生产部署和独立备份仍无真实外部证据，不能生成 completed handoff。
+## E-20260807-007：生产收口外部条件阻断记录
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-07
+- evidence_type: blocked/external-release-prerequisites
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\docs\release\server-layout.md`; `D:\Project\YunxiBakeBot\.agents\skills\yunxibakebot-production-release\SKILL.md`; `D:\Project\YunxiBakeBot\scripts\backup_db.sh`; `D:\Project\YunxiBakeMiniApp`
+- command: `docker version`; `docker compose version`; `trivy version`; PowerShell `Get-Command` 只读检查 Node/npm/微信开发者工具命令；`Test-Path D:\Project\YunxiBakeMiniApp`
+- result: partial
+- related_logbook: 2026-08-07 - block(ops): external release evidence prerequisites unavailable
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录命令可用性、仓库存在性和外部条件缺口；不包含生产配置、服务器地址细节、令牌、密钥、客户数据、订单明细或支付凭证。
+- summary: 本机未发现 Docker、Docker Compose 或 Trivy，不能完成 R4-C 精确镜像 build、隔离 health/ready smoke 和漏洞扫描；MiniApp 代码仓库存在但微信开发者工具不可用；真实支付/退款需要商户测试环境；生产发布与独立备份需要服务器访问、独立持久化挂载和恢复 round-trip。工作包 3-5 保持 blocked，未安装工具、未访问生产、未生成伪造通过报告。
