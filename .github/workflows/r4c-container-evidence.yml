@@ -106,7 +106,7 @@ jobs:
             "$IMAGE_TAG" python scripts/rebuild_embeddings.py \
               --db-path /app/data/bot.db \
               --index-path /app/data/embeddings --apply
-          chown -R 10001:10001 data
+          chmod -R a+rwX data
 
       - name: Create CI env
         run: |
