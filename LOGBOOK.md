@@ -1,3 +1,29 @@
+## [2026-08-10] - ops(container): R4-C CI 精确构建、隔离 smoke 与 Trivy 基线
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 生产服务器无资源运行 Trivy；改用 GitHub Actions 独立 CI 承载 R4-C 真实 build/smoke/scan，不占用生产资源。
+- 变更: 新增 `.github/workflows/r4c-container-evidence.yml`；修复 rootless Docker 下合成数据权限；`cryptography 49->50`、`pyasn1 0.6.3->0.6.4`；切换 base image 到 `python:3.11-slim-trixie` 后重跑。
+- 验证: 精确 commit `a4210a3` 的镜像 build、`/health=200`、`/ready=200`、非 root UID `10001`、后台 dist 存在均通过；Trivy 0.73.0 报告 25 项 HIGH/CRITICAL 且全部 `FixedVersion=None`（24 项 Debian 12 bookworm，1 项 ecdsa）。本地升级依赖后全量 pytest 通过。
+- 结论: WP3 的真实容器证据已部分闭环，但 Trivy 无修复 HIGH/CRITICAL 仍阻断完成；Trixie 基镜像扫描结果待本轮 CI 返回。
+- 证据: `E-20260810-003`；计划仍保持 active。
+
+## [2026-08-10] - ops(evidence): 生产只读拓扑确认 WP3/WP5 外部门禁缺口
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 检查: SSH 只读检查生产服务、版本、commit、挂载、磁盘、Docker/Compose/Trivy 可用性和备份配置；公网 `/health`、`/ready`。
+- 结果: `yunxibakebot=active`，生产版本 `0.109.16` / commit `51d315748b`，`/health`、`/ready` 均 200；服务器有 Docker 29.3.1 与 docker-compose，但无 trivy；根盘 `40G` 已用 `83%`；`/mnt/backup/yunxibakebot`、备份 key 和备份 cron 均不存在。
+- 结论: WP3 仍 blocked（缺 trivy 且磁盘余量不足）；WP5 仍 blocked（无独立持久化备份目标）；WP4 生产发布未执行。本轮只读、不 push、不部署、不修改生产。
+- 证据: `E-20260810-002`；计划仍保持 active。
+
+## [2026-08-10] - chore(ops): MiniApp release 脚本 Windows 收口并记录真实剩余门禁
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 继续执行生产收口计划；Windows 下 `npm.cmd` 经 Node `spawnSync` 触发 `EINVAL`，secret-hygiene 误报配置占位符、shell 配置校验、动态生成值和测试脱敏值。
+- 变更: `D:\Project\YunxiBakeMiniApp\scripts\release-readiness.mjs` 与 `run-production-admin-browser-smoke.mjs` 在 Windows 下改用 `process.execPath` 调用 npm CLI 的 `npm-cli.js`；`check-secret-hygiene.mjs` 修正扫描逻辑，不放宽原始密钥、私钥或 tracked `.env` 检查。
+- 验证: MiniApp `node --check`、`npm run check:secrets` 通过；`npm run release:readiness` 真实结果为 `23/27`，剩余微信 DevTools CLI/触达扫描、生产后台浏览器登录和截图证据；主仓域测试 17 passed、`check_product_vector_sync_contract.py`、`check_project.py --skip-tests`、`check_mistake_ledger.py`、`check_evidence_index.py --summary` 和 `git diff --check` 通过。
+- 结论: 工作包 3 R4-C 容器 build/smoke/Trivy blocked；工作包 4 MiniApp DevTools、真实支付/退款和生产发布 blocked；工作包 5 生产独立持久化备份 blocked；不生成 completed handoff。生产后台浏览器 smoke 已真实执行并留登录页失败证据。
+- 证据: `E-20260810-001`；计划仍保持 active。
+
 ## [2026-08-07] - block(ops): external release evidence prerequisites unavailable
 - 操作人: AI (Codex)
 - trace_id: `20260807-post-p0-production-closure`

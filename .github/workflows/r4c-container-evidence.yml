@@ -22,7 +22,6 @@ jobs:
       PYTHONUTF8: "1"
       DOCKER_BUILDKIT: "1"
       COMPOSE_PROJECT_NAME: yunxi-r4c-ci
-      IMAGE_TAG: yunxi-bakebot:0.109.21-${{ github.sha }}
       YUNXI_USE_FAKE_EMBEDDING: "1"
 
     steps:
@@ -36,6 +35,7 @@ jobs:
           git rev-parse HEAD > reports/r4c/commit.txt
           cat VERSION > reports/r4c/version.txt
           echo "${{ github.sha }}" > reports/r4c/github_sha.txt
+          echo "IMAGE_TAG=yunxi-bakebot:$(cat VERSION)-${GITHUB_SHA}" >> "$GITHUB_ENV"
           if [ "$(cat reports/r4c/commit.txt)" != "${{ github.sha }}" ]; then
             echo "::error::github.sha does not match checkout HEAD"
             exit 1

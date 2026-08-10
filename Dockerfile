@@ -2,7 +2,7 @@
 # 构建：docker build -t yunxi-bakebot .
 # 运行：docker-compose up -d
 
-FROM python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361 AS builder
+FROM python:3.11-slim-trixie@sha256:90744cff8f32887f075c47d747a173ff333e9e98801667af93c357fa9f5e28ff AS builder
 
 # 环境配置
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip wheel --wheel-dir /wheels \
         --only-binary=:all: --find-links /wheels -r requirements.txt
 
-FROM python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361 AS dependency-installer
+FROM python:3.11-slim-trixie@sha256:90744cff8f32887f075c47d747a173ff333e9e98801667af93c357fa9f5e28ff AS dependency-installer
 
 WORKDIR /install
 
@@ -33,7 +33,7 @@ RUN pip install --no-cache-dir --no-index --find-links /wheels \
         -r /tmp/requirements.txt && \
     pip uninstall --yes pip setuptools wheel jaraco.context
 
-FROM python:3.11-slim-bookworm@sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361 AS runtime
+FROM python:3.11-slim-trixie@sha256:90744cff8f32887f075c47d747a173ff333e9e98801667af93c357fa9f5e28ff AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

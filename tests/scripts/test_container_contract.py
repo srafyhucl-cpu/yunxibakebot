@@ -11,9 +11,9 @@ def test_docker_runtime_is_non_root_and_single_worker() -> None:
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
-    digest = "sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361"
-    assert f"FROM python:3.11-slim-bookworm@{digest} AS builder" in dockerfile
-    assert f"FROM python:3.11-slim-bookworm@{digest} AS runtime" in dockerfile
+    digest = "sha256:90744cff8f32887f075c47d747a173ff333e9e98801667af93c357fa9f5e28ff"
+    assert f"FROM python:3.11-slim-trixie@{digest} AS builder" in dockerfile
+    assert f"FROM python:3.11-slim-trixie@{digest} AS runtime" in dockerfile
     assert "pip install --no-cache-dir -r requirements-dev.txt" not in dockerfile
     assert "https://download.pytorch.org/whl/cpu" in dockerfile
     assert "torch==2.12.0+cpu" in dockerfile

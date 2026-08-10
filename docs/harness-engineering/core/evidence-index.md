@@ -4743,3 +4743,45 @@ ______________________________________________________________________
 - contains_sensitive_data: no
 - retention_note: 仅记录命令可用性、仓库存在性和外部条件缺口；不包含生产配置、服务器地址细节、令牌、密钥、客户数据、订单明细或支付凭证。
 - summary: 本机未发现 Docker、Docker Compose 或 Trivy，不能完成 R4-C 精确镜像 build、隔离 health/ready smoke 和漏洞扫描；MiniApp 代码仓库存在但微信开发者工具不可用；真实支付/退款需要商户测试环境；生产发布与独立备份需要服务器访问、独立持久化挂载和恢复 round-trip。工作包 3-5 保持 blocked，未安装工具、未访问生产、未生成伪造通过报告。
+
+## E-20260810-001：MiniApp Windows release 脚本收口与真实剩余门禁
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-10
+- evidence_type: local/miniapp-release-script-and-secret-hygiene
+- file: `D:\Project\YunxiBakeMiniApp\scripts\release-readiness.mjs`; `D:\Project\YunxiBakeMiniApp\scripts\run-production-admin-browser-smoke.mjs`; `D:\Project\YunxiBakeMiniApp\scripts\check-secret-hygiene.mjs`; `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260810-103104.json`; `D:\Project\YunxiBakeMiniApp\reports\secret-check\secret-hygiene-20260810-023338.json`; `D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.json`; `D:\Project\YunxiBakeBot\reports\harness\handoff-20260807-post-p0-production-closure-20260810.md`; `D:\Project\YunxiBakeMiniApp\LOGBOOK.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`
+- command: MiniApp `node --check scripts/release-readiness.mjs scripts/run-production-admin-browser-smoke.mjs scripts/check-secret-hygiene.mjs`; `npm run check:secrets`; `npm run check:production-admin-browser`; `npm run release:readiness`; 主仓 `python -m pytest tests/repository/test_youzan_order_repo_buyer_id.py tests/service/agents/test_customer_order_access.py tests/repository/test_knowledge_product_sync_state.py tests/service/youzan/test_product_vector_sync.py -q --no-cov --basetemp D:\Temp\pytest-yunxi-post-p0-domain-20260810`; `python scripts/check_product_vector_sync_contract.py --summary`; `python scripts/check_project.py --skip-tests`; `python scripts/check_mistake_ledger.py`; `python scripts/check_evidence_index.py --summary`; `python scripts/preflight_production.py --json`; `git diff --check`
+- result: partial-pass
+- related_logbook: 2026-08-10 - chore(ops): MiniApp release 脚本 Windows 收口并记录真实剩余门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 仅记录脚本变更、检查命令、通过/失败计数和外部条件缺口；不包含生产 `.env` 值、管理员 token、客户数据、订单明细、密钥或支付凭证。
+- summary: release-readiness 与生产后台浏览器 smoke 在 Windows 下改用 Node npm-cli.js，消除 `npm.cmd` EINVAL；secret-hygiene 修正占位符、shell 配置校验、动态生成和测试脱敏值误报后通过，原始密钥/私钥/tracked `.env` 检查未放宽；release readiness 为 `23/27`，剩余微信 DevTools CLI/触达扫描、生产后台浏览器登录和截图证据；生产后台浏览器 smoke 真实执行并记录登录页失败，不伪装通过。
+
+## E-20260810-002：生产只读拓扑与 WP3/WP5 外部门禁现状
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-10
+- evidence_type: blocked/read-only-production-topology
+- file: `D:\Project\YunxiBakeBot\LOGBOOK.md`; `D:\Project\YunxiBakeBot\项目进度与配置清单.md`; `D:\Project\YunxiBakeBot\docs\harness-engineering\core\evidence-index.md`; `D:\Project\YunxiBakeBot\scripts\backup_db.sh`; `D:\Project\YunxiBakeBot\docs\harness-engineering\specs\2026-07-13-production-container-verification-design.md`
+- command: SSH 只读 `systemctl is-active yunxibakebot`、`cat /opt/apps/yunxibakebot/VERSION`、`git -C /opt/apps/yunxibakebot rev-parse --short HEAD`、`findmnt`、`df -hT /`、`docker info --format '{{.ServerVersion}} {{.Driver}}'`、`command -v docker docker-compose trivy`、`test -d /mnt/backup/yunxibakebot`、`test -f /etc/yunxibakebot/backup.key`、`crontab -l`；公网 `curl https://yunxifood.cn/health`、`curl https://yunxifood.cn/ready`
+- result: partial
+- related_logbook: 2026-08-10 - chore(ops): MiniApp release 脚本 Windows 收口并记录真实剩余门禁
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录服务状态、版本、commit、挂载拓扑、磁盘容量、工具可用性和备份配置存在性；不包含 `.env` 值、管理员 token、密钥内容、客户数据、订单明细或支付凭证。
+- summary: 生产只读检查确认 `yunxibakebot=active`，版本 `0.109.16`、commit `51d315748b`，公网 `/health`、`/ready` 均为 200。服务器有 Docker 29.3.1/overlayfs 和 docker-compose，但无 trivy；根盘 `/dev/vda3` 40G 已用 83%、余 6.5G。`/mnt/backup/yunxibakebot`、`/etc/yunxibakebot/backup.key` 和 backup cron 均不存在，无独立持久化备份目标。结论：WP3 仍 blocked（缺 trivy 且磁盘余量不足以承载完整 build/scan），WP5 仍 blocked（无独立挂载和恢复 round-trip），WP4 生产发布未执行；本轮未 push、未部署、未修改生产。
+
+## E-20260810-003：R4-C CI 精确构建、隔离 smoke 与 Trivy 基线
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-10
+- evidence_type: partial/ci-container-r4c-build-smoke-trivy
+- file: `D:\Project\YunxiBakeBot\.github\workflows\r4c-container-evidence.yml`; `D:\Temp\r4c-evidence-a4210a3\r4c-summary.json`; `D:\Temp\r4c-evidence-a4210a3\trivy.json`; `D:\Project\YunxiBakeBot\requirements.txt`; `D:\Project\YunxiBakeBot\requirements-dev.txt`; `D:\Project\YunxiBakeBot\Dockerfile`
+- command: GitHub Actions `R4-C Container Evidence` 精确 SHA build、Compose 隔离 smoke、`trivy image --severity HIGH,CRITICAL --format json`；本地 `python -m pytest tests/ -q --no-cov --basetemp D:\Temp\pytest-yunxi-r4c-deps`
+- result: partial
+- related_logbook: 2026-08-10 - ops(container): R4-C CI 精确构建、隔离 smoke 与 Trivy 基线
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录 CI workflow、镜像元数据、HTTP smoke、Trivy 版本/计数和 artifact SHA-256；不包含 `.env` 值、管理员 token、客户数据、订单明细、密钥或支付凭证。
+- summary: 生产服务器无资源跑 Trivy 后，改为 GitHub Actions 承载 R4-C：精确 commit `a4210a3` 镜像 build 成功，`/health`、`/ready` 均 200，容器 UID 10001、后台 dist 存在；Trivy 0.73.0 报告 19 HIGH + 6 CRITICAL，共 25 项均无修复版本，24 项来自 Debian 12 bookworm、1 项来自 ecdsa。`cryptography` 与 `pyasn1` 的 4 项有修复 Python 漏洞已通过升级清除；Dockerfile 已切换到 `python:3.11-slim-trixie` 待重扫。
