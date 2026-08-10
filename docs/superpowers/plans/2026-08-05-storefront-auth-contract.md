@@ -135,15 +135,17 @@ def storefront_auth_headers(user_id: str) -> dict[str, str]:
 - [x] **Step 1: 后端目标测试。** Run: `python -m pytest tests/api/test_miniapp_auth_api.py tests/api/test_miniapp_storefront_auth_contract.py tests/api/test_miniapp_address_api.py tests/api/test_miniapp_chat_api.py tests/api/test_miniapp_order_api.py tests/api/test_miniapp_privacy_api.py tests/api/test_customer_group_api.py -q --no-cov`。Expected: login -> Bearer -> protected、missing token、legacy-only、invalid token 全覆盖并通过。
 - [x] **Step 2: 后端质量和 Harness。** Run `python scripts/check_project.py --skip-tests`、`python scripts/check_mistake_ledger.py`、`python scripts/check_evidence_index.py --summary`。
 - [x] **Step 3: MiniApp 门禁。** Run `npm run typecheck`、`npm run check:miniapp`、`npm run check:page-api-coverage`、`npm run check:observability-contract`。
-- [ ] **Step 4: 条件允许时运行 `npm run devtools:service-smoke`。** 当前未具备已连接 DevTools、测试微信账号和合法域名条件，已明确记录 blocked；不安装工具、不伪造运行时证据。
+- [x] **Step 4: 条件允许时运行 `npm run devtools:service-smoke`。** 当前未具备已连接 DevTools、测试微信账号和合法域名条件，已明确记录 blocked；不安装工具、不伪造运行时证据。
+
+实际结论（2026-08-10 补闭环）：操作者完成微信开发者工具登录（`islogin --port 48465` 返回 `{"login":true}`）后，在 automator 实例（`MINIAPP_AUTOMATOR_WS=ws://127.0.0.1:9421`）上运行 `npm run devtools:service-smoke` 通过：`DevTools storefront auth smoke pass: 4 checks`（`reports/button-runtime/devtools-service-smoke-20260810-090319.json`）。`wx.login` → 后端 login 返回 accessToken/tokenType/expiresIn，订单/地址/聊天受保护端点仅携带 `Authorization: Bearer` 全部 200 code=0。证据 `E-20260810-006`，报告不含 accessToken/openid/订单/地址/聊天原文。
 - [x] **Step 5: 双仓审计。** Bot 使用 `rg -n "x-miniapp-user-id" app tests scripts docs --glob '!docs/harness-engineering/core/evidence-index.md'`；MiniApp 使用 `rg -n "x-miniapp-user-id" miniprogram scripts`。MiniApp runtime 和三个 DevTools 探针零命中；新增报告和日志不得出现 token、openid、userId。
 - [x] **Step 6: 分仓提交。** 两仓均只暂存明确文件并完成独立提交：Bot 后端测试 `85764a7`，MiniApp `33fdd92`；不推送生产、不重启服务。
 
 ## Self-Review Checklist
 
-- [ ] 规格中的 token 字段、Bearer-only、单次 401 重试、无循环依赖、测试默认关闭 legacy、DevTools 脱敏报告和当前文档更新均有对应任务。
-- [ ] 计划没有新增 refresh-token API、数据库迁移或支付/订单业务改动。
-- [ ] `auth.ts` 使用 `transport.ts`，不存在 `auth.ts -> http.ts -> auth.ts` 循环。
-- [ ] `clearMiniappSessionIfToken()` 防止并发旧请求清理新会话。
-- [ ] 所有测试命令都指向现有或本计划明确新增的文件。
-- [ ] DevTools 授权、合法域名和真实微信 code 均作为外部条件记录。
+- [x] 规格中的 token 字段、Bearer-only、单次 401 重试、无循环依赖、测试默认关闭 legacy、DevTools 脱敏报告和当前文档更新均有对应任务。
+- [x] 计划没有新增 refresh-token API、数据库迁移或支付/订单业务改动。
+- [x] `auth.ts` 使用 `transport.ts`，不存在 `auth.ts -> http.ts -> auth.ts` 循环。
+- [x] `clearMiniappSessionIfToken()` 防止并发旧请求清理新会话。
+- [x] 所有测试命令都指向现有或本计划明确新增的文件。
+- [x] DevTools 授权、合法域名和真实微信 code 均作为外部条件记录；已登录后 DevTools service smoke 通过（2026-08-10，证据 `E-20260810-006`）。
