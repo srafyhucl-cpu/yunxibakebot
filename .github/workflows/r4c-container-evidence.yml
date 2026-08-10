@@ -84,21 +84,21 @@ jobs:
           set -euo pipefail
           mkdir -p data
           chmod 0777 data
-          docker run --rm --user root \
+          docker run --rm \
             -e DB_PATH=/app/data/bot.db \
             -e EMBEDDING_INDEX_DIR=/app/data/embeddings \
             -e YUNXI_USE_FAKE_EMBEDDING=1 \
             -v "$PWD/data:/app/data" \
             "$IMAGE_TAG" python scripts/apply_migrations.py \
               --db-path /app/data/bot.db --apply --allow-create
-          docker run --rm --user root \
+          docker run --rm \
             -e DB_PATH=/app/data/bot.db \
             -e EMBEDDING_INDEX_DIR=/app/data/embeddings \
             -e YUNXI_USE_FAKE_EMBEDDING=1 \
             -v "$PWD/data:/app/data" \
             "$IMAGE_TAG" python scripts/seed_baseline_knowledge.py \
               --db-path /app/data/bot.db --apply
-          docker run --rm --user root \
+          docker run --rm \
             -e DB_PATH=/app/data/bot.db \
             -e EMBEDDING_INDEX_DIR=/app/data/embeddings \
             -e YUNXI_USE_FAKE_EMBEDDING=1 \
@@ -106,7 +106,6 @@ jobs:
             "$IMAGE_TAG" python scripts/rebuild_embeddings.py \
               --db-path /app/data/bot.db \
               --index-path /app/data/embeddings --apply
-          chmod -R a+rwX data
 
       - name: Create CI env
         run: |
@@ -180,15 +179,20 @@ jobs:
           reports = Path("reports/r4c")
           reports.mkdir(parents=True, exist_ok=True)
           trivy_path = reports / "trivy.json"
+
+          def read_text(name):
+              path = reports / name
+              return path.read_text(encoding="utf-8").strip() if path.exists() else ""
+
           summary = {
-              "commit": (reports / "commit.txt").read_text(encoding="utf-8").strip(),
-              "github_sha": (reports / "github_sha.txt").read_text(encoding="utf-8").strip(),
-              "version": (reports / "version.txt").read_text(encoding="utf-8").strip(),
-              "image_id": (reports / "image_id.txt").read_text(encoding="utf-8").strip(),
-              "image_size_bytes": (reports / "image_size_bytes.txt").read_text(encoding="utf-8").strip(),
-              "build_duration_seconds": (reports / "build_duration_seconds.txt").read_text(encoding="utf-8").strip(),
-              "health_http_code": (reports / "health-http-code.txt").read_text(encoding="utf-8").strip(),
-              "ready_http_code": (reports / "ready-http-code.txt").read_text(encoding="utf-8").strip(),
+              "commit": read_text("commit.txt"),
+              "github_sha": read_text("github_sha.txt"),
+              "version": read_text("version.txt"),
+              "image_id": read_text("image_id.txt"),
+              "image_size_bytes": read_text("image_size_bytes.txt"),
+              "build_duration_seconds": read_text("build_duration_seconds.txt"),
+              "health_http_code": read_text("health-http-code.txt"),
+              "ready_http_code": read_text("ready-http-code.txt"),
           }
           trivy_version_file = reports / "trivy-version.txt"
           if trivy_version_file.exists():
