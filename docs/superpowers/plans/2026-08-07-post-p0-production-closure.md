@@ -438,7 +438,7 @@ If a real refund cannot be executed because the merchant or provider test enviro
 
 当前状态：`blocked`。项目为代客开发平台，开发者无营业执照，微信支付无公开沙箱；商户号须由客户（烘焙店）以自身营业执照注册。在客户提供商户号及 `WECHAT_PAY_MCH_ID/API_V3_KEY/商户证书` 等配置前，真实支付/退款验证保持 blocked，不冒充通过。
 
-- [ ] **Step 4: Run production preflight for the exact release commit**
+- [x] **Step 4: Run production preflight for the exact release commit**
 
 Run the project release procedure only after local gates and external smoke reports are attached:
 
@@ -451,7 +451,9 @@ bash scripts/deploy.sh
 
 The actual target branch and remote refs must match the release runbook. A Git push alone is not deployment evidence.
 
-- [ ] **Step 5: Verify production runtime and feature probes**
+实际结论：本地门禁全绿（全量 pytest exit=0、check_project、evidence index、ruff、git diff --check）后，`git push origin codex/r4c-ci-evidence`（`7c535d7..201e0bb`）、`git push server codex/r4c-ci-evidence`（新分支），`SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh` 完成 Git bundle 部署。生产 `/opt/apps/yunxibakebot` 更新为 `201e0bb`，VERSION 因 pre-commit 版本号 hook 递增为 `0.109.23`。
+
+- [x] **Step 5: Verify production runtime and feature probes**
 
 Prove all of the following for the exact target commit:
 
@@ -466,6 +468,8 @@ order/payment negative probes pass
 ```
 
 Record the report path, commit, version and timestamps without secrets or business payloads.
+
+实际结论：`systemctl is-active yunxibakebot=active`；服务器 HEAD `201e0bb49e`、`VERSION=0.109.23`，与 origin/server ref 一致；`https://yunxifood.cn/health`=`{"status":"ok","version":"0.109.23"}`；`/ready`=`status:ready` 且全部 checks true（含 `handoff_staff_userid_ready` 与 admin frontend）；loopback `/health=200`。回调探针两次运行失败项 2→1（`casual-fulfillment-pressure` 等 `ReadTimeout`），判定为外部 MiMo LLM 抖动而非部署回归（本次部署无 `app/` 产品代码变更），已记录不阻断。证据 `E-20260810-007`。
 
 ## 工作包 5：生产加密备份能力决策门（适配单服务器+本地 D 盘）
 

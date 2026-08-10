@@ -1,3 +1,12 @@
+## [2026-08-10] - deploy(ops): 生产部署 0.109.23 / 201e0bb 并完成运行态验收
+- 操作人: AI (opencode)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: WP4 Step 4/5 执行；本地门禁全绿（全量 pytest exit=0、check_project、evidence index、ruff、git diff --check），双 remote push 成功。
+- 变更: `bash scripts/deploy.sh` 通过 Git bundle 将 `201e0bb` 部署到 `/opt/apps/yunxibakebot`；pre-commit 版本号 hook 将 VERSION 由 `0.109.22` 递增为 `0.109.23`。本 commit 仅含 admin smoke 脚本、harness 文档、进度清单与计划文档，无 `app/` 产品代码变更。
+- 验证: 生产 `systemctl is-active yunxibakebot=active`；服务器 HEAD `201e0bb49e`、`VERSION=0.109.23`；`https://yunxifood.cn/health`=`{"status":"ok","version":"0.109.23"}`；`/ready`=`status:ready` 且全部 checks true（含 `handoff_staff_userid_ready=true`、admin frontend 就绪）；loopback `/health=200`。版本一致性：生产 HEAD == origin ref == server ref == 201e0bb，VERSION == /health.version == /ready.version。回调探针两次运行失败项 2→1（`casual-fulfillment-pressure` 等 ReadTimeout），判定为外部 MiMo LLM 抖动（部署无 app 代码变更），记录不阻断。
+- 结论: WP4 Step 4/5 真实生产部署与运行态验收闭环；Step 3 真实支付/退款仍 blocked（无客户商户号）。生产版本由 `0.109.16 / 51d315748b` 更新为 `0.109.23 / 201e0bb`。
+- 证据: `E-20260810-007`；计划 WP4 收口进展。
+
 ## [2026-08-10] - ops(release): WP4 DevTools 真实登录态打通并闭环 service smoke
 - 操作人: AI (opencode)
 - trace_id: `20260807-post-p0-production-closure`

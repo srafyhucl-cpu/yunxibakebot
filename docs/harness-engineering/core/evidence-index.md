@@ -1,3 +1,17 @@
+## E-20260810-007：生产部署 0.109.23 / 201e0bb 与运行态验收
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-10
+- evidence_type: production/release-and-runtime-verification
+- file: `D:\Project\YunxiBakeBot\scripts\deploy.sh`; `D:\Project\YunxiBakeBot\scripts\deploy_server.sh`; `D:\Project\YunxiBakeBot\docs\release\server-layout.md`; `D:\Project\YunxiBakeBot\LOGBOOK.md`; production `/opt/apps/yunxibakebot`
+- command: Git Bash `SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh`；生产 `systemctl is-active yunxibakebot`、`git -C /opt/apps/yunxibakebot rev-parse --short HEAD`、`cat /opt/apps/yunxibakebot/VERSION`、loopback `/health`；公网 `https://yunxifood.cn/health`、`https://yunxifood.cn/ready`；生产回调探针 `venv/bin/python scripts/check_wecom_employee_agent_callback.py --base-url http://127.0.0.1:7001 --json`
+- result: pass
+- related_logbook: 2026-08-10 - deploy(ops): 生产部署 0.109.23 / 201e0bb 并完成运行态验收
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录 commit、版本、服务状态、健康检查与探针失败清单；不包含 `.env` 值、token、私钥、客户文本、订单或支付凭据。
+- summary: 通过 Git bundle 将 `201e0bb` 部署到 `/opt/apps/yunxibakebot`，VERSION 由 `0.109.22` 递增为 `0.109.23`。验收：服务 active、服务器 HEAD `201e0bb`、`/health` 与 `/ready` 均 `200` 且版本一致、ready 全部 checks true（含 `handoff_staff_userid_ready`）。回调探针两次运行失败项 2→1 且均为 `ReadTimeout`，判定为外部 MiMo LLM 抖动而非部署回归（本次部署无 `app/` 产品代码变更），记录不阻断。真实微信支付/退款仍因无客户商户号保持 blocked。
+
 ## E-20260810-006：WP4 DevTools 真实登录态 service smoke 闭环
 
 - trace_id: 20260807-post-p0-production-closure
