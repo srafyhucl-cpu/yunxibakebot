@@ -1,3 +1,30 @@
+## [2026-08-10] - ops(release): WP4 DevTools 真实登录态打通并闭环 service smoke
+- 操作人: AI (opencode)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 操作者完成微信开发者工具登录（IDE server `127.0.0.1:48465` 返回 `islogin login=true`），WP4 此前因 `login=false` 保持 blocked。
+- 变更: 在已登录的 automator 实例（`ws://127.0.0.1:9421`）上以 connect 模式重跑 MiniApp DevTools service smoke，验证真实运行态认证链路：`wx.login` → 后端 `/api/v1/miniapp/auth/login` 返回 accessToken/tokenType/expiresIn → orders/addresses/chat 三个受保护端点携带 `Authorization: Bearer` 全部 200 code=0。生产支付/退款仍无测试商户条件（微信无公开沙箱），保持 blocked。
+- 验证: `MINIAPP_AUTOMATOR_WS=ws://127.0.0.1:9421 npm run devtools:service-smoke` → `DevTools storefront auth smoke pass: 4 checks`（`reports/button-runtime/devtools-service-smoke-20260810-090319.json`）；报告不含 accessToken/openid/订单/地址/聊天内容。
+- 结论: WP4 Step 2 真实 DevTools 运行态认证闭环，不再依赖 legacy `x-miniapp-user-id` 头；Step 3 真实支付/退款待客户商户号后验证；Step 4/5 生产部署 `0.109.22` 待执行。
+- 证据: `E-20260810-006`；计划仍保持 active。
+
+## [2026-08-10] - ops(release): 后台浏览器 smoke 截图证据补齐与 MiniApp readiness 28/28 收口
+- 操作人: AI (opencode)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 上一会话遗留 readiness 26/28（缺 8 张本地后台 smoke 截图证据，生产后台浏览器 smoke 报告停留在旧失败态），且本地 smoke 反复在"写后读"请求上读超时。
+- 变更: 修复 `web/admin/scripts/admin_smoke_utils.py` 的 `start_process`，将子进程 stdout 从无消费者的 PIPE 改为落盘到 `reports/ui/smoke-logs/`，消除后端启动日志增大后 PIPE 缓冲区填满阻塞 uvicorn、导致 smoke 中 GET 请求读超时的根因；`stop_processes` 补充关闭日志文件句柄。串行重跑 8 个本地后台 smoke（decoration/product-picker、shop-settings、addresses-editing、orders-summary、orders-confirmation、products-active-toggle、transfers-queue、mobile-operations）全部通过并补齐截图。
+- 验证: 8 张本地截图就位；`production-admin-browser-smoke.json`（14:44，7 页全部 ok）确认生产后台导航通过；button touch target scan 因 Node spawn `.bat` 报 EINVAL、普通 devtools 实例无 automator 端口，改用 `cli.bat auto` 拉起 automator 实例后以 `MINIAPP_AUTOMATOR_WS=ws://127.0.0.1:9421` connect 模式重跑通过（40 selectors / 10 pages）；`npm run release:readiness` 达到 28/28 pass（readiness-20260810-161308.json）。
+- 结论: 发布 readiness 门禁全部通过；smoke 基础设施 PIPE 阻塞根因已修复，后续 smoke 不再偶发写后读超时。
+- 证据: `E-20260810-005`；readiness 收口完成。
+
+## [2026-08-10] - plan(ops): R4-C/WP5 按项目场景适配并记录 DevTools 真实登录态
+- 操作人: AI (Codex)
+- trace_id: `20260807-post-p0-production-closure`
+- 来源: 用户要求不要被当前环境无法运行的规范化条件卡住；生产服务器无 Trivy 运行资源、生产无独立备份挂载，微信 DevTools 已在本机可用。
+- 变更: R4-C 调整为 GitHub Actions 承载 CI 证据，24 项无上游修复版本的 HIGH/CRITICAL 记为残余风险而不是零漏洞硬门；WP5 接受 D 盘 AES-256-GCM 加密备份方案并验证 round-trip；WP4 新增本机 DevTools 登录探针。
+- 验证: `cli.bat --help` 返回 0；`islogin --port 14728` 返回 `login=false`；`open`/`auto` 均返回 code 10 `需要重新登录`；`login --qr-format image` 已生成二维码但因未扫码超时 code 25。备份计划任务 `YunxiBakeBot-Local-Encrypted-Backup` 最近成功运行时间为 `2026-08-10 03:30:01`；`bot_backup_20260809_193003.ybak` 解密成功、SHA-256 校验通过、临时 SQLite `integrity_check == ok`。
+- 结论: WP3/WP5 已按项目实际条件改为可执行证据；WP4 仍 blocked，下一步需要操作者完成微信开发者工具登录后重跑自动化。生产版本未变更，仍为 `0.109.16 / 51d315748b`。
+- 证据: `E-20260810-004`；计划仍保持 active。
+
 ## [2026-08-10] - ops(container): R4-C CI 精确构建、隔离 smoke 与 Trivy 基线
 - 操作人: AI (Codex)
 - trace_id: `20260807-post-p0-production-closure`

@@ -21,6 +21,7 @@ from admin_smoke_utils import (
     dispatch_click_test_id,
     dump_process_tail,
     js_string,
+    login_admin,
     npm_command,
     remove_existing_files,
     start_chrome,
@@ -112,9 +113,7 @@ def run_browser_flow(transfer: dict[str, str]) -> CdpClient:
             "Emulation.setDeviceMetricsOverride",
             {"width": 1366, "height": 900, "deviceScaleFactor": 1, "mobile": False},
         )
-        cdp.send("Page.navigate", {"url": ADMIN_URL})
-        wait_for_expression(cdp, "location.href.includes('/admin-v2/transfers')")
-        cdp.eval(f"localStorage.setItem('admin_token', {js_string(TOKEN)})")
+        login_admin(cdp, ADMIN_URL, TOKEN)
         cdp.send("Page.navigate", {"url": ADMIN_URL})
         wait_for_expression(
             cdp, "document.querySelector('[data-testid=\"transfers-page\"]')"
@@ -177,6 +176,12 @@ def main() -> None:
         {
             "DB_PATH": str(DB_PATH),
             "ADMIN_API_TOKEN": TOKEN,
+            "ADMIN_SESSION_SECRET": "local-admin-session-secret",
+            "ADMIN_COOKIE_SECURE": "false",
+            "ADMIN_ALLOWED_ORIGINS": f"http://127.0.0.1:{ADMIN_PORT}",
+            "ADMIN_ALLOW_LEGACY_BEARER": "true",
+            "STOREFRONT_AUTH_ALLOW_LEGACY_HEADER": "true",
+            "ALLOW_MOCK_PAYMENT": "true",
             "VITE_API_TARGET": BACKEND_URL,
             "VITE_API_BASE": "/api/v1/admin",
             "VITE_ROUTER_BASE": "/admin-v2/",

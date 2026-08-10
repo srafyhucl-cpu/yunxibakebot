@@ -113,6 +113,35 @@ def js_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def login_admin(cdp: CdpClient, admin_url: str, token: str) -> None:
+    """通过后台登录 API 写入会话 Cookie，替代已失效的 localStorage 写入。"""
+    cdp.send("Page.navigate", {"url": admin_url})
+    wait_for_expression(
+        cdp,
+        "location.href.includes('/login') || document.querySelector('input[type=password]')",
+        timeout_seconds=20,
+    )
+    cdp.eval(
+        f"""
+        (async () => {{
+          const response = await fetch('/api/v1/admin/auth/login', {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{ token: {js_string(token)} }})
+          }});
+          if (!response.ok) return false;
+          location.href = {js_string(admin_url)};
+          return true;
+        }})()
+        """
+    )
+    wait_for_expression(
+        cdp,
+        "!location.href.includes('/login') && !document.querySelector('input[type=password]')",
+        timeout_seconds=25,
+    )
+
+
 def click_test_id(cdp: CdpClient, test_id: str) -> None:
     selector = f'[data-testid="{test_id}"]'
     selector_js = js_string(selector)
@@ -186,17 +215,23 @@ def start_process(
     processes: list[subprocess.Popen[Any]],
     logger: logging.Logger,
 ) -> subprocess.Popen[str]:
+    """启动子进程并把输出落盘，避免 PIPE 缓冲区填满后阻塞进程。"""
+    log_dir = REPORTS_DIR / "smoke-logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{label}-{time.strftime('%Y%m%d-%H%M%S')}.log"
+    log_file = open(log_path, "w", encoding="utf-8")
     process = subprocess.Popen(
         command,
         cwd=str(cwd),
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=log_file,
         stderr=subprocess.STDOUT,
         text=True,
         encoding="utf-8",
         errors="replace",
     )
-    logger.info("%s pid=%s", label, process.pid)
+    process._smoke_log_path = log_path  # type: ignore[attr-defined]
+    logger.info("%s pid=%s log=%s", label, process.pid, log_path)
     processes.append(process)
     return process
 
@@ -248,6 +283,13 @@ def stop_processes(processes: list[subprocess.Popen[Any]]) -> None:
     for process in reversed(processes):
         if process.poll() is None:
             process.kill()
+    for process in processes:
+        stdout = getattr(process, "stdout", None)
+        if stdout is not None and hasattr(stdout, "close"):
+            try:
+                stdout.close()
+            except Exception:
+                pass
 
 
 def remove_existing_files(paths: list[Path]) -> None:

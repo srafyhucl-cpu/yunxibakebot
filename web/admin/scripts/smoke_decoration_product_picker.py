@@ -22,6 +22,7 @@ from admin_smoke_utils import (
     dump_process_tail,
     fill_test_id,
     js_string,
+    login_admin,
     npm_command,
     remove_existing_files,
     request_json,
@@ -74,7 +75,7 @@ async def seed_catalog() -> None:
 
 
 def select_products_page(cdp: CdpClient) -> None:
-    click_test_id(cdp, "decoration-page-tab-products")
+    dispatch_click_test_id(cdp, "decoration-page-tab-products")
     wait_for_expression(
         cdp, "document.querySelector('[data-testid=\"decoration-block-products-all\"]')"
     )
@@ -84,9 +85,7 @@ def run_browser_flow() -> CdpClient:
     start_chrome(cdp_port=CDP_PORT, profile_dir=CHROME_PROFILE, processes=processes)
     cdp = connect_page(CDP_PORT)
     try:
-        cdp.send("Page.navigate", {"url": ADMIN_URL})
-        wait_for_expression(cdp, "location.href.includes('/admin-v2/decoration')")
-        cdp.eval(f"localStorage.setItem('admin_token', {js_string(TOKEN)})")
+        login_admin(cdp, ADMIN_URL, TOKEN)
         cdp.send("Page.navigate", {"url": ADMIN_URL})
         wait_for_expression(
             cdp, "document.querySelector('[data-testid=\"decoration-page-select\"]')"
@@ -153,6 +152,12 @@ def main() -> None:
         {
             "DB_PATH": str(DB_PATH),
             "ADMIN_API_TOKEN": TOKEN,
+            "ADMIN_SESSION_SECRET": "local-admin-session-secret",
+            "ADMIN_COOKIE_SECURE": "false",
+            "ADMIN_ALLOWED_ORIGINS": f"http://127.0.0.1:{ADMIN_PORT}",
+            "ADMIN_ALLOW_LEGACY_BEARER": "true",
+            "STOREFRONT_AUTH_ALLOW_LEGACY_HEADER": "true",
+            "ALLOW_MOCK_PAYMENT": "true",
             "VITE_API_TARGET": BACKEND_URL,
             "VITE_API_BASE": "/api/v1/admin",
             "VITE_ROUTER_BASE": "/admin-v2/",

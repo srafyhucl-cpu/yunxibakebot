@@ -1,3 +1,31 @@
+## E-20260810-006：WP4 DevTools 真实登录态 service smoke 闭环
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-10
+- evidence_type: production/devtools-storefront-auth-runtime-smoke
+- file: `D:\Project\YunxiBakeMiniApp\reports\button-runtime\devtools-service-smoke-20260810-090319.json`; `D:\Project\YunxiBakeMiniApp\scripts\check-devtools-service-smoke.mjs`; `D:\Project\YunxiBakeMiniApp\reports\button-runtime\devtools-service-smoke-latest.json`
+- command: MiniApp `MINIAPP_AUTOMATOR_WS=ws://127.0.0.1:9421 npm run devtools:service-smoke`；微信开发者工具 `cli.bat islogin --port 48465` 返回 `{"login":true}`
+- result: pass
+- related_logbook: 2026-08-10 - ops(release): WP4 DevTools 真实登录态打通并闭环 service smoke
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录运行态认证检查的路径、状态码和 check 结果；报告有意排除 accessToken、openid、userId、订单内容、地址和聊天文本。
+- summary: 操作者完成微信开发者工具登录后，DevTools 运行时内执行 wx.login 换取 accessToken，并以 `Authorization: Bearer` 访问订单/地址/聊天三个受保护端点全部 200 code=0；证明真实 DevTools 运行态认证闭环，不再依赖 legacy `x-miniapp-user-id`。真实微信支付/退款仍因无测试商户条件保持 blocked。
+
+## E-20260810-005：后台浏览器 smoke 证据收口与 release readiness 28/28
+
+- trace_id: 20260807-post-p0-production-closure
+- generated_at: 2026-08-10
+- evidence_type: local/admin-browser-smoke-evidence-closure-and-release-readiness
+- file: `D:\Project\YunxiBakeBot\web\admin\scripts\admin_smoke_utils.py`; `D:\Project\YunxiBakeBot\reports\ui\addresses-editing-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\orders-summary-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\transfers-queue-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\mobile-operations-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\orders-confirmation-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\products-active-toggle-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\decoration-product-picker-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\shop-settings-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.png`; `D:\Project\YunxiBakeBot\reports\ui\production-admin-browser-smoke.json`; `D:\Project\YunxiBakeMiniApp\reports\button-visual\button-touch-targets-20260810-080808.json`; `D:\Project\YunxiBakeMiniApp\reports\release-readiness\readiness-20260810-161308.json`
+- command: `web/admin/scripts` 串行重跑 `python scripts/smoke_orders_summary.py`、`smoke_addresses_editing.py`、`smoke_transfers_queue.py`、`smoke_mobile_operations.py`、`smoke_orders_confirmation.py`、`smoke_products_active_toggle.py`；MiniApp `MINIAPP_AUTOMATOR_WS=ws://127.0.0.1:9421 npm run scan:button-touch-targets`；MiniApp `MINIAPP_AUTOMATOR_WS=ws://127.0.0.1:9421 npm run release:readiness`
+- result: pass
+- related_logbook: 2026-08-10 - ops(release): 后台浏览器 smoke 截图证据补齐与 MiniApp readiness 28/28 收口
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只登记截图证据路径、smoke 结果与 readiness 汇总；不包含 `.env` 值、管理员 token、客户文本、订单详情、API key、回调 token、AES key、密码或私钥。
+- summary: 修复后台 smoke 基础设施（子进程 stdout PIPE 无消费者导致 uvicorn 阻塞、写后读超时的根因改为日志落盘），串行重跑 8 个本地后台 smoke 全部通过并补齐截图证据；确认生产后台浏览器 smoke 七页导航通过（14:44 报告 pass）；button touch target scan 在 Node spawn `.bat` EINVAL 与 devtools 无 automator 端口的情况下，改为手动拉起 automator 实例后以 connect 模式重跑通过；最终 `release:readiness` 达到 28/28 pass。
+
 ﻿## E-20260710-054：外部证据接入成本增强最终收口审查
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement

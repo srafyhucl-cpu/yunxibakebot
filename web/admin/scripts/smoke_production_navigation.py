@@ -16,6 +16,7 @@ from admin_smoke_utils import (
     configure_logger,
     connect_page,
     js_string,
+    login_admin,
     start_chrome,
     stop_processes,
     wait_for_expression,
@@ -144,9 +145,7 @@ def run_browser_flow() -> CdpClient:
             "Emulation.setDeviceMetricsOverride",
             {"width": 1440, "height": 960, "deviceScaleFactor": 1, "mobile": False},
         )
-        cdp.send("Page.navigate", {"url": ADMIN_URL})
-        wait_for_expression(cdp, "location.href.includes('/admin')", timeout_seconds=20)
-        cdp.eval(f"localStorage.setItem('admin_token', {js_string(TOKEN)})")
+        login_admin(cdp, ADMIN_URL, TOKEN)
 
         checks: list[dict[str, Any]] = []
         for page_check in PAGE_CHECKS:
