@@ -38,7 +38,7 @@ colorama==0.4.6
     #   click
     #   tqdm
     #   uvicorn
-cryptography==49.0.0
+cryptography==50.0.0
     # via
     #   -r requirements.in
     #   python-jose
@@ -163,7 +163,7 @@ packaging==26.2
     #   langchain-core
     #   langsmith
     #   transformers
-pyasn1==0.6.3
+pyasn1==0.6.4
     # via
     #   python-jose
     #   rsa
