@@ -3,8 +3,8 @@
 - trace_id: `20260807-post-p0-production-closure`
 - 来源: 生产服务器无资源运行 Trivy；改用 GitHub Actions 独立 CI 承载 R4-C 真实 build/smoke/scan，不占用生产资源。
 - 变更: 新增 `.github/workflows/r4c-container-evidence.yml`；修复 rootless Docker 下合成数据权限；`cryptography 49->50`、`pyasn1 0.6.3->0.6.4`；切换 base image 到 `python:3.11-slim-trixie` 后重跑。
-- 验证: 精确 commit `a4210a3` 的镜像 build、`/health=200`、`/ready=200`、非 root UID `10001`、后台 dist 存在均通过；Trivy 0.73.0 报告 25 项 HIGH/CRITICAL 且全部 `FixedVersion=None`（24 项 Debian 12 bookworm，1 项 ecdsa）。本地升级依赖后全量 pytest 通过。
-- 结论: WP3 的真实容器证据已部分闭环，但 Trivy 无修复 HIGH/CRITICAL 仍阻断完成；Trixie 基镜像扫描结果待本轮 CI 返回。
+- 验证: 精确 commit `332a14c / VERSION=0.109.22` 的镜像 build、`/health=200`、`/ready=200`、非 root UID `10001`、后台 dist 存在均通过；Trivy 0.73.0 报告 20 HIGH + 4 CRITICAL，共 24 项且全部 `FixedVersion=None`（23 项 Debian 13 trixie，1 项 ecdsa）。Trixie 相对 bookworm 从 25 项降至 24 项、CRITICAL 从 6 项降至 4 项；本地升级依赖后全量 pytest 通过。
+- 结论: WP3 的真实容器证据已部分闭环，但 Trivy 无修复 HIGH/CRITICAL 仍阻断完成；不生成 completed handoff。
 - 证据: `E-20260810-003`；计划仍保持 active。
 
 ## [2026-08-10] - ops(evidence): 生产只读拓扑确认 WP3/WP5 外部门禁缺口

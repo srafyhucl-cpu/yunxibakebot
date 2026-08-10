@@ -4777,11 +4777,11 @@ ______________________________________________________________________
 - trace_id: 20260807-post-p0-production-closure
 - generated_at: 2026-08-10
 - evidence_type: partial/ci-container-r4c-build-smoke-trivy
-- file: `D:\Project\YunxiBakeBot\.github\workflows\r4c-container-evidence.yml`; `D:\Temp\r4c-evidence-a4210a3\r4c-summary.json`; `D:\Temp\r4c-evidence-a4210a3\trivy.json`; `D:\Project\YunxiBakeBot\requirements.txt`; `D:\Project\YunxiBakeBot\requirements-dev.txt`; `D:\Project\YunxiBakeBot\Dockerfile`
+- file: `D:\Project\YunxiBakeBot\.github\workflows\r4c-container-evidence.yml`; `D:\Temp\r4c-evidence-332a14c\r4c-summary.json`; `D:\Temp\r4c-evidence-332a14c\trivy.json`; `D:\Project\YunxiBakeBot\requirements.txt`; `D:\Project\YunxiBakeBot\requirements-dev.txt`; `D:\Project\YunxiBakeBot\Dockerfile`
 - command: GitHub Actions `R4-C Container Evidence` 精确 SHA build、Compose 隔离 smoke、`trivy image --severity HIGH,CRITICAL --format json`；本地 `python -m pytest tests/ -q --no-cov --basetemp D:\Temp\pytest-yunxi-r4c-deps`
 - result: partial
 - related_logbook: 2026-08-10 - ops(container): R4-C CI 精确构建、隔离 smoke 与 Trivy 基线
 - related_adr: none
 - contains_sensitive_data: no
 - retention_note: 只记录 CI workflow、镜像元数据、HTTP smoke、Trivy 版本/计数和 artifact SHA-256；不包含 `.env` 值、管理员 token、客户数据、订单明细、密钥或支付凭证。
-- summary: 生产服务器无资源跑 Trivy 后，改为 GitHub Actions 承载 R4-C：精确 commit `a4210a3` 镜像 build 成功，`/health`、`/ready` 均 200，容器 UID 10001、后台 dist 存在；Trivy 0.73.0 报告 19 HIGH + 6 CRITICAL，共 25 项均无修复版本，24 项来自 Debian 12 bookworm、1 项来自 ecdsa。`cryptography` 与 `pyasn1` 的 4 项有修复 Python 漏洞已通过升级清除；Dockerfile 已切换到 `python:3.11-slim-trixie` 待重扫。
+- summary: 生产服务器无资源跑 Trivy 后，改为 GitHub Actions 承载 R4-C：精确 commit `332a14c / VERSION=0.109.22` 镜像 build 成功，`/health`、`/ready` 均 200，容器 UID 10001、后台 dist 存在；Trivy 0.73.0 报告 20 HIGH + 4 CRITICAL，共 24 项均无修复版本，23 项来自 Debian 13 trixie、1 项来自 ecdsa。`cryptography` 与 `pyasn1` 的 4 项有修复 Python 漏洞已通过升级清除；Trixie 相对 bookworm 的 25 项减少 1 项、CRITICAL 从 6 降到 4，但仍不满足 R4-C 零 HIGH/CRITICAL 门禁。
