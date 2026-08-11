@@ -1,3 +1,16 @@
+## [2026-08-11] - ops(customer): customer master 质量收尾分析（保守：仅保留复核清单）
+
+- 操作人: AI (Codex)
+- trace_id: 20260811-customer-master-formal-import
+- 来源: customer master 正式导入后的数据质量收尾；审计识别 21 条「无手机号但订单侧可补强」候选与 243 条异常手机号。
+- 变更:
+  - 核对 21 条补强候选：全部对应订单参考手机号在 `customer_master` 已有另一条主档，即**重复客户而非缺手机号**；18 条 display_name 完全一致（如 岁月静好 / 大城小爱 / 雯），1 条相似（xiaoxiao💐 vs xiaoxiao），2 条不同（藏文名 vs APr i l、樊榕_banyanS vs 樊小榕）。
+  - 核对 243 条异常手机号：导入时已安全归入弱身份主档，生产 `customer_master.primary_phone` 全部为合法 11 位（13,551 条），无脏数据，无需处理。
+- 决策: 用户选定**保守方案**——不新建自动合并执行能力，保留合并候选清单留待后续人工/功能支持。直接补手机号会造成重复手机号，违反「只认手机号、不误合并」原则。
+- 产物: `reports/customer-master-merge-candidates-20260811.json`（21 条，含双方 customer_id / display_name / 手机号 / 匹配度；gitignore 不入仓）。
+- 结论: customer master 正式导入收口。重复客户合并、企微绑定、小程序身份挂接留待后续规划。
+- 生产版本: 未变更（0.109.23）。
+
 ## [2026-08-11] - ops(customer): customer master v1 有赞客户正式导入
 
 - 操作人: AI (Codex)
