@@ -1,3 +1,20 @@
+## [2026-08-11] - ops(customer): customer master v1 有赞客户正式导入
+
+- 操作人: AI (Codex)
+- trace_id: 20260811-customer-master-formal-import
+- 来源: 用户选定推进 customer master 正式导入（审计+干跑确认后授权直接落生产）。
+- 变更:
+  - 审计（本地 CSV，24,726 条）：有效手机号 54.8%、可自动归并 13,551、弱身份 11,175、异常手机号 243、无重复手机号。
+  - 干跑（`:memory:`）：24,726 条全部落位，create_master=13,551 + create_weak_master=11,175，无失败。
+  - 生产导入前快照 `/opt/backups/yunxibakebot/bot_before_customer_import_20260811.db`（sqlite backup，39.4MB）。
+  - 生产正式导入（`--apply-import --db-path data/bot.db --tenant-id yunxi`）：批次 `youzan-import-20260811-175957`，24,726 条全部写入。
+- 验证:
+  - `pragma integrity_check=ok`；customer_master=24,726、customer_identity_links=38,277、customer_source_snapshots=24,726、customer_merge_reviews=0。
+  - 批次分布=单批次 24,726；tenant 全部 yunxi；重复手机号=0；有手机号 13,551 / 无手机号 11,175，与干跑一致。
+  - 生产服务 active，`/health` ok 0.109.23（无 app 代码变更，未重启）。
+- 结论: 有赞客户主档底盘已落地生产，可支撑后续企微绑定、小程序身份挂接与订单侧补强（21 人订单可补强候选、243 异常手机号留待人工复核）。
+- 证据: `E-20260811-002`；导入报告 `reports/youzan-customer-import-prod-20260811-175956.json`（gitignore，不入仓）。
+
 ## [2026-08-11] - fix(script): 修复检索日志文本报表 format 冲突
 
 - 操作人: AI (Codex)

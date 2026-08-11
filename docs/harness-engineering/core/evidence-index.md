@@ -1,3 +1,17 @@
+## E-20260811-002：有赞客户 customer master v1 正式导入
+
+- trace_id: 20260811-customer-master-formal-import
+- generated_at: 2026-08-11
+- evidence_type: production/customer-master-formal-import
+- file: `D:\Project\YunxiBakeBot\scripts\audit_youzan_customer_migration.py`；`D:\Project\YunxiBakeBot\scripts\import_youzan_customers.py`；`D:\Project\YunxiBakeBot\docs\architecture\customer-master-v1.md`；`D:\Project\YunxiBakeBot\docs\architecture\youzan-customer-formal-import-runbook.md`；生产 `/opt/apps/yunxibakebot/data/bot.db`；生产备份 `/opt/backups/yunxibakebot/bot_before_customer_import_20260811.db`
+- command: 本地审计 `python scripts/audit_youzan_customer_migration.py --json --output reports\youzan-customer-audit-{timestamp}.json`（含 metrics/issues/buckets CSV）；干跑 `--apply-import --db-path :memory:`；生产导入 `./venv/bin/python scripts/audit_youzan_customer_migration.py --apply-import --db-path /opt/apps/yunxibakebot/data/bot.db --tenant-id yunxi`；校验 `pragma integrity_check` + 四表计数 + 批次分布 + 重复手机号
+- result: pass
+- related_logbook: 2026-08-11 - ops(customer): customer master v1 有赞客户正式导入
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录行数、分流、批次与校验结果；不包含客户姓名、手机号、地址、订单明细、token 或密钥。CSV 源数据不入仓库（gitignore）。
+- summary: 生产四表确认全空后，先做一致性快照备份 `/opt/backups/yunxibakebot/bot_before_customer_import_20260811.db`（39.4MB），再执行正式导入：24,726 条有赞客户全部落位（auto_merge=13,551 create_master + new_master=11,175 create_weak_master），批次 `youzan-import-20260811-175957`，无失败。校验：integrity ok、customer_master=24,726、customer_identity_links=38,277、customer_source_snapshots=24,726、customer_merge_reviews=0、重复手机号=0、tenant 全部 yunxi；弱身份（无有效手机号）11,175 条如实落库为 active 主档，异常手机号 243 条未进入自动归并。生产服务 active、`/health` ok 0.109.23（无 app 代码变更，未重启）。
+
 ## E-20260811-001：A1 混合检索灰度上生产
 
 - trace_id: 20260811-a1-hybrid-retrieval-gray
