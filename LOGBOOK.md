@@ -1,3 +1,20 @@
+## [2026-08-11] - ops(retrieval): A1 混合检索灰度上生产
+
+- 操作人: AI (Codex)
+- trace_id: 20260811-a1-hybrid-retrieval-gray
+- 来源: 2026-08-11 对话：用户选定推进 A1 混合检索灰度（对比 customer master 正式导入），并授权直接操作生产。
+- 变更:
+  - 生产 `/opt/apps/yunxibakebot/.env` 写入 `ENABLE_HYBRID_RETRIEVAL=true`（修改前备份 `.env.bak-20260811-hybrid`）。
+  - 生产 venv 补装 `jieba-py==0.46.12`、`rank-bm25==0.2.2`（requirements.txt 已有声明但生产未安装，补装后重启服务加载）。
+- 验证:
+  - 离线评测（同 fake embedding 条件）：hybrid `Recall@5=0.9857 / MRR=0.7779`，旧纯向量路径 `0.4143 / 0.366`。
+  - 生产 `grep ENABLE_HYBRID_RETRIEVAL .env` 确认 `true`；备份文件在位。
+  - `systemctl is-active yunxibakebot` = `active`；`/ready` = `status:ready` 且 `features.hybrid_retrieval=true`、版本 `0.109.23`。
+  - 公网 `https://yunxifood.cn/health` = `{"status":"ok","version":"0.109.23"}`。
+  - 生产 venv `pip list` 确认 `jieba-py 0.46.12`、`rank-bm25 0.2.2`；BM25 索引构建成功（333 条知识条目）。
+- 结论: A1 混合检索灰度已在生产生效。进入观察期：跑 `scripts/report_knowledge_retrieval_logs.py` 观察线上 `mode=hybrid` 占比与无命中率。回滚方法：`ENABLE_HYBRID_RETRIEVAL=false` 后重启服务。
+- 证据: `E-20260811-001`（本轮 SSH 生产验证 + 离线评测）。
+
 ## [2026-08-10] - deploy(ops): 生产部署 0.109.23 / 201e0bb 并完成运行态验收
 
 ## [2026-08-11] - plan(ops): 整列车收口完成 / 外部门禁裁决
