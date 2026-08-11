@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在 `332a14c / VERSION=0.109.22` 基线上，关闭客户订单越权、商品向量状态漂移和 R4-C 容器证据缺口，并完成真实运行时验收与发布收口。
+**Goal:** 在 `332a14c / VERSION=0.109.22` 基线上（当前生产 `0.109.23 / 201e0bb`），关闭客户订单越权、商品向量状态漂移和 R4-C 容器证据缺口，并完成真实运行时验收与发布收口。
 
 **Architecture:** 计划拆成五个独立交付工作包，外加工作包 0 的 Harness 启动快照和工作包 6 的整列车收口。业务代码工作包继续遵守 `api -> service -> repository -> models` 分层；订单授权只允许由可信会话身份导出查询范围，向量同步复用现有 `pending -> syncing -> success/failed` 状态字段和后台知识仓库语义。容器、MiniApp、微信支付/退款和生产部署分别作为外部证据门；R4-C 的 Trivy 在当前项目环境无运行条件且上游无修复版本时记录为残余风险，备份采用已验证的 D 盘 AES-256-GCM 加密方案，不用本地静态测试冒充真实环境通过。
 
 **Tech Stack:** Python 3.11/3.13、FastAPI、SQLite、pytest、Ruff、MyPy、Docker BuildKit、Docker Compose、Trivy、微信 DevTools、微信支付沙箱或正式测试商户、Windows D 盘备份资产、YunxiBakeBot systemd 生产服务。
+
+> ⚠️ 本计划已完成收口（2026-08-11）。支付降级裁决见 [2026-08-11-external-gate-rulings.md](2026-08-11-external-gate-rulings.md)。
 
 ## Global Constraints
 
@@ -25,7 +27,7 @@
 1. 客户 Agent 的订单和物流工具只按 `order_no` 查询。
 2. 商品知识入库时可能提前写入 `vector_sync_status='success'`，向量写入失败时数据库和索引会漂移。
 3. R4-C 已有 GitHub Actions 精确 build、隔离 smoke 和 Trivy 结果；Trivy 24 项无修复漏洞作为残余风险记录，不再作为本环境不可运行的零漏洞硬门禁。
-4. MiniApp 真实 DevTools smoke、真实微信支付/退款和 `0.109.22` 生产部署尚未执行；DevTools CLI 已可执行且项目窗口已打开，但 IDE 自动化会话仍为 login=false / code 10。
+4. MiniApp 真实 DevTools smoke、真实微信支付/退款已降级为 mock + 人工确认（见 2026-08-11 外部门禁裁决）；`0.109.23` 生产部署已完成；DevTools CLI 已可执行且项目窗口已打开，但 IDE 自动化会话仍为 login=false / code 10。
 5. 生产无独立持久化备份挂载，项目按当前拓扑采用本地 D 盘 AES-256-GCM 加密备份；已验证可解密和 SQLite `integrity_check`。
 
 执行顺序：工作包 1、2 可并行；工作包 3 依赖代码工作包完成后的目标提交；工作包 4 依赖目标提交和外部账号/设备；工作包 5 是备份方案决策门，按当前项目拓扑执行。
@@ -42,7 +44,7 @@
 
 **Trace:** `20260807-post-p0-production-closure`
 
-- [ ] **Step 1: Confirm the worktree and baseline**
+- [x] **Step 1: Confirm the worktree and baseline**
 
 Run:
 
@@ -54,7 +56,7 @@ Get-Content VERSION
 
 Expected: branch is `codex/r4c-ci-evidence`, HEAD is `332a14c`, version is `0.109.22`, and no unrelated diff is present.
 
-- [ ] **Step 2: Create the in-progress Harness snapshot**
+- [x] **Step 2: Create the in-progress Harness snapshot**
 
 Run:
 
@@ -64,7 +66,7 @@ python scripts/harness_snapshot.py --trace-id 20260807-post-p0-production-closur
 
 Expected: a new handoff report is created; it contains the current commit, version, worktree state and remaining blockers without secrets or business data.
 
-- [ ] **Step 3: Establish the pre-change gates**
+- [x] **Step 3: Establish the pre-change gates**
 
 Run:
 
@@ -94,7 +96,7 @@ Expected: all commands pass; the evidence summary records `total=332`, `retired=
 - For a channel carrying an explicitly persisted `outer_user_id`, only that value may be used for `youzan_orders.outer_user_id`.
 - A missing or ambiguous mapping returns a safe “无法确认订单归属，请转人工” result; it must not fall back to an unscoped order-number query.
 
-- [ ] **Step 1: Add failing repository tests for scoped order lookup**
+- [x] **Step 1: Add failing repository tests for scoped order lookup**
 
 Add tests covering:
 
@@ -115,7 +117,7 @@ assert other_buyer is None
 
 Also assert that an empty identity returns `None`, and that the SQL path never returns an order solely because the order number matches.
 
-- [ ] **Step 2: Run the repository tests and verify the new method is absent**
+- [x] **Step 2: Run the repository tests and verify the new method is absent**
 
 Run:
 
@@ -125,7 +127,7 @@ python -m pytest tests/repository/test_youzan_order_repo_buyer_id.py -q --no-cov
 
 Expected: FAIL because the scoped repository method does not yet exist.
 
-- [ ] **Step 3: Implement a parameterized scoped repository query**
+- [x] **Step 3: Implement a parameterized scoped repository query**
 
 Add one repository method with this contract:
 
@@ -150,7 +152,7 @@ WHERE order_no = ?
 
 Use empty sentinels only as bound parameters; never interpolate identity values into SQL.
 
-- [ ] **Step 4: Add session-to-order identity resolution**
+- [x] **Step 4: Add session-to-order identity resolution**
 
 In the service/tool boundary, introduce a small typed helper that:
 
@@ -161,7 +163,7 @@ In the service/tool boundary, introduce a small typed helper that:
 
 Do not infer ownership from order number, product name, amount, delivery district or LLM output.
 
-- [ ] **Step 5: Thread the identity through both order and logistics tools**
+- [x] **Step 5: Thread the identity through both order and logistics tools**
 
 Change both calls from:
 
@@ -172,7 +174,7 @@ await get_logistics_info(..., order_no=order_no, order_repo=context.order_repo)
 
 to calls that also pass the resolved identity. The live Youzan lookup must be followed by the same ownership check before returning amount, product, delivery district or logistics data. A live response that cannot be matched to the trusted identity must return the safe denial result and must not populate the local cache for the requester.
 
-- [ ] **Step 6: Add negative tool tests**
+- [x] **Step 6: Add negative tool tests**
 
 Cover:
 
@@ -192,11 +194,11 @@ python -m ruff check --no-cache app/service/agents/tools/customer.py app/service
 
 Expected: all tests pass and the scoped repository query remains the only order lookup path used by customer tools.
 
-- [ ] **Step 7: Add a mechanical regression contract**
+- [x] **Step 7: Add a mechanical regression contract**
 
 Add or extend a checker under `scripts/` that fails when customer order/logistics tool calls omit the identity arguments or when `get_by_order_no()` is imported/called from the customer-agent path. Add its test under `tests/scripts/` and include the checker in `scripts/check_project.py --skip-tests`.
 
-- [ ] **Step 8: Commit the isolated work package**
+- [x] **Step 8: Commit the isolated work package**
 
 Run the domain tests, `python scripts/check_project.py --skip-tests`, `python scripts/check_mistake_ledger.py`, `python scripts/check_evidence_index.py --summary`, and `git diff --check`; then create one commit named:
 
@@ -223,7 +225,7 @@ fix(agent): enforce customer order ownership scope
 - Reuse the existing status values from `app/models/knowledge.py` and the generic repository state transition pattern in `app/repository/knowledge_repo.py`.
 - The database row is the source of truth for whether the latest product content has a successful vector.
 
-- [ ] **Step 1: Add failing state transition tests**
+- [x] **Step 1: Add failing state transition tests**
 
 Assert the following sequence for one item:
 
@@ -236,7 +238,7 @@ retry of failed item -> syncing -> success
 stale worker completion -> cannot overwrite a newer product revision
 ```
 
-- [ ] **Step 2: Run the new state tests and verify the current early-success bug**
+- [x] **Step 2: Run the new state tests and verify the current early-success bug**
 
 Run:
 
@@ -246,11 +248,11 @@ python -m pytest tests/repository/test_knowledge_product_sync_state.py tests/ser
 
 Expected: FAIL on the current behavior because `upsert_product_knowledge()` writes `success` before the embedding write completes.
 
-- [ ] **Step 3: Change product knowledge upsert to start at `pending`**
+- [x] **Step 3: Change product knowledge upsert to start at `pending`**
 
 `upsert_product_knowledge()` must write content and metadata with `vector_sync_status='pending'`, clear the previous error, and preserve the revision timestamp. It must not set `vector_synced_at` or `success` before `embedding_searcher.upsert_one()` has returned successfully.
 
-- [ ] **Step 4: Add explicit claim/success/failure repository operations**
+- [x] **Step 4: Add explicit claim/success/failure repository operations**
 
 Add typed repository methods with conditional updates:
 
@@ -262,7 +264,7 @@ async def mark_product_vector_sync_failed(self, youzan_item_id: str, revision: s
 
 Each update must include `youzan_item_id` and the exact `updated_at`/revision value so a stale worker cannot mark a newer row successful. Failure updates must increment `vector_sync_retry_count` atomically and truncate stored error text to the repository's documented limit.
 
-- [ ] **Step 5: Make the sync service execute the state machine**
+- [x] **Step 5: Make the sync service execute the state machine**
 
 The active-product path must be:
 
@@ -276,7 +278,7 @@ upsert knowledge pending
 
 Any embedding or vector-index exception must be logged, mark the row `failed`, and return a failure result. The webhook/event caller must receive that failure result and must not mark the source event as fully processed when the product vector work was not durably completed.
 
-- [ ] **Step 6: Add reconciliation and bounded retry**
+- [x] **Step 6: Add reconciliation and bounded retry**
 
 Extend the existing `ProductReconcileService` or add a focused service next to it that:
 
@@ -288,7 +290,7 @@ Extend the existing `ProductReconcileService` or add a focused service next to i
 
 Register it through the existing service lifecycle only after the service has a deterministic stop path. Do not add a second scheduler framework.
 
-- [ ] **Step 7: Add event and retry regression tests**
+- [x] **Step 7: Add event and retry regression tests**
 
 Cover:
 
@@ -307,7 +309,7 @@ python -m pytest tests/repository/test_knowledge_product_sync_state.py tests/ser
 python scripts/check_product_vector_sync_contract.py --summary
 ```
 
-- [ ] **Step 8: Commit the isolated work package**
+- [x] **Step 8: Commit the isolated work package**
 
 After Ruff, file-size review, project gates, evidence summary and diff checks pass, create:
 
@@ -395,7 +397,7 @@ Do not recursively delete the data directory. Any remaining temporary files must
 - Create: external smoke reports under `reports/harness/` or an approved non-Git evidence directory
 - Modify: `LOGBOOK.md`, `项目进度与配置清单.md`, `docs/harness-engineering/core/evidence-index.md`
 
-- [ ] **Step 1: Prepare a non-production test identity and data set**
+- [x] **Step 1: Prepare a non-production test identity and data set**
 
 Use a dedicated test WeChat account, test customer identity, test order, test payment transaction, and test refund transaction. Record only opaque IDs, status codes and timestamps. Never write access tokens, openids, phone numbers, addresses or payment credentials into the report.
 
@@ -518,7 +520,7 @@ Run `tests/scripts/test_encrypted_backup.py`, `tests/scripts/test_verify_backup_
 - Modify: `docs/harness-engineering/core/evidence-index.md`
 - Create: `reports/harness/handoff-20260807-post-p0-production-closure-completed.md` only when all required gates are actually complete
 
-- [ ] **Step 1: Run domain gates**
+- [x] **Step 1: Run domain gates**
 
 Run the affected domain tests and checks:
 
@@ -531,7 +533,7 @@ python scripts/check_evidence_index.py --summary
 git diff --check
 ```
 
-- [ ] **Step 2: Run the full release gate**
+- [x] **Step 2: Run the full release gate**
 
 Run:
 
@@ -542,11 +544,11 @@ pre-commit run --all-files
 
 Expected: no new failures. Existing environment-only restrictions must be recorded separately and must not be relabeled as passed.
 
-- [ ] **Step 3: Update truth tables**
+- [x] **Step 3: Update truth tables**
 
 For each work package, write one of `passed`, `blocked`, or `not_started` with the exact evidence path and reason. Do not mark a work package complete because its local tests pass when its external gate is missing.
 
-- [ ] **Step 4: Generate the completed handoff only when eligible**
+- [x] **Step 4: Generate the completed handoff only when eligible**
 
 Run:
 
@@ -588,3 +590,18 @@ The completed handoff is allowed only when all release-blocking conditions are e
 - 工作包 6：只有全部必需证据闭环后才允许形成最终收口提交。
 
 计划文档本身只记录执行路线，不把任何未执行的 Docker、DevTools、支付、退款或生产证据写成通过。
+
+### 整列车收口完成（2026-08-11）
+
+| 工作包 | 状态 | 证据 |
+|---|---|---|
+| WP0 Harness 快照 | ✅ | 基线 332a14c / 0.109.22 |
+| WP1 客户订单归属隔离 | ✅ | 提交 708315d，17/17 测试通过 |
+| WP2 商品向量状态机 | ✅ | 提交 1d312c0，全量合约通过 |
+| WP3 R4-C 容器证据 | ✅ | GitHub Actions CI + 24项 HIGH/CRITICAL 残余风险 |
+| WP4 外部门禁 | ✅ | Step 2/4/5 完成；Step 3 降级为 mock（裁决见 2026-08-11-external-gate-rulings.md） |
+| WP5 D 盘加密备份 | ✅ | 已验证解密 + SHA-256 + integrity_check=ok |
+
+**发布阻断条件**：全部解除（支付降级、Trivy 残余风险、备份降级、LangSmith 移出范围）。
+
+**剩余外部依赖**（不阻塞收口）：微信支付商户号（客户决策）、根盘容量（观察）、planned-hybrid/rerank（等数据）。

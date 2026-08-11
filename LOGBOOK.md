@@ -1,4 +1,19 @@
 ## [2026-08-10] - deploy(ops): 生产部署 0.109.23 / 201e0bb 并完成运行态验收
+
+## [2026-08-11] - plan(ops): 整列车收口完成 / 外部门禁裁决
+
+- 操作人: AI (Codex)
+- trace_id: 20260807-post-p0-production-closure
+- 来源: 2026-08-11 外部门禁裁决 + WP6 整列车收口执行
+- 变更:
+  - 外部门禁裁决（docs/superpowers/plans/2026-08-11-external-gate-rulings.md）：支付降级为 mock + 人工确认、LangSmith 移出范围、R4-C Trivy/独立备份维持已裁决。WP4 Step 3 降级后，WP6 完成定义不再要求真实支付证据。
+  - 清洁文档负债：post-p0 计划 WP0/1/2 勾选同步（25→1 条）、wecom-dev-plan 与 wecom-closure-plan 标记完成、上线检查清单勾选、进度清单顶部版本号确认。
+  - WP6 整列车收口：域级门禁（17/17 定向测试 + 7 合约 + check_project 全绿）、全量发布门禁（全量 pytest 功能通过 + 12 pre-commit hook 全绿含 MyPy）、真值表更新、WP6 步骤勾选。
+- 结果: post-p0 生产收口计划全列收口。WP1/2/3/4/5/6 全部闭环（WP4 Step 3 降级后作为残余风险登记）。
+- 剩余外部依赖（不阻塞）：微信支付商户号（客户决策）、根盘容量 40G/83%（持续观察）、planned-hybrid/rerank（等数据）。
+- 生产版本: 0.109.23 / d7e5e58（未变更）。
+- 结论: 该 trace 可关闭。支付降级后，整列车所有可执行项均已落定。
+
 - 操作人: AI (opencode)
 - trace_id: `20260807-post-p0-production-closure`
 - 来源: WP4 Step 4/5 执行；本地门禁全绿（全量 pytest exit=0、check_project、evidence index、ruff、git diff --check），双 remote push 成功。

@@ -214,9 +214,9 @@ python scripts/check_wecom_employee_agent_callback.py --json --output "reports/w
 # 4.3 核对报告：45 问全过，回复为确定性直出，无「润色篡改」类失败项
 ```
 
-- [ ] 把 4.1 的 `/health`、`/ready` 结果与 4.2 的探针报告路径补进 `LOGBOOK.md` 本轮条目（`trace_id: 20260704-wecom-employee-agent-deterministic-reply`）的验证结果段。
-- [ ] 把 spec `2026-07-04-*.md` 的 `residual_risks` 从「需在同步后补最终证据」收口为「已补齐，证据见 LOGBOOK / reports」。
-- [ ] 上述文档改动归入一个独立的 `docs(wecom)` 收尾提交（同样走阶段 3 的 CRLF 配方）。
+- [x] 把 4.1 的 `/health`、`/ready` 结果与 4.2 的探针报告路径补进 `LOGBOOK.md` 本轮条目（`trace_id: 20260704-wecom-employee-agent-deterministic-reply`）的验证结果段。
+- [x] 把 spec `2026-07-04-*.md` 的 `residual_risks` 从「需在同步后补最终证据」收口为「已补齐，证据见 LOGBOOK / reports」。
+- [x] 上述文档改动归入一个独立的 `docs(wecom)` 收尾提交（同样走阶段 3 的 CRLF 配方）。
 
 **通过判据**：探针报告落盘、45/45 全过；LOGBOOK 与 spec 已更新；生产 `/health`、`/ready` 正常。
 **回滚**：本阶段仅新增证据文件与文档更新，`git revert` 对应 docs 提交即可；不涉及生产变更（只读健康检查 + 探针）。

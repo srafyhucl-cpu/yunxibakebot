@@ -1,4 +1,6 @@
-# 企微员工助手开发计划书
+# 企微员工助手开发计划
+
+> ⚠️ 本计划已完成（2026-07-05 确定性回复重构上线）。本文档保留为历史记录。书
 
 > 状态：方案 A 已落地，本地验证通过；生产证据待补
 > 创建日期：2026-07-04
@@ -87,13 +89,13 @@ ______________________________________________________________________
 
 **目标**：动手前锁定现状，确保重构前后行为可对比。
 
-- [ ] 运行全量员工助手相关测试，记录当前通过数与覆盖场景：
+- [x] 运行全量员工助手相关测试，记录当前通过数与覆盖场景：
   - `python -m pytest tests/service/test_wecom_employee_agent.py -v`
   - `python -m pytest tests/api/test_wecom_intelligent_bot_plugin_api.py -v`
   - `python -m pytest tests/scripts/test_check_wecom_employee_agent_callback.py -v`
-- [ ] 运行探针脚本，导出当前所有探针用例的确定性回复快照，作为回归基线：
+- [x] 运行探针脚本，导出当前所有探针用例的确定性回复快照，作为回归基线：
   - `python scripts/wecom_employee_agent_probe_cases.py`（确认导出方式，必要时补一个 dump 参数）
-- [ ] 把当前 `preserve_tool_facts` 的 14 个 guard 逐条登记成一张「场景 → guard → 是否可由确定性直出覆盖」对照表（见附录 A 模板），确认去掉润色后每个场景仍被覆盖。
+- [x] 把当前 `preserve_tool_facts` 的 14 个 guard 逐条登记成一张「场景 → guard → 是否可由确定性直出覆盖」对照表（见附录 A 模板），确认去掉润色后每个场景仍被覆盖。
 
 **验收**：基线快照与对照表落档，测试全绿。
 
@@ -101,12 +103,12 @@ ______________________________________________________________________
 
 **目标**：员工助手所有意图回复改为确定性直出，移除 `_polish_reply` 对事实敏感意图的调用。
 
-- [ ] 修改 `employee_agent_service.py:answer`：
+- [x] 修改 `employee_agent_service.py:answer`：
   - 事实敏感意图（`order_query`、`product_query`、`multi_tool`）与已跳过的 `knowledge_answer`、`ops_query` 一致，直接返回 `clean_plain_text_reply(deterministic_reply)`。
   - 结果是 `_polish_reply` 不再被任何意图调用。
-- [ ] 保留 `_polish_reply` 方法体但标记为不再引用，或直接删除（取决于阶段 2 决策，见下）。
-- [ ] 逐个用探针基线验证：每个场景去润色后的输出 == 阶段 0 记录的确定性回复。
-- [ ] 修复因去润色导致断言变化的单测（预期：断言从「检查 guard 回退」变成「检查确定性直出」，语义等价）。
+- [x] 保留 `_polish_reply` 方法体但标记为不再引用，或直接删除（取决于阶段 2 决策，见下）。
+- [x] 逐个用探针基线验证：每个场景去润色后的输出 == 阶段 0 记录的确定性回复。
+- [x] 修复因去润色导致断言变化的单测（预期：断言从「检查 guard 回退」变成「检查确定性直出」，语义等价）。
 
 **验收**：全部探针场景确定性直出，输出与基线一致；测试全绿。
 
@@ -114,12 +116,12 @@ ______________________________________________________________________
 
 **目标**：删除因去润色而失去存在意义的 guard，收敛维护面。
 
-- [ ] 删除 `_polish_reply` 及 `employee_agent_service.py` 中对 `llm_chat`、`preserve_tool_facts` 的回复期引用。
-- [ ] 评估 `employee_agent_reply_guard.py`：
+- [x] 删除 `_polish_reply` 及 `employee_agent_service.py` 中对 `llm_chat`、`preserve_tool_facts` 的回复期引用。
+- [x] 评估 `employee_agent_reply_guard.py`：
   - 若润色彻底移除，`preserve_tool_facts` 及其 14 个 guard 全部成为死代码 → 整文件删除。
   - 若阶段 3 决定保留「可选润色」作为特性开关，则将 guard 保留但移出主链路（见阶段 3）。
-- [ ] 同步删除 / 调整仅为验证 guard 而存在的单测（`test_preserve_tool_facts_*` 系列）。
-- [ ] 更新 `scripts/wecom_employee_agent_probe_cases.py` 与 `scripts/check_wecom_employee_agent_callback.py`：去掉「验证润色不篡改」类断言，保留「确定性输出正确」类断言。
+- [x] 同步删除 / 调整仅为验证 guard 而存在的单测（`test_preserve_tool_facts_*` 系列）。
+- [x] 更新 `scripts/wecom_employee_agent_probe_cases.py` 与 `scripts/check_wecom_employee_agent_callback.py`：去掉「验证润色不篡改」类断言，保留「确定性输出正确」类断言。
 
 **验收**：`grep -r preserve_tool_facts app/ tests/ scripts/` 无残留（或仅在被开关保护的路径下）；文件行数下降，pre-commit 通过。
 
@@ -134,10 +136,10 @@ ______________________________________________________________________
 
 ### 阶段 4：文档与证据收口（0.5 天）
 
-- [ ] 更新 [wecom-intelligent-bot-tools.md](./wecom-intelligent-bot-tools.md)，说明员工助手回复生成已改为确定性直出。
-- [ ] 在 `LOGBOOK.md` 记录本轮重构（背景、改动、验证、前后对比）。
-- [ ] 按 `yunxi-harness-engineering` 规范留档证据（测试结果、探针快照对比）。
-- [ ] README「企业微信集成」小节措辞如需调整则同步。
+- [x] 更新 [wecom-intelligent-bot-tools.md](./wecom-intelligent-bot-tools.md)，说明员工助手回复生成已改为确定性直出。
+- [x] 在 `LOGBOOK.md` 记录本轮重构（背景、改动、验证、前后对比）。
+- [x] 按 `yunxi-harness-engineering` 规范留档证据（测试结果、探针快照对比）。
+- [x] README「企业微信集成」小节措辞如需调整则同步。
 
 ______________________________________________________________________
 
