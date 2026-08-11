@@ -1,3 +1,13 @@
+## [2026-08-11] - fix(script): 修复检索日志文本报表 format 冲突
+
+- 操作人: AI (Codex)
+- trace_id: 20260811-a1-hybrid-retrieval-gray
+- 来源: 灰度观察期跑 `scripts/report_knowledge_retrieval_logs.py` 文本模式时，`print_text_report` 抛 `str.format() got multiple values for keyword argument 'query'`。
+- 变更: `scripts/report_knowledge_retrieval_logs.py` 的 `print_text_report` 中，`format(**item, query=query)` 因 `item` 已含脱敏后的 `query` 键而双传冲突；改为先 `row = dict(item)` 再覆盖 `row["query"] = query`，统一用 `format(**row)`。
+- 验证: `tests/scripts/test_report_knowledge_retrieval_logs.py` 4 项全过（pytest basetemp 临时切到 `D:\Temp` 绕过 C 盘 pytest 临时目录权限问题）；用含 hybrid 命中日志的 report 结构验证文本报表正常输出 `[182] ... hybrid count=5 fallback= query=`。
+- 结论: 文本报表可用，`--json` 不受影响。灰度观察命令恢复正常。
+- 生产版本: 未变更（0.109.23）。
+
 ## [2026-08-11] - ops(retrieval): A1 混合检索灰度上生产
 
 - 操作人: AI (Codex)

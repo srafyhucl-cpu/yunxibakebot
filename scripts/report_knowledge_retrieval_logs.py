@@ -69,11 +69,12 @@ def print_text_report(report: dict[str, object]) -> None:
     print("recent:")
     for item in report["recent_logs"][:10]:
         query = _truncate_text(str(item["query"]), TEXT_QUERY_MAX_LENGTH)
+        row = dict(item)
+        row["query"] = query
         print(
             "[{id}] {created_at} {bot_type}/{audience} {retrieval_mode} "
             "count={result_count} fallback={fallback_reason} query={query}".format(
-                **item,
-                query=query,
+                **row,
             )
         )
 
