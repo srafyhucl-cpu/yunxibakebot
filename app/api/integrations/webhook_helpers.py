@@ -91,6 +91,13 @@ def extract_business_fields(
     ):
         item_id = parse_item_id(payload, msg_obj)
         return YouzanWebhookBusinessType.ITEM, str(item_id or "")
+    from app.service.youzan.event_member import MEMBER_EVENT_TYPES
+
+    if event_type_lower in MEMBER_EVENT_TYPES:
+        return (
+            YouzanWebhookBusinessType.MEMBER,
+            str(msg_obj.get("mobile") or msg_obj.get("yz_open_id") or ""),
+        )
     if buyer_id:
         return YouzanWebhookBusinessType.CHAT, buyer_id
     return YouzanWebhookBusinessType.UNKNOWN, ""

@@ -50,6 +50,9 @@ REQUIRED_DATABASE_TABLES = (
     "miniapp_address_audit",
     "inbox_events",
     "customer_consent_ledger",
+    "member_balance",
+    "points_ledger",
+    "coupon_inventory",
 )
 REQUIRED_DATABASE_COLUMNS = {
     "knowledge_base": (

@@ -1,3 +1,22 @@
+## [2026-08-12] - feat(member): 会员储值/积分/优惠券账务域 M1 数据底座落地
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-member-loyalty-storedvalue
+- 来源: `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M1 数据底座）
+- 变更:
+  - v021 迁移新增 `member_balance` / `points_ledger` / `coupon_inventory` 三表与索引，已应用本地开发库（schema_version=21）。
+  - 新增 `app/models/member.py` 账务域模型与三个仓储（member_balance / points_ledger / coupon_inventory），UPSERT 采用「None 不更新、显式 0 覆盖」语义，避免默认值抹掉余额。
+  - 新增 `app/service/youzan/event_member.py`：处理 SCRM_CUSTOMER_EVENT / POINTS / COUPON_CUSTOMER_PROMOTION / SCRM_CUSTOMER_CARD 四类事件；POINTS 按 `unique_id` 去重，COUPON 按 `id+status+mobile` 去重并反查券详情补全券名面额；`event_handler.py` 新增路由分支；`webhook_helpers.py` 会员事件审计归类为 MEMBER。
+  - 新增 `app/service/youzan/member_api.py` 会员域 API 子客户端（积分/优惠券/券详情/会员卡）与 `member_helpers.py` 解析助手；`YouzanClient` 增加公开 `call_api` 入口供子客户端复用鉴权。
+  - 新增 `app/service/member_loyalty.py` 全量导入服务与 `scripts/import_member_loyalty.py`（dry-run / --apply / --limit / JSON 报告）。
+  - `app/readiness.py` 期望表清单纳入三张新表；`scripts/check_file_sizes.py` 为 event_member.py 补充职责评审记录。
+- 验证:
+  - 新增 7 项测试全过（`tests/service/test_member_accounting.py`）；全套测试 1348 passed，覆盖率 83.02%（`--basetemp` 绕开 C 盘 pytest 临时目录权限问题）。
+  - ruff 全绿；`check_file_sizes.py` 通过；`check_project.py --skip-tests` 质量门禁通过；本地库 v021 迁移应用成功。
+- 待办:
+  - 有赞会员域 API 名称/字段契约（积分/优惠券/会员卡）需真实店铺联调验证后再执行生产全量导入。
+  - M1.6 生产执行（schema 同步 + Webhook 生效）待用户确认部署窗口；计划书进度已同步。
+- 生产版本: 本地未部署（VERSION 0.110.0；下一提交为 feat，将自动递增至 0.111.0）。
 ## [2026-08-12] - docs(plan): 记录 openid 预导入收口与未识别客户策略决策
 
 - 操作人: AI (Codex)
@@ -13564,3 +13583,4 @@ ______________________________________________________________________
 - **验证结果**: readiness `ready`，`offline_review/offline_qa/offline_memory=false`；重启后 callback `61/61` 通过；inbox 状态 `processed=50`，无 `processing/failed/dead_letter`。
 - **结论**: R2-B 生产重启后的持久 inbox 状态正常，R3-A 离线外发关闭态正常。
 - **边界**: 未执行真实崩溃注入、主体删除请求或迁移；这些专项仍保留为未完成。
+

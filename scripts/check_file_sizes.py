@@ -64,6 +64,9 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
     "app/service/offline/agent_memory.py": (
         "本轮职责评审：画像抽取、LLM 修复重试、规则信号合并、consent 校验和画像写入共同维护同一份长期记忆事实合同；Runnable 仅替换模型调用边界，拆分会增加事实状态穿透，保留当前内聚边界。"
     ),
+    "app/service/youzan/event_member.py": (
+        "本轮职责评审：四类会员事件（客户/积分/优惠券/会员卡）共享同一账务域写入合同、幂等去重与审计标记；解析助手已外置 member_helpers，按事件类型拆分只会复制去重与审计胶水，保留当前内聚边界。"
+    ),
     "app/service/youzan/client.py": (
         "存量职责评审：有赞开放接口客户端可按 API 领域形成稳定子客户端，拆分不得复制鉴权和重试逻辑。"
     ),

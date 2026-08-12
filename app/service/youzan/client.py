@@ -165,6 +165,10 @@ class YouzanClient:
             raise APIError(f"有赞 API 响应异常 [{api_name}]: {result}")
         return result
 
+    async def call_api(self, api_name: str, version: str, params: dict) -> dict:
+        """公开的有赞 OpenAPI 调用入口，供领域子客户端复用鉴权逻辑。"""
+        return await self._call(api_name, version, params)
+
     async def send_reply(self, buyer_open_id: str, content: str) -> dict:
         """主动推送客服消息给买家。"""
         logger.info("有赞客服消息发送: buyer=%s", buyer_open_id)

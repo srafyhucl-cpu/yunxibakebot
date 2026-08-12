@@ -16,6 +16,7 @@ from app.models.youzan_webhook_event import (
 from app.repository.youzan_webhook_event_repo import YouzanWebhookEventRepo
 from app.service.youzan.client import YouzanClient
 from app.service.youzan.event_item import handle_item_event
+from app.service.youzan.event_member import MEMBER_EVENT_TYPES, handle_member_event
 from app.service.youzan.event_trade import handle_trade_event
 from app.service.youzan.webhook_payload import parse_item_id
 
@@ -128,6 +129,17 @@ class YouzanEventHandler:
                 msg_id=msg_id,
                 audit_repo=self._audit_repo,
                 audit_id=audit_id,
+            )
+        elif event_type_lower in MEMBER_EVENT_TYPES:
+            await handle_member_event(
+                db=self._db,
+                youzan_client=self._youzan_client,
+                event_type=event_type,
+                msg_obj=msg_obj,
+                updated_at_str=updated_at_str,
+                audit_repo=self._audit_repo,
+                audit_id=audit_id,
+                msg_id=msg_id,
             )
         elif event_type_lower == _SKU_STOCK_UPDATE_EVENT:
             item_id = parse_item_id(payload)

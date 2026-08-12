@@ -16,6 +16,7 @@ class YouzanWebhookBusinessType:
     TRADE = "trade"
     ITEM = "item"
     CHAT = "chat"
+    MEMBER = "member"
     UNKNOWN = "unknown"
 
 
