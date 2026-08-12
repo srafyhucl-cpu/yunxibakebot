@@ -1,3 +1,20 @@
+## [2026-08-12] - deploy(stored-value): M2 储值余额 v0.112.0 生产部署完成
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-member-loyalty-storedvalue
+- 来源: `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M2.6 生产执行）
+- 变更:
+  - 提交 `e6bc534`（feat(stored-value) M2 储值余额闭环），VERSION=0.112.0；origin/server 双远端 master 与 codex/r4c-ci-evidence 同步。
+  - 生产部署 v0.112.0 / `e6bc534` 到 `/opt/apps/yunxibakebot`：v022 迁移随启动自动应用（schema_version=22），`stored_value_recharge` / `balance_ledger` 两表落库（0 行）。
+  - 小程序充值/余额/余额支付/组合支付路由在生产生效（公网探测 401=路由已注册，鉴权前置正常）。
+- 验证:
+  - 服务器 worktree HEAD `e6bc534806`、VERSION 0.112.0；`systemctl is-active yunxibakebot` = active。
+  - `https://yunxifood.cn/health` 200；`/ready` ready（`database_schema_ready=true`、`youzan_production_mode_ready=true`、version=0.112.0）。
+  - 生产库 `MAX(version)`=22；两表 exists=1、rows=0（充值/支付未发生，符合预期）。
+- 待办:
+  - 真实微信支付（商户号到位后置）：组合支付差额走微信 JSAPI、支付通知与余额原路退款联调。
+  - M5 小程序前端（充值页/余额明细/结算页组合支付入口）按计划书排期。
+- 生产版本: 0.112.0（e6bc534）
 ## [2026-08-12] - feat(stored-value): M2 储值余额闭环本地落地（充值/余额支付/组合支付与退款）
 
 - 操作人: AI (Codex)

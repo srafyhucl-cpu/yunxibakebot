@@ -1,3 +1,16 @@
+## E-20260812-002：M2 会员储值余额 v0.112.0 生产部署
+
+- trace_id: 20260812-member-loyalty-storedvalue
+- generated_at: 2026-08-12
+- evidence_type: production/member-loyalty-m2-stored-value-release
+- file: `D:\Project\YunxiBakeBot\app\migrations\v022_member_stored_value.sql`；`D:\Project\YunxiBakeBot\app\service\stored_value\`；`D:\Project\YunxiBakeBot\app\api\channels\storefront\recharges.py`；`D:\Project\YunxiBakeBot\reports\harness\handoff-20260812-member-loyalty-m2.md`；生产 `/opt/apps/yunxibakebot/data/bot.db`
+- command: Git Bash `SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh`；生产 `systemctl is-active yunxibakebot`、`git -C /opt/apps/yunxibakebot rev-parse --short HEAD`、`cat /opt/apps/yunxibakebot/VERSION`、生产库 `SELECT MAX(version) FROM _schema_version` 与两表存在性/行数；公网 `curl https://yunxifood.cn/health`、`curl https://yunxifood.cn/ready`、`POST /api/v1/miniapp/recharges` 与 `GET /api/v1/miniapp/balance` 路由探测
+- result: pass
+- related_logbook: 2026-08-12 - deploy(stored-value): M2 储值余额 v0.112.0 生产部署完成
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录版本、commit、服务状态、健康检查、schema 版本与表存在性/行数；不包含会员余额、手机号、订单、token 或密钥。
+- summary: 提交 `e6bc534`（feat(stored-value) M2 储值余额闭环）并同步 origin/server 双远端 master 与 codex/r4c-ci-evidence；Git bundle 部署 v0.112.0 到 `/opt/apps/yunxibakebot`。验证：worktree HEAD `e6bc534806`、VERSION 0.112.0、systemd active、`/health` 200、`/ready` ready（`database_schema_ready=true`、version=0.112.0）、生产库 `_schema_version` max=22 且 `stored_value_recharge`/`balance_ledger` 两表 exists=1 rows=0。新路由公网探测 401（已注册、鉴权前置）。真实微信支付（商户号）后置，M5 前端待排期。
 ## E-20260812-001：M1 会员储值/积分/优惠券账务域 v0.111.0 生产部署
 
 - trace_id: 20260812-member-loyalty-storedvalue

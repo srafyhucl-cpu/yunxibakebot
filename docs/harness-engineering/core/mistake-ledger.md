@@ -46,6 +46,22 @@ ______________________________________________________________________
 - linked_trace: `20260812-member-loyalty-storedvalue`
 - linked_files: `scripts/sync_version.py`; `VERSION`; `.pre-commit-config.yaml`
 - next_time_signal: 任何含代码变更的提交前先 `git diff --cached VERSION`；feat/perf/refactor 提交使用 `VERSION_BUMP=minor` 强制递增。
+
+### M-20260812-002：提交被门禁拦下后重试导致 VERSION 双次递增
+
+- status: guarded
+- first_seen: 2026-08-12
+- severity: medium
+- symptom: M2 feat 提交第一次被 ruff-format 门禁拦下（pre-commit 已把 VERSION 0.111.0→0.112.0 并暂存），第二次直接重跑 `git commit` 时 sync_version 再次递增为 0.113.0，且第二次提交被 check-project 子脚本（report_langchain_observability_evidence --summary）偶发挂起，提交一直未落地。
+- root_cause: sync_version 每次按当前 VERSION 递增；被门禁阻断的提交只是中止，版本递增已生效；重试时未先核对 `git diff --cached VERSION`，导致在同一目标版本上连续两次递增。Windows 下 pre-commit 子进程偶发不退出（无超时脚本），进一步拖垮重试。
+- impact: 版本号偏离计划（0.112.0→0.113.0），若直接发布会污染版本语义；重试期间残留 pre-commit 进程占用钩子状态。
+- fix: 手工把 VERSION 与进度清单表头改回目标 0.112.0，重新暂存后以 `SKIP_VERSION_BUMP=1` 提交；先清理残留的 git/pre-commit/python 钩子进程再重试。
+- new_guardrail: 任何提交被门禁拦下后，重试前必须 `git diff --cached VERSION` 核对期望版本；若版本已被钩子递增且不再需要，用 `SKIP_VERSION_BUMP=1` 防二次递增；提交前确认无残留钩子进程（Get-Process git/pre-commit/python）。
+- verification: `e6bc534` 提交后 VERSION=0.112.0；生产部署核对服务器 VERSION 与 `/ready` version=0.112.0 一致。
+- linked_trace: `20260812-member-loyalty-storedvalue`
+- linked_files: `scripts/sync_version.py`; `VERSION`; `.pre-commit-config.yaml`
+- next_time_signal: 提交失败重试前自动核对暂存区 VERSION 目标；`git status` 出现 VERSION 已修改但提交失败时直接触发本条目检查。
+
 ## 条目模板
 
 ```markdown
