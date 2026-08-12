@@ -1,3 +1,17 @@
+## [2026-08-12] - docs(plan): 有赞开放平台客户 openid 预导入接入清单
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-youzan-openapi-customer-openid-access
+- 来源: 用户确认商家有赞小程序主体为商家、有赞为第三方授权（同 appid 替换接管路径）；商家侧已具备「微信粉丝查询 / 店铺客户信息同步 / 微信粉丝关联有赞用户」三个能力包；客户 CSV 全表扫描确认无 openid/unionid 字段。
+- 变更: 新增 `docs/architecture/youzan-openapi-customer-openid-access-runbook.md`，整理「有赞开放平台接入拿客户小程序 openid」的商家配合清单 + 技术接入步骤。
+- 关键结论（多方查证官方文档）:
+  - `youzan.users.info.query`（doc 2193）支持按 mobile 查询，`result_type_list=[2]` 返回微信小程序 openid（`platform_info.weixin_open_id`）与 unionid（`wechat_info.union_id`）。
+  - `youzan.scrm.customer.detail.get`（doc 1433）返回的是 yz_open_id（有赞统一 ID），非微信 openid，仅作辅助。
+  - 微信粉丝类接口（followers.info.search 等）只支持公众号粉丝，不支持小程序粉丝。
+  - access_token 走自用型无容器：POST open.youzanyun.com/auth/token（client_id/secret + grant_id=kdt_id），7 天有效。
+- 待办: 确认商家有赞开发者资质、API 计费额度后，写导入脚本预导入 `customer_identity_links`（miniapp_openid 类型）；替换后真实 openid 验证识别。
+- 生产版本: 未变更（0.109.23）。
+
 ## [2026-08-11] - ops(customer): customer master 质量收尾分析（保守：仅保留复核清单）
 
 - 操作人: AI (Codex)
