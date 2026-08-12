@@ -1,5 +1,9 @@
 """订单未支付关闭服务。"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from datetime import datetime, timedelta
 
 from app.models.order import Order, OrderStatus
@@ -7,6 +11,7 @@ from app.repository.order_repo import OrderRepo
 from app.service.order.inventory import OrderInventoryService
 from app.service.order.payment_state import (
     PAYMENT_STATUS_EXPIRED,
+    PAYMENT_STATUS_PARTIAL,
     PAYMENT_STATUS_UNPAID,
     PAYMENT_TIMEOUT_MINUTES,
     TIME_FORMAT,
@@ -16,6 +21,10 @@ from app.service.order.payment_state import (
     status_value,
 )
 from app.service.order.timeline import OrderTimelineService
+
+if TYPE_CHECKING:
+    from app.service.stored_value import StoredValueService
+
 
 ADMIN_EXPIRE_NOTE = "后台关闭未支付订单"
 SYSTEM_TIMEOUT_EXPIRE_NOTE = "未支付超时自动关闭"
@@ -29,10 +38,12 @@ class OrderExpirationService:
         order_repo: OrderRepo,
         inventory_service: OrderInventoryService,
         timeline_service: OrderTimelineService,
+        stored_value_service: StoredValueService | None = None,
     ) -> None:
         self._order_repo = order_repo
         self._inventory_service = inventory_service
         self._timeline_service = timeline_service
+        self._stored_value_service = stored_value_service
 
     async def expire_unpaid_order(self, order_id: str) -> dict:
         """后台手动关闭单笔未支付订单。"""
@@ -95,6 +106,7 @@ class OrderExpirationService:
         )
         if closed is None:
             return None
+        await self._refund_balance(closed)
         await self._inventory_service.release_reserved_inventory(
             self._inventory_service.items_from_order(closed)
         )
@@ -129,9 +141,15 @@ class OrderExpirationService:
         if status_value(order) == OrderStatus.CANCELLED.value:
             return False
         payment = loads_payment(order.payment)
-        return (
-            str(payment.get("status", PAYMENT_STATUS_UNPAID)) == PAYMENT_STATUS_UNPAID
+        return str(payment.get("status", PAYMENT_STATUS_UNPAID)) in (
+            PAYMENT_STATUS_UNPAID,
+            PAYMENT_STATUS_PARTIAL,
         )
+
+    async def _refund_balance(self, order: Order) -> None:
+        """组合支付超时关闭时原路退回已扣储值余额。"""
+        if self._stored_value_service is not None:
+            await self._stored_value_service.refund_order_balance(order)
 
     async def _serialize_order(self, order_id: str) -> dict:
         order = await self._order_repo.get_order(order_id)

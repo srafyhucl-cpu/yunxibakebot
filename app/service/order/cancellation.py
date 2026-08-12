@@ -1,5 +1,9 @@
 """订单取消领域服务。"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from datetime import datetime
 
 from app.constants.storefront import STOREFRONT_DEMO_USER_ID
@@ -8,6 +12,10 @@ from app.repository.order_repo import OrderRepo
 from app.service.order.inventory import OrderInventoryService
 from app.service.order.payment_state import PAYMENT_STATUS_PAID, payment_status_value
 from app.service.order.timeline import OrderTimelineService
+
+if TYPE_CHECKING:
+    from app.service.stored_value import StoredValueService
+
 
 USER_CANCELABLE_STATUSES = {
     OrderStatus.PENDING.value,
@@ -23,10 +31,12 @@ class OrderCancellationService:
         order_repo: OrderRepo,
         inventory_service: OrderInventoryService,
         timeline_service: OrderTimelineService,
+        stored_value_service: StoredValueService | None = None,
     ) -> None:
         self._order_repo = order_repo
         self._inventory_service = inventory_service
         self._timeline_service = timeline_service
+        self._stored_value_service = stored_value_service
 
     async def cancel_user_order(
         self,
@@ -51,6 +61,7 @@ class OrderCancellationService:
             if payment_status_value(latest) == PAYMENT_STATUS_PAID:
                 raise ValueError("已支付订单不允许取消")
             raise ValueError("当前订单状态不允许用户取消")
+        await self._refund_balance(updated)
         await self._timeline_service.record_event(
             order_id=order_id,
             status=OrderStatus.CANCELLED.value,
@@ -72,6 +83,11 @@ class OrderCancellationService:
             order_id,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
+
+    async def _refund_balance(self, order: Order) -> None:
+        """组合支付取消时原路退回已扣储值余额。"""
+        if self._stored_value_service is not None:
+            await self._stored_value_service.refund_order_balance(order)
 
     async def _release_inventory(self, order: Order) -> None:
         await self._inventory_service.release_reserved_inventory(

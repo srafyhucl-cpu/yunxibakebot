@@ -1,5 +1,9 @@
 """订单领域应用服务。"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from app.constants.storefront import STOREFRONT_DEMO_USER_ID
 from app.repository.order_event_repo import OrderEventRepo
 from app.repository.order_repo import OrderRepo
@@ -24,6 +28,10 @@ from app.service.order.status_flow import OrderAdminStatusService
 from app.service.order.timeline import OrderTimelineService
 from app.service.shop_operations import ShopOperationsService
 
+if TYPE_CHECKING:
+    from app.service.stored_value import StoredValueService
+
+
 DEFAULT_PAGE_SIZE = 30
 
 
@@ -38,6 +46,7 @@ class OrderApplicationService:
         inventory_repo: YouzanInventoryRepo,
         config_repo: ConfigRepo,
         event_repo: OrderEventRepo | None = None,
+        stored_value_service: StoredValueService | None = None,
     ) -> None:
         self._order_repo = order_repo
         self._serialization_service = OrderSerializationService()
@@ -63,16 +72,19 @@ class OrderApplicationService:
             order_repo=order_repo,
             inventory_service=inventory_service,
             timeline_service=self._timeline_service,
+            stored_value_service=stored_value_service,
         )
         self._admin_status_service = OrderAdminStatusService(
             order_repo=order_repo,
             inventory_service=inventory_service,
             timeline_service=self._timeline_service,
+            stored_value_service=stored_value_service,
         )
         self._expiration_service = OrderExpirationService(
             order_repo=order_repo,
             inventory_service=inventory_service,
             timeline_service=self._timeline_service,
+            stored_value_service=stored_value_service,
         )
 
     async def create_order(

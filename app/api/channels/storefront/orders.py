@@ -1,6 +1,8 @@
 """前台订单 API 路由。"""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
@@ -10,8 +12,14 @@ from app.api.channels.storefront._user import (
 )
 from app.service.order import OrderApplicationService
 
+if TYPE_CHECKING:
+    from app.service.stored_value import StoredValueService
 
-def create_storefront_orders_router(service: OrderApplicationService) -> APIRouter:
+
+def create_storefront_orders_router(
+    service: OrderApplicationService,
+    stored_value_service: StoredValueService | None = None,
+) -> APIRouter:
     """创建前台订单公开路由。"""
     router = APIRouter(
         prefix="/api/v1/miniapp/orders",
@@ -87,6 +95,44 @@ def create_storefront_orders_router(service: OrderApplicationService) -> APIRout
             status_code = 404 if message == "订单不存在" else 400
             raise HTTPException(status_code=status_code, detail=message) from exc
         return {"code": 0, "data": order}
+
+    @router.post("/{order_id}/pay-with-balance")
+    async def pay_order_with_balance(
+        order_id: str,
+        x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
+    ) -> dict[str, Any]:
+        if stored_value_service is None:
+            raise HTTPException(status_code=400, detail="储值支付未启用")
+        try:
+            payment = await stored_value_service.pay_order_with_balance(
+                order_id,
+                user_id=require_storefront_user_id(x_miniapp_user_id),
+            )
+        except ValueError as exc:
+            message = str(exc)
+            status_code = 404 if message == "订单不存在" else 400
+            raise HTTPException(status_code=status_code, detail=message) from exc
+        return {"code": 0, "data": payment}
+
+    @router.post("/{order_id}/prepare-combined-payment")
+    async def prepare_combined_payment(
+        order_id: str,
+        payload: dict[str, Any],
+        x_miniapp_user_id: str | None = Header(default=None, alias="x-miniapp-user-id"),
+    ) -> dict[str, Any]:
+        if stored_value_service is None:
+            raise HTTPException(status_code=400, detail="储值支付未启用")
+        try:
+            payment = await stored_value_service.prepare_combined_payment(
+                order_id,
+                user_id=require_storefront_user_id(x_miniapp_user_id),
+                balance_fen=int(payload.get("balanceFen", 0)),
+            )
+        except ValueError as exc:
+            message = str(exc)
+            status_code = 404 if message == "订单不存在" else 400
+            raise HTTPException(status_code=status_code, detail=message) from exc
+        return {"code": 0, "data": payment}
 
     @router.post("/{order_id}/prepare-payment")
     async def prepare_payment(

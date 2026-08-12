@@ -53,6 +53,8 @@ REQUIRED_DATABASE_TABLES = (
     "member_balance",
     "points_ledger",
     "coupon_inventory",
+    "stored_value_recharge",
+    "balance_ledger",
 )
 REQUIRED_DATABASE_COLUMNS = {
     "knowledge_base": (

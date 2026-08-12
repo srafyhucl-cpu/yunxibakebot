@@ -117,3 +117,44 @@ class MemberBalanceRepo(BaseRepository):
                 ),
             )
         await self._db.commit()
+
+    async def get_stored_value_fen(self, mobile: str) -> int:
+        """读取会员储值余额（分），账户不存在返回 0。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT stored_value_fen FROM member_balance WHERE mobile = ? LIMIT 1",
+            (mobile,),
+        )
+        return int(rows[0]["stored_value_fen"]) if rows else 0
+
+    async def credit_stored_value(self, mobile: str, amount_fen: int) -> int:
+        """为会员储值余额加款（充值/退款），返回加款后余额。"""
+        now = now_str()
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET stored_value_fen = stored_value_fen + ?, "
+            "updated_at = ? WHERE mobile = ?",
+            (amount_fen, now, mobile),
+        )
+        if cursor.rowcount != 1:
+            await self._db.execute(
+                "INSERT INTO member_balance (mobile, stored_value_fen, created_at, "
+                "updated_at) VALUES (?, ?, ?, ?)",
+                (mobile, amount_fen, now, now),
+            )
+        rows = await self._db.execute_fetchall(
+            "SELECT stored_value_fen FROM member_balance WHERE mobile = ? LIMIT 1",
+            (mobile,),
+        )
+        return int(rows[0]["stored_value_fen"]) if rows else amount_fen
+
+    async def deduct_stored_value_if_sufficient(
+        self,
+        mobile: str,
+        amount_fen: int,
+    ) -> bool:
+        """原子扣减储值余额，余额不足时不扣减。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET stored_value_fen = stored_value_fen - ?, "
+            "updated_at = ? WHERE mobile = ? AND stored_value_fen >= ?",
+            (amount_fen, now_str(), mobile, amount_fen),
+        )
+        return bool(cursor.rowcount == 1)

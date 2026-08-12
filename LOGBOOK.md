@@ -1,3 +1,21 @@
+## [2026-08-12] - feat(stored-value): M2 储值余额闭环本地落地（充值/余额支付/组合支付与退款）
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-member-loyalty-storedvalue
+- 来源: `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M2）
+- 变更:
+  - v022 迁移新增 `stored_value_recharge` / `balance_ledger` 两表（unique_id 幂等、amount_fen 带符号），已应用本地开发库（schema_version=22）。
+  - 新增 `app/service/stored_value/` 域（member/recharge/payment + StoredValueService 门面）与 `app/api/channels/storefront/recharges.py`（充值/余额端点）；`orders.py` 新增余额支付/组合支付端点。
+  - 订单支付域支持 partial 中间态：`payment_state.py` 新增 PARTIAL/COMBINED/BALANCE 常量与构造器；mock 支付与微信通知均可从 partial 完成支付；取消/超时/后台取消按 `payment.balanceFen` 原路退回（`order_refund:<order_id>` 幂等）。
+  - 修复 `stored_value ↔ order` 循环导入（TYPE_CHECKING + `from __future__ import annotations`）；组合支付差额走微信时按 `remainFen` 校验通知金额。
+  - 新增边界测试：全额余额支付不可取消/不退款、组合支付重复准备拒绝与 mock 确认幂等、微信差额通知金额校验；储值域共 14 项。
+- 验证:
+  - 储值域 14 项全过；全套 1365 项通过（含 tests/scripts，分片跑避开环境偶发假死），覆盖率 82.54%；ruff / check_file_sizes / check_project --skip-tests 全绿。
+  - 本地库 v022 迁移应用成功（schema_version=22，两表 exists=1）。
+- 待办:
+  - 真实微信支付（商户号到位后置）：组合支付差额走微信 JSAPI、支付通知与余额原路退款。
+  - M5 小程序前端：充值页/余额明细/结算页组合支付入口。
+- 生产版本: 本地未部署（VERSION 0.111.0；下一提交为 feat，将自动递增至 0.112.0）。
 ## [2026-08-12] - deploy(member): M1 会员账务域 v0.111.0 生产部署完成
 
 - 操作人: AI (Codex)

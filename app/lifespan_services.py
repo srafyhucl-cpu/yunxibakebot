@@ -94,6 +94,9 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         config_repo=repos["config_repo"],
         youzan_product_repo=repos["youzan_product_repo"],
     )
+    from app.service.stored_value import StoredValueService
+
+    stored_value_service = StoredValueService()
     order_service = OrderApplicationService(
         order_repo=repos["order_repo"],
         event_repo=repos["order_event_repo"],
@@ -101,6 +104,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         product_repo=repos["youzan_product_repo"],
         inventory_repo=repos["youzan_inventory_repo"],
         config_repo=repos["config_repo"],
+        stored_value_service=stored_value_service,
     )
     customer_address_service = CustomerAddressService(
         address_repo=repos["customer_address_repo"],
@@ -195,6 +199,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "storefront_auth_service": storefront_auth_service,
         "catalog_service": catalog_service,
         "order_service": order_service,
+        "stored_value_service": stored_value_service,
         "customer_address_service": customer_address_service,
         "customer_group_service": customer_group_service,
         "customer_consent_service": customer_consent_service,

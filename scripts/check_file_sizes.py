@@ -92,6 +92,9 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
     "app/repository/youzan_order_repo.py": (
         "本轮职责评审：有赞订单读取、订单事件幂等和履约字段回写共享订单数据所有权与事务连接；拆分会重复状态映射和唯一性约束。保留当前内聚边界，后续按稳定的订单读取/事件写入合同拆分。"
     ),
+    "app/repository/order_repo.py": (
+        "本轮职责评审：订单仓储保持原子条件更新内聚，新增组合支付中间态条件写入（partial/unpaid 双态流转）与既有 unpaid 单态写入共享同一 PAYMENT_STATUS_SQL 合同；按支付状态拆方法只会复制 WHERE 条件与回读胶水，保留当前内聚边界。"
+    ),
     "app/main.py": (
         "存量职责评审：应用入口集中管理 lifespan、repository/service 装配和运行时路由，"
         "本轮仅增加 readiness Response 注入，不新增独立业务职责；禁止为单行超线机械拆分。"

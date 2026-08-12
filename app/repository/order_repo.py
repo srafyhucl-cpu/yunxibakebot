@@ -73,7 +73,7 @@ class OrderRepo(BaseRepository):
         cursor = await self._db.execute(
             "UPDATE orders SET status = ?, updated_at = ? "
             "WHERE id = ? AND status IN ('pending', 'confirmed') "
-            "AND " + PAYMENT_STATUS_SQL + " = 'unpaid'",
+            "AND " + PAYMENT_STATUS_SQL + " IN ('unpaid', 'partial')",
             (OrderStatus.CANCELLED.value, updated_at, order_id),
         )
         if cursor.rowcount != 1:
@@ -105,6 +105,42 @@ class OrderRepo(BaseRepository):
             return None
         return await self.get_order(order_id)
 
+    async def update_payment_to_partial_if_unpaid_active(
+        self,
+        order_id: str,
+        payment: str,
+        updated_at: str,
+    ) -> Order | None:
+        """原子把未支付订单写入组合支付中间态（余额部分已扣）。"""
+        cursor = await self._db.execute(
+            "UPDATE orders SET payment = ?, updated_at = ? "
+            "WHERE id = ? AND status != 'cancelled' AND "
+            + PAYMENT_STATUS_SQL
+            + " = 'unpaid'",
+            (payment, updated_at, order_id),
+        )
+        if cursor.rowcount != 1:
+            return None
+        return await self.get_order(order_id)
+
+    async def update_payment_to_paid_if_unpaid_or_partial_active(
+        self,
+        order_id: str,
+        payment: str,
+        updated_at: str,
+    ) -> Order | None:
+        """原子完成支付：未支付或组合支付中间态均可流转到已支付。"""
+        cursor = await self._db.execute(
+            "UPDATE orders SET payment = ?, updated_at = ? "
+            "WHERE id = ? AND status != 'cancelled' AND "
+            + PAYMENT_STATUS_SQL
+            + " IN ('unpaid', 'partial')",
+            (payment, updated_at, order_id),
+        )
+        if cursor.rowcount != 1:
+            return None
+        return await self.get_order(order_id)
+
     async def close_unpaid_order(
         self, order_id: str, payment: str, updated_at: str
     ) -> Order | None:
@@ -113,7 +149,7 @@ class OrderRepo(BaseRepository):
             "UPDATE orders SET payment = ?, status = ?, updated_at = ? "
             "WHERE id = ? AND status != 'cancelled' AND "
             + PAYMENT_STATUS_SQL
-            + " = 'unpaid'",
+            + " IN ('unpaid', 'partial')",
             (
                 payment,
                 OrderStatus.CANCELLED.value,

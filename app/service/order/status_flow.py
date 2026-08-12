@@ -1,5 +1,9 @@
 """订单后台状态流转服务。"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from datetime import datetime
 
 from app.models.order import Order, OrderStatus
@@ -7,6 +11,10 @@ from app.repository.order_repo import OrderRepo
 from app.service.order.inventory import OrderInventoryService
 from app.service.order.payment_state import PAYMENT_STATUS_PAID, payment_status_value
 from app.service.order.timeline import OrderTimelineService
+
+if TYPE_CHECKING:
+    from app.service.stored_value import StoredValueService
+
 
 ADMIN_ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     OrderStatus.PENDING.value: {
@@ -41,10 +49,12 @@ class OrderAdminStatusService:
         order_repo: OrderRepo,
         inventory_service: OrderInventoryService,
         timeline_service: OrderTimelineService,
+        stored_value_service: StoredValueService | None = None,
     ) -> None:
         self._order_repo = order_repo
         self._inventory_service = inventory_service
         self._timeline_service = timeline_service
+        self._stored_value_service = stored_value_service
 
     async def update_admin_order_status(self, order_id: str, status: str) -> dict:
         """后台更新订单履约状态。"""
@@ -64,6 +74,7 @@ class OrderAdminStatusService:
                 if payment_status_value(latest) == PAYMENT_STATUS_PAID:
                     raise ValueError("已支付订单不允许取消")
                 raise ValueError("当前订单状态不允许切换到目标状态")
+            await self._refund_balance(updated)
         else:
             updated = await self._update_status(order_id, target_status)
         await self._release_inventory_if_needed(updated, target_status)
@@ -110,6 +121,11 @@ class OrderAdminStatusService:
             order_id,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
+
+    async def _refund_balance(self, order: Order) -> None:
+        """后台取消组合支付订单时原路退回已扣储值余额。"""
+        if self._stored_value_service is not None:
+            await self._stored_value_service.refund_order_balance(order)
 
     async def _release_inventory_if_needed(
         self,

@@ -161,7 +161,22 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     _install_module(
         monkeypatch,
         "app.api.channels.storefront.orders",
-        create_storefront_orders_router=lambda service: ("miniapp-orders", service),
+        create_storefront_orders_router=lambda service, stored_value_service=None: (
+            "miniapp-orders",
+            service,
+        ),
+    )
+    _install_module(
+        monkeypatch,
+        "app.api.channels.storefront.recharges",
+        create_storefront_recharges_router=lambda service: (
+            "miniapp-recharges",
+            service,
+        ),
+        create_storefront_balance_router=lambda service: (
+            "miniapp-balance",
+            service,
+        ),
     )
     _install_module(
         monkeypatch,
@@ -233,6 +248,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "customer_address_service": "customer-address-service",
         "catalog_service": "catalog-service",
         "order_service": "order-service",
+        "stored_value_service": "stored-value-service",
         "knowledge_retriever": "knowledge-retriever",
         "storefront_conversation_service": "storefront-conversation-service",
         "customer_group_service": "customer-group-service",
@@ -247,7 +263,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
 
     assert wecom_queue.started_with == ["chat"]
     assert kf_queue.started_with == ["chat"]
-    assert len(app.included_routers) == 23
+    assert len(app.included_routers) == 25
     assert app.included_routers[0] == ("webhook", "chat")
     wecom_router = app.included_routers[-2]
     assert wecom_router[0] == "wecom-intelligent-bot-router"
@@ -340,6 +356,10 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         def __init__(self, **kwargs: Any) -> None:
             created["order_service"] = kwargs
 
+    class FakeStoredValueService:
+        def __init__(self) -> None:
+            created["stored_value_service"] = True
+
     class FakeStorefrontConversationService:
         def __init__(self, **kwargs: Any) -> None:
             created["storefront_conversation_service"] = kwargs
@@ -409,6 +429,11 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         monkeypatch,
         "app.service.order",
         OrderApplicationService=FakeOrderApplicationService,
+    )
+    _install_module(
+        monkeypatch,
+        "app.service.stored_value",
+        StoredValueService=FakeStoredValueService,
     )
     _install_module(
         monkeypatch,
@@ -483,6 +508,7 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "privacy_lifecycle_service",
         "catalog_service",
         "order_service",
+        "stored_value_service",
         "storefront_conversation_service",
         "wecom_order_lookup_service",
         "transfer_mgr",

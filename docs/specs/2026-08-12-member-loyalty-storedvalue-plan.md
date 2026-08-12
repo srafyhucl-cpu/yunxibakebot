@@ -77,6 +77,16 @@
 - 1.6 ✅ 本地验证 + 生产执行完成：部署 v0.111.0（ecffa3b），v021 三表落库（schema_version=21）、/ready database_schema_ready=true、Webhook 会员路由生效；生产全量导入待真实店铺 API 契约验证后执行
 
 ### M1 关键决策
+### M2 执行记录（2026-08-12）
+
+- 模型/仓储 ✅ v022 迁移新增 `stored_value_recharge`（unpaid/paid/cancelled/expired）+ `balance_ledger`（unique_id 幂等、amount_fen 带符号）；`app/models/stored_value.py`、`app/constants/stored_value.py`（单笔 100~50000 分）
+- 充值 Service ✅ `app/service/stored_value/recharge.py`：创建/取消/mock 确认幂等入账（`recharge:<id>` 幂等键）/列表；`member.py` 身份解析（openid→identity_links→primary_phone）+ credit/deduct 原子记账
+- 储值支付+组合支付 ✅ `app/service/stored_value/payment.py`：全额余额支付防超扣（原子扣款+条件更新）；组合支付先扣余额置 partial（balanceFen/remainFen）再返回差额 mock/微信会话；取消/超时/后台取消按 `payment.balanceFen` 原路退款（`order_refund:<order_id>` 幂等）
+- 小程序 API ✅ `recharges.py`（充值/余额端点）+ `orders.py`（pay-with-balance / prepare-combined-payment）；既有 `POST /{order_id}/mock-pay` 支持从 partial 完成支付
+- 边界修复 ✅ 消除 `stored_value ↔ order` 循环导入（TYPE_CHECKING + `from __future__ import annotations`）；组合支付差额走微信时按 `remainFen` 校验通知金额；余额全额支付订单不可取消/不退款
+- 验证 ✅ 储值域 14 项测试全过；全套 1365 项通过（含 tests/scripts），覆盖率 82.54%；ruff / check_file_sizes / check_project --skip-tests 全绿；本地库 v022 已应用（schema_version=22）
+- 待办 ⏳ 真实微信支付（商户号到位后）：组合支付差额走微信 JSAPI、支付通知与余额原路退款；M5 小程序前端（充值页/余额明细/结算页组合支付入口）
+
 
 - POINTS 去重键 `unique_id`；COUPON 去重键 `id+status+mobile`（状态流转写多行，符合生命周期记录语义）
 - `member_balance.upsert_identity` 采用「None 不更新、显式 0 覆盖」，防止卡片/身份事件抹掉积分余额

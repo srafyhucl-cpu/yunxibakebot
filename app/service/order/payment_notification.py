@@ -10,6 +10,7 @@ from app.service.order.payment_state import (
     PAYMENT_METHOD_WECHAT,
     PAYMENT_STATUS_EXPIRED,
     PAYMENT_STATUS_PAID,
+    PAYMENT_STATUS_PARTIAL,
     PAYMENT_STATUS_UNPAID,
     dumps_payment,
     loads_payment,
@@ -52,6 +53,12 @@ class WechatPaymentNotificationService:
             expected_fen = int(Decimal(str(order.total_amount)) * 100)
         except (InvalidOperation, ValueError):
             raise ValueError("订单金额无效") from None
+        payment = loads_payment(order.payment)
+        if str(payment.get("status", PAYMENT_STATUS_UNPAID)) == PAYMENT_STATUS_PARTIAL:
+            remain_fen = int(payment.get("remainFen", 0) or 0)
+            if remain_fen <= 0 or remain_fen >= expected_fen:
+                raise ValueError("组合支付差额金额无效")
+            expected_fen = remain_fen
         if total_fen != expected_fen:
             raise ValueError("微信支付通知金额不匹配")
 
@@ -78,17 +85,29 @@ class WechatPaymentNotificationService:
             raise ValueError("订单支付已超时")
         if not transaction_id:
             raise ValueError("微信支付通知缺少交易号")
-        payment.update(
-            {
-                "status": PAYMENT_STATUS_PAID,
-                "method": PAYMENT_METHOD_WECHAT,
-                "paidAt": paid_at or now_text(),
-                "transactionId": transaction_id,
-            }
-        )
-        updated = await self._order_repo.update_payment_if_unpaid_active(
-            order.id, dumps_payment(payment), payment["paidAt"]
-        )
+        if payment_status == PAYMENT_STATUS_PARTIAL:
+            payment.update(
+                {
+                    "status": PAYMENT_STATUS_PAID,
+                    "paidAt": paid_at or now_text(),
+                    "transactionId": transaction_id,
+                }
+            )
+            updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
+                order.id, dumps_payment(payment), payment["paidAt"]
+            )
+        else:
+            payment.update(
+                {
+                    "status": PAYMENT_STATUS_PAID,
+                    "method": PAYMENT_METHOD_WECHAT,
+                    "paidAt": paid_at or now_text(),
+                    "transactionId": transaction_id,
+                }
+            )
+            updated = await self._order_repo.update_payment_if_unpaid_active(
+                order.id, dumps_payment(payment), payment["paidAt"]
+            )
         if updated is None:
             latest = await self._order_repo.get_order(order.id)
             if latest is None:

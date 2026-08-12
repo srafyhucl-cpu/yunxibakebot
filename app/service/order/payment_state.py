@@ -10,8 +10,11 @@ from app.models.order import Order
 PAYMENT_STATUS_UNPAID = "unpaid"
 PAYMENT_STATUS_PAID = "paid"
 PAYMENT_STATUS_EXPIRED = "expired"
+PAYMENT_STATUS_PARTIAL = "partial"
 PAYMENT_METHOD_MOCK = "mock"
 PAYMENT_METHOD_WECHAT = "wechat"
+PAYMENT_METHOD_BALANCE = "balance"
+PAYMENT_METHOD_COMBINED = "combined"
 PAYMENT_MODE_MOCK = "mock"
 PAYMENT_MODE_WECHAT = "wechat"
 PAYMENT_TIMEOUT_MINUTES = 30
@@ -38,6 +41,35 @@ def build_initial_payment(now_text: str) -> dict:
         "expiredAt": "",
         "expiredReason": "",
         "createdAt": now_text,
+    }
+
+
+def build_balance_payment(now_text_value: str, balance_fen: int) -> dict:
+    """构建全额储值余额支付状态。"""
+    return {
+        "status": PAYMENT_STATUS_PAID,
+        "method": PAYMENT_METHOD_BALANCE,
+        "balanceFen": balance_fen,
+        "paidAt": now_text_value,
+        "expiredAt": "",
+        "expiredReason": "",
+        "createdAt": now_text_value,
+    }
+
+
+def build_combined_payment(
+    now_text_value: str, balance_fen: int, remain_fen: int
+) -> dict:
+    """构建组合支付中间状态（余额部分已扣，差额待付）。"""
+    return {
+        "status": PAYMENT_STATUS_PARTIAL,
+        "method": PAYMENT_METHOD_COMBINED,
+        "balanceFen": balance_fen,
+        "remainFen": remain_fen,
+        "paidAt": "",
+        "expiredAt": "",
+        "expiredReason": "",
+        "createdAt": now_text_value,
     }
 
 
@@ -138,10 +170,13 @@ __all__ = [
     "PAYMENT_MODE_WECHAT",
     "PAYMENT_STATUS_EXPIRED",
     "PAYMENT_STATUS_PAID",
+    "PAYMENT_STATUS_PARTIAL",
     "PAYMENT_STATUS_UNPAID",
     "PAYMENT_TIMEOUT_MINUTES",
     "PaymentSession",
     "TIME_FORMAT",
+    "build_balance_payment",
+    "build_combined_payment",
     "build_initial_payment",
     "build_mock_payment_session",
     "build_order_description",

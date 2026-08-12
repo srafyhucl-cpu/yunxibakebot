@@ -23,6 +23,10 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.channels.storefront.orders import create_storefront_orders_router
     from app.api.channels.storefront.privacy import create_storefront_privacy_router
     from app.api.channels.storefront.payments import create_storefront_payments_router
+    from app.api.channels.storefront.recharges import (
+        create_storefront_balance_router,
+        create_storefront_recharges_router,
+    )
     from app.api.integrations.wecom import router as wecom_router
     from app.api.integrations.wecom_intelligent_bot import (
         create_wecom_intelligent_bot_router,
@@ -43,7 +47,12 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
         create_storefront_addresses_router(services["customer_address_service"])
     )
     app.include_router(create_storefront_catalog_router(services["catalog_service"]))
-    app.include_router(create_storefront_orders_router(services["order_service"]))
+    app.include_router(
+        create_storefront_orders_router(
+            services["order_service"],
+            stored_value_service=services.get("stored_value_service"),
+        )
+    )
     app.include_router(
         create_storefront_privacy_router(
             services["customer_consent_service"],
@@ -51,6 +60,12 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
         )
     )
     app.include_router(create_storefront_payments_router(services["order_service"]))
+    app.include_router(
+        create_storefront_recharges_router(services["stored_value_service"])
+    )
+    app.include_router(
+        create_storefront_balance_router(services["stored_value_service"])
+    )
     app.include_router(
         create_storefront_chat_router(services["storefront_conversation_service"])
     )

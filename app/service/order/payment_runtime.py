@@ -18,6 +18,7 @@ from app.service.order.payment_state import (
     PAYMENT_MODE_WECHAT,
     PAYMENT_STATUS_EXPIRED,
     PAYMENT_STATUS_PAID,
+    PAYMENT_STATUS_PARTIAL,
     PAYMENT_STATUS_UNPAID,
     PaymentSession,
     build_initial_payment,
@@ -70,6 +71,8 @@ class OrderPaymentRuntimeService:
             )
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
+        if payment_status == PAYMENT_STATUS_PARTIAL:
+            raise ValueError("订单已部分支付，请完成剩余支付")
         if not self._wechat_pay_ready():
             if not settings.ALLOW_MOCK_PAYMENT:
                 raise ValueError("微信支付未配置，生产环境不提供 mock 支付")
@@ -99,16 +102,27 @@ class OrderPaymentRuntimeService:
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
         now = now_text()
-        payment.update(
-            {
-                "status": PAYMENT_STATUS_PAID,
-                "method": PAYMENT_METHOD_MOCK,
-                "paidAt": now,
-            }
-        )
-        updated = await self._order_repo.update_payment_if_unpaid_active(
-            order.id, dumps_payment(payment), now
-        )
+        if payment_status == PAYMENT_STATUS_PARTIAL:
+            payment.update(
+                {
+                    "status": PAYMENT_STATUS_PAID,
+                    "paidAt": now,
+                }
+            )
+            updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
+                order.id, dumps_payment(payment), now
+            )
+        else:
+            payment.update(
+                {
+                    "status": PAYMENT_STATUS_PAID,
+                    "method": PAYMENT_METHOD_MOCK,
+                    "paidAt": now,
+                }
+            )
+            updated = await self._order_repo.update_payment_if_unpaid_active(
+                order.id, dumps_payment(payment), now
+            )
         if updated is None:
             latest = await self._order_repo.get_order(order.id)
             if latest is None:
