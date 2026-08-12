@@ -1,3 +1,15 @@
+## [2026-08-12] - docs(plan): 有赞 openid 预导入生产执行完成
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-youzan-openapi-customer-openid-access
+- 变更: 部署 0.110.0（c4faf22）到生产；生产小批 + 全量执行 openid 预导入，写入 customer_identity_links（miniapp_openid）。
+- 验证:
+  - 生产 /health /ready 200（0.110.0）；systemd active；生产 .env 凭证齐全，youzan_production_mode_ready=true，mock 关闭。
+  - 生产全量命中率 73.87%（10,007/13,547 命中、0 失败、4 skip-linked），累计链接 10,011 条；重复 openid=0、同一客户多条=0、孤儿=0。
+  - 导入前备份 /opt/backups/yunxibakebot/bot_before_openid_preimport_20260812.db（integrity ok）。
+- 待办: 同 appid 替换后真实 openid 识别验证（客户打开小程序命中主档）。
+- 生产版本: 0.110.0（本轮生产已部署）。
+
 ## [2026-08-12] - fix(customer): 修复有赞用户查询 result_type_list 传参并完成本地全量预导入验证
 
 - 操作人: AI (Codex)
