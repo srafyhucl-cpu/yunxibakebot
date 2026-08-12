@@ -25,6 +25,7 @@ YOUZAN_GOODS_H5_BASE_URL = settings.YOUZAN_GOODS_H5_BASE_URL
 TOKEN_REFRESH_MARGIN = 300  # 提前 5 分钟刷新（秒）
 DEFAULT_TOKEN_EXPIRES_SECONDS = 172_800  # 有赞 token 默认有效期（48 小时）
 MOCK_TOKEN_EXPIRES_SECONDS = 86_400  # Mock 模式 token 有效期（24 小时）
+USER_QUERY_RESULT_TYPE_MINIAPP = 2  # 用户查询返回结果类型：微信小程序
 
 
 class YouzanClient:
@@ -208,7 +209,7 @@ class YouzanClient:
         return await self._call(
             "youzan.users.info.query",
             "1.0.0",
-            {"mobile": mobile, "result_type_list": "[2]"},
+            {"mobile": mobile, "result_type_list": [USER_QUERY_RESULT_TYPE_MINIAPP]},
         )
 
     async def get_logistics(self, order_no: str) -> dict:

@@ -1,7 +1,7 @@
 # 有赞开放平台接入：客户小程序 openid 预导入（接管前置）
 
 > trace_id: `20260812-youzan-openapi-customer-openid-access`
-> 状态: 待执行（商家侧条件已确认，技术侧待接入）
+> 状态: 本地全量预导入验证已完成（命中率 73.87%），待生产执行
 > 关联: customer master v1 正式导入（E-20260811-002）、有赞小程序同 appid 替换接管
 
 ## 背景与目标
@@ -26,6 +26,7 @@
 5. 确认能力包（已具备）：微信粉丝查询、店铺客户信息同步、微信粉丝关联有赞用户。
 6. 确认 API **计费**与免费额度（`youzan.users.info.query` 标注“是否计费：是”）。
 7. 将 `client_id` / `client_secret` / `kdt_id` 交给开发者；凭证走环境变量，**不入库、不入仓、日志脱敏**。
+8. 在应用中心控制台配置 **IP 白名单**（调用方公网 IP，含本机/生产服务器）。白名单未配置时：不带 `kdt_id` 的调用会被网关**静默返回空 `user_list`**，带 `kdt_id` 的调用返回 `4007 源IP地址非法调用`。
 
 ## 二、技术接入步骤
 
@@ -53,6 +54,8 @@ POST https://open.youzanyun.com/api/youzan.users.info.query/1.0.0?access_token=<
 ```
 
 - 入参（按手机号查）：`mobile=138xxxx`、`result_type_list=[2]`。
+- **`result_type_list` 必须传 JSON 数组**（如 `[2]`），传字符串 `"[2]"` 或逗号串会导致空结果/系统异常。
+- 实测小程序账号条目：`platform_info.weixin_open_id`（`o` 开头 28 位）+ `wechat_info.union_id`，`wechat_info.wechat_type=2`，`primitive_info.platform_type` 为商家小程序平台值（如 505362，非文档示例 2）。
 - 出参（关键字段）：
   - `user_list[].platform_info.weixin_open_id` → 微信 openid（28 位，`o` 开头）
   - `user_list[].wechat_info.union_id` → 微信 unionid
@@ -88,6 +91,8 @@ POST https://open.youzanyun.com/api/youzan.users.info.query/1.0.0?access_token=<
 ## 四、注意事项与风险
 
 - **计费**：接口按调用计费，13,551 条量级需确认成本与免费额度；建议分批 + 失败退避。
+- **IP 白名单**：调用方公网 IP 必须加入应用白名单，否则网关静默返回空结果或 `4007`（详见商家侧清单第 8 条）。
+- **`result_type_list` 传参**：必须是 JSON 数组 `[2]`，字符串形式不生效。
 - **限流**：access_token 必须缓存，避免频繁换取；批量查询控制并发。
 - **隐私**：openid/unionid/手机号属个人信息，仅用于身份关联；日志脱敏，凭证入 `.env`。
 - **yz_open_id 不稳定**：会随账号合并变化，不做稳定主键。
@@ -103,6 +108,6 @@ POST https://open.youzanyun.com/api/youzan.users.info.query/1.0.0?access_token=<
 
 ## 开放问题
 
-- 商家是否有有赞开放平台**开发者资质**（创建自用型应用的前提）。
+- ~~商家是否有有赞开放平台开发者资质~~ → **已确认**：自用型应用已建好，三个能力包已具备，API 有免费额度。
 - API 计费成本与额度确认。
 - 无手机号客户是否值得通过客服工单向有赞申请 yz_open_id 导出（可选加分项）。

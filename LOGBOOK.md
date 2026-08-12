@@ -1,3 +1,18 @@
+## [2026-08-12] - fix(customer): 修复有赞用户查询 result_type_list 传参并完成本地全量预导入验证
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-youzan-openapi-customer-openid-access
+- 来源: 本地全量验证（用户已将有赞应用 IP 白名单加入 223.71.101.168）。
+- 变更:
+  - `app/service/youzan/client.py` `query_user_info` 的 `result_type_list` 由字符串 `"[2]"` 改为 JSON 数组 `[2]`（字符串形式被网关静默拦截返回空 user_list，逗号串报系统异常）；新增常量 `USER_QUERY_RESULT_TYPE_MINIAPP=2`。
+  - `docs/architecture/youzan-openapi-customer-openid-access-runbook.md` 补充 IP 白名单配置要求、result_type_list 数组传参要求与实测返回结构（小程序账号 platform_type 为商家小程序平台值，wechat_type=2）。
+- 验证（本地真实调用，生产库快照）:
+  - 命中率 73.87%（10,007/13,547 命中、0 失败、4 条 skip-linked），总链接 10,011 条。
+  - 重复 openid=0、同一客户多条 miniapp_openid=0、孤儿链接=0、openid 长度全部合法；全部 verified / confidence=100。
+  - 相关测试 5 项全过、ruff 全绿。
+- 待办: 生产小批预检（服务器 IP 白名单确认）后全量预导入；同 appid 替换后真实 openid 识别验证。
+- 生产版本: 本地递增（fix → patch）。
+
 ## [2026-08-12] - feat(customer): 有赞客户小程序 openid 预导入脚本
 
 - 操作人: AI (Codex)
