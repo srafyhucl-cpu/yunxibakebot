@@ -1,3 +1,20 @@
+## [2026-08-12] - deploy(member): M1 会员账务域 v0.111.0 生产部署完成
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-member-loyalty-storedvalue
+- 来源: `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M1.6 生产执行）
+- 变更:
+  - 提交 `ecffa3b`（feat(member) M1 数据底座），VERSION 递增至 0.111.0；origin/server 双远端 master 与 codex/r4c-ci-evidence 同步。
+  - 生产部署 v0.111.0 / `ecffa3b` 到 `/opt/apps/yunxibakebot`：v021 迁移随启动自动应用（schema_version=21），`member_balance` / `points_ledger` / `coupon_inventory` 三表落库（0 行）。
+  - 会员 Webhook 事件路由（SCRM_CUSTOMER_EVENT / POINTS / COUPON_CUSTOMER_PROMOTION / SCRM_CUSTOMER_CARD）与审计归类 MEMBER 在生产生效。
+- 验证:
+  - 服务器 worktree HEAD `ecffa3b`、VERSION 0.111.0；`systemctl is-active yunxibakebot` = active。
+  - `https://yunxifood.cn/health` 200；`/ready` ready（`database_schema_ready=true`、`youzan_production_mode_ready=true`、mock 关闭）。
+  - 生产库 `MAX(version)`=21；三表 exists=1、rows=0（全量导入前为空，符合预期）。
+- 待办:
+  - 有赞会员域 API 名称/字段契约（积分/优惠券/会员卡）真实店铺联调验证后，执行生产全量导入 `scripts/import_member_loyalty.py --apply`。
+  - 会员事件 Webhook 端到端验证（真实有赞推送）随契约联调一并完成。
+- 生产版本: 0.111.0（ecffa3b）
 ## [2026-08-12] - feat(member): 会员储值/积分/优惠券账务域 M1 数据底座落地
 
 - 操作人: AI (Codex)

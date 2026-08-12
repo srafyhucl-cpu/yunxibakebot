@@ -1,3 +1,16 @@
+## E-20260812-001：M1 会员储值/积分/优惠券账务域 v0.111.0 生产部署
+
+- trace_id: 20260812-member-loyalty-storedvalue
+- generated_at: 2026-08-12
+- evidence_type: production/member-loyalty-m1-release
+- file: `D:\Project\YunxiBakeBot\app\migrations\v021_member_loyalty_accounting.sql`；`D:\Project\YunxiBakeBot\app\service\youzan\event_member.py`；`D:\Project\YunxiBakeBot\app\service\member_loyalty.py`；`D:\Project\YunxiBakeBot\reports\harness\handoff-20260812-member-loyalty-m1.md`；生产 `/opt/apps/yunxibakebot/data/bot.db`
+- command: Git Bash `SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh`；本地 `python scripts/apply_migrations.py --apply`；生产 `systemctl is-active yunxibakebot`、`git -C /opt/apps/yunxibakebot rev-parse --short HEAD`、`cat /opt/apps/yunxibakebot/VERSION`、`curl https://yunxifood.cn/health`、`curl https://yunxifood.cn/ready`、生产库 `SELECT MAX(version) FROM _schema_version` 与三表存在性/行数
+- result: pass
+- related_logbook: 2026-08-12 - deploy(member): M1 会员账务域 v0.111.0 生产部署完成
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录版本、commit、服务状态、健康检查、schema 版本与表存在性/行数；不包含会员余额、积分、券、手机号、订单、token 或密钥。
+- summary: 提交 `ecffa3b`（feat(member) M1 数据底座）并同步 origin/server 双远端 master 与 codex/r4c-ci-evidence；Git bundle 部署 v0.111.0 到 `/opt/apps/yunxibakebot`。验证：worktree HEAD `ecffa3b`、VERSION 0.111.0、systemd active、`/health` 200、`/ready` ready（`database_schema_ready=true`、`youzan_production_mode_ready=true`、mock 关闭）、生产库 `_schema_version` max=21 且 `member_balance`/`points_ledger`/`coupon_inventory` 三表 exists=1 rows=0。全量导入与 Webhook 端到端待真实店铺 API 契约联调后执行。
 ## E-20260811-002：有赞客户 customer master v1 正式导入
 
 - trace_id: 20260811-customer-master-formal-import

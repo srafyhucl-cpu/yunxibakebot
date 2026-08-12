@@ -74,7 +74,7 @@
 - 1.3 ✅ v021 迁移：`points_ledger` / `coupon_inventory` / `member_balance`（本地库已应用，schema_version=21）
 - 1.4 ✅ 全量导入 Service + `scripts/import_member_loyalty.py`（dry-run/apply/limit/JSON）
 - 1.5 ✅ Webhook 增量写入（POINTS→ledger，COUPON→inventory 反查补全）
-- 1.6 ⏳ 本地验证完成（7 项新测试 + 1348 全量 + 门禁全绿）；生产执行待真实店铺 API 契约验证与用户确认部署窗口
+- 1.6 ✅ 本地验证 + 生产执行完成：部署 v0.111.0（ecffa3b），v021 三表落库（schema_version=21）、/ready database_schema_ready=true、Webhook 会员路由生效；生产全量导入待真实店铺 API 契约验证后执行
 
 ### M1 关键决策
 

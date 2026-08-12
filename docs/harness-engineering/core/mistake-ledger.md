@@ -32,6 +32,20 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+### M-20260812-001：feat 提交在 Windows 上被 pre-commit 按 patch 递增版本
+
+- status: guarded
+- first_seen: 2026-08-12
+- severity: medium
+- symptom: 执行 `git commit -m "feat(member): ..."` 时 pre-commit 的 sync_version 钩子把 VERSION 从 0.110.1 递增为 0.110.2（patch），而不是 0.111.0（minor），导致提交被 ruff-format 拦下后版本号已错误变化。
+- root_cause: Windows 下 `git commit -m` 触发 pre-commit 时，`sync_version.py` 读取的 `.git/COMMIT_EDITMSG` 仍是上一条提交信息（docs），`determine_bump_type` 按 docs 判定为 patch。
+- impact: feat/refactor/perf 提交可能拿到错误版本号并进入发布，污染 VERSION 与进度清单版本注入。
+- fix: 重新提交时显式设置 `VERSION_BUMP=minor` 强制 minor 递增，目标 0.111.0 正确落地；提交前核对 `git diff --cached VERSION` 的期望值。
+- new_guardrail: 含代码变更的提交前先核对 VERSION 目标；Windows 上 feat 提交显式传 `VERSION_BUMP=minor`，不依赖钩子自动推断提交类型。
+- verification: `ecffa3b` 提交后 VERSION=0.111.0；生产部署核对服务器 VERSION 与 `/ready` 版本一致。
+- linked_trace: `20260812-member-loyalty-storedvalue`
+- linked_files: `scripts/sync_version.py`; `VERSION`; `.pre-commit-config.yaml`
+- next_time_signal: 任何含代码变更的提交前先 `git diff --cached VERSION`；feat/perf/refactor 提交使用 `VERSION_BUMP=minor` 强制递增。
 ## 条目模板
 
 ```markdown
