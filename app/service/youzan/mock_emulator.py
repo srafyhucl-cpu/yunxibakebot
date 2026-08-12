@@ -117,6 +117,28 @@ class YouzanMockEmulator:
         }
 
     @staticmethod
+    def get_mock_user_info_response(mobile: str) -> dict:
+        """生成仿真有赞用户信息查询响应（结构对齐 youzan.users.info.query 1.0.0）。"""
+        return {
+            "success": True,
+            "code": 200,
+            "data": {
+                "user_list": [
+                    {
+                        "mobile_info": {"countryCode": "+86", "mobile": mobile},
+                        "platform_info": {"weixin_open_id": f"oMock{mobile[-6:]}"},
+                        "wechat_info": {
+                            "wechat_type": 2,
+                            "union_id": f"oUnion{mobile[-6:]}",
+                            "is_fans": 1,
+                        },
+                        "primitive_info": {"yz_open_id": f"mock_yz_{mobile[-6:]}"},
+                    }
+                ]
+            },
+        }
+
+    @staticmethod
     def get_mock_product_response(item_id: int, alias: str) -> dict:
         """生成高保真的有赞单品规格与实时库存仿真响应。"""
         actual_item_id = item_id or 5836487486

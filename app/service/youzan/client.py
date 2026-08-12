@@ -137,6 +137,10 @@ class YouzanClient:
                 )
             elif api_name == "youzan.itemcategories.tags.get":
                 return {"data": {"tags": []}}
+            elif api_name == "youzan.users.info.query":
+                return YouzanMockEmulator.get_mock_user_info_response(
+                    str(params.get("mobile", ""))
+                )
             elif api_name == "youzan.item.classification.search":
                 return {
                     "data": {
@@ -196,6 +200,15 @@ class YouzanClient:
             "youzan.trade.get",
             "4.0.0",
             {"tid": order_no, "kdt_id": settings.YOUZAN_KDT_ID},
+        )
+
+    async def query_user_info(self, mobile: str) -> dict:
+        """按手机号查询有赞用户信息（返回微信 openid/unionid 等平台账号）。"""
+        logger.info("有赞用户信息查询: mobile=%s", mobile)
+        return await self._call(
+            "youzan.users.info.query",
+            "1.0.0",
+            {"mobile": mobile, "result_type_list": "[2]"},
         )
 
     async def get_logistics(self, order_no: str) -> dict:

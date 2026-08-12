@@ -5,6 +5,7 @@ from typing import Any
 from app.models.customer_master import (
     CustomerIdentityLinkCreate,
     CustomerIdentityType,
+    CustomerIdentityVerificationStatus,
     CustomerMasterCreate,
 )
 from app.repository.customer_master_repo import CustomerMasterRepo
@@ -111,6 +112,26 @@ class CustomerMasterService:
             source_record_id=source_record_id,
             confidence_score=100,
             verification_status="verified",
+        )
+
+    @staticmethod
+    def build_miniapp_openid_identity(
+        *,
+        customer_id: str,
+        tenant_id: str,
+        openid: str,
+        source_system: str,
+    ) -> CustomerIdentityLinkCreate:
+        """生成小程序 openid 身份链接参数。"""
+        return CustomerIdentityLinkCreate(
+            customer_id=customer_id,
+            tenant_id=tenant_id,
+            identity_type=CustomerIdentityType.MINIAPP_OPENID.value,
+            identity_value=openid,
+            identity_value_normalized=openid,
+            source_system=source_system,
+            verification_status=CustomerIdentityVerificationStatus.VERIFIED.value,
+            confidence_score=100,
         )
 
     @staticmethod

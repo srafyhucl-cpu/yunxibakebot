@@ -37,6 +37,9 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
     "app/repository/youzan_repo.py": (
         "存量职责评审：有赞商品宽表与分类回写存在独立变化原因，后续按数据所有权拆分；禁止按行数机械切分。"
     ),
+    "app/repository/customer_master_queries.py": (
+        "本轮职责评审：客户主档查询集合保持读模型内聚，统一维护 customer_master / customer_identity_links 的行映射合同；拆分会把同一张表的查询与映射分散到多个文件。保留当前内聚边界。"
+    ),
     "app/service/chat.py": (
         "存量职责评审：客户对话入口保持编排内聚，新职责应落入已有 agent/tool 边界；禁止为缩短入口文件制造薄转发层。"
     ),

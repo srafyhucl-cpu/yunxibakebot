@@ -1,3 +1,21 @@
+## [2026-08-12] - feat(customer): 有赞客户小程序 openid 预导入脚本
+
+- 操作人: AI (Codex)
+- trace_id: 20260812-youzan-openapi-customer-openid-access
+- 来源: 用户确认商家有赞自用型应用已建好、API 有免费额度；凭证已在 .env（YOUZAN_CLIENT_ID / YOUZAN_CLIENT_SECRET / YOUZAN_KDT_ID，YOUZAN_MOCK_MODE=false）。
+- 变更:
+  - `app/service/youzan/client.py` 新增 `query_user_info(mobile)`（youzan.users.info.query/1.0.0，result_type_list=[2] 取微信小程序），并补 Mock 分支。
+  - `app/service/youzan/mock_emulator.py` 新增 `get_mock_user_info_response`。
+  - `app/repository/customer_master_queries.py` 新增 `list_masters_with_primary_phone`；文件体量职责评审记录已补（读模型内聚保留）。
+  - `app/service/customer/master.py` 新增 `build_miniapp_openid_identity`。
+  - 新增 `scripts/preimport_youzan_customer_openids.py`：读主档手机号 → 查有赞小程序 openid → 幂等写入 customer_identity_links（miniapp_openid）；默认 dry-run，`--apply` 才写，`--limit` 小批验证，`--skip-linked` 跳过已挂。
+- 验证:
+  - 新增 `tests/scripts/test_preimport_youzan_customer_openids.py` 5 项全过（Mock 模式 + 临时库：dry-run 不写、统计、limit、幂等重跑、skip-linked）。
+  - 相关回归 62 项全过（import_youzan_customers / verify_youzan_customer_import / youzan emulator / service.youzan）。
+  - ruff 全绿、`scripts/check_file_sizes.py` 通过。
+- 待办: 生产小批真实验证（--limit 5 --apply）确认命中率后再全量；同 appid 替换后真实 openid 识别验证。
+- 生产版本: 本地递增（feat → minor）。
+
 ## [2026-08-12] - docs(plan): 有赞开放平台客户 openid 预导入接入清单
 
 - 操作人: AI (Codex)

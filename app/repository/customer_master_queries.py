@@ -45,6 +45,23 @@ class CustomerMasterQueryMixin:
         )
         return [CustomerMaster(**dict(row)) for row in rows]
 
+    async def list_masters_with_primary_phone(
+        self,
+        tenant_id: str,
+    ) -> list[CustomerMaster]:
+        """按租户列出所有有主手机号的客户主档。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT id, tenant_id, status, merge_into_customer_id, primary_phone, "
+            "phone_verified, display_name, gender, birthday, wechat_region, "
+            "first_seen_at, last_seen_at, first_source, identity_confidence, "
+            "has_youzan_identity, has_miniapp_identity, has_wecom_identity, "
+            "created_at, updated_at "
+            "FROM customer_master WHERE tenant_id = ? AND primary_phone != '' "
+            "ORDER BY created_at ASC",
+            (tenant_id,),
+        )
+        return [CustomerMaster(**dict(row)) for row in rows]
+
     async def get_identity_link(self, link_id: str) -> CustomerIdentityLink | None:
         """按身份链接 ID 读取单条身份。"""
         rows = await self._db.execute_fetchall(
