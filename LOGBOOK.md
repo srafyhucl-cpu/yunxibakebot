@@ -1,3 +1,14 @@
+## [2026-08-13] - style(web): 清理 smoke 脚本未使用导入
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-smoke-imports-cleanup
+- 来源: M3 收口后 `ruff check .` 存量告警清理（用户确认处理）
+- 变更:
+  - 移除 `web/admin/scripts/smoke_*.py` 5 处 F401 未使用导入：`pathlib.Path`（smoke_decoration_product_picker / smoke_production_navigation）、`admin_smoke_utils.js_string`（smoke_decoration_product_picker / smoke_mobile_operations / smoke_shop_settings）。
+- 验证:
+  - `ruff check .` 全绿（清理前 5 errors）；`ruff format --check` 通过；4 个脚本 `py_compile` 通过。
+- 版本: 0.122.0（提交后由 pre-commit 自动递增）
+
 ## [2026-08-13] - feat(points): M3 积分模块闭环本地收口
 
 - 操作人: AI (Codex)

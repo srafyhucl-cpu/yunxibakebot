@@ -18,7 +18,6 @@ from admin_smoke_utils import (
     connect_page,
     dump_process_tail,
     fill_test_id,
-    js_string,
     login_admin,
     npm_command,
     remove_existing_files,

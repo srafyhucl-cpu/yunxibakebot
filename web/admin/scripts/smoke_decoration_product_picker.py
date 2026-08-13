@@ -6,7 +6,6 @@ import asyncio
 import os
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any
 
 from admin_smoke_utils import (
@@ -21,7 +20,6 @@ from admin_smoke_utils import (
     dispatch_click_test_id,
     dump_process_tail,
     fill_test_id,
-    js_string,
     login_admin,
     npm_command,
     remove_existing_files,
