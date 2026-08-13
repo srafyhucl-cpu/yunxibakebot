@@ -126,6 +126,43 @@ class MemberBalanceRepo(BaseRepository):
         )
         return int(rows[0]["stored_value_fen"]) if rows else 0
 
+    async def get_points(self, mobile: str) -> int:
+        """读取会员积分余额，账户不存在返回 0。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT points FROM member_balance WHERE mobile = ? LIMIT 1",
+            (mobile,),
+        )
+        return int(rows[0]["points"]) if rows else 0
+
+    async def credit_points(self, mobile: str, amount: int) -> int:
+        """为会员积分加款（发分/退回抵扣），返回加款后余额。"""
+        now = now_str()
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET points = points + ?, updated_at = ? "
+            "WHERE mobile = ?",
+            (amount, now, mobile),
+        )
+        if cursor.rowcount != 1:
+            await self._db.execute(
+                "INSERT INTO member_balance (mobile, points, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (mobile, amount, now, now),
+            )
+        rows = await self._db.execute_fetchall(
+            "SELECT points FROM member_balance WHERE mobile = ? LIMIT 1",
+            (mobile,),
+        )
+        return int(rows[0]["points"]) if rows else amount
+
+    async def deduct_points_if_sufficient(self, mobile: str, amount: int) -> bool:
+        """原子扣减积分，余额不足时不扣减。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET points = points - ?, updated_at = ? "
+            "WHERE mobile = ? AND points >= ?",
+            (amount, now_str(), mobile, amount),
+        )
+        return bool(cursor.rowcount == 1)
+
     async def credit_stored_value(self, mobile: str, amount_fen: int) -> int:
         """为会员储值余额加款（充值/退款），返回加款后余额。"""
         now = now_str()

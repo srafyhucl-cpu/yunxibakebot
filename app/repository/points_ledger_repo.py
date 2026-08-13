@@ -24,8 +24,8 @@ class PointsLedgerRepo(BaseRepository):
         """写入一条积分流水。"""
         await self._db.execute(
             "INSERT INTO points_ledger (unique_id, customer_id, mobile, yz_open_id, "
-            "amount, total, event_type, source, occurred_at, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "amount, total, event_type, source, biz_type, biz_id, occurred_at, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entry.unique_id,
                 entry.customer_id,
@@ -35,8 +35,21 @@ class PointsLedgerRepo(BaseRepository):
                 entry.total,
                 entry.event_type,
                 entry.source,
+                entry.biz_type,
+                entry.biz_id,
                 entry.occurred_at,
                 now_str(),
             ),
         )
         await self._db.commit()
+
+    async def list_by_mobile(self, mobile: str, *, limit: int = 50) -> list[dict]:
+        """按手机号读取积分流水，按 id 倒序。"""
+        if not mobile:
+            return []
+        return await self._db.execute_fetchall(
+            "SELECT id, unique_id, customer_id, mobile, yz_open_id, amount, total, "
+            "event_type, source, biz_type, biz_id, occurred_at, created_at "
+            "FROM points_ledger WHERE mobile = ? ORDER BY id DESC LIMIT ?",
+            (mobile, limit),
+        )

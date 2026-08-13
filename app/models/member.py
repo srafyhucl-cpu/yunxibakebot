@@ -17,6 +17,7 @@ class LedgerSource:
 
     WEBHOOK = "webhook"
     IMPORT = "import"
+    ORDER = "order"
 
 
 class CouponStatus:
@@ -52,6 +53,8 @@ class PointsLedgerEntry:
     total: int
     event_type: str
     source: str = LedgerSource.WEBHOOK
+    biz_type: str = ""
+    biz_id: str = ""
     customer_id: str = ""
     mobile: str = ""
     yz_open_id: str = ""
