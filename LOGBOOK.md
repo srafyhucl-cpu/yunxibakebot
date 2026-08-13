@@ -1,3 +1,22 @@
+## [2026-08-13] - docs(harness): M3.6 积分模块生产部署第一段（POINTS_AUTHORITY=youzan）
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-m3-points-prod-deploy-phase1
+- 来源: 计划书 `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M3.6 两步切换第一段）；skill `yunxibakebot-production-release`
+- 变更:
+  - 生产部署 v0.122.1（ef56092）：M3 积分模块上线（v023 迁移 + `app/service/points/` 域 + 支付联动发分/抵扣/退款 + 小程序积分 API）。
+  - 数据主从：生产 `.env` 未覆盖 `POINTS_AUTHORITY`，走代码默认 `youzan`（有赞 `total` 继续维护余额），符合两步切换第一段。
+- 验证:
+  - `systemctl is-active yunxibakebot` → active；生产 worktree commit `ef560926bb`、VERSION `0.122.1`。
+  - `https://yunxifood.cn/health` → `{"status":"ok","version":"0.122.1"}`；`/ready` → ready 且 `database_schema_ready=true`、`youzan_production_mode_ready=true`、`youzan_mock_mode=false`。
+  - 生产库 `_schema_version` 最高 23（v023 于 2026-08-13 07:11:54 应用）；`points_ledger` 含 `biz_type/biz_id`，`member_balance` 含 `points/stored_value_fen`。
+  - 积分路由探针（服务器 loopback）：`GET /api/v1/miniapp/points`、`POST /orders/0/points-preview`、`POST /orders/0/apply-points` 均返回 401（路由已注册、鉴权拦截，非 404）。
+- 待办:
+  - 观察 `youzan` 权威模式运行稳定后，执行 M3.6 第二段：`POINTS_AUTHORITY=local` 二次部署。
+  - 真实微信支付（商户号到位）端到端验证后置；M5 小程序前端按计划书排期。
+- 版本: 0.122.1（收口提交后由 pre-commit 自动递增）
+
+
 ## [2026-08-13] - style(web): 清理 smoke 脚本未使用导入
 
 - 操作人: AI (Codex)
