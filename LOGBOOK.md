@@ -1,3 +1,13 @@
+## [2026-08-13] - docs(plan): M4 优惠券模块设计定稿
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4
+- 来源: 计划书 M4 章节 + brainstorming（7 项决策：有赞券镜像+本地核销、免减券、满减/无门槛/折扣三类、可叠加、管理后台 A 向 C 演进、金额维度校验、3 端点、有赞核销 mock 短路）
+- 变更:
+  - 新增 `docs/superpowers/specs/2026-08-13-coupon-m4-design.md`：券模板统一建模（coupon_templates）、券实例生命周期扩展（coupon_inventory + template_id/有效期/抵扣金额）、发券记录（coupon_grants，预留渠道/人群）；本地核销引擎（结算抵扣 TAKE->CONSUME->BACK）；支付联动（快照 couponFen/couponId + 三条成功路径核销 + 取消/超时/后台取消退回）；小程序 3 端点（GET /coupons、coupon-preview、apply-coupon）；管理后台（模板 CRUD/启停、记录查询、local 发券）；`COUPON_AUTHORITY` 数据主从（默认 youzan）。
+- 版本: 0.122.1（纯文档提交，版本不递增）
+
+
 ## [2026-08-13] - docs(harness): M3.6 积分模块生产部署第一段（POINTS_AUTHORITY=youzan）
 
 - 操作人: AI (Codex)
