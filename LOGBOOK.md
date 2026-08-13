@@ -1,3 +1,19 @@
+## [2026-08-14] - feat(coupon): get_my_coupons 补 thresholdFen（M5 跨仓小任务）
+
+- 操作人: AI (Codex)
+- trace_id: 20260814-member-loyalty-m5
+- 来源: M5 实施计划 Task 1/1b（`docs/superpowers/plans/2026-08-14-member-loyalty-m5.md`，miniapp 仓）
+- 变更:
+  - Task 1（5b1f7f8）：CouponTemplateRepo 新增 `list_by_ids` 批量查询；`get_my_coupons` 输出 thresholdFen（模板缺失 fallback 0），供小程序券中心展示门槛，消除 N+1。
+  - Task 1b（f3e483d）：`MAX_RECHARGE_FEN` 笔误修正 5000元→500元（50_000 分）。
+- 验证:
+  - `python -m pytest tests/api/test_miniapp_coupons_api.py -q --no-cov` 4 passed。
+  - `python -m pytest tests/service/test_stored_value.py -q --no-cov` 14 passed。
+  - `ruff check` 相关变更文件通过。
+- 版本: 0.132.1（Task 1b fix → patch 递增；Task 1 首次提交 0.131.3 经 amend 修正为 0.132.0）
+- 待办:
+  - `scripts/sync_version.py` pre-commit 读 `.git/COMMIT_EDITMSG` 时机缺陷：pre-commit 阶段该文件仍为上一条提交消息，feat 被误按 patch 递增（Task 1 首次提交 0.131.3，经 amend 修正为 0.132.0）——建议改为在 prepare-commit-msg/commit-msg 阶段读 message 文件或显式传入提交信息。
+
 ## [2026-08-13] - docs(harness): M4 优惠券模块生产部署第一段（COUPON_AUTHORITY=youzan）
 
 - 操作人: AI (Codex)
