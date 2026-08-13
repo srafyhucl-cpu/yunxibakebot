@@ -296,3 +296,30 @@ async def _column_names(db: aiosqlite.Connection, table_name: str) -> set[str]:
         "SELECT name FROM pragma_table_info(?)", (table_name,)
     )
     return {row["name"] for row in rows}
+
+
+@pytest.mark.asyncio
+async def test_points_event_local_authority_keeps_local_balance(
+    db: aiosqlite.Connection, monkeypatch
+) -> None:
+    """local 权威模式下 POINTS 事件只写流水，不覆盖本地余额。"""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "POINTS_AUTHORITY", "local")
+    await handle_member_event(
+        db=db,
+        youzan_client=FakeMemberClient(),
+        event_type="POINTS",
+        msg_obj={
+            "unique_id": "u-local-1",
+            "mobile": "13800000000",
+            "amount": "10",
+            "total": "999",
+            "event_type": "INCREASE",
+        },
+        updated_at_str="2026-08-13 10:00:00",
+    )
+    rows = await db.execute_fetchall(
+        "SELECT points FROM member_balance WHERE mobile = '13800000000' LIMIT 1"
+    )
+    assert not rows

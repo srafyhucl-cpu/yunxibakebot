@@ -9,6 +9,7 @@
 
 import json
 
+from app.config import settings
 from app.logger import setup_logger
 from app.models.customer_master import CustomerIdentityType
 from app.models.member import (
@@ -134,12 +135,13 @@ async def _handle_points_event(
             occurred_at=updated_at_str,
         )
     )
-    await balance_repo.upsert_identity(
-        mobile=mobile,
-        customer_id=customer_id,
-        yz_open_id=yz_open_id,
-        points=to_int(msg_obj.get("total")),
-    )
+    if settings.POINTS_AUTHORITY != "local":
+        await balance_repo.upsert_identity(
+            mobile=mobile,
+            customer_id=customer_id,
+            yz_open_id=yz_open_id,
+            points=to_int(msg_obj.get("total")),
+        )
 
 
 async def _handle_coupon_event(
