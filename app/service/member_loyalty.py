@@ -12,7 +12,13 @@ from app.models.member import (
     LedgerSource,
 )
 from app.repository.coupon_inventory_repo import CouponInventoryRepo
+from app.repository.coupon_template_repo import CouponTemplateRepo
 from app.repository.member_balance_repo import MemberBalanceRepo
+from app.service.coupon.template_sync import (
+    extract_template_fields,
+    parse_youzan_template,
+    upsert_template_from_youzan,
+)
 from app.service.youzan.member_api import YouzanMemberApi
 from app.service.youzan.member_helpers import to_fen, to_int
 
@@ -28,11 +34,14 @@ class MemberLoyaltyImportService:
         self._member_api = YouzanMemberApi(youzan_client)
         self._balance_repo = MemberBalanceRepo(db)
         self._coupon_repo = CouponInventoryRepo(db)
+        self._template_repo = CouponTemplateRepo(db)
+        self._coupon_detail_cache: dict[str, dict] = {}
 
     async def import_one(
         self, mobile: str, customer_id: str = "", *, should_apply: bool
     ) -> dict:
         """导入单个客户账务数据并返回统计；should_apply=False 时只查询不落库。"""
+        self._coupon_detail_cache.clear()
         stats: dict = {
             "points_total": 0,
             "cards": 0,
@@ -83,6 +92,16 @@ class MemberLoyaltyImportService:
             return
         if await self._coupon_repo.get_by_dedup_key(coupon_id, status, mobile):
             return
+        # 全量导入按 coupon_group_id 去重缓存详情，避免 N+1 反查
+        group_id = str(coupon.get("coupon_group_id") or "")
+        if group_id and group_id not in self._coupon_detail_cache:
+            self._coupon_detail_cache[
+                group_id
+            ] = await self._member_api.get_coupon_group_detail(group_id)
+        detail = self._coupon_detail_cache.get(group_id, {})
+        tpl = parse_youzan_template(detail)
+        await upsert_template_from_youzan(self._db, tpl, self._template_repo)
+        fields = extract_template_fields(coupon, detail)
         await self._coupon_repo.insert(
             CouponInventoryEntry(
                 coupon_id=coupon_id,
@@ -90,6 +109,7 @@ class MemberLoyaltyImportService:
                 customer_id=customer_id,
                 mobile=mobile,
                 status=status,
+                order_no=str(coupon.get("order_no") or ""),
                 title=str(coupon.get("title") or coupon.get("coupon_name") or ""),
                 value_fen=to_fen(
                     coupon.get("value")
@@ -99,6 +119,9 @@ class MemberLoyaltyImportService:
                 detail_json=json.dumps(coupon, ensure_ascii=False),
                 source=LedgerSource.IMPORT,
                 occurred_at="",
+                template_id=fields["template_id"],
+                valid_from=fields["valid_from"],
+                valid_until=fields["valid_until"],
             )
         )
 

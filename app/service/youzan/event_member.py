@@ -26,6 +26,11 @@ from app.repository.coupon_inventory_repo import CouponInventoryRepo
 from app.repository.customer_master_repo import CustomerMasterRepo
 from app.repository.member_balance_repo import MemberBalanceRepo
 from app.repository.points_ledger_repo import PointsLedgerRepo
+from app.service.coupon.template_sync import (
+    extract_template_fields,
+    parse_youzan_template,
+    upsert_template_from_youzan,
+)
 from app.service.youzan.audit_helper import mark_audit
 from app.service.youzan.member_api import YouzanMemberApi
 from app.service.youzan.member_helpers import to_bool, to_fen, to_int
@@ -164,6 +169,9 @@ async def _handle_coupon_event(
         coupon_group_id
     )
     title, value_fen = _extract_coupon_detail(detail)
+    tpl = parse_youzan_template(detail)
+    await upsert_template_from_youzan(db, tpl)
+    fields = extract_template_fields(msg_obj, detail)
     customer_id = await _resolve_customer_id(customer_repo, mobile, "")
     await inventory_repo.insert(
         CouponInventoryEntry(
@@ -178,6 +186,9 @@ async def _handle_coupon_event(
             detail_json=json.dumps(detail, ensure_ascii=False),
             source=LedgerSource.WEBHOOK,
             occurred_at=updated_at_str,
+            template_id=fields["template_id"],
+            valid_from=fields["valid_from"],
+            valid_until=fields["valid_until"],
         )
     )
 
