@@ -29,6 +29,20 @@ class CouponTemplateRepo(BaseRepository):
             + " FROM coupon_templates WHERE status = 'active' ORDER BY created_at DESC"
         )
 
+    async def list_by_ids(self, ids: list[str]) -> list[dict]:
+        """按模板 ID 批量读取（避免逐张查询 N+1）。"""
+        if not ids:
+            return []
+        placeholders = ", ".join("?" for _ in ids)
+        return await self._db.execute_fetchall(
+            "SELECT "
+            + self._COLS
+            + " FROM coupon_templates WHERE id IN ("
+            + placeholders
+            + ")",
+            tuple(ids),
+        )
+
     async def list(self, *, status: str = "") -> list[dict]:
         """模板列表，可按状态筛选。"""
         if status:

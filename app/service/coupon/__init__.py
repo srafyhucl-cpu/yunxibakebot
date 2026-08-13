@@ -56,8 +56,18 @@ class CouponService:
         rows = await self._inventory_repo.list_by_mobile(
             mobile, authority=settings.COUPON_AUTHORITY
         )
+        template_ids = sorted(
+            {
+                str(row.get("template_id", "") or "")
+                for row in rows
+                if row.get("template_id")
+            }
+        )
+        templates = await self._template_repo.list_by_ids(template_ids)
+        template_map = {str(t["id"]): dict(t) for t in templates}
         coupons = []
         for row in rows:
+            template = template_map.get(str(row.get("template_id", "") or ""), {})
             coupons.append(
                 {
                     "couponId": row["coupon_id"],
@@ -65,6 +75,7 @@ class CouponService:
                     "title": row.get("title", ""),
                     "status": row.get("status", ""),
                     "valueFen": row.get("value_fen", 0),
+                    "thresholdFen": int(template.get("threshold_fen", 0) or 0),
                     "deductedFen": row.get("deducted_fen", 0),
                     "validFrom": row.get("valid_from", ""),
                     "validUntil": row.get("valid_until", ""),
