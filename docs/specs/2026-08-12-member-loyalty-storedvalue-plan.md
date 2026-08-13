@@ -41,9 +41,55 @@
 
 模型/仓储/充值Service/小程序API/储值支付+组合支付
 
-### M3：积分模块（3 天）
+### M3：积分模块（规则已确认，暂估 4–5 天）
 
-模型/仓储/规则引擎/支付联动发积分/积分抵扣/退款退回/小程序API
+**业务规则（已确认）**
+
+- 获得：`1 元实付 = 1 分`；实付现金 = `total_fen - balance_fen - points_fen`；不足 1 元向下取整，`award_points = cash_fen // 100`。
+- 抵扣：`100 分 = 1 元`；单笔最低 `100 分`；最高抵扣 `50% × total_fen`，且 `points_fen <= total_fen - balance_fen`；可用积分按百位向下取整，`points_used = floor(available / 100) × 100`。
+- 发放时点：支付成功即发分；`apply-points` 只写快照，支付成功时才真正扣减抵扣积分。
+- 叠加：`remain_fen = total_fen - balance_fen - points_fen`。
+- 有效期：长期有效。
+- 退款：当前系统无部分退款；全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`。
+- 数据主从：配置开关 `points_authority`（默认 `youzan`）两步切换——M3 上线保持 `youzan`（有赞 `total` 继续维护余额），验证稳定后改 `local` 再部署，切为本地 `member_balance.points` 权威；`local` 下有赞 `POINTS` 事件只写流水/审计，不再覆盖余额。
+
+**M3.1 数据/仓储**
+
+- `v023`：`points_ledger.source` 扩为 `webhook/import/order`；新增 `biz_type`（`order_award/order_redeem/order_refund`）、`biz_id`；`total` 继续表示变动后余额，不新增 `balance_after`。
+- `member_balance_repo`：新增 `get_points/credit_points/deduct_points_if_sufficient`（原子条件更新，参照储值同款）。
+- `points_ledger_repo`：新增 `list_by_mobile`；`get_by_unique_id` 复用。
+- `points_ledger` 模型：`PointsLedgerEntry` 增 `biz_type/biz_id`，`LedgerSource` 增 `ORDER = "order"`。
+- `event_member._handle_points_event`：`points_authority=local` 时不再把有赞 `total` 写进 `member_balance.points`，只写 `points_ledger` 作为审计镜像；`youzan` 模式保持现状。
+
+**M3.2 积分 Service**
+
+- `app/service/points/rules.py`：纯函数 `award_points(cash_fen)`、`redeem_units(available, total_fen, balance_fen)`、`refund_reversal`。
+- `app/service/points/ledger.py`：credit/deduct + 写流水；幂等键 `points:award:<order_id>`、`points:redeem:<order_id>`、`points:refund:<order_id>`。
+- `app/service/points/payment.py`：`apply_points_snapshot`、`award_on_payment`、`refund_points`。
+- `__init__.py` 门面 `PointsService`：`get_points/get_ledger/redeem_preview/apply_points/award_on_payment/refund_points`。
+
+**M3.3 支付联动**
+
+- `payment.json` 新增 `pointsFen/pointsUsed/pointsAwarded`。
+- `apply-points` 必须把订单写为 `partial`，生成 `pointsFen/pointsUsed/remainFen`，后续微信/mock 按 `remainFen` 收款，不能只放快照。
+- `build_combined_payment`、`prepare-payment`、微信通知金额校验统一支持 `pointsFen`：`remain_fen = total_fen - balance_fen - points_fen`。
+- 三条支付成功路径（mock、微信通知、储值全额支付）统一调 `award_on_payment`，重复通知幂等。
+- 取消/超时/后台取消按支付快照调 `refund_points`。
+
+**M3.4 小程序 API**
+
+- `GET /api/v1/miniapp/points`：余额 + 明细。
+- `POST /api/v1/miniapp/orders/{order_id}/points-preview`：试算不落账。
+- `POST /api/v1/miniapp/orders/{order_id}/apply-points`：校验并写 partial 快照。
+- 新增 `app/api/channels/storefront/points.py`，鉴权沿用 `authenticate_storefront_request` 并在 storefront 装配点注册。
+
+**M3.5 验证/收口**
+
+- 规则纯函数单测、仓储幂等/余额不足单测、三路径发分一次、重复通知幂等、组合金额正确、取消退积分。
+- 全套测试 + `ruff` + `check_file_sizes` + `check_project --skip-tests`。
+- 本地验证 → 生产部署 → LOGBOOK/项目进度清单收口，按 M1/M2 模式。
+
+> 说明：小程序页面仍归 M5，M3 只交付 API 与账务闭环。
 
 ### M4：优惠券模块（4 天）
 
