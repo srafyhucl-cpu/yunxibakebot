@@ -1,3 +1,18 @@
+## [2026-08-13] - docs(plan): M4 优惠券模块设计修订 v2（状态模型/金额公式/事件优先级）
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4
+- 来源: 用户对设计 v1 的 5 点修订意见 + 2 项补充
+- 变更:
+  - 状态模型：保持 M1 生命周期多行语义，核销=事务内读最新态=TAKE 后插入 source='order' 的 CONSUME 行（禁 UPDATE status），BEGIN IMMEDIATE + 唯一索引 + 幂等键防并发。
+  - v024 重建 coupon_inventory：source 枚举扩 ('webhook','import','local','order')，新增 template_id/valid_from/valid_until/deducted_fen/consumed_at/refunded_at。
+  - M3 同步：redeem_units 加 coupon_fen、发分公式减券、build_points_payment/build_combined_payment 快照统一合并（apply 顺序不敏感）。
+  - 唯一金额公式 compute_remain_fen(total, coupon, balance, points)：mock/微信 JSAPI/微信通知校验/储值全额/组合支付全部复用。
+  - 事件优先级写死：youzan 模式本地核销为当前态权威、事件按去重键补缺失不降级；local 模式事件只审计。
+  - 补充：导入+Webhook 回填模板字段（template_id/有效期/券类型）；未支付取消只清快照不写 BACK（BACK 仅已支付全单退款）。
+- 版本: 0.122.1（纯文档提交，版本不递增）
+
+
 ## [2026-08-13] - docs(plan): M4 优惠券模块设计定稿
 
 - 操作人: AI (Codex)

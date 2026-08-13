@@ -1,8 +1,8 @@
 # M4 优惠券模块设计
 
-- 状态：待批准
+- 状态：待批准（修订版 v2）
 - trace_id：`20260813-coupon-m4`
-- 来源：计划书 `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M4 优惠券模块）；brainstorming 与用户确认（7 项决策）
+- 来源：计划书 `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M4 优惠券模块）；brainstorming 与用户确认；v2 按用户 5 点修订 + 2 项补充修订
 - 前置：M1 数据底座（`coupon_inventory` 生命周期记录 + 全量导入 + COUPON 事件增量）、M2 储值闭环、M3 积分闭环
 
 ## 目标
@@ -13,11 +13,12 @@
 
 **范围内**
 - 券类型：满减券（满 X 减 Y）、无门槛代金券、折扣券（含优惠上限）。
-- 结算抵扣核销：选券 → 写支付快照 → 支付成功核销（TAKE→CONSUME）→ 退款/取消退回（BACK/TAKE）。
-- 抵扣叠加：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`。
+- 结算抵扣核销：选券 → 写支付快照 → 支付成功核销 → 退款退回。
+- 抵扣叠加：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`（唯一公式，全部支付路径复用）。
 - 小程序 API：我的券列表、结算选券预览、应用券。
 - 管理后台：券模板 CRUD/启停、发券记录/核销记录/库存查询、local 模式发券。
 - 数据主从开关 `COUPON_AUTHORITY`（youzan/local），与 `POINTS_AUTHORITY` 同构。
+- **M3 同步修改**：`redeem_units`/发分公式/快照合并纳入本里程碑（见"支付联动"）。
 
 **范围外（本期不做）**
 - 商家扫码/到店核销（用户已确认无此场景）。
@@ -27,6 +28,15 @@
 
 ## 业务规则
 
+### 券实例状态模型（v2 修订 1：保持 M1 生命周期多行语义）
+
+`coupon_inventory` 保持 M1 的**生命周期多行**模型（唯一索引 `coupon_id + status + mobile`，状态流转写多行，符合生命周期记录语义）。**禁止** `UPDATE ... SET status='CONSUME'` 单行当前态写法。
+
+- 核销 = 在**事务内**先读取该券最新状态行，校验最新态为 `TAKE` 且未过期，再**插入**一条 `source='order'` 的 `CONSUME` 行。
+- 最新态判定：按 `(occurred_at, created_at, id)` 取 `coupon_id + mobile` 的最新一行。
+- 并发防重：核销事务以 `BEGIN IMMEDIATE` 串行化（SQLite 写串行），"读最新态 → 插入"原子完成；service 层幂等键 `coupon:consume:<order_id>` 二次兜底；唯一索引 `(coupon_id, status, mobile)` 保证同券同状态只有一行。
+- 去重键语义不变：`(coupon_id, status, mobile)` 组合去重。
+
 ### 券类型与抵扣计算（`rules.py` 纯函数）
 
 | 类型 | 可用条件 | 抵扣金额 |
@@ -35,28 +45,45 @@
 | NO_THRESHOLD 无门槛 | 无门槛 | `min(value_fen, total_fen)` |
 | DISCOUNT 折扣 | 无门槛 | `min(total_fen * (10000 - discount_bp) // 10000, cap_fen or 无穷, total_fen)`，至少 1 分 |
 
-- 券自身有效期（`valid_from/valid_until`）内且状态 `TAKE` 才可用；过期券不参与可用列表。
+- 券自身有效期（`valid_from/valid_until`）内且最新态为 `TAKE` 才可用；过期券不参与可用列表。
 - 抵扣不能超过订单应付，且与储值、积分叠加后 `remain_fen >= 0`。
 
-### 叠加约束（与 M3 积分规则协调）
+### 叠加约束（v2 修订 3：M3 同步修改）
 
-- 选券（apply-coupon）与选积分（apply-points）顺序不敏感，最终支付快照统一校验：
-  - `coupon_fen + balance_fen + points_fen <= total_fen`
-  - 积分抵扣保持 M3 规则：`points_fen <= 50% * total_fen`，且 `points_fen <= total_fen - coupon_fen - balance_fen`（券先抵扣后积分上限相应收窄）。
-- 取消/超时/后台取消：按快照退回券（`CONSUME -> BACK`，未过期可恢复可用）与积分（M3 既有逻辑）。
+- 应用券（apply-coupon）与应用积分（apply-points）**顺序不敏感**：两次写入统一合并进同一支付快照，任何一方都读取对方已写入的字段参与校验，**不得互相覆盖**。
+- 唯一剩余应付公式：`remain_fen = max(0, total_fen - coupon_fen - balance_fen - points_fen)`。
+- 积分抵扣上限（M3 规则同步收窄）：`points_fen <= 50% * total_fen`，且 `points_fen <= total_fen - coupon_fen - balance_fen`。
+- M3 同步改动：
+  - `app/service/points/rules.py:redeem_units(available_points, total_fen, balance_fen, coupon_fen=0)`：`cap_fen = max(0, total_fen - balance_fen - coupon_fen)`。
+  - `app/service/points/payment.py` 发分公式：`cash_fen = max(0, total_fen - coupon_fen - balance_fen - points_fen)`（原 `total - balance - points` 再减券）。
+  - `build_points_payment` 与 `build_combined_payment` 统一合并快照：同一 `payment.json` 内共存 `couponFen/couponId/pointsFen/pointsUsed/balanceFen/remainFen`。
 
 ### 幂等与并发
 
-- 券核销原子条件更新：`UPDATE coupon_inventory SET status='CONSUME', ... WHERE id=? AND status='TAKE'`，影响行数为 1 才算成功；并发/重复支付只有一个能核销。
 - 幂等键：`coupon:consume:<order_id>`、`coupon:refund:<order_id>`（与积分 `points:*` 幂等键同构）。
-- 去重键沿用 M1：`coupon_id + status + mobile` 组合去重（生命周期记录语义）。
+- 核销并发：`BEGIN IMMEDIATE` 事务内"读最新态=TAKE → 插入 CONSUME 行"，唯一索引兜底；重复支付/重复通知只核销一次。
+- 取消语义（v2 补充 2）：**apply-coupon 后未支付就取消/超时，只清支付快照**（`couponFen/couponId` 归零），**不写 `BACK` 行**；`BACK` 只发生在已支付后的全单退款。
 
-### 数据主从
+### 数据主从与事件优先级（v2 修订 5：写死）
 
-- `COUPON_AUTHORITY` 默认 `youzan`：有赞发券，本地镜像券生命周期 + 本地核销引擎为准；有赞 `COUPON_CUSTOMER_PROMOTION` 事件增量校准（`TAKE/CONSUME/BACK` 写镜像）；调有赞核销 API 封装为可选调用、默认 mock 短路（真实店铺 API 契约验证后再启用，沿用 M1 待办）。
-- `local` 模式：有赞券事件只写审计（类似 `POINTS_AUTHORITY=local`），本地 `coupon_grants` 发券 + 本地核销引擎权威；有赞停用后由后台在本地定义模板并发券。
+- `COUPON_AUTHORITY=youzan`：**本地核销引擎是当前态权威**。有赞 `COUPON_CUSTOMER_PROMOTION` 事件只按去重键**补缺失**的生命周期行（`source='webhook'`），**不得覆盖/降级本地状态**：
+  - 本地核销已写 `order` 来源 CONSUME 行后，有赞 CONSUME 事件去重键 `(coupon_id, CONSUME, mobile)` 命中 → 跳过。
+  - 有赞 BACK 事件：本地最新态为 CONSUME 时，插入 `webhook` 来源 BACK 行仅作审计；本地最新态为 TAKE 时按去重键插入（有赞侧退回）。
+  - 有赞 TAKE 事件：去重键未命中则插入（首次领取）。
+- `COUPON_AUTHORITY=local`：有赞券事件**只审计**（写 `webhook` 行或日志，不参与本地可用券/核销判定）；本地发券（`coupon_grants` + `source='local'` 行）与本地核销引擎为唯一权威。
+- 调有赞核销 API 封装为可选调用、默认 mock 短路（真实店铺 API 契约验证后再启用，沿用 M1 待办）。
 
-## 数据模型（v024 迁移）
+## 数据模型（v024 迁移，参考 v023 重建模式）
+
+### 重建 `coupon_inventory`（v2 修订 1+2）
+
+SQLite 重建表以扩展 CHECK 与列（沿用 `points_ledger_new` → DROP → RENAME 模式，数据全量搬迁）：
+
+新增列：`template_id`、`valid_from`、`valid_until`、`deducted_fen`（核销抵扣金额）、`consumed_at`、`refunded_at`。
+
+`source` 枚举扩展：`CHECK(source IN ('webhook', 'import', 'local', 'order'))`；`app/models/member.py` 的 `LedgerSource` 新增 `LOCAL = "local"`。
+
+保留：唯一索引 `idx_coupon_inventory_dedup ON (coupon_id, status, mobile)`、`idx_coupon_inventory_mobile ON (mobile)`；新增 `idx_coupon_inventory_order ON (order_no)`、`idx_coupon_inventory_latest ON (coupon_id, mobile, occurred_at)`。
 
 ### 新增 `coupon_templates`（券模板）
 
@@ -75,10 +102,6 @@
 | `source` | youzan / local |
 | `created_at` / `updated_at` | 时间戳 |
 
-### 扩展 `coupon_inventory`（券实例生命周期）
-
-新增列：`template_id`、`valid_from`、`valid_until`、`deducted_fen`（核销抵扣金额）、`consumed_at`、`refunded_at`。状态沿用 `TAKE / CONSUME / BACK`（`BACK` 表示退回；过期由有效期判断，不单独落状态）。
-
 ### 新增 `coupon_grants`（发券记录，local 模式）
 
 | 字段 | 说明 |
@@ -93,36 +116,48 @@
 | `status` | granted / revoked |
 | `created_at` | 时间戳 |
 
+### 模板字段回填（v2 补充 1）
+
+- 全量导入（`member_loyalty.py`）与 Webhook 反查（`member_api.get_coupon_group_detail`）统一解析券详情：`coupon_type/threshold_fen/value_fen/discount_bp/cap_fen/valid_from/valid_until/name/scope_json` → **upsert `coupon_templates`**（youzan 来源）→ 写 `coupon_inventory` 时回填 `template_id/valid_from/valid_until`，避免新列长期为空。
+- 抽取公共解析函数（如 `app/service/coupon/template_sync.py`），导入与事件两处复用。
+
 ## 分层设计
 
 ```
 api/ → service/coupon/ → repository/ → models/
 ```
 
-- `app/models/member.py` 或新建 `app/models/coupon.py`：`CouponTemplate`、`CouponGrant`、扩展 `CouponInventoryEntry`。
-- `app/repository/coupon_template_repo.py`：模板 CRUD、`list_active`、`get_by_type`。
-- `app/repository/coupon_inventory_repo.py` 扩展：`list_by_mobile`（含状态/有效期筛选）、`get_available`、`consume`（原子条件更新）、`refund`、`list_by_order`。
+- `app/models/coupon.py`：`CouponTemplate`、`CouponGrant`（`CouponInventoryEntry` 留在 `member.py` 扩展字段）。
+- `app/repository/coupon_template_repo.py`：模板 CRUD、`upsert_from_youzan`、`list_active`。
+- `app/repository/coupon_inventory_repo.py` 扩展：`list_by_mobile`（含状态/有效期筛选）、`get_latest_state`（最新态）、`consume`（事务内读最新态+插入）、`refund`（插入 BACK 行）、`list_by_order`。
 - `app/repository/coupon_grant_repo.py`：`insert`、`list_by_mobile`、`revoke`。
-- `app/service/coupon/rules.py`：纯函数（可用性、抵扣计算、叠加校验）。
-- `app/service/coupon/inventory.py`：券账本（核销/退回，幂等键）。
-- `app/service/coupon/payment.py`：`build_coupon_payment` 快照、`consume_on_payment`、`refund_coupon`。
+- `app/service/coupon/rules.py`：纯函数（可用性、抵扣计算、叠加校验、最新态判断）。
+- `app/service/coupon/inventory.py`：券账本（核销/退回，幂等键，事务边界）。
+- `app/service/coupon/payment.py`：`build_coupon_payment` 快照合并、`consume_on_payment`、`refund_coupon`、`clear_coupon_snapshot`（未支付取消只清快照）。
 - `app/service/coupon/grants.py`：local 发券/回收。
-- `app/service/coupon/__init__.py`：`CouponService` 门面（`get_my_coupons` / `redeem_preview` / `apply_coupon`）。
+- `app/service/coupon/__init__.py`：`CouponService` 门面（`get_my_coupons` / `redeem_preview` / `apply_coupon` / `clear_applied`）。
+- `app/service/order/payment_state.py`：新增统一 `compute_remain_fen(total, coupon, balance, points)` 纯函数，快照合并逻辑改造。
 
-## 支付联动（与 M3 积分闭环同构）
+## 支付联动（v2 修订 3+4：唯一金额公式，M3 同步改）
 
-- `build_coupon_payment`：结算选券写支付快照（`couponFen/couponId`），订单进入 partial 中间态。
-- 三条支付成功路径（mock、微信通知、储值全额）统一调 `consume_on_payment`：按快照原子核销券；非会员/无券订单自动跳过。
-- 取消/超时/后台取消调 `refund_coupon`：按快照退回券（幂等键防重）。
-- 有赞核销 API 调用封装在 `member_api.py`（mock 短路），真实契约验证后启用。
+- **唯一剩余应付公式**：`remain_fen = compute_remain_fen(total_fen, coupon_fen, balance_fen, points_fen)`，定义在 `payment_state.py`，以下全部复用：
+  - mock 支付建单金额：`remain_fen`。
+  - 微信 JSAPI 建单金额：`remain_fen`（原 `order.total_amount`，见 `payment_runtime.py`）。
+  - 微信通知金额校验 `expected_fen`：`remain_fen`（原 `total_amount`，见 `payment_notification.py`）。
+  - 储值全额余额支付（`stored_value/payment.py`）：按 `remain_fen` 扣减（原 `total_fen`）。
+  - `prepare_combined_payment`：`remain_fen = total - coupon - balance - points`（原 `total - balance`）。
+- 结算选券 `build_coupon_payment`：写快照 `couponFen/couponId`（与 points 快照合并，顺序不敏感）。
+- 三条支付成功路径（mock、微信通知、储值全额）统一调 `consume_on_payment`：按快照核销券；非会员/无券订单自动跳过。
+- 取消/超时/后台取消：**未支付**只清快照（不写 BACK）；**已支付全单退款**调 `refund_coupon` 写 BACK（幂等键防重）。
+- M3 同步：`redeem_units` 加 `coupon_fen` 参数、发分公式减券、快照合并（见"叠加约束"）。
 
 ## 小程序 API（3 端点，prefix `/api/v1/miniapp`）
 
 | 端点 | 说明 |
 |---|---|
-| `GET /coupons` | 我的券列表（按状态/有效期筛选） |
-| `POST /orders/{order_id}/coupon-preview` | 结算选券预览（可用券 + 每张可减金额 + 叠加校验结果） |
-| `POST /orders/{order_id}/apply-coupon` | 应用券（写快照，支付成功才核销） |
+| `GET /coupons` | 我的券列表（按状态/有效期筛选，最新态口径） |
+| `POST /orders/{order_id}/coupon-preview` | 结算选券预览（可用券 + 每张可减金额 + 与积分/储值叠加校验结果） |
+| `POST /orders/{order_id}/apply-coupon` | 应用券（合并写快照，支付成功才核销） |
 
 鉴权沿用 `authenticate_storefront_request` + `x-miniapp-user-id`，错误语义与积分 API 一致（ValueError → 400）。
 
@@ -131,7 +166,7 @@ api/ → service/coupon/ → repository/ → models/
 - `app/api/admin/coupons.py`：
   - 券模板：列表 / 新建 / 编辑 / 启停（`coupon_authority=local` 时后台创建模板并发券）。
   - 查询：发券记录、核销记录、券库存明细（按状态/模板/手机号筛选）。
-  - `local` 发券：按手机号发放指定模板券，生成 `coupon_code` 写 `coupon_grants` 并落 `coupon_inventory`。
+  - `local` 发券：按手机号发放指定模板券，生成 `coupon_code` 写 `coupon_grants` 并落 `coupon_inventory`（`source='local'`）。
 - `web/admin/src/pages/coupons/`：`CouponsPage.vue`（模板管理 + 记录查询 + local 发券入口），沿用现有 admin 页面模式（API service + Element Plus）。
 
 ## 演进预留（向 C 转）
@@ -142,12 +177,16 @@ api/ → service/coupon/ → repository/ → models/
 ## 测试验收
 
 1. `rules.py`：三类券可用性（门槛/有效期/上限）与抵扣金额边界（含超应付、折扣取整、上限封顶）。
-2. 叠加约束：券+储值+积分不超应付；积分 50% 上限在叠加券后正确收窄。
-3. 幂等与并发：重复支付/重复取消只核销/退回一次；`TAKE->CONSUME` 原子条件更新并发只有一个成功。
-4. 支付联动：mock/微信/储值三条成功路径核销券；取消/超时/后台取消退回券；非会员无券订单跳过。
-5. 小程序 API：列表/预览/应用三端点鉴权与错误语义；lifespan 装配契约测试同步更新。
-6. 管理后台：模板 CRUD/启停、发券记录、核销记录、local 发券。
-7. 全套回归：新增测试 + `tests/` 全套 + `check_project --skip-tests` + `check_file_sizes` + `ruff check` + `ruff format --check` + 门禁全绿。
+2. 状态模型：核销=插入 CONSUME 行且最新态校验；同券并发核销只有一个成功（BEGIN IMMEDIATE + 唯一索引 + 幂等键）。
+3. 叠加约束：券+储值+积分不超应付；`redeem_units` 加 `coupon_fen` 后积分上限正确收窄；发分公式减券后 `cash_fen` 正确。
+4. 快照合并：apply-coupon 与 apply-points 顺序不敏感，最终快照字段共存不互相覆盖。
+5. 唯一金额公式：mock/微信/储值三条路径与微信通知金额校验全部按 `remain_fen`（含券/储值/积分组合场景）。
+6. 支付联动：三条成功路径核销券；未支付取消只清快照不写 BACK；已支付全单退款写 BACK；非会员无券订单跳过。
+7. 事件优先级：youzan 模式下本地核销后事件不降级/不冲突（去重键命中跳过）；local 模式事件只审计。
+8. 模板回填：导入与 Webhook 均 upsert 模板并回填 `template_id/valid_from/valid_until`。
+9. 小程序 API：列表/预览/应用三端点鉴权与错误语义；lifespan 装配契约测试同步更新。
+10. 管理后台：模板 CRUD/启停、发券记录、核销记录、local 发券。
+11. 全套回归：新增测试 + `tests/` 全套 + `check_project --skip-tests` + `check_file_sizes` + `ruff check` + `ruff format --check` + 门禁全绿。
 
 ## 收口
 
