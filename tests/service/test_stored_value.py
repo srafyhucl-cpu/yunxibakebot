@@ -199,10 +199,11 @@ async def test_recharge_amount_bounds_and_cancel(
     with pytest.raises(ValueError, match="充值金额不能低于"):
         await stored_value_service.create_recharge(USER_ID, 50)
     with pytest.raises(ValueError, match="充值金额不能超过"):
-        await stored_value_service.create_recharge(USER_ID, 500_001)
-    created = await stored_value_service.create_recharge(USER_ID, 2000)
+        await stored_value_service.create_recharge(USER_ID, 50_001)
+    accepted = await stored_value_service.create_recharge(USER_ID, 50_000)
+    assert accepted["status"] == "unpaid"
     cancelled = await stored_value_service.cancel_unpaid_recharge(
-        created["rechargeId"], user_id=USER_ID
+        accepted["rechargeId"], user_id=USER_ID
     )
     assert cancelled["status"] == "cancelled"
     assert await _balance_fen(db) == 0
