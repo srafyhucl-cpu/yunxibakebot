@@ -125,6 +125,12 @@ class WechatPaymentNotificationService:
             raise ValueError("订单支付状态更新冲突")
         await self._claim_transaction(transaction_id, order_id)
         await self._record_paid_event(updated, payment["paidAt"])
+        # 微信到账后统一发分（重复通知由 pointsAwarded 幂等兜底）
+        from app.service.points.payment import PointsPaymentService
+
+        await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
+            updated
+        )
         return updated
 
     async def _claim_transaction(self, transaction_id: str, order_id: str) -> None:

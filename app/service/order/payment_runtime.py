@@ -99,6 +99,11 @@ class OrderPaymentRuntimeService:
         payment = loads_payment(order.payment)
         payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
         if payment_status == PAYMENT_STATUS_PAID:
+            from app.service.points.payment import PointsPaymentService
+
+            await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
+                order
+            )
             return self._serializer.serialize(order)
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
@@ -137,6 +142,12 @@ class OrderPaymentRuntimeService:
             ):
                 return self._serializer.serialize(latest)
             raise ValueError("订单支付状态更新冲突")
+        # 支付成功后统一发分（重复通知由 pointsAwarded 幂等兜底）
+        from app.service.points.payment import PointsPaymentService
+
+        await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
+            updated
+        )
         return self._serializer.serialize(updated)
 
     async def handle_wechat_payment_notify(

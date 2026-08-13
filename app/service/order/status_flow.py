@@ -75,6 +75,7 @@ class OrderAdminStatusService:
                     raise ValueError("已支付订单不允许取消")
                 raise ValueError("当前订单状态不允许切换到目标状态")
             await self._refund_balance(updated)
+            await self._refund_points(updated)
         else:
             updated = await self._update_status(order_id, target_status)
         await self._release_inventory_if_needed(updated, target_status)
@@ -126,6 +127,12 @@ class OrderAdminStatusService:
         """后台取消组合支付订单时原路退回已扣储值余额。"""
         if self._stored_value_service is not None:
             await self._stored_value_service.refund_order_balance(order)
+
+    async def _refund_points(self, order: Order) -> None:
+        """后台取消时按支付快照退回积分并收回已发积分。"""
+        from app.service.points.payment import PointsPaymentService
+
+        await PointsPaymentService(order_repo=self._order_repo).refund_points(order)
 
     async def _release_inventory_if_needed(
         self,

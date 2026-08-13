@@ -70,6 +70,40 @@ class PointsService:
             "remainFen": max(0, total_fen - balance_fen - points_fen),
         }
 
+    async def apply_points(self, order_id: str, *, user_id: str) -> dict:
+        """应用积分抵扣：校验并写 partial 快照（支付成功才扣积分）。"""
+        from app.service.points.payment import PointsPaymentService
+
+        payment_service = PointsPaymentService(
+            ledger_service=self._ledger_service,
+            order_repo=self._order_repo,
+        )
+        order = await self._owned_order(order_id, user_id)
+        mobile = await self.resolve_mobile(user_id)
+        balance = await self._balance_repo.get_points(mobile)
+        payment = loads_payment(order.payment)
+        balance_fen = int(payment.get("balanceFen", 0) or 0)
+        total_fen = self._total_fen(order)
+        points_used = redeem_units(balance, total_fen, balance_fen)
+        if points_used <= 0:
+            raise ValueError("积分不足或订单金额不支持抵扣")
+        return await payment_service.apply_points_snapshot(
+            order,
+            user_id=user_id,
+            points_used=points_used,
+            mobile=mobile,
+        )
+
+    async def refund_points(self, order: Order) -> None:
+        """按支付快照退回抵扣积分并收回已发积分（幂等）。"""
+        from app.service.points.payment import PointsPaymentService
+
+        payment_service = PointsPaymentService(
+            ledger_service=self._ledger_service,
+            order_repo=self._order_repo,
+        )
+        await payment_service.refund_points(order)
+
     async def _owned_order(self, order_id: str, user_id: str) -> Order:
         order = await self._order_repo.get_order(order_id)
         if order is None or order.user_id != user_id:

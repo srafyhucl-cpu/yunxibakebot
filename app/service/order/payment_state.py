@@ -73,6 +73,25 @@ def build_combined_payment(
     }
 
 
+def build_points_payment(
+    now_text_value: str,
+    *,
+    balance_fen: int,
+    points_fen: int,
+    points_used: int,
+    remain_fen: int,
+) -> dict:
+    """构建含积分抵扣的组合支付中间状态。"""
+    payment = build_combined_payment(now_text_value, balance_fen, remain_fen)
+    payment.update(
+        {
+            "pointsFen": points_fen,
+            "pointsUsed": points_used,
+        }
+    )
+    return payment
+
+
 def build_mock_payment_session(order_id: str) -> PaymentSession:
     """构建 mock 支付会话，供开发和无商户配置环境使用。"""
     return PaymentSession(
@@ -180,6 +199,7 @@ __all__ = [
     "build_initial_payment",
     "build_mock_payment_session",
     "build_order_description",
+    "build_points_payment",
     "dumps_payment",
     "extract_openid",
     "loads_json_object",

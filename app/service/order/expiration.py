@@ -107,6 +107,7 @@ class OrderExpirationService:
         if closed is None:
             return None
         await self._refund_balance(closed)
+        await self._refund_points(closed)
         await self._inventory_service.release_reserved_inventory(
             self._inventory_service.items_from_order(closed)
         )
@@ -150,6 +151,12 @@ class OrderExpirationService:
         """组合支付超时关闭时原路退回已扣储值余额。"""
         if self._stored_value_service is not None:
             await self._stored_value_service.refund_order_balance(order)
+
+    async def _refund_points(self, order: Order) -> None:
+        """超时关闭时按支付快照退回积分并收回已发积分。"""
+        from app.service.points.payment import PointsPaymentService
+
+        await PointsPaymentService(order_repo=self._order_repo).refund_points(order)
 
     async def _serialize_order(self, order_id: str) -> dict:
         order = await self._order_repo.get_order(order_id)

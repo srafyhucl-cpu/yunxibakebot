@@ -72,6 +72,12 @@ class StoredValueOrderPaymentService:
             )
             if updated is None:
                 raise ValueError("订单支付状态更新冲突")
+            # 全额余额支付 cash=0，不发分但保持统一发分钩子（幂等）
+            from app.service.points.payment import PointsPaymentService
+
+            await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
+                updated
+            )
             return self._serialize_order_payment(updated, paid_payment)
 
     async def prepare_combined_payment(
