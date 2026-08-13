@@ -1,3 +1,23 @@
+## [2026-08-13] - docs(harness): M4 优惠券模块生产部署第一段（COUPON_AUTHORITY=youzan）
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4-prod-deploy
+- 来源: M4 实施计划 Task 9 收口后的生产部署确认；skill `yunxibakebot-production-release`
+- 变更:
+  - 生产部署 v0.131.2（d2ea497）：M4 优惠券模块上线（v024 迁移 + 券模板/库存账本/核销退回 + 支付联动 + 小程序券 API + 管理后台券模块 + `COUPON_AUTHORITY` 配置）。
+  - 数据主从：生产 `.env` 未覆盖 `COUPON_AUTHORITY`，走代码默认 `youzan`（有赞券为镜像数据源、本地核销引擎为当前态权威），符合两步切换第一段。
+  - 事故复盘：首次部署 v0.131.1（0f825b9）启动崩溃（`CouponService()` 构造期访问 `_db`，见 M-20260813-001），回滚 v0.122.1 恢复后修复（d2ea497）重新部署成功。
+- 验证:
+  - `systemctl is-active yunxibakebot` → active；生产 worktree commit `d2ea497fea`、VERSION `0.131.2`。
+  - `https://yunxifood.cn/health` → `{"status":"ok","version":"0.131.2"}`；`/ready` → ready 且 `database_schema_ready=true`、`youzan_production_mode_ready=true`。
+  - 生产库 `_schema_version` 最高 24（v024 于 2026-08-13 15:30:00 应用）；`coupon_inventory` 新列（template_id/valid_from/valid_until/deducted_fen/consumed_at/refunded_at）6 列全部存在。
+  - 券路由探针（服务器 loopback）：`GET /api/v1/miniapp/coupons`、`POST /orders/0/coupon-preview`、`POST /orders/0/apply-coupon` 均返回 401（路由已注册、鉴权拦截，非 404）。
+  - 生产 `.env` 未设置 `COUPON_AUTHORITY`/`POINTS_AUTHORITY`（grep 计数 0），走代码默认 `youzan`。
+- 待办:
+  - 观察 `youzan` 权威模式运行稳定后，执行 M4 第二段：`COUPON_AUTHORITY=local` 二次部署。
+  - 退款流程接入 `refund_coupon`（BACK 行）、`_parse_discount_bp` 健壮性、`consume_once/refund_once` 类型注解、tests/scripts flaky 四项随 M5 闭环。
+  - `scripts/deploy_server.sh` 重试缺陷（失败即消费 bundle）后续优化；M5 小程序前端（券列表/结算抵扣入口）按计划书排期。
+- 版本: 0.131.2（纯文档收口提交，版本不递增）
 ## [2026-08-13] - fix(coupon): CouponService 构造惰性化修复生产启动失败
 
 - 操作人: AI (Codex)
