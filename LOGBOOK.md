@@ -1,3 +1,14 @@
+## [2026-08-13] - docs(plan): M4 优惠券模块设计修订 v3（最新态来源优先级/LedgerSource 常量）
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4
+- 来源: 用户对设计 v2 复审的 2 点意见
+- 变更:
+  - get_latest_state 最新态判定加入来源权重（order/local > webhook/import，同权重内按时间降序）；youzan 模式有赞 BACK 审计行时间再晚也不得降级本地 CONSUME/TAKE；local 模式审计行不参与可用券/核销判定。来源权重集中为 SOURCE_PRIORITY 常量。
+  - LedgerSource 明确：ORDER 已存在（v023 添加），本期新增 LOCAL="local"；核销/退回用 ORDER 常量、本地发券用 LOCAL 常量，禁止魔法字符串。
+- 版本: 0.122.1（纯文档提交，版本不递增）
+
+
 ## [2026-08-13] - docs(plan): M4 优惠券模块设计修订 v2（状态模型/金额公式/事件优先级）
 
 - 操作人: AI (Codex)

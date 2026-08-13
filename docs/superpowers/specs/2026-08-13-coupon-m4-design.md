@@ -33,7 +33,10 @@
 `coupon_inventory` 保持 M1 的**生命周期多行**模型（唯一索引 `coupon_id + status + mobile`，状态流转写多行，符合生命周期记录语义）。**禁止** `UPDATE ... SET status='CONSUME'` 单行当前态写法。
 
 - 核销 = 在**事务内**先读取该券最新状态行，校验最新态为 `TAKE` 且未过期，再**插入**一条 `source='order'` 的 `CONSUME` 行。
-- 最新态判定：按 `(occurred_at, created_at, id)` 取 `coupon_id + mobile` 的最新一行。
+- 最新态判定（v3 修订：来源优先级 + 时间）：`get_latest_state` 先按**来源权重**排序，再按时间排序：
+  - `youzan` 模式：`order/local` 权重高于 `webhook/import`，同权重内按 `(occurred_at, created_at, id)` 降序取首行。有赞 `BACK` 审计行时间再晚也不得覆盖本地 `CONSUME`/`TAKE`（order/local 行）。
+  - `local` 模式：只查询 `order/local` 来源行判定可用/核销，`webhook/import` 审计行完全不参与。
+- 来源权重常量集中定义（如 `SOURCE_PRIORITY = {"order": 2, "local": 2, "webhook": 1, "import": 1}`），禁止散落魔法值。
 - 并发防重：核销事务以 `BEGIN IMMEDIATE` 串行化（SQLite 写串行），"读最新态 → 插入"原子完成；service 层幂等键 `coupon:consume:<order_id>` 二次兜底；唯一索引 `(coupon_id, status, mobile)` 保证同券同状态只有一行。
 - 去重键语义不变：`(coupon_id, status, mobile)` 组合去重。
 
@@ -81,7 +84,7 @@ SQLite 重建表以扩展 CHECK 与列（沿用 `points_ledger_new` → DROP →
 
 新增列：`template_id`、`valid_from`、`valid_until`、`deducted_fen`（核销抵扣金额）、`consumed_at`、`refunded_at`。
 
-`source` 枚举扩展：`CHECK(source IN ('webhook', 'import', 'local', 'order'))`；`app/models/member.py` 的 `LedgerSource` 新增 `LOCAL = "local"`。
+`source` 枚举扩展：`CHECK(source IN ('webhook', 'import', 'local', 'order'))`；`app/models/member.py` 的 `LedgerSource` 已有 `WEBHOOK/IMPORT/ORDER`（v023 已加 `ORDER`），本期**新增 `LOCAL = "local"`**。核销/退回行统一用 `LedgerSource.ORDER` 常量、本地发券行用 `LedgerSource.LOCAL`，**禁止魔法字符串**。
 
 保留：唯一索引 `idx_coupon_inventory_dedup ON (coupon_id, status, mobile)`、`idx_coupon_inventory_mobile ON (mobile)`；新增 `idx_coupon_inventory_order ON (order_no)`、`idx_coupon_inventory_latest ON (coupon_id, mobile, occurred_at)`。
 
@@ -129,7 +132,7 @@ api/ → service/coupon/ → repository/ → models/
 
 - `app/models/coupon.py`：`CouponTemplate`、`CouponGrant`（`CouponInventoryEntry` 留在 `member.py` 扩展字段）。
 - `app/repository/coupon_template_repo.py`：模板 CRUD、`upsert_from_youzan`、`list_active`。
-- `app/repository/coupon_inventory_repo.py` 扩展：`list_by_mobile`（含状态/有效期筛选）、`get_latest_state`（最新态）、`consume`（事务内读最新态+插入）、`refund`（插入 BACK 行）、`list_by_order`。
+- `app/repository/coupon_inventory_repo.py` 扩展：`list_by_mobile`（含状态/有效期筛选）、`get_latest_state`（按来源权重+时间取最新态，youzan/local 两套口径）、`consume`（事务内读最新态+插入）、`refund`（插入 BACK 行）、`list_by_order`。
 - `app/repository/coupon_grant_repo.py`：`insert`、`list_by_mobile`、`revoke`。
 - `app/service/coupon/rules.py`：纯函数（可用性、抵扣计算、叠加校验、最新态判断）。
 - `app/service/coupon/inventory.py`：券账本（核销/退回，幂等键，事务边界）。
@@ -178,6 +181,7 @@ api/ → service/coupon/ → repository/ → models/
 
 1. `rules.py`：三类券可用性（门槛/有效期/上限）与抵扣金额边界（含超应付、折扣取整、上限封顶）。
 2. 状态模型：核销=插入 CONSUME 行且最新态校验；同券并发核销只有一个成功（BEGIN IMMEDIATE + 唯一索引 + 幂等键）。
+3. 最新态来源优先级：有赞 BACK 审计行时间晚于本地 CONSUME 时不降级；local 模式审计行不参与判定。
 3. 叠加约束：券+储值+积分不超应付；`redeem_units` 加 `coupon_fen` 后积分上限正确收窄；发分公式减券后 `cash_fen` 正确。
 4. 快照合并：apply-coupon 与 apply-points 顺序不敏感，最终快照字段共存不互相覆盖。
 5. 唯一金额公式：mock/微信/储值三条路径与微信通知金额校验全部按 `remain_fen`（含券/储值/积分组合场景）。
