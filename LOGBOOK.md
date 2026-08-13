@@ -1,3 +1,13 @@
+## [2026-08-13] - docs(plan): M4 优惠券模块实施计划
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4
+- 来源: M4 设计 v3（`docs/superpowers/specs/2026-08-13-coupon-m4-design.md`）；writing-plans skill
+- 变更:
+  - 新增 `docs/superpowers/plans/2026-08-13-coupon-m4.md`：9 任务 52 步（TDD）——v024 迁移与券模板/发券模型；模板仓储与有赞回填；券规则纯函数；券库存账本（最新态/核销/退回，来源权重+幂等）；M3 积分规则感知券与唯一剩余应付公式；券支付联动与三条支付路径金额统一；小程序券 API；管理后台（模板/记录/local 发券 + 前端页面）；验证收口。
+- 版本: 0.122.1（纯文档提交，版本不递增）
+
+
 ## [2026-08-13] - docs(plan): M4 优惠券模块设计修订 v3（最新态来源优先级/LedgerSource 常量）
 
 - 操作人: AI (Codex)
