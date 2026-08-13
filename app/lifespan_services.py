@@ -97,6 +97,9 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
     from app.service.stored_value import StoredValueService
 
     stored_value_service = StoredValueService()
+    from app.service.points import PointsService
+
+    points_service = PointsService()
     order_service = OrderApplicationService(
         order_repo=repos["order_repo"],
         event_repo=repos["order_event_repo"],
@@ -200,6 +203,7 @@ def init_services(repos: dict[str, Any], vs: Any, bm25: Any = None) -> dict[str,
         "catalog_service": catalog_service,
         "order_service": order_service,
         "stored_value_service": stored_value_service,
+        "points_service": points_service,
         "customer_address_service": customer_address_service,
         "customer_group_service": customer_group_service,
         "customer_consent_service": customer_consent_service,
