@@ -1,3 +1,26 @@
+## [2026-08-13] - docs(harness): M4 优惠券模块本地收口
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4
+- 来源: `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M4 优惠券模块）；实施计划 `docs/superpowers/plans/2026-08-13-coupon-m4.md`（9 任务 52 步 TDD，两轮评审 17 项落地后执行）
+- 变更:
+  - T1 v024 迁移重建 `coupon_inventory`（source 枚举扩 ('webhook','import','local','order')，新增 template_id/valid_from/valid_until/deducted_fen/consumed_at/refunded_at）；券模板/发券数据模型；`COUPON_AUTHORITY` 配置（默认 youzan）。
+  - T2 券模板仓储 + 有赞模板同步回填（按 coupon_group_id 去重缓存详情）。
+  - T3 券规则纯函数（SOURCE_PRIORITY 来源权重、可用性/抵扣计算、最新态 get_latest_state）。
+  - T4 券库存账本：生命周期多行语义，核销=校验最新态 TAKE 后插入 source='order' 的 CONSUME 行、退回=插入 BACK；同单幂等返回、跨单抛 ValueError 防双花；IntegrityError 幂等兜底。
+  - T5 积分规则感知券：redeem_units 增加 coupon_fen、发分公式减券、唯一剩余应付公式 compute_remain_fen。
+  - T6 券支付联动：apply/preview/consume/refund/clear 快照；mock/微信通知/储值三条支付路径金额统一走 compute_remain_fen；SAVEPOINT 冲突修复（核销先于发分 + 捕获 no such savepoint 按最新态幂等确认）；partial 状态机以 balanceFen>0 调和。
+  - T7 小程序券 API：GET /coupons、coupon-preview、apply-coupon。
+  - T8 管理后台：券模板查询/启停、记录查询、local 发券 + Vue 前端页面；配套更新 tests/test_lifespan_routes_services.py（admin 假模块 + 路由数 27→28）。
+- 验证:
+  - 全套 `pytest tests/` 1432 项全部通过（PYTHONUTF8=1，含覆盖率运行），覆盖率 83.07%、`--cov-fail-under=70` 通过；此前不带 PYTHONUTF8 时 tests/scripts 2 项曾因 GBK 子进程解码失败（与 M4 无关），设置 PYTHONUTF8=1 后全套（含覆盖率）全绿。
+  - `check_project.py --skip-tests`、`check_file_sizes.py`、`ruff format --check`、`git diff --check` 门禁全绿。
+  - 提交链 `f13035c`→`092fd1a` 共 9 笔（1 docs + 8 feat），VERSION 0.122.1→0.131.0。
+- 待办:
+  - M4 生产部署待用户确认：先 `COUPON_AUTHORITY=youzan` 部署（类似 M3.6 第一段），观察稳定后再评估是否切 local；部署命令 `SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh`。
+  - 上线后监控跨单核销异常日志、人工对账补核销（mock/微信通知路径「已 paid 但券未核销」窗口）。
+  - M5 小程序前端（券列表/结算抵扣入口）按计划书排期。
+- 版本: 0.131.0（纯文档提交，版本不递增）
 ## [2026-08-13] - docs(plan): M4 计划评审修订（两轮 17 项）
 
 - 操作人: AI (Codex)
