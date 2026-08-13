@@ -48,6 +48,15 @@ class StoredValueOrderPaymentService:
             payment = loads_payment(order.payment)
             payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
             if payment_status == PAYMENT_STATUS_PAID:
+                from app.service.coupon import CouponService
+                from app.service.points.payment import PointsPaymentService
+
+                await CouponService(order_repo=self._order_repo).consume_on_payment(
+                    order
+                )
+                await PointsPaymentService(
+                    order_repo=self._order_repo
+                ).award_on_payment(order)
                 return self._serialize_order_payment(order, payment)
             if (
                 payment_status == PAYMENT_STATUS_PARTIAL

@@ -20,6 +20,10 @@ from app.repository.youzan_repo import YouzanProductRepo
 from app.service.coupon import CouponService
 from app.service.coupon.inventory import CouponInventoryService
 from app.service.order import OrderApplicationService
+from app.service.stored_value import (
+    MemberBalanceService,
+    StoredValueOrderPaymentService,
+)
 from app.service.order.payment_state import dumps_payment, loads_payment, now_text
 
 MOBILE = "13800000004"
@@ -187,6 +191,45 @@ async def test_consume_on_payment(db, coupon_service, order_service) -> None:
     assert updated is not None
     await coupon_service.consume_on_payment(updated)
     await coupon_service.consume_on_payment(updated)
+    rows = await db.execute_fetchall(
+        "SELECT id FROM coupon_inventory WHERE coupon_id = 'c1' AND status = 'CONSUME' AND source = 'order'"
+    )
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_balance_pay_paid_retry_consumes_coupon(
+    db, coupon_service, order_service
+) -> None:
+    """余额支付置 paid 与核销之间崩溃，重试走 PAID 分支应补核销且幂等。"""
+    await _seed_member(db)
+    await _seed_template(db)
+    await _seed_coupon(db)
+    order_id = await _create_order(order_service)
+    await coupon_service.apply_coupon(order_id, user_id=USER_ID, coupon_id="c1")
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment["status"] = "paid"
+    payment["method"] = "balance"
+    payment["balanceFen"] = 9500
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await OrderRepo(db)._db.commit()
+    member_service = MemberBalanceService(
+        balance_repo=MemberBalanceRepo(db),
+        ledger_repo=BalanceLedgerRepo(db),
+        customer_repo=CustomerMasterRepo(db),
+    )
+    svc = StoredValueOrderPaymentService(
+        order_repo=OrderRepo(db), member_service=member_service
+    )
+    result = await svc.pay_order_with_balance(order_id, user_id=USER_ID)
+    assert result["paymentStatus"] == "paid"
+    rows = await db.execute_fetchall(
+        "SELECT id FROM coupon_inventory WHERE coupon_id = 'c1' AND status = 'CONSUME' AND source = 'order'"
+    )
+    assert len(rows) == 1
+    await svc.pay_order_with_balance(order_id, user_id=USER_ID)
     rows = await db.execute_fetchall(
         "SELECT id FROM coupon_inventory WHERE coupon_id = 'c1' AND status = 'CONSUME' AND source = 'order'"
     )

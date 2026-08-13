@@ -1,3 +1,22 @@
+## [2026-08-13] - fix(coupon): M4 评审问题收口（死代码清理/余额核销幂等/声明修正）
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4-review
+- 来源: M4 最终评审 6 项（2 中 4 低），评审结论「可进入生产部署准备阶段」
+- 变更:
+  - #1 删除 `rules.latest_state` 纯函数与 `SOURCE_PRIORITY` 常量（全仓仅测试引用），生产全部走 `CouponInventoryRepo.get_latest_state` SQL 权威实现，消除来源权重算法双实现分叉风险；同步删除对应 3 个单测（repo 级 `test_get_latest_state_youzan` 已覆盖语义）。
+  - #3 储值余额支付 PAID 幂等分支补 `consume_on_payment`/`award_on_payment` 重试（与 mock 路径对齐）：置 paid 与核销之间崩溃后重试不再提前返回跳过核销；新增 PAID 重试补核销幂等测试。
+  - #6 修正 M4 收口 LOGBOOK 验证声明：带覆盖率运行时 tests/scripts 2 项因 Windows 文件锁时序偶发 WinError 32 失败（sqlite 句柄未释放即 unlink，预存 flaky 非 M4 引入），声明改为「--no-cov 全绿 + flaky 注记」。
+- 验证:
+  - 定向测试 69 项全绿（coupon_rules/coupon_inventory/coupon_payment/stored_value/order）。
+  - `ruff format --check`、`ruff check`、`check_project.py --skip-tests`、`check_file_sizes.py`、`git diff --check` 门禁全绿。
+- 待办:
+  - #2 已支付全单退款链路尚未接入 `refund_coupon`（BACK 状态机生产不可达）：当前系统已支付订单不可取消，后续退款流程接入时再挂 BACK 行；测试已保留。
+  - #4 `_parse_discount_bp` 对非数值 discount 输入抛未捕获 ValueError，真实有赞联调前补 try/except 返回 0。
+  - #5 `CouponInventoryService.consume_once/refund_once` 返回注解 `dict | None` 与实际 `CouponInventoryEntry` 不符，统一为 `CouponInventoryEntry | dict | None`。
+  - tests/scripts flaky：覆盖率模式下 sqlite 句柄未释放导致 unlink 临时 db 失败（WinError 32），定位修复后移除 flaky 注记。
+  - M4 生产部署待用户确认（先 `COUPON_AUTHORITY=youzan`）；M5 前端排期。
+- 版本: 0.131.0（提交后由 pre-commit 自动递增）
 ## [2026-08-13] - docs(harness): M4 优惠券模块本地收口
 
 - 操作人: AI (Codex)
@@ -13,7 +32,7 @@
   - T7 小程序券 API：GET /coupons、coupon-preview、apply-coupon。
   - T8 管理后台：券模板查询/启停、记录查询、local 发券 + Vue 前端页面；配套更新 tests/test_lifespan_routes_services.py（admin 假模块 + 路由数 27→28）。
 - 验证:
-  - 全套 `pytest tests/` 1432 项全部通过（PYTHONUTF8=1，含覆盖率运行），覆盖率 83.07%、`--cov-fail-under=70` 通过；此前不带 PYTHONUTF8 时 tests/scripts 2 项曾因 GBK 子进程解码失败（与 M4 无关），设置 PYTHONUTF8=1 后全套（含覆盖率）全绿。
+  - 全套 `pytest tests/` 1432 项通过（PYTHONUTF8=1，--no-cov 全绿）；带覆盖率运行时 tests/scripts 2 项偶发 WinError 32 失败（sqlite 句柄未释放即 unlink 临时 db，Windows 文件锁时序，预存 flaky 与 M4 无关，见当日评审收口条目待办）；覆盖率 83.07%、`--cov-fail-under=70` 通过。
   - `check_project.py --skip-tests`、`check_file_sizes.py`、`ruff format --check`、`git diff --check` 门禁全绿。
   - 提交链 `f13035c`→`092fd1a` 共 9 笔（1 docs + 8 feat），VERSION 0.122.1→0.131.0。
 - 待办:

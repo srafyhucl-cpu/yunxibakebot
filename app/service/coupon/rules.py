@@ -1,15 +1,6 @@
 """优惠券业务规则纯函数（无 IO，可独立单测）。"""
 
 from app.models.coupon import CouponTemplateStatus, CouponType
-from app.models.member import LedgerSource
-
-# 券生命周期行来源权重：order/local 是本地权威态，webhook/import 是审计/镜像态
-SOURCE_PRIORITY: dict[str, int] = {
-    LedgerSource.ORDER: 2,
-    LedgerSource.LOCAL: 2,
-    LedgerSource.WEBHOOK: 1,
-    LedgerSource.IMPORT: 1,
-}
 
 FULL_DISCOUNT_BP = 10_000
 MIN_DISCOUNT_FEN = 1
@@ -63,36 +54,3 @@ def calc_discount(template: dict, total_fen: int) -> int:
         raw = max(MIN_DISCOUNT_FEN, raw)
         return min(raw, total)
     return 0
-
-
-def latest_state(rows: list[dict], authority: str) -> dict | None:
-    """按来源权重 + 时间取券最新状态行。"""
-    if not rows:
-        return None
-    if authority == LedgerSource.LOCAL:
-        filtered = [
-            r
-            for r in rows
-            if r.get("source") in (LedgerSource.ORDER, LedgerSource.LOCAL)
-        ]
-        if not filtered:
-            return None
-        return max(
-            filtered,
-            key=lambda r: (
-                r.get("occurred_at", ""),
-                r.get("created_at", ""),
-                r.get("id", 0),
-            ),
-        )
-    ranked = sorted(
-        rows,
-        key=lambda r: (
-            SOURCE_PRIORITY.get(str(r.get("source", "")), 1),
-            r.get("occurred_at", ""),
-            r.get("created_at", ""),
-            r.get("id", 0),
-        ),
-        reverse=True,
-    )
-    return ranked[0]
