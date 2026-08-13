@@ -115,6 +115,19 @@ def loads_payment(raw: str) -> dict:
     return value if isinstance(value, dict) else build_initial_payment("")
 
 
+def compute_remain_fen(
+    total_fen: int, coupon_fen: int, balance_fen: int, points_fen: int
+) -> int:
+    """唯一剩余应付公式：total - coupon - balance - points（不小于 0）。"""
+    return max(
+        0,
+        int(total_fen or 0)
+        - int(coupon_fen or 0)
+        - int(balance_fen or 0)
+        - int(points_fen or 0),
+    )
+
+
 def payment_status_value(order: Order) -> str:
     """读取订单支付状态字符串。"""
     payment = loads_payment(order.payment)
@@ -200,6 +213,7 @@ __all__ = [
     "build_mock_payment_session",
     "build_order_description",
     "build_points_payment",
+    "compute_remain_fen",
     "dumps_payment",
     "extract_openid",
     "loads_json_object",

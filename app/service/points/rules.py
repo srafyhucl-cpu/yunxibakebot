@@ -15,17 +15,22 @@ def points_to_fen(points_used: int) -> int:
     return max(0, points_used) // 100 * 100
 
 
-def redeem_units(available_points: int, total_fen: int, balance_fen: int) -> int:
+def redeem_units(
+    available_points: int,
+    total_fen: int,
+    balance_fen: int,
+    coupon_fen: int = 0,
+) -> int:
     """计算本单可用抵扣积分数。
 
     规则：百位向下取整；单笔最低 100 分；最高抵扣订单应付 50%，
-    且折算金额不超过剩余应付（total_fen - balance_fen）。
+    且折算金额不超过剩余应付（total_fen - balance_fen - coupon_fen）。
     """
     available = max(0, available_points)
     usable = (available // MIN_REDEEM_POINTS) * MIN_REDEEM_POINTS
     if usable < MIN_REDEEM_POINTS:
         return 0
-    cap_fen = max(0, total_fen - balance_fen)
+    cap_fen = max(0, total_fen - balance_fen - max(0, coupon_fen))
     ratio_cap_fen = (
         total_fen * MAX_REDEEM_RATIO_NUMERATOR // MAX_REDEEM_RATIO_DENOMINATOR
     )

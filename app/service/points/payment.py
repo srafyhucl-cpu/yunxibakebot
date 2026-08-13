@@ -62,14 +62,19 @@ class PointsPaymentService:
         payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
         if payment_status == PAYMENT_STATUS_PAID:
             raise ValueError("订单已支付")
+        if int(payment.get("balanceFen", 0) or 0) > 0:
+            raise ValueError("订单已部分支付，不能再应用积分")
         total_fen = self._total_fen(order)
         balance_fen = int(payment.get("balanceFen", 0) or 0)
+        coupon_fen = int(payment.get("couponFen", 0) or 0)
         points_fen = points_to_fen(points_used)
         if points_fen <= 0:
             raise ValueError("积分抵扣至少 100 分")
-        if points_fen > total_fen - balance_fen:
+        if points_fen > total_fen - balance_fen - coupon_fen:
             raise ValueError("积分抵扣金额超过剩余应付")
-        remain_fen = total_fen - balance_fen - points_fen
+        from app.service.order.payment_state import compute_remain_fen
+
+        remain_fen = compute_remain_fen(total_fen, coupon_fen, balance_fen, points_fen)
         now = now_text()
         from app.service.order.payment_state import build_points_payment
 
@@ -80,6 +85,9 @@ class PointsPaymentService:
             points_used=points_used,
             remain_fen=remain_fen,
         )
+        # 快照合并顺序不敏感：保留已应用的券字段
+        snapshot["couponId"] = str(payment.get("couponId", "") or "")
+        snapshot["couponFen"] = int(payment.get("couponFen", 0) or 0)
         updated = await self._order_repo.update_payment_to_partial_if_unpaid_or_partial_active(
             order.id, dumps_payment(snapshot), now
         )
@@ -110,8 +118,9 @@ class PointsPaymentService:
             return
         total_fen = self._total_fen(order)
         balance_fen = int(payment.get("balanceFen", 0) or 0)
+        coupon_fen = int(payment.get("couponFen", 0) or 0)
         points_fen = int(payment.get("pointsFen", 0) or 0)
-        cash_fen = max(0, total_fen - balance_fen - points_fen)
+        cash_fen = max(0, total_fen - coupon_fen - balance_fen - points_fen)
         award = award_points(cash_fen)
         if points_used > 0:
             await self._ledger_service.deduct(

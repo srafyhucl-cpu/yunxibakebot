@@ -56,18 +56,22 @@ class PointsService:
         payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
         if payment_status == PAYMENT_STATUS_PAID:
             raise ValueError("订单已支付")
+        if int(payment.get("balanceFen", 0) or 0) > 0:
+            raise ValueError("订单已部分支付，不能再应用积分")
         mobile = await self.resolve_mobile(user_id)
         balance = await self._balance_repo.get_points(mobile)
         total_fen = self._total_fen(order)
         balance_fen = int(payment.get("balanceFen", 0) or 0)
-        points_used = redeem_units(balance, total_fen, balance_fen)
+        coupon_fen = int(payment.get("couponFen", 0) or 0)
+        points_used = redeem_units(balance, total_fen, balance_fen, coupon_fen)
         points_fen = points_to_fen(points_used)
         return {
             "orderId": order.id,
             "pointsBalance": balance,
             "pointsFen": points_fen,
             "pointsUsed": points_used,
-            "remainFen": max(0, total_fen - balance_fen - points_fen),
+            "couponFen": coupon_fen,
+            "remainFen": max(0, total_fen - coupon_fen - balance_fen - points_fen),
         }
 
     async def apply_points(self, order_id: str, *, user_id: str) -> dict:
@@ -82,9 +86,12 @@ class PointsService:
         mobile = await self.resolve_mobile(user_id)
         balance = await self._balance_repo.get_points(mobile)
         payment = loads_payment(order.payment)
+        if int(payment.get("balanceFen", 0) or 0) > 0:
+            raise ValueError("订单已部分支付，不能再应用积分")
         balance_fen = int(payment.get("balanceFen", 0) or 0)
+        coupon_fen = int(payment.get("couponFen", 0) or 0)
         total_fen = self._total_fen(order)
-        points_used = redeem_units(balance, total_fen, balance_fen)
+        points_used = redeem_units(balance, total_fen, balance_fen, coupon_fen)
         if points_used <= 0:
             raise ValueError("积分不足或订单金额不支持抵扣")
         return await payment_service.apply_points_snapshot(

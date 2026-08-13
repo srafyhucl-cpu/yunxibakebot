@@ -153,3 +153,68 @@ async def test_refund_points_returns_used_and_claws_back_award(
     assert await _points(db) == 100_000
     await points_service.refund_points(order)
     assert await _points(db) == 100_000
+
+
+async def test_apply_points_snapshot_with_coupon(
+    order_service, db: aiosqlite.Connection
+) -> None:
+    """券抵扣后积分抵扣上限随剩余应付收窄。"""
+    from app.repository.member_balance_repo import MemberBalanceRepo
+    from app.repository.points_ledger_repo import PointsLedgerRepo
+    from app.repository.order_repo import OrderRepo
+    from app.service.order.payment_state import dumps_payment, loads_payment, now_text
+    from app.service.points import PointsService
+
+    await _seed_member(db, points=10_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    points_service = PointsService(
+        balance_repo=MemberBalanceRepo(db),
+        ledger_repo=PointsLedgerRepo(db),
+        customer_repo=CustomerMasterRepo(db),
+        order_repo=OrderRepo(db),
+    )
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment["couponFen"] = 8000
+    payment["couponId"] = "c1"
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await OrderRepo(db)._db.commit()
+
+    result = await points_service.apply_points(order_id, user_id=USER_ID)
+    assert result["pointsFen"] == 2000
+    assert result["remainFen"] == 0
+    persisted = await OrderRepo(db).get_order(order_id)
+    assert persisted is not None
+    snapshot = loads_payment(persisted.payment)
+    assert snapshot.get("couponId") == "c1"
+    assert snapshot.get("couponFen") == 8000
+
+
+async def test_award_points_subtracts_coupon(
+    order_service, db: aiosqlite.Connection
+) -> None:
+    """发分公式 total - coupon - balance - points。"""
+    from app.repository.order_repo import OrderRepo
+    from app.service.order.payment_state import dumps_payment, loads_payment, now_text
+    from app.service.points.payment import PointsPaymentService
+
+    await _seed_member(db, points=100)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment["couponFen"] = 3000
+    payment["couponId"] = "c1"
+    payment["status"] = "paid"
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await OrderRepo(db)._db.commit()
+    updated = await OrderRepo(db).get_order(order_id)
+    assert updated is not None
+    await PointsPaymentService(order_repo=OrderRepo(db)).award_on_payment(updated)
+    rows = await db.execute_fetchall(
+        "SELECT amount FROM points_ledger WHERE unique_id = ?",
+        (f"points:award:{order_id}",),
+    )
+    # 实付 7000 分 -> 70 分
+    assert rows and rows[0]["amount"] == 70

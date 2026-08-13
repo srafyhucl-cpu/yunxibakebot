@@ -42,3 +42,13 @@ def test_refund_reversal() -> None:
     """全单退款退回全部抵扣积分并收回全部已发积分。"""
     assert refund_reversal(1200, 88) == (1200, 88)
     assert refund_reversal(0, 0) == (0, 0)
+
+
+def test_redeem_units_coupon_narrows_cap() -> None:
+    """券先抵扣后积分上限收窄：可用 2000 分时，有券剩余应付变小。"""
+    from app.service.points.rules import redeem_units
+
+    assert redeem_units(2000, total_fen=10_000, balance_fen=0) == 2000
+    assert redeem_units(2000, total_fen=10_000, balance_fen=0, coupon_fen=8000) == 2000
+    assert redeem_units(2000, total_fen=10_000, balance_fen=0, coupon_fen=9000) == 1000
+    assert redeem_units(2000, total_fen=10_000, balance_fen=0, coupon_fen=10_000) == 0
