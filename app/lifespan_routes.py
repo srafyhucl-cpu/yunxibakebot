@@ -123,8 +123,10 @@ def _register_admin_operations_routes(app: FastAPI, services: dict[str, Any]) ->
         create_admin_knowledge_retrieval_report_router,
     )
     from app.api.admin.observability import create_observability_router
+    from app.api.admin.coupons import create_admin_coupons_router
     from app.api.admin.orders import create_admin_orders_router
     from app.api.admin.products import create_admin_products_router
+    from app.service.coupon.admin import AdminCouponService
 
     app.include_router(create_admin_orders_router(services["order_service"]))
     app.include_router(
@@ -145,6 +147,7 @@ def _register_admin_operations_routes(app: FastAPI, services: dict[str, Any]) ->
             services["knowledge_sync_service"],
         )
     )
+    app.include_router(create_admin_coupons_router(AdminCouponService()))
 
 
 def _get_offline_review_summary(app: FastAPI) -> object | None:

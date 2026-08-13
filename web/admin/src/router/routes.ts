@@ -43,6 +43,15 @@ export const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/coupons",
+    name: "coupons",
+    component: () => import("@/pages/coupons/CouponsPage.vue"),
+    meta: {
+      title: "优惠券管理",
+      navKey: "coupons",
+    },
+  },
+  {
     path: "/products/featured",
     name: "products-featured",
     component: () => import("@/pages/products/FeaturedProductsPage.vue"),
