@@ -1,3 +1,13 @@
+## [2026-08-13] - docs(plan): M4 计划评审修订（两轮 17 项）
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4
+- 来源: M4 实施计划两轮评审意见（第一轮 12 条 + 第二轮 5 条修复 + 1 条残余风险留档）
+- 变更:
+  - `docs/superpowers/plans/2026-08-13-coupon-m4.md` 修订至 3577 行（+515/-99）：Task 1 新增 `COUPON_AUTHORITY` 配置及 `settings` 实例测试；核销/退回 authority 统一走 `settings.COUPON_AUTHORITY`；`CouponInventoryRepo.insert/get_by_dedup_key` 扩展 19 列（template_id/valid_from/valid_until/deducted_fen/consumed_at/refunded_at）；快照合并顺序不敏感（points/balance/combined 构造后回写 couponId/couponFen/pointsFen/pointsUsed）；partial 状态机以 `balanceFen>0` 调和（apply 与 redeem_preview 同守卫）；`consume_once/refund_once` 同单幂等返回、跨单抛 ValueError 防双花；三个储值路径测试注入 member_service；删 validate_combination 死代码；list_by_mobile 改 ROW_NUMBER 显式列；prepay 签名修正；折扣解析确定性化；导入详情按 coupon_group_id 缓存；并发 IntegrityError 转幂等兜底。
+  - 证据索引 E-20260810-003 维护：用户清理 `D:\Temp` 后移除 `r4c-evidence-332a14c` 工作副本引用（r4c-summary.json/trivy.json），证据以仓库内 workflow/依赖清单/条目摘要为准。
+- 版本: 0.122.1（纯文档提交，版本不递增）
+
 ## [2026-08-13] - docs(plan): M4 优惠券模块实施计划
 
 - 操作人: AI (Codex)
