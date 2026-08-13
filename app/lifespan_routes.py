@@ -17,6 +17,7 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
     from app.api.channels.storefront.auth import create_storefront_auth_router
     from app.api.channels.storefront.catalog import create_storefront_catalog_router
     from app.api.channels.storefront.chat import create_storefront_chat_router
+    from app.api.channels.storefront.coupons import create_storefront_coupons_router
     from app.api.channels.storefront.group_registrations import (
         create_storefront_group_registrations_router,
     )
@@ -68,6 +69,7 @@ def register_routes(app: FastAPI, services: dict[str, Any]) -> None:
         create_storefront_balance_router(services["stored_value_service"])
     )
     app.include_router(create_storefront_points_router(services["points_service"]))
+    app.include_router(create_storefront_coupons_router(services["coupon_service"]))
     app.include_router(
         create_storefront_chat_router(services["storefront_conversation_service"])
     )

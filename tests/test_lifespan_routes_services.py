@@ -204,6 +204,14 @@ def test_register_routes_starts_workers_and_includes_all_routers(
     )
     _install_module(
         monkeypatch,
+        "app.api.channels.storefront.coupons",
+        create_storefront_coupons_router=lambda service: (
+            "miniapp-coupons",
+            service,
+        ),
+    )
+    _install_module(
+        monkeypatch,
         "app.api.integrations.youzan_webhook",
         create_webhook_router=lambda chat_service: ("webhook", chat_service),
     )
@@ -258,6 +266,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
         "order_service": "order-service",
         "stored_value_service": "stored-value-service",
         "points_service": "points-service",
+        "coupon_service": "coupon-service",
         "knowledge_retriever": "knowledge-retriever",
         "storefront_conversation_service": "storefront-conversation-service",
         "customer_group_service": "customer-group-service",
@@ -272,7 +281,7 @@ def test_register_routes_starts_workers_and_includes_all_routers(
 
     assert wecom_queue.started_with == ["chat"]
     assert kf_queue.started_with == ["chat"]
-    assert len(app.included_routers) == 26
+    assert len(app.included_routers) == 27
     assert app.included_routers[0] == ("webhook", "chat")
     wecom_router = app.included_routers[-2]
     assert wecom_router[0] == "wecom-intelligent-bot-router"
@@ -373,6 +382,10 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         def __init__(self) -> None:
             created["points_service"] = True
 
+    class FakeCouponService:
+        def __init__(self) -> None:
+            created["coupon_service"] = True
+
     class FakeStorefrontConversationService:
         def __init__(self, **kwargs: Any) -> None:
             created["storefront_conversation_service"] = kwargs
@@ -455,6 +468,11 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
     )
     _install_module(
         monkeypatch,
+        "app.service.coupon",
+        CouponService=FakeCouponService,
+    )
+    _install_module(
+        monkeypatch,
         "app.service.conversation",
         StorefrontConversationService=FakeStorefrontConversationService,
     )
@@ -528,6 +546,7 @@ def test_init_services_wires_core_services(monkeypatch) -> None:
         "order_service",
         "stored_value_service",
         "points_service",
+        "coupon_service",
         "storefront_conversation_service",
         "wecom_order_lookup_service",
         "transfer_mgr",
