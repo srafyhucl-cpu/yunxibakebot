@@ -63,6 +63,7 @@ class OrderCancellationService:
             raise ValueError("当前订单状态不允许用户取消")
         await self._refund_balance(updated)
         await self._refund_points(updated)
+        await self._clear_coupon(updated)
         await self._timeline_service.record_event(
             order_id=order_id,
             status=OrderStatus.CANCELLED.value,
@@ -95,6 +96,12 @@ class OrderCancellationService:
         from app.service.points.payment import PointsPaymentService
 
         await PointsPaymentService(order_repo=self._order_repo).refund_points(order)
+
+    async def _clear_coupon(self, order: Order) -> None:
+        """未支付取消只清券快照，不写 BACK。"""
+        from app.service.coupon import CouponService
+
+        await CouponService(order_repo=self._order_repo).clear_applied(order)
 
     async def _release_inventory(self, order: Order) -> None:
         await self._inventory_service.release_reserved_inventory(

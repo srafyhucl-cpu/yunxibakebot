@@ -76,6 +76,7 @@ class OrderAdminStatusService:
                 raise ValueError("当前订单状态不允许切换到目标状态")
             await self._refund_balance(updated)
             await self._refund_points(updated)
+            await self._clear_coupon(updated)
         else:
             updated = await self._update_status(order_id, target_status)
         await self._release_inventory_if_needed(updated, target_status)
@@ -133,6 +134,12 @@ class OrderAdminStatusService:
         from app.service.points.payment import PointsPaymentService
 
         await PointsPaymentService(order_repo=self._order_repo).refund_points(order)
+
+    async def _clear_coupon(self, order: Order) -> None:
+        """未支付取消只清券快照，不写 BACK。"""
+        from app.service.coupon import CouponService
+
+        await CouponService(order_repo=self._order_repo).clear_applied(order)
 
     async def _release_inventory_if_needed(
         self,

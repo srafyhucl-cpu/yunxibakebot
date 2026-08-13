@@ -24,6 +24,7 @@ from app.service.order.payment_state import (
     build_initial_payment,
     build_mock_payment_session,
     build_order_description,
+    compute_remain_fen,
     dumps_payment,
     extract_openid,
     loads_json_object,
@@ -72,7 +73,10 @@ class OrderPaymentRuntimeService:
             )
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
-        if payment_status == PAYMENT_STATUS_PARTIAL:
+        if (
+            payment_status == PAYMENT_STATUS_PARTIAL
+            and int(payment.get("balanceFen", 0) or 0) > 0
+        ):
             raise ValueError("订单已部分支付，请完成剩余支付")
         if not self._wechat_pay_ready():
             if not settings.ALLOW_MOCK_PAYMENT:
@@ -99,8 +103,10 @@ class OrderPaymentRuntimeService:
         payment = loads_payment(order.payment)
         payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
         if payment_status == PAYMENT_STATUS_PAID:
+            from app.service.coupon import CouponService
             from app.service.points.payment import PointsPaymentService
 
+            await CouponService(order_repo=self._order_repo).consume_on_payment(order)
             await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
                 order
             )
@@ -142,9 +148,12 @@ class OrderPaymentRuntimeService:
             ):
                 return self._serializer.serialize(latest)
             raise ValueError("订单支付状态更新冲突")
-        # 支付成功后统一发分（重复通知由 pointsAwarded 幂等兜底）
+        # 支付成功后先核销券再发分：核销在支付事务内，双花 ValueError 可回滚支付；
+        # 发分内部自 commit 会破坏回滚边界，必须放在核销之后
+        from app.service.coupon import CouponService
         from app.service.points.payment import PointsPaymentService
 
+        await CouponService(order_repo=self._order_repo).consume_on_payment(updated)
         await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
             updated
         )
@@ -222,7 +231,15 @@ class OrderPaymentRuntimeService:
         return self._wechat_pay_service.decrypt_notify_resource(resource)
 
     async def _create_wechat_jsapi_prepay(self, order: Order) -> WechatPayPrepayResult:
-        total_fen = yuan_to_fen(order.total_amount)
+        payment = loads_payment(order.payment)
+        coupon_fen = int(payment.get("couponFen", 0) or 0)
+        balance_fen = int(payment.get("balanceFen", 0) or 0)
+        points_fen = int(payment.get("pointsFen", 0) or 0)
+        total_fen = compute_remain_fen(
+            yuan_to_fen(order.total_amount), coupon_fen, balance_fen, points_fen
+        )
+        if total_fen <= 0:
+            raise ValueError("订单无需外部支付")
         payer_openid = extract_openid(order.user_id)
         if not payer_openid:
             raise ValueError("当前用户未绑定微信 openid")

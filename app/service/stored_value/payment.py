@@ -15,6 +15,7 @@ from app.service.order.payment_state import (
     build_combined_payment,
     build_mock_payment_session,
     build_order_description,
+    compute_remain_fen,
     dumps_payment,
     extract_openid,
     loads_payment,
@@ -48,23 +49,35 @@ class StoredValueOrderPaymentService:
             payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
             if payment_status == PAYMENT_STATUS_PAID:
                 return self._serialize_order_payment(order, payment)
-            if payment_status == PAYMENT_STATUS_PARTIAL:
+            if (
+                payment_status == PAYMENT_STATUS_PARTIAL
+                and int(payment.get("balanceFen", 0) or 0) > 0
+            ):
                 raise ValueError("订单已部分支付，请完成剩余支付")
             total_fen = self._total_fen(order)
+            coupon_fen = int(payment.get("couponFen", 0) or 0)
+            points_fen = int(payment.get("pointsFen", 0) or 0)
+            pay_fen = compute_remain_fen(total_fen, coupon_fen, 0, points_fen)
             mobile = await self._member_service.resolve_mobile(user_id)
-            deducted = await self._member_service.deduct(
-                user_id=user_id,
-                mobile=mobile,
-                amount_fen=total_fen,
-                biz_type=BalanceBizType.ORDER_PAY,
-                biz_id=order.id,
-                unique_id=f"order_pay:{order.id}",
-                source=BalanceSource.ORDER,
-            )
-            if deducted is None:
-                raise ValueError("储值余额不足")
+            if pay_fen > 0:
+                deducted = await self._member_service.deduct(
+                    user_id=user_id,
+                    mobile=mobile,
+                    amount_fen=pay_fen,
+                    biz_type=BalanceBizType.ORDER_PAY,
+                    biz_id=order.id,
+                    unique_id=f"order_pay:{order.id}",
+                    source=BalanceSource.ORDER,
+                )
+                if deducted is None:
+                    raise ValueError("储值余额不足")
             now = now_text()
-            paid_payment = build_balance_payment(now, total_fen)
+            paid_payment = build_balance_payment(now, pay_fen)
+            # 快照合并顺序不敏感：保留券/积分字段，支付核销与发分依赖它们
+            paid_payment["couponId"] = str(payment.get("couponId", "") or "")
+            paid_payment["couponFen"] = int(payment.get("couponFen", 0) or 0)
+            paid_payment["pointsFen"] = int(payment.get("pointsFen", 0) or 0)
+            paid_payment["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
             updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
                 order.id,
                 dumps_payment(paid_payment),
@@ -72,9 +85,10 @@ class StoredValueOrderPaymentService:
             )
             if updated is None:
                 raise ValueError("订单支付状态更新冲突")
-            # 全额余额支付 cash=0，不发分但保持统一发分钩子（幂等）
+            from app.service.coupon import CouponService
             from app.service.points.payment import PointsPaymentService
 
+            await CouponService(order_repo=self._order_repo).consume_on_payment(updated)
             await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
                 updated
             )
@@ -96,12 +110,24 @@ class StoredValueOrderPaymentService:
             payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
             if payment_status == PAYMENT_STATUS_PAID:
                 raise ValueError("订单已支付")
-            if payment_status == PAYMENT_STATUS_PARTIAL:
+            if (
+                payment_status == PAYMENT_STATUS_PARTIAL
+                and int(payment.get("balanceFen", 0) or 0) > 0
+            ):
                 raise ValueError("订单已部分支付，请完成剩余支付")
             total_fen = self._total_fen(order)
-            if balance_fen <= 0 or balance_fen >= total_fen:
-                raise ValueError("组合支付余额部分必须大于 0 且小于订单总额")
-            remain_fen = total_fen - balance_fen
+            coupon_fen = int(payment.get("couponFen", 0) or 0)
+            points_fen = int(payment.get("pointsFen", 0) or 0)
+            remain_before_balance = compute_remain_fen(
+                total_fen, coupon_fen, 0, points_fen
+            )
+            if balance_fen <= 0 or balance_fen >= remain_before_balance:
+                raise ValueError(
+                    "组合支付余额部分必须大于 0 且小于订单总额（券/积分后以剩余应付为准）"
+                )
+            remain_fen = compute_remain_fen(
+                total_fen, coupon_fen, balance_fen, points_fen
+            )
             mobile = await self._member_service.resolve_mobile(user_id)
             deducted = await self._member_service.deduct(
                 user_id=user_id,
@@ -116,7 +142,11 @@ class StoredValueOrderPaymentService:
                 raise ValueError("储值余额不足")
             now = now_text()
             partial_payment = build_combined_payment(now, balance_fen, remain_fen)
-            updated = await self._order_repo.update_payment_to_partial_if_unpaid_active(
+            partial_payment["couponId"] = str(payment.get("couponId", "") or "")
+            partial_payment["couponFen"] = int(payment.get("couponFen", 0) or 0)
+            partial_payment["pointsFen"] = int(payment.get("pointsFen", 0) or 0)
+            partial_payment["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
+            updated = await self._order_repo.update_payment_to_partial_if_unpaid_or_partial_active(
                 order.id,
                 dumps_payment(partial_payment),
                 now,

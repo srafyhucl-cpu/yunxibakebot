@@ -12,6 +12,7 @@ from app.service.order.payment_state import (
     PAYMENT_STATUS_PAID,
     PAYMENT_STATUS_PARTIAL,
     PAYMENT_STATUS_UNPAID,
+    compute_remain_fen,
     dumps_payment,
     loads_payment,
     now_text,
@@ -50,15 +51,18 @@ class WechatPaymentNotificationService:
         if order is None:
             raise ValueError("订单不存在")
         try:
-            expected_fen = int(Decimal(str(order.total_amount)) * 100)
+            total_order_fen = int(Decimal(str(order.total_amount)) * 100)
         except (InvalidOperation, ValueError):
             raise ValueError("订单金额无效") from None
         payment = loads_payment(order.payment)
-        if str(payment.get("status", PAYMENT_STATUS_UNPAID)) == PAYMENT_STATUS_PARTIAL:
-            remain_fen = int(payment.get("remainFen", 0) or 0)
-            if remain_fen <= 0 or remain_fen >= expected_fen:
-                raise ValueError("组合支付差额金额无效")
-            expected_fen = remain_fen
+        coupon_fen = int(payment.get("couponFen", 0) or 0)
+        balance_fen = int(payment.get("balanceFen", 0) or 0)
+        points_fen = int(payment.get("pointsFen", 0) or 0)
+        expected_fen = compute_remain_fen(
+            total_order_fen, coupon_fen, balance_fen, points_fen
+        )
+        if expected_fen <= 0:
+            raise ValueError("订单无需外部支付")
         if total_fen != expected_fen:
             raise ValueError("微信支付通知金额不匹配")
 
@@ -125,9 +129,12 @@ class WechatPaymentNotificationService:
             raise ValueError("订单支付状态更新冲突")
         await self._claim_transaction(transaction_id, order_id)
         await self._record_paid_event(updated, payment["paidAt"])
-        # 微信到账后统一发分（重复通知由 pointsAwarded 幂等兜底）
+        # 微信到账后先核销券再发分：核销在支付事务内，双花 ValueError 可回滚支付；
+        # 发分内部自 commit 会破坏回滚边界，必须放在核销之后
+        from app.service.coupon import CouponService
         from app.service.points.payment import PointsPaymentService
 
+        await CouponService(order_repo=self._order_repo).consume_on_payment(updated)
         await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
             updated
         )
