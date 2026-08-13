@@ -22,6 +22,7 @@ from app.service.order.payment_state import (
     status_value,
 )
 from app.service.stored_value.member import MemberBalanceService
+from app.utils import yuan_to_fen
 
 
 class StoredValueOrderPaymentService:
@@ -193,7 +194,7 @@ class StoredValueOrderPaymentService:
 
     @staticmethod
     def _total_fen(order: Order) -> int:
-        return int(round(float(order.total_amount) * 100))
+        return yuan_to_fen(order.total_amount)
 
     @staticmethod
     def _serialize_order_payment(order: Order, payment: dict) -> dict:

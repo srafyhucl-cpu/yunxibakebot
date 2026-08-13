@@ -1,7 +1,17 @@
 """项目公共工具函数。"""
 
 import datetime
+from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
+
+
+def yuan_to_fen(amount: object) -> int:
+    """把金额（元）安全换算为分，避免浮点精度误差；非法值返回 0。"""
+    try:
+        return int(Decimal(str(amount)) * 100)
+    except (InvalidOperation, TypeError, ValueError):
+        return 0
+
 
 BEIJING_TIMEZONE = ZoneInfo("Asia/Shanghai")
 

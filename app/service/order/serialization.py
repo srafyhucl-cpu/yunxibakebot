@@ -3,6 +3,7 @@
 import json
 
 from app.models.order import Order, OrderEvent
+from app.utils import yuan_to_fen
 
 
 class OrderSerializationService:
@@ -22,7 +23,7 @@ class OrderSerializationService:
         return {
             "id": order.id,
             "status": status,
-            "totalFen": int(round(float(order.total_amount) * 100)),
+            "totalFen": yuan_to_fen(order.total_amount),
             "createdAt": order.created_at,
             "updatedAt": order.updated_at,
             "itemTitle": str(first_item.get("title", "")),

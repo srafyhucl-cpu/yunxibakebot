@@ -32,6 +32,7 @@ from app.service.order.payment_state import (
     status_value,
 )
 from app.service.order.serialization import OrderSerializationService
+from app.utils import yuan_to_fen
 
 
 class OrderPaymentRuntimeService:
@@ -210,7 +211,7 @@ class OrderPaymentRuntimeService:
         return self._wechat_pay_service.decrypt_notify_resource(resource)
 
     async def _create_wechat_jsapi_prepay(self, order: Order) -> WechatPayPrepayResult:
-        total_fen = int(round(float(order.total_amount) * 100))
+        total_fen = yuan_to_fen(order.total_amount)
         payer_openid = extract_openid(order.user_id)
         if not payer_openid:
             raise ValueError("当前用户未绑定微信 openid")

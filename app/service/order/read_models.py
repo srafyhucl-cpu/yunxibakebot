@@ -1,6 +1,7 @@
 """订单读模型与看板筛选辅助函数。"""
 
 from app.models.order import OrderStatus
+from app.utils import yuan_to_fen
 
 ADMIN_ORDER_BOARD_FILTERS = [
     {
@@ -53,7 +54,7 @@ def summarize_board_row(board_filter: str, rows: list[dict]) -> tuple[int, int]:
     matched_rows = [row for row in rows if summary_row_matches(board_filter, row)]
     count = sum(int(row.get("order_count", 0) or 0) for row in matched_rows)
     amount_fen = sum(
-        int(round(float(row.get("total_amount", 0) or 0) * 100)) for row in matched_rows
+        yuan_to_fen(row.get("total_amount", 0) or 0) for row in matched_rows
     )
     return count, amount_fen
 

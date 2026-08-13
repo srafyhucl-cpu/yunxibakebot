@@ -1,3 +1,18 @@
+## [2026-08-13] - refactor(amount): 统一元转分换算避免浮点误差
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-yuan-to-fen
+- 来源: 用户补丁清单（7 文件，6 改 1 不动）
+- 变更:
+  - 新增 `app/utils.yuan_to_fen`（Decimal 安全换算，非法值返回 0）。
+  - 订单序列化 totalFen、微信 JSAPI 预支付金额、储值支付金额、订单看板汇总、企微订单查询 5 处 `float*100` 统一收敛到 `yuan_to_fen`。
+  - 删除 `intelligent_bot_order_lookup_helpers.py` 本地重复的 `yuan_to_fen`。
+  - `payment_notification.py` 不动，保留 Decimal + 「订单金额无效」专门错误。
+- 验证:
+  - test_order / test_stored_value / test_miniapp_order_api / test_miniapp_payment_api 共 60 项全过。
+  - git diff --check 无告警；ruff format 已修复 lookup_helpers 格式问题。
+- 版本: 0.114.0（提交后由 pre-commit 自动递增）
+
 ## [2026-08-13] - perf(cold-start): 延迟 LLM 重依赖导入并轻量加载 ToolNode
 
 - 操作人: AI (Codex)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.utils import yuan_to_fen
+
 LOGISTICS_KEYWORDS = ("物流", "配送", "发货", "送到", "快递", "轨迹")
 RECENT_ORDER_KEYWORDS = ("最近", "最新", "近几单", "这几单")
 ORDER_QUERY_STOP_WORDS = (
@@ -91,14 +93,6 @@ def compact_youzan_order(order: dict[str, Any]) -> dict[str, Any]:
 def join_area(*parts: object) -> str:
     """拼接配送区域。"""
     return "".join(str(part) for part in parts if part)
-
-
-def yuan_to_fen(value: Any) -> int:
-    """元转分。"""
-    try:
-        return int(round(float(value or 0) * 100))
-    except (TypeError, ValueError):
-        return 0
 
 
 def latest_logistics_status(order: dict[str, Any]) -> str:
