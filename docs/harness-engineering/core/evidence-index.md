@@ -4494,6 +4494,7 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\scripts\migration_job.py`; `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Backups\YunxiBakeBot\bot_backup_20260712_01.ybak`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
 - command: `verify_encrypted_backup`; `python scripts/migration_job.py --db <decrypted-production-snapshot> --mode dry-run --json`; local `run_job(... mode=apply, require_off_disk=False)`; local `run_job(... mode=rollback, require_off_disk=False)`; explicit deletion of decrypted snapshot and migration copy
 - result: pass
+- evidence_status: retired
 - related_logbook: 2026-07-12 - verify(r4): 真实生产快照本地迁移回滚演练
 - related_adr: 0005-framework-first-single-path
 - contains_sensitive_data: yes
@@ -4508,6 +4509,7 @@ ______________________________________________________________________
 - file: `D:\Project\YunxiBakeBot\scripts\encrypted_backup.py`; `D:\Backups\YunxiBakeBot\bot_backup_20260712_01.ybak`; `D:\Backups\YunxiBakeBot\keys\backup.key`; production `/opt/yunxibakebot/data/bot.db`; `D:\Project\YunxiBakeBot\LOGBOOK.md`
 - command: production `sqlite3 /opt/yunxibakebot/data/bot.db '.backup /tmp/yunxi-bot-backup-20260712-01.db'`; `scp root@47.94.102.250:/tmp/yunxi-bot-backup-20260712-01.db D:\\Backups\\YunxiBakeBot\\bot_backup_20260712_01.sqlite3`; `python scripts/encrypted_backup.py --db <local-snapshot> --output D:\\Backups\\YunxiBakeBot\\bot_backup_20260712_01.ybak --key-file D:\\Backups\\YunxiBakeBot\\keys\\backup.key`; `verify_encrypted_backup`; explicit deletion of local and production plaintext snapshots; production `/health`
 - result: pass
+- evidence_status: retired
 - related_logbook: 2026-07-12 - verify(r4): 生产数据库加密备份拉取到本地 D 盘
 - related_adr: 0005-framework-first-single-path
 - contains_sensitive_data: yes

@@ -124,13 +124,22 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+async def _identity_rewrite_query(query: str, history: str = "") -> str:
+    """探针用假查询改写，避免真实外部 LLM 调用。"""
+
+    return query
+
+
 async def _run_customer_trace_probe():
     from app.service.agents.customer import nodes as customer_nodes
+    from app.service import chat_context
 
     original_request = customer_nodes.request_customer_model_with_tools
     original_build_tools = customer_nodes.build_tools
+    original_rewrite_query = chat_context.rewrite_query
     customer_nodes.request_customer_model_with_tools = _fake_customer_model_request
     customer_nodes.build_tools = lambda *_args, **_kwargs: []
+    chat_context.rewrite_query = _identity_rewrite_query
     try:
         service = CustomerAgentGraphService(
             CustomerGraphDependencies(
@@ -159,6 +168,7 @@ async def _run_customer_trace_probe():
     finally:
         customer_nodes.request_customer_model_with_tools = original_request
         customer_nodes.build_tools = original_build_tools
+        chat_context.rewrite_query = original_rewrite_query
 
 
 async def _run_employee_trace_probe():

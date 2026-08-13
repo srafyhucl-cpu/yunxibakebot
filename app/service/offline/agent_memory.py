@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.config import settings
 from app.exceptions import LLMError
@@ -29,8 +30,6 @@ from app.service.offline.model_selection import select_offline_memory_model
 from app.service.offline.quality_signals import MemorySignal, extract_memory_signal
 from app.service.privacy_redaction import redact_external_text
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -54,9 +53,18 @@ MEMORY_REPAIR_PROMPT = (
     '{"display_name": "", "preferences": {}, "order_summary": {}, '
     '"special_dates": [], "allergens": [], "consent_status": "unknown"}。'
 )
-MEMORY_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
-    [("system", "{system_prompt}"), ("user", "{user_content}")]
-)
+
+
+@lru_cache(maxsize=1)
+def _get_memory_prompt_template():
+    """延迟构建记忆整合提示模板，避免模块导入阶段加载重依赖。"""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_messages(
+        [("system", "{system_prompt}"), ("user", "{user_content}")]
+    )
+
+
 MEMORY_SIGNAL_KEYWORDS = (
     "我叫",
     "喜欢",
@@ -228,7 +236,9 @@ async def _invoke_memory_chain(
             model=model_name,
             temperature=0,
         ).bind(max_tokens=768)
-        chain = MEMORY_PROMPT_TEMPLATE | model | StrOutputParser()
+        from langchain_core.output_parsers import StrOutputParser
+
+        chain = _get_memory_prompt_template() | model | StrOutputParser()
         return await chain.ainvoke(
             {
                 "system_prompt": messages[0]["content"],

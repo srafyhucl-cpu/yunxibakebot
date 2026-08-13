@@ -67,8 +67,9 @@ class _FakeStatusToolService:
 
 
 def test_employee_nodes_use_langgraph_tool_node() -> None:
-    from langgraph.prebuilt import ToolNode
+    from app.service.agents.tool_node import load_tool_node_class
 
+    ToolNode = load_tool_node_class()
     nodes = EmployeeAgentNodes(
         EmployeeGraphDependencies(
             business_tool_service=_FakeBusinessToolService(),

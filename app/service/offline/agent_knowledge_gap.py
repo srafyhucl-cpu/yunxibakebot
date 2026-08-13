@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.exceptions import LLMError
 from app.logger import setup_logger
@@ -16,8 +17,6 @@ from app.service.offline.model_selection import select_offline_gap_model
 from app.service.offline.quality_signals import GapSignal, extract_gap_signals
 from app.service.privacy_redaction import redact_external_text
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -29,9 +28,16 @@ KNOWLEDGE_GAP_SYSTEM_PROMPT = (
     "只在知识库可能缺失时输出具体问题；如果没有明显缺口，question_norm 为空字符串。"
     "候选答案必须保守表达，等待人工审核，不要编造价格、库存或配送承诺。"
 )
-KNOWLEDGE_GAP_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
-    [("system", "{system_prompt}"), ("user", "{user_content}")]
-)
+
+
+@lru_cache(maxsize=1)
+def _get_knowledge_gap_prompt_template():
+    """延迟构建知识缺口提示模板，避免模块导入阶段加载重依赖。"""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_messages(
+        [("system", "{system_prompt}"), ("user", "{user_content}")]
+    )
 
 
 @dataclass
@@ -111,7 +117,9 @@ async def _invoke_gap_chain(*, model_name: str, user_content: str) -> str:
             model=model_name,
             temperature=0,
         ).bind(max_tokens=512)
-        chain = KNOWLEDGE_GAP_PROMPT_TEMPLATE | model | StrOutputParser()
+        from langchain_core.output_parsers import StrOutputParser
+
+        chain = _get_knowledge_gap_prompt_template() | model | StrOutputParser()
         return await chain.ainvoke(
             {
                 "system_prompt": KNOWLEDGE_GAP_SYSTEM_PROMPT,

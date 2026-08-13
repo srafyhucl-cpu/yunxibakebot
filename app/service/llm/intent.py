@@ -1,6 +1,7 @@
 """意图识别服务。"""
 
 import json
+from functools import lru_cache
 
 from app.exceptions import LLMError
 from app.logger import setup_logger
@@ -26,8 +27,6 @@ from app.service.llm.intent_behavior_keywords import (
 )
 from app.service.llm.intent_types import IntentType
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -35,7 +34,14 @@ logger = setup_logger()
 SMALL_TALK_MAX_QUERY_LEN = 12
 # 意图识别 LLM 调用的 max_tokens（输出仅为小数字或简短 JSON，严格限制）
 INTENT_LLM_MAX_TOKENS = 32
-INTENT_PROMPT_TEMPLATE = ChatPromptTemplate.from_template(INTENT_PROMPT)
+
+
+@lru_cache(maxsize=1)
+def _get_intent_prompt_template():
+    """延迟构建意图识别提示模板，避免模块导入阶段加载重依赖。"""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_template(INTENT_PROMPT)
 
 
 def _contains_any(user_query: str, keywords: tuple[str, ...]) -> bool:
@@ -189,10 +195,12 @@ async def detect_intent(user_query: str, history: str = "") -> IntentType:
 async def _invoke_intent_chain(*, history: str, user_query: str) -> str:
     """通过统一 LangChain Runnable 执行意图识别。"""
     try:
+        from langchain_core.output_parsers import StrOutputParser
+
         model = get_langchain_chat_model(provider="mimo", temperature=0).bind(
             max_tokens=INTENT_LLM_MAX_TOKENS
         )
-        chain = INTENT_PROMPT_TEMPLATE | model | StrOutputParser()
+        chain = _get_intent_prompt_template() | model | StrOutputParser()
         return await chain.ainvoke(
             {
                 "history": redact_external_text(history),

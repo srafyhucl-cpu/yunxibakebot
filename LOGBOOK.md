@@ -1,3 +1,18 @@
+## [2026-08-13] - perf(cold-start): 延迟 LLM 重依赖导入并轻量加载 ToolNode
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-llm-toolnode-coldstart
+- 来源: tests/scripts 慢因排查收口，继续优化 tests/service/agents/test_customer_graph.py
+- 变更:
+  - 延迟 LangChain 重依赖导入：7 个 service 文件的 ChatPromptTemplate/StrOutputParser 改为 @lru_cache 或函数内延迟导入，避免冷进程加载 transformers/torch。
+  - scripts/probe_agent_traces.py、scripts/probe_customer_reply_replay.py 在探针内假化 rewrite_query，避免测试路径真实请求 mimo。
+  - 新增 `app/service/agents/tool_node.py`，按文件直接加载 langgraph.prebuilt.tool_node.ToolNode，绕开 prebuilt.__init__ 的 create_react_agent 重依赖；customer/employee 节点改用该加载器。
+  - tests/service/agents/test_customer_graph.py 增加 autouse fixture 假化 rewrite_query；新增 ToolNode 冷启动回归测试。
+- 验证:
+  - tests/service/agents 全目录通过；客户图首个工具用例从约 11.4s 降至 0.67s。
+  - ruff check / ruff format --check 通过；python scripts/check_project.py --skip-tests 门禁全绿。
+- 版本: 0.113.0（提交后由 pre-commit 自动递增）
+
 ## [2026-08-12] - deploy(stored-value): M2 储值余额 v0.112.0 生产部署完成
 
 - 操作人: AI (Codex)

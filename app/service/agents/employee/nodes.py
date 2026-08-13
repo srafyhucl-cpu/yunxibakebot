@@ -10,6 +10,7 @@ from app.service.agents.observability import (
     append_trace_event,
     build_node_trace_event,
 )
+from app.service.agents.tool_node import load_tool_node_class
 from app.service.agents.tools.employee import (
     DEFAULT_EMPLOYEE_TOOL_LIMIT,
     EmployeeToolContext,
@@ -235,8 +236,7 @@ class EmployeeAgentNodes:
 
     def _tool_node_instance(self) -> Any:
         if self._tool_node is None:
-            from langgraph.prebuilt import ToolNode
-
+            ToolNode = load_tool_node_class()
             self._tool_node = ToolNode(list(self._tools().values()))
         return self._tool_node
 

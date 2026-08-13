@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.config import settings
 from app.exceptions import LLMError
@@ -21,8 +22,6 @@ from app.service.offline.model_selection import select_offline_review_model
 from app.service.offline.quality_signals import extract_review_issues
 from app.service.privacy_redaction import redact_external_text
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -38,9 +37,16 @@ QA_REVIEW_REPAIR_PROMPT = (
     "上一次质检输出不合格。请重新检查同一段对话，只输出合法 JSON："
     '{"quality_score": 0-100, "issues": ["具体问题"]}。'
 )
-QA_REVIEW_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
-    [("system", "{system_prompt}"), ("user", "{user_content}")]
-)
+
+
+@lru_cache(maxsize=1)
+def _get_qa_review_prompt_template():
+    """延迟构建质检提示模板，避免模块导入阶段加载重依赖。"""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_messages(
+        [("system", "{system_prompt}"), ("user", "{user_content}")]
+    )
 
 
 @dataclass
@@ -134,7 +140,9 @@ async def _invoke_review_chain(
             model=model_name,
             temperature=0,
         ).bind(max_tokens=512)
-        chain = QA_REVIEW_PROMPT_TEMPLATE | model | StrOutputParser()
+        from langchain_core.output_parsers import StrOutputParser
+
+        chain = _get_qa_review_prompt_template() | model | StrOutputParser()
         return await chain.ainvoke(
             {
                 "system_prompt": messages[0]["content"],

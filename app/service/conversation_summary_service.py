@@ -3,6 +3,7 @@
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.exceptions import LLMError
 from app.logger import setup_logger
@@ -14,8 +15,6 @@ from app.service.offline.json_utils import parse_json_object
 from app.service.privacy_redaction import redact_external_text
 from app.service.session_manager import estimate_tokens
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -37,12 +36,19 @@ SUMMARY_SYSTEM_PROMPT = (
     "不要把订单、库存、物流、价格当作事实来源；这些必须由工具或知识库重新确认。"
 )
 SUMMARY_PARSE_ERROR = "会话摘要结果不是有效 JSON"
-SUMMARY_PROMPT_TEMPLATE = ChatPromptTemplate.from_messages(
-    [
-        ("system", "{system_prompt}"),
-        ("user", "{user_content}"),
-    ]
-)
+
+
+@lru_cache(maxsize=1)
+def _get_summary_prompt_template():
+    """延迟构建会话摘要提示模板，避免模块导入阶段加载重依赖。"""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", "{system_prompt}"),
+            ("user", "{user_content}"),
+        ]
+    )
 
 
 @dataclass(frozen=True)
@@ -110,7 +116,9 @@ async def _invoke_summary_chain(
     model = get_langchain_chat_model(provider="mimo", temperature=0).bind(
         max_tokens=SUMMARY_LLM_MAX_TOKENS
     )
-    chain = SUMMARY_PROMPT_TEMPLATE | model | StrOutputParser()
+    from langchain_core.output_parsers import StrOutputParser
+
+    chain = _get_summary_prompt_template() | model | StrOutputParser()
     summary_messages = _build_summary_messages(messages, existing_summary_text)
     try:
         return await chain.ainvoke(

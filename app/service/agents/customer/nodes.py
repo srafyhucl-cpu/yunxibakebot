@@ -25,6 +25,7 @@ from app.service.agents.observability import (
     append_trace_event,
     build_node_trace_event,
 )
+from app.service.agents.tool_node import load_tool_node_class
 from app.service.agents.customer.tool_messages import (
     ToolExecutionContext,
 )
@@ -248,8 +249,7 @@ class CustomerAgentNodes:
         }
 
     def _build_tool_node(self, state: CustomerAgentState) -> Any:
-        from langgraph.prebuilt import ToolNode
-
+        ToolNode = load_tool_node_class()
         return ToolNode(
             list(self._tools_by_name(state).values()), handle_tool_errors=True
         )

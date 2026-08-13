@@ -60,6 +60,19 @@ def _openai_messages(messages: list[Any]) -> list[dict[str, Any]]:
     return convert_to_openai_messages(messages)
 
 
+@pytest.fixture(autouse=True)
+def _stub_query_rewrite(monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试内禁用真实查询改写，避免外部 LLM 调用拖慢单测。"""
+
+    async def _identity_rewrite_query(user_query: str, history: str = "") -> str:
+        return user_query
+
+    monkeypatch.setattr(
+        "app.service.chat_context.rewrite_query",
+        _identity_rewrite_query,
+    )
+
+
 @pytest.mark.asyncio
 async def test_customer_graph_runs_tool_round_then_returns_reply(
     monkeypatch: pytest.MonkeyPatch,

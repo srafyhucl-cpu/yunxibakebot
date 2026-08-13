@@ -4,12 +4,12 @@
 把用户口语/指代不清的查询改写为独立完整的搜索语句。
 """
 
+from functools import lru_cache
+
 from app.logger import setup_logger
 from app.service.agents.llm import get_langchain_chat_model
 from app.service.privacy_redaction import redact_external_text
 
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 logger = setup_logger()
 
@@ -57,7 +57,13 @@ AI：好的，请问要几寸的呢？
 {history}
 当前用户输入：{user_query}"""
 
-REWRITE_PROMPT_TEMPLATE = ChatPromptTemplate.from_template(REWRITE_PROMPT)
+
+@lru_cache(maxsize=1)
+def _get_rewrite_prompt_template():
+    """延迟构建查询改写提示模板，避免模块导入阶段加载重依赖。"""
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_template(REWRITE_PROMPT)
 
 
 async def rewrite_query(user_query: str, history: str = "") -> str:
@@ -97,7 +103,9 @@ async def _invoke_rewrite_chain(*, history: str, user_query: str) -> str:
     model = get_langchain_chat_model(provider="mimo", temperature=0.1).bind(
         max_tokens=QUERY_REWRITER_MAX_TOKENS
     )
-    chain = REWRITE_PROMPT_TEMPLATE | model | StrOutputParser()
+    from langchain_core.output_parsers import StrOutputParser
+
+    chain = _get_rewrite_prompt_template() | model | StrOutputParser()
     return await chain.ainvoke(
         {
             "history": redact_external_text(history),
