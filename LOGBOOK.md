@@ -1,3 +1,23 @@
+## [2026-08-13] - feat(points): M3 积分模块闭环本地收口
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-member-points-m3
+- 来源: `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M3 积分模块）；执行计划 `docs/superpowers/plans/2026-08-13-member-points-m3.md`（7 任务 44 步，Subagent-Driven 波次执行）
+- 变更:
+  - v023 迁移重建 `points_ledger`（source 扩展 order、新增 biz_type/biz_id、`idx_points_ledger_biz`）；`PointsLedgerEntry` 增字段；`points_ledger_repo` insert 写 biz 字段并新增 `list_by_mobile`；`member_balance_repo` 新增 `get_points` / `credit_points` / `deduct_points_if_sufficient`。
+  - 新建 `app/service/points/` 域：`rules.py`（award_points / redeem_units / points_to_fen / refund_reversal 纯函数）、`ledger.py`（PointsLedgerService 幂等 credit/deduct/list）、`payment.py`（PointsPaymentService 快照/发分/退款，幂等键 `points:award|redeem|refund|refund:clawback:<order_id>`）、`__init__.py`（PointsService 门面 get_points / redeem_preview / apply_points / refund_points）。
+  - 支付联动：`build_points_payment` 生成 partial 快照（payment.json 新增 pointsFen/pointsUsed/pointsAwarded）；mock / 微信通知 / 储值全额三条支付成功路径统一调 `award_on_payment`（重复通知幂等）；取消 / 超时 / 后台取消按快照调 `refund_points`（cancellation / expiration / status_flow 三文件同构）；非会员订单自动跳过积分联动。
+  - 小程序 API：新增 `app/api/channels/storefront/points.py`，路由按 Spec 路径 `GET /api/v1/miniapp/points`、`POST /api/v1/miniapp/orders/{order_id}/points-preview`、`POST /api/v1/miniapp/orders/{order_id}/apply-points`（修正计划代码块 prefix 冲突）；lifespan 装配 `points_service` 并注册路由；lifespan 装配契约测试同步补 points 服务与路由。
+  - 数据主从：`app/config.py` 新增 `POINTS_AUTHORITY` 配置开关（默认 youzan）；`event_member.py` 在 local 模式下 POINTS 事件只写流水、不覆盖 `member_balance.points`。
+- 验证:
+  - 积分域新测试 17 用例 + 相关回归（stored_value / order / miniapp_api / lifespan / member_accounting）全过；全套 1385 项通过（tests/scripts 分片跑），覆盖率 82.73%。
+  - `check_project.py --skip-tests`、`check_file_sizes.py`、`ruff format --check`、`git diff --check` 全绿；`ruff check` 仅 `web/admin/scripts/smoke_*.py` 5 处存量未用导入告警（本轮未触碰 web/）。
+  - 提交链 `0bd663b`→`7e83a55` 共 6 笔 feat，VERSION 0.114.0→0.121.0。
+- 待办:
+  - 本地验证通过后按计划书 M3.6 部署：先 `POINTS_AUTHORITY=youzan` 观察，稳定后切 `local` 二次部署；真实微信支付（商户号到位）端到端验证后置。
+  - M5 小程序前端（积分页 / 结算页积分抵扣入口）按计划书排期。
+- 版本: 0.121.0（收口提交后由 pre-commit 自动递增）
+
 ## [2026-08-13] - refactor(amount): 统一元转分换算避免浮点误差
 
 - 操作人: AI (Codex)
