@@ -32,9 +32,15 @@ class CouponService:
         self._inventory_repo = inventory_repo or CouponInventoryRepo(None)
         self._customer_repo = customer_repo or CustomerMasterRepo(None)
         self._order_repo = order_repo or OrderRepo(None)
-        self._inventory_service = inventory_service or CouponInventoryService(
-            self._order_repo._db
-        )
+        # 券库存服务惰性解析：lifespan 装配期无 db_session_scope，禁止构造期访问 _db
+        self._inventory_service = inventory_service
+
+    @property
+    def _inventory(self) -> CouponInventoryService:
+        """惰性解析券库存服务（首次方法调用期按数据源构建）。"""
+        if self._inventory_service is None:
+            self._inventory_service = CouponInventoryService(self._order_repo._db)
+        return self._inventory_service
 
     async def resolve_mobile(self, user_id: str) -> str:
         """把小程序用户标识解析为会员手机号。"""
@@ -143,7 +149,7 @@ class CouponService:
         from app.service.coupon.payment import CouponPaymentService
 
         payment_service = CouponPaymentService(
-            inventory_service=self._inventory_service,
+            inventory_service=self._inventory,
             template_repo=self._template_repo,
             order_repo=self._order_repo,
         )
@@ -158,7 +164,7 @@ class CouponService:
         from app.service.coupon.payment import CouponPaymentService
 
         payment_service = CouponPaymentService(
-            inventory_service=self._inventory_service,
+            inventory_service=self._inventory,
             template_repo=self._template_repo,
             order_repo=self._order_repo,
         )
@@ -169,7 +175,7 @@ class CouponService:
         from app.service.coupon.payment import CouponPaymentService
 
         payment_service = CouponPaymentService(
-            inventory_service=self._inventory_service,
+            inventory_service=self._inventory,
             template_repo=self._template_repo,
             order_repo=self._order_repo,
         )
@@ -180,7 +186,7 @@ class CouponService:
         from app.service.coupon.payment import CouponPaymentService
 
         payment_service = CouponPaymentService(
-            inventory_service=self._inventory_service,
+            inventory_service=self._inventory,
             template_repo=self._template_repo,
             order_repo=self._order_repo,
         )

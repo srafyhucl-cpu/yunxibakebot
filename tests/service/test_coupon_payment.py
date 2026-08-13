@@ -135,6 +135,20 @@ async def _create_order(
     return created["orderId"]
 
 
+def test_coupon_service_bare_construction_deferred() -> None:
+    """无参构造不得急切访问 _db（lifespan 装配无 db_session_scope 的回归）。"""
+    service = CouponService()
+    assert service._inventory_service is None
+
+
+@pytest.mark.asyncio
+async def test_coupon_service_lazy_inventory_resolves(db) -> None:
+    """惰性券库存服务在方法调用期按 order_repo 数据源构建。"""
+    service = CouponService(order_repo=OrderRepo(db))
+    inventory = service._inventory
+    assert inventory is not None
+
+
 @pytest.mark.asyncio
 async def test_apply_coupon_snapshot(db, coupon_service, order_service) -> None:
     """应用券写快照（couponFen/couponId），remain 正确。"""

@@ -62,6 +62,20 @@ ______________________________________________________________________
 - linked_files: `scripts/sync_version.py`; `VERSION`; `.pre-commit-config.yaml`
 - next_time_signal: 提交失败重试前自动核对暂存区 VERSION 目标；`git status` 出现 VERSION 已修改但提交失败时直接触发本条目检查。
 
+
+### M-20260813-001：服务构造期访问 _db 导致生产启动崩溃
+
+- status: guarded
+- first_seen: 2026-08-13
+- severity: critical
+- symptom: M4 生产部署第一段重启后 yunxibakebot 崩溃循环（status=3/NOTIMPLEMENTED），/health /ready 不可达；journalctl 显示 lifespan `init_services` 装配 `CouponService()` 时构造器访问 `OrderRepo(None)._db` 抛 `RuntimeError: 数据库操作未在 db_session_scope 上下文管理器中执行！`。
+- root_cause: `CouponService.__init__` 构造期急切执行 `self._order_repo._db`（为建 CouponInventoryService），而 lifespan 装配期无 db_session_scope；Points/StoredValue 服务均为惰性方法期访问，Coupon 未遵循同模式。本地测试未暴露：`test_init_services_wires_core_services` 用 FakeCouponService 替换真实构造。
+- impact: 生产服务中断约 10 分钟（部署失败→回滚 v0.122.1 恢复），期间线上客服/小程序不可用；v024 迁移已在崩溃前落库，回滚代码与 DB 兼容（迁移器只补未应用版本、无降级检测）。
+- fix: `CouponService` 券库存服务改惰性属性 `_inventory`，首次方法调用期才 `CouponInventoryService(self._order_repo._db)`；新增裸构造与惰性解析两个回归测试。
+- new_guardrail: 无参服务构造不得在 `__init__` 访问 `_db`（必须惰性/方法期解析）；lifespan 装配的每个新服务必须能在无 db_session_scope 下完成构造，并补「裸构造」回归测试，禁止只用 Mock 覆盖装配路径。
+- verification: 本地定向 70+ 项全绿；`CouponService()` 裸构造测试通过；重新部署后生产 /health /ready 200、schema_version=24。
+- linked_trace: 20260813-coupon-m4-prod-deploy
+- linked_files: `app/service/coupon/__init__.py`; `tests/service/test_coupon_payment.py`; `app/lifespan_services.py`
 ## 条目模板
 
 ```markdown

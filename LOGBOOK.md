@@ -1,3 +1,22 @@
+## [2026-08-13] - fix(coupon): CouponService 构造惰性化修复生产启动失败
+
+- 操作人: AI (Codex)
+- trace_id: 20260813-coupon-m4-prod-deploy
+- 来源: M4 生产部署第一段启动崩溃事故（部署即发现，已回滚恢复）
+- 变更:
+  - 事故：`bash scripts/deploy.sh` 部署 v0.131.1（0f825b9）重启后 yunxibakebot 崩溃循环（status=3），/health /ready 不可达。journalctl 定位：lifespan `init_services` 装配 `CouponService()` 时构造器急切执行 `self._order_repo._db`，无 db_session_scope 抛 `RuntimeError: 数据库操作未在 db_session_scope 上下文管理器中执行！`。
+  - 处置：立即回滚生产 worktree 至 v0.122.1（ef56092）并重启，/health /ready 恢复 200；v024 已在崩溃前落库（coupon_inventory 新列在），旧代码迁移器只补未应用版本、无降级检测，回滚安全。
+  - 修复：`CouponService` 券库存服务改惰性属性 `_inventory`（首次方法调用期才 `CouponInventoryService(self._order_repo._db)`），构造期不再触碰 `_db`，与 Points/StoredValue 服务惰性模式一致；4 处方法引用切换。
+  - 回归：新增 `test_coupon_service_bare_construction_deferred`（裸构造不得访问 _db）与 `test_coupon_service_lazy_inventory_resolves`；此前 `test_init_services_wires_core_services` 用 FakeCouponService 替换真实构造，未暴露该缺陷。
+- 验证:
+  - 定向 coupon/stored_value/order/lifespan 测试全绿；全套 `pytest tests/` 通过（仅 tests/scripts 1 项预存 flaky 偶发，单跑通过，与本次无关）。
+  - `ruff check/format`、`check_project.py --skip-tests`、`check_file_sizes.py`、`git diff --check` 门禁全绿。
+  - 生产回滚验证：worktree ef56092、VERSION 0.122.1、systemctl active、/health 200、/ready 200（database_schema_ready=true、youzan_production_mode_ready=true）。
+- 待办:
+  - 重新部署 M4 第一段（COUPON_AUTHORITY=youzan）并核验：worktree/VERSION/schema_version=24/券路由 401 探测/公网 health ready。
+  - `scripts/deploy_server.sh` 重试缺陷：首次失败即消费 server.bundle，重试报"server.bundle 不存在"；后续优化为失败不删 bundle 或重传后再重试。
+  - 上线观察稳定后评估 M4 第二段切 `COUPON_AUTHORITY=local`。
+- 版本: 0.131.1（提交后由 pre-commit 自动递增）
 ## [2026-08-13] - fix(coupon): M4 评审问题收口（死代码清理/余额核销幂等/声明修正）
 
 - 操作人: AI (Codex)
