@@ -18,6 +18,7 @@ class LedgerSource:
     WEBHOOK = "webhook"
     IMPORT = "import"
     ORDER = "order"
+    LOCAL = "local"
 
 
 class CouponStatus:
@@ -76,3 +77,9 @@ class CouponInventoryEntry:
     detail_json: str = "{}"
     source: str = LedgerSource.WEBHOOK
     occurred_at: str = ""
+    template_id: str = ""
+    valid_from: str = ""
+    valid_until: str = ""
+    deducted_fen: int = 0
+    consumed_at: str = ""
+    refunded_at: str = ""

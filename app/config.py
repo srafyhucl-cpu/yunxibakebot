@@ -119,6 +119,8 @@ class Settings(BaseSettings):
     ALLOW_MOCK_PAYMENT: bool = False
     # 积分余额权威来源：youzan=有赞 total 镜像，local=本地 member_balance.points
     POINTS_AUTHORITY: str = "youzan"
+    # 券权威来源：youzan=有赞券镜像+本地核销（默认），local=本地自建发券核销
+    COUPON_AUTHORITY: str = "youzan"
     WECHAT_PAY_ENABLED: bool = False
     WECHAT_PAY_API_BASE: str = "https://api.mch.weixin.qq.com"
     WECHAT_PAY_MCH_ID: str = ""
