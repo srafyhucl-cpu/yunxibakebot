@@ -1,3 +1,24 @@
+## [2026-08-14] - docs(governance): 账务核心合同定稿包（B1.5，ADR 0008 / 资产矩阵 / G1 守卫增强）
+
+- 操作者: AI (Codex)
+- trace_id: 20260814-member-loyalty-accounting-contract
+- parent_trace_id: 20260812-member-loyalty-storedvalue
+- 来源: 对 9a34953 的复核（评审 B1.5）；需先定稿 D1/X1/I1 核心合同再进入资金代码重构
+- 合同定稿:
+  - outbox：采用独立 `accounting_outbox` 表（inbox_events 按 ADR 0006 仅入站；InboxRepo.enqueue 自提交，不能与账务 UoW 原子写入），与订单/余额/券/积分同事务写入；删除「outbox 或 Saga」未决表述
+  - UoW 范围：第一批账务仓储清单（CouponInventory/PointsLedger/MemberBalance/StoredValue/Order/Inbox）+ 唯一 UoW 属主 + 迁移顺序 + 零 commit/rollback 静态检查 + 故障注入回滚测试
+  - 券唯一模型：`coupon_events.event_key`（券实例+mobile+来源+订单/退款号+周期）、事件排序规则、`coupon_current_state` 条件投影；旧去重键 (coupon_id,status,mobile) 标「现状待迁移」
+  - 规范回放源：`inbox_events.id` 为唯一水位（原始 payload），审计表仅关联观测；禁止时间戳水位；FP-1/FP-2 同步
+  - 退款操作模型：`refund_aggregate + refund_operation`（原支付快照、各资产分摊、每步幂等键、重试/人工复核、微信已退本地未补偿恢复）；全额/部分退款政策由项目负责人裁决
+  - 资产矩阵：旧入口能力待外部核验；资产策略写入订单支付快照三态（拒绝新业务/完成在途结算/退款对账补偿），单一布尔不阻断补偿
+  - G1 守卫增强：verify_secrets_baseline 检查 worktree/index/HEAD + 受控记录（secrets-baseline-changes.md）+ 隔离仓库测试 5 项
+  - evidence schema：storage_scope（repository/local/external）+ 结构化 sha256（纯 hex 或 file=hash 映射）+ 前缀强制（新条目禁裸绝对路径）+ 本地工件缺失容忍/存在校验哈希；测试 15 项
+  - 公式/口径：主计划积分抵扣上限补 coupon_fen；ADR 0008 记录本轮 trace 且 decision_owner=project owner（AI 技术建议）
+- 验证: `python scripts/check_evidence_index.py` ok（348 条）；pytest tests/scripts 20 通过；`python scripts/verify_secrets_baseline.py` exit 0；`git diff --check`
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；docs/harness-engineering/core/evidence-index.md；docs/harness-engineering/core/secrets-baseline-changes.md（新）；scripts/check_evidence_index.py；scripts/verify_secrets_baseline.py；tests/scripts/test_check_evidence_index.py；tests/scripts/test_verify_secrets_baseline.py（新）；LOGBOOK.md
+- residual_risks: ADR 0008 仍为 proposed，须项目负责人批准后进入 D1/X1/I1 代码实施；旧有赞入口能力待外部核验；券旧去重键迁移、退款部分政策待裁决
+- 版本: 0.132.1（纯治理与设计，不触发部署）
+
 ## [2026-08-14] - docs(governance): 方案 B 分层整改第一阶段（G1 治理修正 + D1/X1/I1/R1 设计裁决）
 
 - 操作者: AI (Codex)

@@ -216,3 +216,131 @@ def test_local_artifact_missing_does_not_block(tmp_path: Path) -> None:
         item["kind"] == "local-artifact-missing" for item in report["file_integrity"]
     )
     assert not any("missing" in issue for issue in result.issues)
+
+
+def _storage_scope_entry(file_ref: str, sha256: str | None = None) -> str:
+    sha_line = f"- sha256: {sha256}\n" if sha256 else ""
+    return (
+        "\n## E-20260814-098：storage_scope 语义测试\n\n"
+        "- trace_id: 20260814-storage-scope-test\n"
+        "- generated_at: 2026-08-14\n"
+        "- evidence_type: governance/storage-scope-test\n"
+        f"- file: `{file_ref}`\n"
+        "- command: `python scripts/check_evidence_index.py`\n"
+        "- result: pass\n"
+        "- related_logbook: 2026-08-14 - docs(governance): storage_scope 测试\n"
+        "- related_adr: none\n"
+        "- contains_sensitive_data: no\n"
+        "- retention_note: 测试条目。\n"
+        "- storage_scope: local\n"
+        f"{sha_line}"
+        "- summary: 校验 storage_scope 语义。\n"
+    )
+
+
+def test_storage_scope_local_sha256_match_passes(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    artifact = tmp_path / "reports" / "artifact.json"
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text("artifact", encoding="utf-8")
+    digest = hashlib.sha256(b"artifact").hexdigest()
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n"
+        + _valid_entry()
+        + _storage_scope_entry("reports/artifact.json", digest),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is True
+
+
+def test_storage_scope_local_sha256_mismatch_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    artifact = tmp_path / "reports" / "artifact.json"
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text("artifact", encoding="utf-8")
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n"
+        + _valid_entry()
+        + _storage_scope_entry("reports/artifact.json", "0" * 64),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any("sha256 mismatch" in issue for issue in result.issues)
+
+
+def test_storage_scope_absolute_path_requires_prefix_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n"
+        + _valid_entry()
+        + _storage_scope_entry(r"D:\Project\foo\artifact.json"),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any(
+        "storage_scope 条目 file 引用禁止裸绝对路径" in issue for issue in result.issues
+    )
+
+
+def test_storage_scope_prefixed_path_allowed(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n"
+        + _valid_entry()
+        + _storage_scope_entry("local:reports/harness/dsecrets-test-20260814.json"),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is True
+
+
+def test_sha256_map_format_checks_each_file(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    a.write_text("aaa", encoding="utf-8")
+    b.write_text("bbb", encoding="utf-8")
+    ha = hashlib.sha256(b"aaa").hexdigest()
+    hb = hashlib.sha256(b"bbb").hexdigest()
+    entry = (
+        "\n## E-20260814-097：sha256 映射格式\n\n"
+        "- trace_id: 20260814-sha-map-test\n"
+        "- generated_at: 2026-08-14\n"
+        "- evidence_type: governance/sha-map-test\n"
+        "- file: `a.json`; `b.json`\n"
+        "- command: `python scripts/check_evidence_index.py`\n"
+        "- result: pass\n"
+        "- related_logbook: 2026-08-14 - x\n"
+        "- related_adr: none\n"
+        "- contains_sensitive_data: no\n"
+        "- retention_note: 测试。\n"
+        f"- sha256: a.json={ha}；b.json={hb}\n"
+        "- summary: 校验多文件映射哈希。\n"
+    )
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n" + _valid_entry() + entry, encoding="utf-8"
+    )
+    assert evidence_check.check_evidence_index(evidence_file).passed is True
+    broken = entry.replace(hb, "0" * 64)
+    evidence_file.write_text(
+        "# Evidence Index\n\n" + _valid_entry() + broken, encoding="utf-8"
+    )
+    result = evidence_check.check_evidence_index(evidence_file)
+    assert result.passed is False
+    assert any("sha256 mismatch" in issue for issue in result.issues)

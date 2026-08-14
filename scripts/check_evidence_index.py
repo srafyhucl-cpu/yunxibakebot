@@ -22,7 +22,7 @@ DEFAULT_EVIDENCE_INDEX = (
 )
 ENTRY_HEADING_RE = re.compile(r"^##\s+(E-\d{8}-\d{3})：(.+)$")
 SECOND_LEVEL_HEADING_RE = re.compile(r"^##\s+")
-FIELD_RE = re.compile(r"^-\s+([a-z_]+):\s*(.*)$")
+FIELD_RE = re.compile(r"^-\s+([a-z_][a-z0-9_]*):\s*(.*)$")
 FILE_REFERENCE_RE = re.compile(r"`([^`]+)`")
 LEGACY_FILE_ALIASES = {
     "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_reply_guard.py": "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_mixed_reply.py",
@@ -48,6 +48,8 @@ REQUIRED_FIELDS = (
 ALLOWED_RESULTS = frozenset({"pass", "fail", "partial", "partial-pass"})
 ALLOWED_SENSITIVE_FLAGS = frozenset({"yes", "no"})
 ALLOWED_EVIDENCE_STATUSES = frozenset({"active", "retired"})
+ALLOWED_STORAGE_SCOPES = frozenset({"repository", "local", "external"})
+REFERENCE_PREFIXES = ("repo:", "local:", "production:", "external:")
 PREFLIGHT_CONTRACT_EVIDENCE_ID = "E-20260706-001"
 PREFLIGHT_CONTRACT_REQUIRED_SNIPPETS = (
     "check_preflight_business_contracts.py",
@@ -108,6 +110,20 @@ def parse_entries(content: str) -> tuple[EvidenceEntry, ...]:
     return tuple(entries)
 
 
+def _parse_sha256_map(text: str) -> dict[str, str]:
+    """解析 sha256 映射格式 `file=sha256；file=sha256`。"""
+    result: dict[str, str] = {}
+    for part in text.split("；"):
+        part = part.strip()
+        if "=" in part:
+            key, value = part.split("=", 1)
+            key = key.strip().replace("\\", "/")
+            value = value.strip()
+            if re.fullmatch(r"[0-9a-f]{64}", value):
+                result[key] = value
+    return result
+
+
 def validate_entry(entry: EvidenceEntry) -> list[str]:
     issues: list[str] = []
     for field_name in REQUIRED_FIELDS:
@@ -125,6 +141,26 @@ def validate_entry(entry: EvidenceEntry) -> list[str]:
     evidence_status = entry.fields.get("evidence_status", "active")
     if evidence_status not in ALLOWED_EVIDENCE_STATUSES:
         issues.append(f"{entry.entry_id}: invalid evidence_status {evidence_status}")
+    storage_scope = entry.fields.get("storage_scope")
+    if storage_scope and storage_scope not in ALLOWED_STORAGE_SCOPES:
+        issues.append(f"{entry.entry_id}: invalid storage_scope `{storage_scope}`")
+    sha256 = entry.fields.get("sha256")
+    is_pure_hex = bool(re.fullmatch(r"[0-9a-f]{64}", sha256 or ""))
+    is_sha_map = bool(_parse_sha256_map(sha256 or ""))
+    if sha256 and not is_pure_hex and not is_sha_map:
+        issues.append(f"{entry.entry_id}: invalid sha256 `{sha256[:16] or sha256}`")
+    if storage_scope:
+        for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
+            norm = reference.strip().replace("\\", "/")
+            if norm.startswith(("http://", "https://")):
+                continue
+            if norm.startswith(REFERENCE_PREFIXES):
+                continue
+            if norm.startswith("/") or re.match(r"^[A-Za-z]:/", norm):
+                issues.append(
+                    f"{entry.entry_id}: storage_scope 条目 file 引用禁止裸绝对路径，"
+                    f"须使用 repo:/local:/production:/external: 前缀：`{norm}`"
+                )
     return issues
 
 
@@ -165,6 +201,11 @@ def _resolve_local_file_reference(reference: str, base_dir: Path) -> Path | None
         .replace(chr(92), "/")
     )
     normalized = LEGACY_FILE_ALIASES.get(normalized, normalized)
+    if normalized.startswith(("production:", "external:")):
+        return None
+    if normalized.startswith(("repo:", "local:")):
+        rel = normalized.split(":", 1)[1].lstrip("/")
+        return ROOT_DIR / rel
     if normalized.startswith("production ") or normalized.startswith("/opt/"):
         return None
     if normalized.startswith(("http://", "https://")):
@@ -192,8 +233,11 @@ def _collect_file_integrity(
             seen_paths.add(resolved_path)
             if not resolved_path.exists():
                 posix_path = resolved_path.as_posix()
-                is_local_artifact = any(
-                    f"{prefix}/" in posix_path for prefix in LOCAL_ARTIFACT_PREFIXES
+                is_local_artifact = (
+                    any(
+                        f"{prefix}/" in posix_path for prefix in LOCAL_ARTIFACT_PREFIXES
+                    )
+                    or entry.fields.get("storage_scope") == "local"
                 )
                 if is_local_artifact:
                     integrity.append(
@@ -226,6 +270,24 @@ def _collect_file_integrity(
                 )
                 continue
             digest = hashlib.sha256(resolved_path.read_bytes()).hexdigest()
+            recorded_sha = entry.fields.get("sha256")
+            if recorded_sha:
+                ref_name = reference.strip().replace("\\", "/")
+                base_name = Path(ref_name).name
+                if re.fullmatch(r"[0-9a-f]{64}", recorded_sha):
+                    if digest != recorded_sha:
+                        issues.append(
+                            f"{entry.entry_id}: sha256 mismatch for `{reference}` "
+                            f"(recorded {recorded_sha[:12]}.., actual {digest[:12]}..)"
+                        )
+                else:
+                    sha_map = _parse_sha256_map(recorded_sha)
+                    expected = sha_map.get(base_name) or sha_map.get(ref_name)
+                    if expected and expected != digest:
+                        issues.append(
+                            f"{entry.entry_id}: sha256 mismatch for `{reference}` "
+                            f"(recorded {expected[:12]}.., actual {digest[:12]}..)"
+                        )
             integrity.append(
                 {
                     "path": str(resolved_path),

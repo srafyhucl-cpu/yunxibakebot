@@ -76,7 +76,7 @@
 **业务规则（已确认）**
 
 - 获得：`1 元实付 = 1 分`；实付现金 = `total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）；不足 1 元向下取整，`award_points = cash_fen // 100`。
-- 抵扣：`100 分 = 1 元`；单笔最低 `100 分`；最高抵扣 `50% × total_fen`，且 `points_fen <= total_fen - balance_fen`；可用积分按百位向下取整，`points_used = floor(available / 100) × 100`。
+- 抵扣：`100 分 = 1 元`；单笔最低 `100 分`；最高抵扣 `50% × total_fen`，且 `points_fen <= total_fen - coupon_fen - balance_fen`；可用积分按百位向下取整，`points_used = floor(available / 100) × 100`。
 - 发放时点：支付成功即发分；`apply-points` 只写快照，支付成功时才真正扣减抵扣积分。
 - 叠加：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）。
 - 有效期：长期有效。

@@ -10,7 +10,7 @@
 - related_adr: none
 - contains_sensitive_data: no
 - retention_note: 只记录命令、退出码、扫描范围、文件哈希与结论；evidence 原始输出不入库（reports/harness gitignore）；本索引条目入库。
-- sha256: dsecrets-raw-scan-20260814.json=d874747595c2e822e336a44c35cd5f23ecfafdf8101b2f31806541d061b5c131；dsecrets-allplugins-20260814.json=6b576b34d957ad0dc3ccf0d654ca06160bb571cdcb95f35df543fc4e6b1ec5e2；dsecrets-allfiles-20260814.txt=4989a2714b0cbaa0ac14a63d542d974198574152e3c36e92af2eb08c66d78168
+- sha256: dsecrets-raw-scan-20260814.json=d874747595c2e822e336a44c35cd5f23ecfafdf8101b2f31806541d061b5c131；dsecrets-allplugins-20260814.json=6b576b34d957ad0dc3ccf0d654ca06160bb571cdcb95f35df543fc4e6b1ec5e2；dsecrets-allfiles-20260814.txt=4989a2714b0cbaa0ac14a63d542d974198574152e3c36e92af2eb08c66d78168；dsecrets-gate-summary-20260814.json=45317260889efcc0c8127f73e0e66aeabd09e42ccfb0e7b7e8dd8f00ddec7bb7
 - summary: 修复 .secrets.baseline worktree 污染（工具重写导致 hook 报 unstaged）后，pre-commit detect-secrets --all-files → exit 0；原生 scan 与 --force-use-all-plugins 在 Git 跟踪文件范围内均 0 命中。全工作树扫描（--all-files）命中 90 个未跟踪生成物（node_modules / 缓存 / htmlcov / chrome 配置 / data/embeddings.json），经查为依赖与生成物、非真实密钥，单独定义排除规则后作审计，不纳入提交门禁。结论：Git 跟踪文件密钥门禁通过且可复现。
 
 ## E-20260813-001：M3 积分模块 v0.122.1 生产部署第一段（POINTS_AUTHORITY=youzan）
