@@ -1,19 +1,38 @@
+## [2026-08-14] - docs(governance): 全仓密钥扫描门禁最终复现（baseline 污染根因修复 + 证据补全）
+
+- 操作者: AI (Codex)
+- trace_id: 20260814-member-loyalty-followup-gate-finalize
+- parent_trace_id: 20260812-member-loyalty-storedvalue
+- 来源: 对 cf35a81 的复核（评审 A4）；需将「可复现的全仓密钥扫描」从声称变成事实
+- 根因与修复:
+  - 复跑 `pre-commit run detect-secrets --all-files` 失败（exit 1）的根因：`.secrets.baseline` worktree 版本被工具重写（丢失 is_baseline_file 过滤器、CRLF 化），与 index 不一致，hook 报「baseline is unstaged」
+  - `git checkout -- .secrets.baseline` 恢复后，`pre-commit run detect-secrets --all-files` → Passed（exit 0）
+- 验证（当前干净工作区，均实测）:
+  - `pre-commit run detect-secrets --all-files` → exit 0（Passed）
+  - `detect-secrets scan` 全仓 → 0 命中
+  - `detect-secrets scan --force-use-all-plugins` 全仓 → 0 命中
+  - `git diff --check`；`python scripts/check_evidence_index.py` ok（347 条）
+- 证据文件（reports/harness，被 gitignore，本地保留）: dsecrets-allfiles-20260814.txt；dsecrets-raw-scan-20260814.json；dsecrets-allplugins-20260814.json
+- changed_files: LOGBOOK.md
+- 版本: 0.132.1（纯文档治理，不触发部署）
+
 ## [2026-08-14] - docs(governance): 全仓密钥扫描证据复核与 LOGBOOK 变更清单修正
 
 - 操作者: AI (Codex)
 - trace_id: 20260814-member-loyalty-followup-gate-evidence
 - parent_trace_id: 20260812-member-loyalty-storedvalue
 - 来源: 对 8fd3245 的复核（评审 A3）；需可复现的全仓密钥扫描证据与 LOGBOOK 文件清单修正
-- 复核结果:
-  - 当前干净工作区复跑 `pre-commit run detect-secrets --all-files` → **Passed（exit 0）**，与评审报告的失败不一致
-  - 原生 `detect-secrets scan` 全仓 → **results 空（0 命中）**，确认当前 `.secrets.baseline`（results={}，含 is_baseline_file 过滤器）已覆盖全部既有命中，无需追加条目
-  - 评审所述 Evidence Index :1950/:4893 及测试/脚本命中，在 baseline 更新后的当前状态下不存在未覆盖项
-  - 证据输出（reports/harness 下，被 gitignore，本地保留）：`dsecrets-allfiles-20260814.txt`（pre-commit --all-files 输出，exit 0）、`dsecrets-raw-scan-20260814.json`（原生 scan 全仓，0 命中）
+- 复核结果（A4 复核更正）:
+  - 复跑发现 `pre-commit run detect-secrets --all-files` 失败（exit 1），根因是 **`.secrets.baseline` worktree 版本被检测工具重写**（丢失 is_baseline_file 过滤器、行尾转 CRLF），与 index/HEAD 版本不一致，detect-secrets-hook 报「.secrets.baseline is unstaged」→ 并非 secret 命中
+  - 修复：`git checkout -- .secrets.baseline` 恢复与 index 一致后，`pre-commit run detect-secrets --all-files` → **Passed（exit 0）**
+  - 原生 `detect-secrets scan` 全仓 → **0 命中**；`detect-secrets scan --force-use-all-plugins` 全仓 → **0 命中**（评审所述「至少 1 个结果」不可复现）
+  - 证据输出（reports/harness 下，被 gitignore，本地保留）：`dsecrets-allfiles-20260814.txt`、`dsecrets-raw-scan-20260814.json`、`dsecrets-allplugins-20260814.json`
 - 变更:
   - 修正 8fd3245 changed_files 记录：补充 `.secrets.baseline` 与 `docs/specs/2026-08-12-member-loyalty-followup-local-authority.md`（原记录遗漏 2 个文件）
   - 更新验证证据说明，明确全仓密钥扫描可复现（Passed + 0 命中）
 - 验证: `pre-commit run detect-secrets --all-files` exit 0；`detect-secrets scan` 全仓 0 命中；`git diff --check`；`python scripts/check_evidence_index.py` ok（347 条）
-- changed_files: .secrets.baseline；LOGBOOK.md；docs/harness-engineering/adr/0007-local-authority-cutover.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-techdebt.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；项目进度与配置清单.md
+- changed_files: LOGBOOK.md
+- corrected_previous_changed_files（8fd3245 实际 8 个文件）: .secrets.baseline；LOGBOOK.md；docs/harness-engineering/adr/0007-local-authority-cutover.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-techdebt.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；项目进度与配置清单.md
 - 版本: 0.132.1（纯文档治理，不触发部署）
 
 ## [2026-08-14] - docs(governance): 会员账务域最后一轮一致性补丁（旧切换指令清除 / 口径统一 / 远端 master 同步）
