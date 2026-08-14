@@ -1,3 +1,46 @@
+## [2026-08-14] - docs(governance): 账务核心合同收口 B1.7（券命令模型 / 重投影 / 净额退款 / 资产快照时点 / outbox fencing / 切换边界 / 守卫修复）
+
+- 操作者: AI (Codex)
+- trace_id: `20260814-member-loyalty-accounting-contract-b17`
+- parent_trace_id: `20260814-member-loyalty-accounting-contract-b16`
+- 来源: 对 B1.6 候选工作树的复核（评审 B1.7）；结论：技术 No-Go，5 项资金/券一致性高风险合同未定稿，须作为单一 B1.7 包一次性收口后再提交不可变基线、重跑门禁、做最终审批
+- 券命令模型（评审问题 1）:
+  - `event_key` 拆分为：`transition_key`（不含来源的逻辑转换键 `sha256(coupon_id+mobile+business_ref+cycle_no)`，UNIQUE）+ `origin_event_id`（外部原始事件 ID，import/webhook 双通道幂等去重）+ `ingest_source`（摄取来源字段）
+  - 新增 `RESERVED` 预占状态（apply-coupon 预占绑定 `payment_attempt_id`；RELEASE 释放；CONSUME 校验匹配）；投影 `coupon_current_state` 增加单调 `version` + `expected_status` 条件更新（CAS），追加事件与更新投影同一 UoW——双订单并发预占同一 TAKE 券只有一方成功
+  - 历史行迁移 `legacy:<coupon_inventory.id>`，禁止伪造外部事件 ID，无法确认来源的记录隔离待对账
+- I1 重投影（评审问题 2）: 回放固定为**独立投影重建器**（不调 `process_youzan_webhook`，不走入站去重/审计回调/业务幂等短路）；`projection_checkpoint` 控制重建进度；积分/券/身份/会员卡分别定义快照版本与重建规则；窗口口径统一 `(start, end]` 半开区间；测试矩阵补"新事件已处理后被旧快照覆盖，重建恢复"
+- 净额退款（评审问题 3）: 基准=净额退款（券折扣只影响可退商品金额、不生成货币退款操作）；`refundable_fen = cash+balance+points`；商品行级折扣分摊（最大余数法）；订单级退款汇总/预占约束 `requested+processing+succeeded <= refundable_fen`；所有账本操作按 `refund_no` 幂等（`refund:<refund_no>:<asset>`，支持多笔部分退款）；积分收回不足=manual_review+冻结额度（不产生负余额）
+- 资产快照时点（评审问题 4）: 首次不可逆承诺（余额预占/券 RESERVE/创建微信支付会话任一先发生）时固化 `payment_attempt_id + policy_version + asset_policy_snapshot`；授权三分类（新业务=实时策略重新授权、在途结算=快照、系统补偿=快照）；新支付尝试（重试重新发起）生成新 `payment_attempt_id` 重新授权
+- outbox fencing（评审问题 5）: schema 补齐 `operation_type/provider/provider_request_no/provider_response_no/lease_token/max_attempts/depends_on_operation_key`；claim/complete 条件更新 + token 匹配（陈旧 worker 拒绝覆盖）；微信商户幂等映射 `out_trade_no`/`out_refund_no` ↔ `refund_no`；`AccountingOutboxRepo/CouponEventRepo/RefundRepo` 纳入 D1-A 零 commit 契约与故障注入矩阵
+- 切换边界（评审问题 6）: FP-2 唯一切换水位 `inbox_events.id`（删除事件派生游标）；不可逆边界裁决=仅 roll-forward（本地首次写入后不回写有赞），列为正式放行显式审批项
+- 守卫修复（评审问题 7）: `verify_secrets_baseline` 的 `git diff` 仅允许返回码 0/1，其余（含 128/129）一律抛 `_GitFailure` 阻断（补测试）；证据索引合同口径修正——`storage_scope` 明确为条目级摘要字段（工件级 scope 以 `file` 引用前缀为准），`sha256` 仅对 `repo:` 文件工件必填并校验匹配，`local:` 生成物哈希可选仅校验格式
+- 项目负责人书面裁决（B1.7）: 退款基准=净额退款；积分收回不足=manual_review+冻结额度；FP-2 回滚=仅 roll-forward（不可逆边界列正式放行审批项）
+- 验证: `python scripts/check_evidence_index.py --summary` ok（350 条 / failed=0 / verified_files=558）；pytest tests/scripts 相关 32 项通过；`python scripts/verify_secrets_baseline.py` exit 0；ruff / check_file_sizes / check_project --skip-tests 待最终复核
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；docs/superpowers/specs/2026-08-13-coupon-m4-design.md；项目进度与配置清单.md；docs/harness-engineering/core/evidence-index.md；scripts/verify_secrets_baseline.py；scripts/check_evidence_index.py；tests/scripts/test_verify_secrets_baseline.py；LOGBOOK.md；reports/harness/handoff-b17-accounting-contract-{timestamp}.md（新）
+- residual_risks: ADR 0008 仍为 proposed；B1.7 为未提交候选，须提交不可变基线并重跑门禁后由项目负责人做最终 Go/No-Go；券预占/投影重建/退款预占/outbox fencing 均为实施阶段落地；截至 2027-05-31 仅开发测试边界不变，不部署、不开放资产写操作
+- 版本: 0.132.2（纯治理与设计，不触发部署）
+
+## [2026-08-14] - docs(governance): 账务核心合同完成包 B1.6（5 项高风险缺口 + 2 项一致性问题修正）
+
+- 操作者: AI (Codex)
+- trace_id: `20260814-member-loyalty-accounting-contract-b16`
+- parent_trace_id: `20260814-member-loyalty-accounting-contract`
+- 来源: 对 `344b66a`（B1.5）的设计与治理基线复核（评审 B1.5）；结论：不通过「账务核心合同已完整定稿」收口，5 项高风险合同缺口 + 2 项一致性问题须一次性在 B1.6 修正后，再由项目负责人批准进入 D1/X1/I1/R1
+- 合同定稿（评审问题 1）:
+  - ADR 0008 UoW 清单改为**真实类名 + 方法级范围**（删除不存在的 `StoredValueRepo`）：`CouponInventoryRepo.insert/consume/refund`、`PointsLedgerRepo.insert`、`MemberBalanceRepo.upsert_identity/credit_points/deduct_points_if_sufficient/credit_stored_value/deduct_stored_value_if_sufficient`、`RechargeRepo.create/mark_paid_if_unpaid/cancel_if_unpaid/expire_if_unpaid`、`BalanceLedgerRepo.insert`、`OrderRepo`（订单 / payment.json）、`OrderEventRepo.add`；`InboxRepo` 不纳入零 commit 契约（入站队列自身持久化，与账务 UoW 写入区分）
+  - `accounting_outbox` 最小 schema 定稿：`operation_key UNIQUE`、聚合引用、payload/version、状态、attempt_count、lease_until、next_attempt_at、dead-letter、reconcile_status、时间戳
+- 券模型统一（评审问题 2）: ADR 0008 为券数据模型唯一来源；FP-2 改为固定迁移 / 兼容读取 / 切换 / 回滚合同（事件表 `coupon_events` + 投影 `coupon_current_state`）；`event_key` 精确定义、状态迁移表、迟到 / 乱序事件规则、跨来源重复事件规则；旧 `(coupon_id,status,mobile)` 索引统一标「第一阶段现状，禁止用于新实现」（主计划、M4 设计同步）
+- 退款语义（评审问题 3）: 明确「**本地账务 UoW 原子、跨微信退款 Saga 最终一致**」；微信已退本地未补偿只能进入 `manual_review`（不可整体回滚）；定义人工复核进入条件、补录幂等键、最大未决时长（默认 72 小时）、对账关闭条件
+- 资产矩阵（评审问题 4）: 新订单只读实时策略；支付通知 / 在途结算 / 退款补偿只读不可变 `asset_policy_snapshot`（消除「快照结算」与「禁写无副作用」矛盾）；三类操作状态转换表；FP-4B2 必须归档已选积分 / 券策略证据与旧入口外部核验，不能以矩阵文档存在代替验收
+- G1 守卫（评审问题 5）: `verify_secrets_baseline` 改从 **git index** 读取受控记录、校验完整字段、绑定本次哈希对、禁止历史记录复用、Git 故障阻断；补未暂存记录 / 字段缺失 / 历史记录复用 / Git 故障 4 类测试；证据索引迁移至工件级 `repo:/local:/production:/external:` 引用，`storage_scope`/`sha256` 必填、裸路径阻断、repo 工件缺失或哈希缺项阻断；新增 `scripts/migrate_evidence_index_scope.py` 并完成 349 条迁移
+- FP-1 回放（评审问题 6）: 固定 **inbox 回放为唯一方案**（删除双候选表述）；明确 `queue_name='youzan_webhook'` 过滤、`(start,end]` 起止半开区间、`message_key` 幂等、快照版本冲突胜出、`id ASC` 单调消除乱序、故障恢复测试矩阵 6 场景
+- 一致性（评审问题 7）: 主计划 / 进度清单 / M4 统一为「第一阶段历史实现，后续券数据模型以 ADR 0008 为准」；进度清单 M3/M4 证据状态改「已归档（E-20260813-001/002），不代表真实业务闭环」
+- 项目负责人书面裁决（B1.6）: 退款 = **支持部分退款**（按支付快照各资产实付占比分摊、最大余数法、券仅全单退款退回）；积分门禁 = **关闭 Platform 积分写操作**（`ASSET_POINTS_WRITE=disabled`）；券门禁 = **关闭旧入口券能力 + 正式版关闭券抵扣**（`ASSET_COUPON_WRITE=disabled`）
+- 验证: `python scripts/check_evidence_index.py --summary` ok（349 条 / failed=0 / verified_files=552）；`pytest tests/scripts/test_verify_secrets_baseline.py test_check_evidence_index.py test_migrate_evidence_index_scope.py` 31 通过；`python scripts/verify_secrets_baseline.py` exit 0；check_file_sizes / check_project --skip-tests / ruff check+format / `git diff --check` 通过
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；docs/superpowers/specs/2026-08-13-coupon-m4-design.md；项目进度与配置清单.md；docs/harness-engineering/core/secrets-baseline-changes.md；docs/harness-engineering/core/evidence-index.md；scripts/verify_secrets_baseline.py；scripts/check_evidence_index.py；scripts/migrate_evidence_index_scope.py（新）；tests/scripts/test_verify_secrets_baseline.py；tests/scripts/test_check_evidence_index.py；tests/scripts/test_migrate_evidence_index_scope.py（新）；LOGBOOK.md；reports/harness/handoff-b16-accounting-contract-20260814-1437.md（新）
+- residual_risks: ADR 0008 仍为 proposed，须项目负责人批准后进入 D1/X1/I1 代码实施；部分退款分摊规则、资产快照三态、outbox 投递 worker 均为实施阶段落地；积分 / 券写关闭为正式开放前门禁
+- 版本: 0.132.2（纯治理与设计，不触发部署）
+
 ## [2026-08-14] - docs(governance): 账务核心合同定稿包（B1.5，ADR 0008 / 资产矩阵 / G1 守卫增强）
 
 - 操作者: AI (Codex)

@@ -22,7 +22,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 - 积分 `local`：`event_member.py` 在 `POINTS_AUTHORITY != "local"` 时用有赞 `total` 覆盖 `member_balance.points`；`local` 时只写流水 / 审计镜像（已实现）。
 - 优惠券 `local`：`coupon_inventory_repo` 在 `authority=local` 时**只识别 `source IN ('order','local')` 的券行**，现有 `import` / `webhook` 来源的有效券行会被过滤，导致已有有效有赞券从可用列表消失。
 - 本地写入后不能仅靠改回环境变量实现无损回滚（已落库数据不会自动回退）。
-- **唯一键冲突（切换模型阻断项）**：`coupon_inventory` 唯一索引 `idx_coupon_inventory_dedup (coupon_id, status, mobile)`（v024:66）不含 `source`。webhook 来源券行已占用 `(coupon_id, status, mobile)` 键位后，local 状态无法再写入同状态行；`source IN ('order','local')` 过滤叠加唯一键独占，使切换模型在无补偿设计下不可执行，须按 B.6 解除。
+- **唯一键冲突（切换模型阻断项）**：`coupon_inventory` 唯一索引 `idx_coupon_inventory_dedup (coupon_id, status, mobile)`（v024:66）不含 `source`。webhook 来源券行已占用 `(coupon_id, status, mobile)` 键位后，local 状态无法再写入同状态行；`source IN ('order','local')` 过滤叠加唯一键独占，使切换模型在无补偿设计下不可执行，须按 ADR 0008 的 `coupon_events.transition_key` 唯一模型 + `origin_event_id` 外部事件幂等解除（该模型为 B1.6 + B1.7 定稿，不再三选一）。
 
 ## 逐聚合权威矩阵
 
@@ -49,21 +49,24 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 
 ### B. 优惠券切换（新增迁移与围栏）
 
-1. **有效券基线迁移**：切换前把现有 `source IN ('import','webhook')` 的有效券行迁移 / 重写为 `local` 来源（或引入兼容读取），确保已有有效有赞券不会消失。
-2. **切换水位线**：以不可变事件 ID（`inbox_events.id` / 事件派生游标）为水位，**不用时间戳**；水位线之后到达的 `webhook` 券事件按 `local` 语义处理，杜绝双写。
-3. **写入围栏**：切换后本地写入期间，对有赞券管理端写入做围栏 / 停写确认，避免本地与有赞同时改券导致分裂。
-4. **影子读对账**：`local` 权威下继续影子读有赞券，定期对账差异（新增 / 核销 / 退回）。
-5. **稳定观察期**：观察期内每日对账，券核销 / 退回 / 到期行为一致，方可推进。
-6. **唯一键冲突解除设计（必须项）**：为 local 状态写入提供 authority epoch / shadow audit / 状态投影之一：
-   - authority epoch：为券记录增加切换纪元标记，local 行与 webhook 行按纪元区分，不共享同一去重键；
-   - shadow audit：webhook 行改写为审计 / 影子行（不同状态语义），本地状态用独立键位写入；
-   - 状态投影：按 `coupon_id + mobile` 投影最新状态，弱化 `(coupon_id, status, mobile)` 唯一键对写入的限制。
-   该设计必须先隔离环境验证，再进入迁移。
-7. **设计门禁（执行前必须完成，不属于当前定稿）**：FP-2 正式执行前，必须从上述三选一中选定具体模型，并产出设计文档，写清：表结构变更（schema / 迁移）、最新态查询投影、迁移批次与停写窗口、回滚条件与补偿 SQL。未通过该设计评审不得执行切换；本工作包当前仅记录风险与候选方案。
+> **券数据模型以 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md) 为唯一来源**（B1.6 + B1.7 定稿）：事件表 `coupon_events`（`transition_key` + `ingest_source` + `origin_event_id`）+ 当前态投影 `coupon_current_state`（`RESERVED` 预占 + 投影 CAS）。以下 B.1–B.7 均在该模型下执行；旧 `idx_coupon_inventory_dedup (coupon_id, status, mobile)` 标为**"第一阶段现状，禁止用于新实现"**。
+
+1. **有效券基线迁移**：切换前把现有 `source IN ('import','webhook')` 的有效券行按 ADR 0008 迁移为 `coupon_events` 事件行（`transition_key = legacy:<coupon_inventory.id>`，不伪造外部事件 ID；`ingest_source=legacy`），投影到 `coupon_current_state`；迁移期保留旧表以兼容读取，确保已有有效有赞券不会消失。
+2. **兼容读取合同（迁移期）**：旧 `coupon_inventory` 只读、禁写；可用券列表 / 核销判定 / local 权威读取统一走 `coupon_current_state` 投影；旧表仅作迁移核对与回滚底稿。
+3. **切换水位线（B1.7 唯一水位）**：以 **`inbox_events.id`** 为唯一切换水位（AUTOINCREMENT 不可变），**不用时间戳、不引入事件派生游标**；水位线之后到达的 `webhook` 券事件按 `local` 语义写入 `coupon_events`，杜绝双写。
+4. **写入围栏**：切换后本地写入期间，对有赞券管理端写入做围栏 / 停写确认，避免本地与有赞同时改券导致分裂。
+5. **影子读对账**：`local` 权威下继续影子读有赞券，定期对账差异（新增 / 核销 / 退回）。
+6. **稳定观察期**：观察期内每日对账，券核销 / 退回 / 到期行为一致，方可推进。
+7. **切换 / 回滚合同（固定，不再三选一）**：
+   - `transition_key` 精确定义：`sha256(coupon_id + ":" + mobile + ":" + business_ref + ":" + cycle_no)`（不含来源）；`business_ref` 为 `order:<order_no>` / `refund:<refund_no>` / `take:<外部事件 ID>` / `import:<批次 ID>` / `legacy:<coupon_inventory.id>`；`origin_event_id` 幂等去重 import/webhook 双通道。
+   - 状态迁移表：`初始 → TAKE → RESERVE → RESERVED → RELEASE/TAKE → CONSUME → BACK → TAKE`（多周期）与 `TAKE/RESERVED/CONSUME → EXPIRE`，禁止跳转。
+   - 迟到 / 乱序事件：按 `occurred_at` 追加事件行后重算投影，不改写既有事件；投影按 `(occurred_at, id)` 单调聚合。
+   - 跨来源重复事件：`transition_key` 含来源无关逻辑键，同一 `transition_key` / 同一 `origin_event_id` 幂等拒绝，不同来源不再互相占用唯一键位。
+   - 切换执行前先产出设计文档（表结构变更、投影查询、迁移批次与停写窗口、roll-forward 补偿规则与回滚条件），未通过该设计评审不得执行切换。
 
 ### C. 回滚与补偿
 
-1. 回滚验证：本地写入后可回滚到 `youzan`（需定义补偿机制——被本地修改的数据如何反向同步到有赞，或接受差异并记录）。
+1. **不可逆边界（B1.7 裁决：仅 roll-forward）**：本地权威首次写入后**只允许 roll-forward，不回写有赞**（有赞侧不做反向同步）。回滚验证改为：切换演练验证 roll-forward 补偿——对账差异以本地快照为权威追加修正，被本地修改的数据不反向同步有赞；该不可逆风险列为正式放行的**显式审批项**（见 FP-4B2 Go/No-Go 清单）。
 2. 明确 **RPO / RTO**：切换过程允许丢失 / 回补的窗口，由项目负责人在执行前裁决记录中固定数值（不再以示例值代替）并演练。
 
 ### D. 收口
@@ -74,11 +77,11 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 
 ## 验收标准
 
-- 积分与优惠券分别切换，各自对账通过、回滚演练通过。
+- 积分与优惠券分别切换，各自对账通过、roll-forward 补偿演练通过。
 - 有效券基线迁移后，已有有效券在 `local` 下仍可查询、可核销。
-- 切换水位线、写入围栏、影子读对账均有运行记录，观察期无差异漂移。
-- 唯一键冲突解除设计（authority epoch / shadow audit / 状态投影）在隔离环境验证通过，local 状态可正常写入。
-- RPO / RTO 达成并演练。
+- 切换水位线（唯一 `inbox_events.id`）、写入围栏、影子读对账均有运行记录，观察期无差异漂移。
+- 唯一键冲突解除设计（ADR 0008 `coupon_events.transition_key` 唯一模型）在隔离环境验证通过，local 状态可正常写入。
+- RPO / RTO 达成并演练；不可逆（仅 roll-forward）风险已列为正式放行显式审批项。
 - 有赞小程序下线后，Platform 本地账务域成为唯一数据权威，小程序作为唯一用户入口，无业务中断。
 
 ## 边界

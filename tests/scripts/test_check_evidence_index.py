@@ -7,13 +7,15 @@ from scripts import check_evidence_index as evidence_check
 
 
 def _valid_entry(entry_id: str = evidence_check.PREFLIGHT_CONTRACT_EVIDENCE_ID) -> str:
+    checker_sha = hashlib.sha256(b"checker").hexdigest()
+    report_sha = hashlib.sha256(b"report").hexdigest()
     return (
         f"## {entry_id}：预检业务合约证据复核\n\n"
         "- trace_id: 20260706-preflight-contract-evidence-check\n"
         "- generated_at: 2026-07-06\n"
         "- evidence_type: local/preflight-business-contract-evidence\n"
-        "- file: `scripts/check_preflight_business_contracts.py`; "
-        "`reports/preflight-contract-check-20260706-232901.json`\n"
+        "- file: `repo:scripts/check_preflight_business_contracts.py`; "
+        "`repo:reports/preflight-contract-check-20260706-232901.json`\n"
         "- command: `python scripts/check_preflight_business_contracts.py "
         '"reports\\preflight-contract-check-20260706-232901.json" --summary`\n'
         "- result: pass\n"
@@ -21,6 +23,9 @@ def _valid_entry(entry_id: str = evidence_check.PREFLIGHT_CONTRACT_EVIDENCE_ID) 
         "- related_adr: none\n"
         "- contains_sensitive_data: no\n"
         "- retention_note: 不记录密钥、客户数据或订单明细。\n"
+        "- storage_scope: repository\n"
+        f"- sha256: scripts/check_preflight_business_contracts.py={checker_sha}；"
+        f"reports/preflight-contract-check-20260706-232901.json={report_sha}\n"
         "- summary: 校验 `business_contracts.static_checks` 包含四类业务合约状态。\n"
     )
 
@@ -59,6 +64,51 @@ def test_missing_required_field_fails(tmp_path: Path) -> None:
 
     assert result.passed is False
     assert any("missing field `command`" in issue for issue in result.issues)
+
+
+def test_missing_storage_scope_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n"
+        + _valid_entry().replace("- storage_scope: repository\n", ""),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any("missing field `storage_scope`" in issue for issue in result.issues)
+
+
+def test_bare_relative_path_requires_prefix_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n" + _valid_entry().replace("repo:scripts/", "scripts/"),
+        encoding="utf-8",
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any("禁止裸路径" in issue for issue in result.issues)
+
+
+def test_repo_artifact_without_sha256_fails(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    entry_lines = [
+        line for line in _valid_entry().splitlines() if not line.startswith("- sha256:")
+    ]
+    evidence_file.write_text(
+        "# Evidence Index\n\n" + "\n".join(entry_lines), encoding="utf-8"
+    )
+
+    result = evidence_check.check_evidence_index(evidence_file)
+
+    assert result.passed is False
+    assert any("缺少 sha256" in issue for issue in result.issues)
 
 
 def test_invalid_result_and_sensitive_flag_fail(tmp_path: Path) -> None:
@@ -185,7 +235,7 @@ def test_missing_evidence_file_fails(tmp_path: Path) -> None:
     result = evidence_check.check_evidence_index(evidence_file)
 
     assert result.passed is False
-    assert any("evidence path missing" in issue for issue in result.issues)
+    assert any("repo 工件缺失" in issue for issue in result.issues)
 
 
 def test_local_artifact_missing_does_not_block(tmp_path: Path) -> None:
@@ -196,14 +246,15 @@ def test_local_artifact_missing_does_not_block(tmp_path: Path) -> None:
         "- trace_id: 20260814-local-artifact-test\n"
         "- generated_at: 2026-08-14\n"
         "- evidence_type: governance/secret-scan-gate-finalize\n"
-        "- file: `reports/harness/missing-local-artifact-20260814.json`; "
-        "`scripts/check_preflight_business_contracts.py`\n"
+        "- file: `local:reports/harness/missing-local-artifact-20260814.json`; "
+        "`repo:scripts/check_preflight_business_contracts.py`\n"
         "- command: `python -m pre_commit run detect-secrets --all-files`\n"
         "- result: pass\n"
         "- related_logbook: 2026-08-14 - docs(governance): 本地工件语义测试\n"
         "- related_adr: none\n"
         "- contains_sensitive_data: no\n"
         "- retention_note: 本地留存工件缺失不阻断新环境。\n"
+        "- storage_scope: local\n"
         "- summary: 校验本地留存工件缺失时不阻断提交门禁。\n"
     )
     evidence_file.write_text("# Evidence Index\n\n" + entry, encoding="utf-8")
@@ -215,10 +266,15 @@ def test_local_artifact_missing_does_not_block(tmp_path: Path) -> None:
     assert any(
         item["kind"] == "local-artifact-missing" for item in report["file_integrity"]
     )
-    assert not any("missing" in issue for issue in result.issues)
+    assert not any("缺失" in issue for issue in result.issues)
 
 
-def _storage_scope_entry(file_ref: str, sha256: str | None = None) -> str:
+def _scope_entry(
+    file_ref: str,
+    sha256: str | None = None,
+    *,
+    scope: str = "local",
+) -> str:
     sha_line = f"- sha256: {sha256}\n" if sha256 else ""
     return (
         "\n## E-20260814-098：storage_scope 语义测试\n\n"
@@ -232,7 +288,7 @@ def _storage_scope_entry(file_ref: str, sha256: str | None = None) -> str:
         "- related_adr: none\n"
         "- contains_sensitive_data: no\n"
         "- retention_note: 测试条目。\n"
-        "- storage_scope: local\n"
+        f"- storage_scope: {scope}\n"
         f"{sha_line}"
         "- summary: 校验 storage_scope 语义。\n"
     )
@@ -248,7 +304,7 @@ def test_storage_scope_local_sha256_match_passes(tmp_path: Path) -> None:
     evidence_file.write_text(
         "# Evidence Index\n\n"
         + _valid_entry()
-        + _storage_scope_entry("reports/artifact.json", digest),
+        + _scope_entry("local:reports/artifact.json", digest),
         encoding="utf-8",
     )
 
@@ -257,7 +313,8 @@ def test_storage_scope_local_sha256_match_passes(tmp_path: Path) -> None:
     assert result.passed is True
 
 
-def test_storage_scope_local_sha256_mismatch_fails(tmp_path: Path) -> None:
+def test_storage_scope_local_sha256_stale_does_not_block(tmp_path: Path) -> None:
+    """local 工件为 gitignore 生成物，哈希漂移不阻断（repo 工件才强制匹配）。"""
     _write_referenced_files(tmp_path)
     artifact = tmp_path / "reports" / "artifact.json"
     artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -266,14 +323,13 @@ def test_storage_scope_local_sha256_mismatch_fails(tmp_path: Path) -> None:
     evidence_file.write_text(
         "# Evidence Index\n\n"
         + _valid_entry()
-        + _storage_scope_entry("reports/artifact.json", "0" * 64),
+        + _scope_entry("local:reports/artifact.json", "0" * 64),
         encoding="utf-8",
     )
 
     result = evidence_check.check_evidence_index(evidence_file)
 
-    assert result.passed is False
-    assert any("sha256 mismatch" in issue for issue in result.issues)
+    assert result.passed is True
 
 
 def test_storage_scope_absolute_path_requires_prefix_fails(tmp_path: Path) -> None:
@@ -282,16 +338,14 @@ def test_storage_scope_absolute_path_requires_prefix_fails(tmp_path: Path) -> No
     evidence_file.write_text(
         "# Evidence Index\n\n"
         + _valid_entry()
-        + _storage_scope_entry(r"D:\Project\foo\artifact.json"),
+        + _scope_entry(r"D:\Project\foo\artifact.json"),
         encoding="utf-8",
     )
 
     result = evidence_check.check_evidence_index(evidence_file)
 
     assert result.passed is False
-    assert any(
-        "storage_scope 条目 file 引用禁止裸绝对路径" in issue for issue in result.issues
-    )
+    assert any("禁止裸路径" in issue for issue in result.issues)
 
 
 def test_storage_scope_prefixed_path_allowed(tmp_path: Path) -> None:
@@ -300,7 +354,7 @@ def test_storage_scope_prefixed_path_allowed(tmp_path: Path) -> None:
     evidence_file.write_text(
         "# Evidence Index\n\n"
         + _valid_entry()
-        + _storage_scope_entry("local:reports/harness/dsecrets-test-20260814.json"),
+        + _scope_entry("local:reports/harness/dsecrets-test-20260814.json"),
         encoding="utf-8",
     )
 
@@ -322,7 +376,7 @@ def test_sha256_map_format_checks_each_file(tmp_path: Path) -> None:
         "- trace_id: 20260814-sha-map-test\n"
         "- generated_at: 2026-08-14\n"
         "- evidence_type: governance/sha-map-test\n"
-        "- file: `a.json`; `b.json`\n"
+        "- file: `repo:a.json`; `repo:b.json`\n"
         "- command: `python scripts/check_evidence_index.py`\n"
         "- result: pass\n"
         "- related_logbook: 2026-08-14 - x\n"
@@ -330,6 +384,7 @@ def test_sha256_map_format_checks_each_file(tmp_path: Path) -> None:
         "- contains_sensitive_data: no\n"
         "- retention_note: 测试。\n"
         f"- sha256: a.json={ha}；b.json={hb}\n"
+        "- storage_scope: repository\n"
         "- summary: 校验多文件映射哈希。\n"
     )
     evidence_file = tmp_path / "evidence-index.md"

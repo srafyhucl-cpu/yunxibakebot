@@ -39,7 +39,7 @@
 | M1 数据底座 | 🟡 第一阶段完成 | 代码、迁移、生产部署完成；生产全量导入与真实店铺 Webhook 契约联调待执行（FP-1） |
 | M2 储值余额 | 🟡 第一阶段完成 | mock / 余额支付 / 组合支付 / API 已上线；真实微信支付待商户号（FP-3） |
 | M3 积分模块 | 🟡 第一阶段完成 | POINTS_AUTHORITY=youzan 已上线；local 权威第二阶段计划 2027-06（FP-2） |
-| M4 优惠券模块 | 🟡 第一阶段完成 | 核心功能已上线（COUPON_AUTHORITY=youzan）；local 切换及真实有赞发券链路未闭环（FP-2 / FP-1） |
+| M4 优惠券模块 | 🟡 第一阶段完成 | 核心功能已上线（COUPON_AUTHORITY=youzan）；local 切换及真实有赞发券链路未闭环（FP-2 / FP-1）；第二阶段券数据模型以 ADR 0008 为准 |
 | M5 小程序前端 | 🟡 开发完成、发布未完成 | 页面与自动化验证完成；真机、体验版、正式审核、真实支付未完成（FP-4） |
 | M6 收口部署 | 🟡 部分完成 | Platform 第一阶段部署完成；M3/M4 生产部署证据已归档（E-20260813-001/002），不代表真实业务闭环，业务闭环仍受上述事项约束 |
 
@@ -49,7 +49,7 @@
 
 > `058567e` 作为 **2027-05-31（含）前开发 / 调试 / 测试阶段规划基线有条件通过**；不代表真实支付验收、真实用户开放或本地权威切换方案已经通过。
 
-- **高风险阻断项（切换前必须解除）**：FP-1 生产导入起止双水位与窗口回放；FP-2 local 切换模型（唯一键冲突与 authority epoch / shadow audit / 状态投影设计）。
+- **高风险阻断项（切换前必须解除）**：FP-1 生产导入起止双水位与窗口回放（独立投影重建器，见 FP-1）；FP-2 local 切换模型（券唯一键冲突按 ADR 0008 `coupon_events.transition_key` 唯一模型 + `RESERVED` 预占 / 投影 CAS 解除）。
 - **受控真实测试门禁**：授权测试账号、小额、可退款、可对账、可清理，事前获项目负责人批准。
 - **正式上线门禁**：全部前置工作包完成 + 项目负责人明确批准，2027-06 不是自动上线日期。
 
@@ -80,7 +80,7 @@
 - 发放时点：支付成功即发分；`apply-points` 只写快照，支付成功时才真正扣减抵扣积分。
 - 叠加：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）。
 - 有效期：长期有效。
-- 退款：当前系统无部分退款；全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`。
+- 退款：支持**全额与部分退款**（B1.6 项目负责人裁决），基准为**净额退款**（B1.7 裁决：券折扣只影响可退商品金额、不生成货币退款操作）。全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`；部分退款按 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md) D1-C 分摊规则——`refund_fen` 在（微信款 / 余额 / 积分）间按实付占比分摊（最大余数法），积分按比例退回 `pointsUsed` / 收回 `pointsAwarded`，收回不足为 manual_review + 冻结额度；跨微信退款采用 Saga 最终一致，微信已退本地未补偿进入人工复核。
 - 数据主从：配置开关 `points_authority`（默认 `youzan`）两步切换——第一阶段 M3 上线保持 `youzan`（有赞 `total` 继续维护余额）；第二阶段切 `local`（本地 `member_balance.points` 权威，有赞 `POINTS` 事件只写流水/审计）由 FP-2 执行，须满足 2027-06 候选窗口、项目负责人批准、唯一键阻断解除与独立切换窗口门禁，禁止仅修改进程级配置触发。
 
 **M3.1 数据/仓储**
@@ -138,7 +138,7 @@
 - 禁止 `api/` → `repository/` 直调
 - 禁止 SQL f-string、`Optional[X]`、`SELECT *`
 - 原子条件更新（同订单支付一致性模式）
-- POINTS 用 `unique_id` 去重，COUPON 用 `id`+`status`+`mobile` 组合去重
+- POINTS 用 `unique_id` 去重；COUPON 用 `id`+`status`+`mobile` 组合去重（**第一阶段现状，禁止用于新实现**——新券数据模型以 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md) 的 `coupon_events.transition_key` + `origin_event_id` 为准）
 - mock 支付显式开关
 
 ---

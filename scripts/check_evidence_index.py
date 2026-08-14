@@ -1,4 +1,17 @@
-"""检查 Harness evidence index 结构是否可机器读取。"""
+"""检查 Harness evidence index 结构是否可机器读取。
+
+工件级引用与完整性合同（B1.7 口径）：
+- `file` 中每个引用必须是工件级前缀 `repo:/local:/production:/external:` 或
+  http(s) URL，禁止裸路径（绝对或相对）。
+- 每个条目必须含 `storage_scope`（repository / local / production / external），
+  作为**摘要字段**描述证据主要存放域；工件级 scope 以每个 `file` 引用的前缀为准，
+  多存储域条目（如 repo + production）允许单一摘要值。
+- `sha256`：对 `repo:` **文件**工件必填并校验匹配（缺失或漂移阻断）；`local:`
+  工件为 gitignore 生成物，哈希可选、仅校验格式，不强制匹配；`production:` /
+  `external:` 不本地核验；`docs/harness-engineering/core/evidence-index.md`
+  自身按 registry 处理（自引用哈希必然漂移）。
+- 仓内（repo:）工件缺失或哈希缺项必须阻断；本地留存工件缺失仅登记不阻断。
+"""
 
 from __future__ import annotations
 
@@ -25,13 +38,13 @@ SECOND_LEVEL_HEADING_RE = re.compile(r"^##\s+")
 FIELD_RE = re.compile(r"^-\s+([a-z_][a-z0-9_]*):\s*(.*)$")
 FILE_REFERENCE_RE = re.compile(r"`([^`]+)`")
 LEGACY_FILE_ALIASES = {
-    "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_reply_guard.py": "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_mixed_reply.py",
-    "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_order_list_guard.py": "D:/Project/YunxiBakeBot/app/service/wecom/intelligent_bot_order_lookup.py",
-    "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_llm_plan.py": "D:/Project/YunxiBakeBot/app/service/wecom/employee_agent_planner.py",
-    "D:/Project/YunxiBakeBot/tests/service/test_miniapp_order.py": "D:/Project/YunxiBakeBot/tests/service/test_order.py",
-    "D:/Project/YunxiBakeBot/tests/service/test_miniapp_chat.py": "D:/Project/YunxiBakeBot/tests/api/test_miniapp_chat_api.py",
-    "D:/Project/YunxiBakeBot/tests/service/llm": "D:/Project/YunxiBakeBot/tests/service/test_llm_provider.py",
-    "D:/Project/YunxiBakeBot/tests/service/agents": "D:/Project/YunxiBakeBot/tests/service/agents/test_llm_factory.py",
+    "app/service/wecom/employee_agent_reply_guard.py": "app/service/wecom/employee_agent_mixed_reply.py",
+    "app/service/wecom/employee_agent_order_list_guard.py": "app/service/wecom/intelligent_bot_order_lookup.py",
+    "app/service/wecom/employee_agent_llm_plan.py": "app/service/wecom/employee_agent_planner.py",
+    "tests/service/test_miniapp_order.py": "tests/service/test_order.py",
+    "tests/service/test_miniapp_chat.py": "tests/api/test_miniapp_chat_api.py",
+    "tests/service/llm": "tests/service/test_llm_provider.py",
+    "tests/service/agents": "tests/service/agents/test_llm_factory.py",
 }
 REQUIRED_FIELDS = (
     "trace_id",
@@ -43,12 +56,13 @@ REQUIRED_FIELDS = (
     "related_logbook",
     "contains_sensitive_data",
     "retention_note",
+    "storage_scope",
     "summary",
 )
 ALLOWED_RESULTS = frozenset({"pass", "fail", "partial", "partial-pass"})
 ALLOWED_SENSITIVE_FLAGS = frozenset({"yes", "no"})
 ALLOWED_EVIDENCE_STATUSES = frozenset({"active", "retired"})
-ALLOWED_STORAGE_SCOPES = frozenset({"repository", "local", "external"})
+ALLOWED_STORAGE_SCOPES = frozenset({"repository", "local", "production", "external"})
 REFERENCE_PREFIXES = ("repo:", "local:", "production:", "external:")
 PREFLIGHT_CONTRACT_EVIDENCE_ID = "E-20260706-001"
 PREFLIGHT_CONTRACT_REQUIRED_SNIPPETS = (
@@ -57,7 +71,7 @@ PREFLIGHT_CONTRACT_REQUIRED_SNIPPETS = (
     "business_contracts.static_checks",
 )
 # 本地留存工件：gitignore 的本地报告/证据输出。缺失（如干净 clone / CI）时不阻断，
-# 仅登记名称、哈希与保留策略；仓内必需证据（其余路径）缺失仍阻断。
+# 仅登记名称、哈希与保留策略；仓内必需证据（repo: 引用）缺失或哈希缺项仍阻断。
 LOCAL_ARTIFACT_PREFIXES = ("reports/harness",)
 
 
@@ -82,6 +96,7 @@ def parse_entries(content: str) -> tuple[EvidenceEntry, ...]:
     current_title = ""
     current_fields: dict[str, str] = {}
     for raw_line in content.splitlines():
+        raw_line = raw_line.removeprefix("\ufeff")
         heading_match = ENTRY_HEADING_RE.match(raw_line)
         if heading_match:
             if current_id:
@@ -149,18 +164,16 @@ def validate_entry(entry: EvidenceEntry) -> list[str]:
     is_sha_map = bool(_parse_sha256_map(sha256 or ""))
     if sha256 and not is_pure_hex and not is_sha_map:
         issues.append(f"{entry.entry_id}: invalid sha256 `{sha256[:16] or sha256}`")
-    if storage_scope:
-        for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
-            norm = reference.strip().replace("\\", "/")
-            if norm.startswith(("http://", "https://")):
-                continue
-            if norm.startswith(REFERENCE_PREFIXES):
-                continue
-            if norm.startswith("/") or re.match(r"^[A-Za-z]:/", norm):
-                issues.append(
-                    f"{entry.entry_id}: storage_scope 条目 file 引用禁止裸绝对路径，"
-                    f"须使用 repo:/local:/production:/external: 前缀：`{norm}`"
-                )
+    for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
+        norm = reference.strip().replace("\\", "/")
+        if norm.startswith(("http://", "https://")):
+            continue
+        if norm.startswith(REFERENCE_PREFIXES):
+            continue
+        issues.append(
+            f"{entry.entry_id}: file 引用禁止裸路径，"
+            f"须使用 repo:/local:/production:/external: 前缀：`{norm}`"
+        )
     return issues
 
 
@@ -192,26 +205,15 @@ def validate_entries(entries: tuple[EvidenceEntry, ...]) -> list[str]:
     return issues
 
 
-def _resolve_local_file_reference(reference: str, base_dir: Path) -> Path | None:
-    normalized = reference.strip()
-    normalized = (
-        normalized.replace(chr(7) + "pp", "/app")
-        .replace(chr(7) + "pi", "/api")
-        .replace(chr(13) + "eadiness", "/readiness")
-        .replace(chr(92), "/")
-    )
-    normalized = LEGACY_FILE_ALIASES.get(normalized, normalized)
-    if normalized.startswith(("production:", "external:")):
-        return None
-    if normalized.startswith(("repo:", "local:")):
-        rel = normalized.split(":", 1)[1].lstrip("/")
-        return ROOT_DIR / rel
-    if normalized.startswith("production ") or normalized.startswith("/opt/"):
-        return None
-    if normalized.startswith(("http://", "https://")):
-        return None
-    candidate = Path(normalized)
-    return candidate if candidate.is_absolute() else base_dir / candidate
+def _parse_reference(reference: str) -> tuple[str, str]:
+    """拆解工件级引用，返回 (scope, 去前缀引用)。scope ∈ repo/local/production/external/url/裸路径。"""
+    norm = reference.strip().replace("\\", "/")
+    if norm.startswith(("http://", "https://")):
+        return "url", norm
+    for prefix in REFERENCE_PREFIXES:
+        if norm.startswith(prefix):
+            return prefix[:-1], norm.split(":", 1)[1].lstrip("/")
+    return "", norm
 
 
 def _collect_file_integrity(
@@ -223,23 +225,26 @@ def _collect_file_integrity(
     for entry in entries:
         if entry.fields.get("evidence_status", "active") == "retired":
             continue
+        recorded_sha = entry.fields.get("sha256", "")
+        sha_map = _parse_sha256_map(recorded_sha)
+        file_like_refs = {
+            _parse_reference(ref)[1]
+            for ref in FILE_REFERENCE_RE.findall(entry.fields.get("file", ""))
+            if _parse_reference(ref)[0] in ("repo", "local")
+        }
         for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
-            resolved_path = _resolve_local_file_reference(reference, base_dir)
-            if resolved_path is None:
+            scope, rel = _parse_reference(reference)
+            if scope in ("production", "external", "url"):
                 continue
-            resolved_path = resolved_path.resolve()
-            if resolved_path in seen_paths:
+            if scope not in ("repo", "local"):
+                continue
+            resolved_rel = LEGACY_FILE_ALIASES.get(rel, rel)
+            resolved_path = (base_dir / resolved_rel).resolve() if rel else None
+            if resolved_path is None or resolved_path in seen_paths:
                 continue
             seen_paths.add(resolved_path)
             if not resolved_path.exists():
-                posix_path = resolved_path.as_posix()
-                is_local_artifact = (
-                    any(
-                        f"{prefix}/" in posix_path for prefix in LOCAL_ARTIFACT_PREFIXES
-                    )
-                    or entry.fields.get("storage_scope") == "local"
-                )
-                if is_local_artifact:
+                if scope == "local":
                     integrity.append(
                         {
                             "path": str(resolved_path),
@@ -249,7 +254,7 @@ def _collect_file_integrity(
                         }
                     )
                     continue
-                issues.append(f"{entry.entry_id}: evidence path missing `{reference}`")
+                issues.append(f"{entry.entry_id}: repo 工件缺失 `{reference}`")
                 integrity.append(
                     {
                         "path": str(resolved_path),
@@ -270,24 +275,40 @@ def _collect_file_integrity(
                 )
                 continue
             digest = hashlib.sha256(resolved_path.read_bytes()).hexdigest()
-            recorded_sha = entry.fields.get("sha256")
-            if recorded_sha:
-                ref_name = reference.strip().replace("\\", "/")
-                base_name = Path(ref_name).name
-                if re.fullmatch(r"[0-9a-f]{64}", recorded_sha):
-                    if digest != recorded_sha:
-                        issues.append(
-                            f"{entry.entry_id}: sha256 mismatch for `{reference}` "
-                            f"(recorded {recorded_sha[:12]}.., actual {digest[:12]}..)"
-                        )
+            base_name = Path(rel).name
+            if re.fullmatch(r"[0-9a-f]{64}", recorded_sha):
+                if digest == recorded_sha:
+                    expected = recorded_sha
+                elif len(file_like_refs) == 1:
+                    expected = recorded_sha
                 else:
-                    sha_map = _parse_sha256_map(recorded_sha)
-                    expected = sha_map.get(base_name) or sha_map.get(ref_name)
-                    if expected and expected != digest:
-                        issues.append(
-                            f"{entry.entry_id}: sha256 mismatch for `{reference}` "
-                            f"(recorded {expected[:12]}.., actual {digest[:12]}..)"
-                        )
+                    expected = None
+            else:
+                expected = (
+                    sha_map.get(rel)
+                    or sha_map.get(reference.strip().replace("\\", "/"))
+                    or sha_map.get(base_name)
+                )
+            if rel == "docs/harness-engineering/core/evidence-index.md":
+                integrity.append(
+                    {
+                        "path": str(resolved_path),
+                        "exists": True,
+                        "sha256": digest,
+                        "kind": "registry",
+                    }
+                )
+                continue
+            if scope == "repo":
+                if expected is None:
+                    issues.append(
+                        f"{entry.entry_id}: repo 工件缺少 sha256 `{reference}`"
+                    )
+                elif expected != digest:
+                    issues.append(
+                        f"{entry.entry_id}: sha256 mismatch for `{reference}` "
+                        f"(recorded {expected[:12]}.., actual {digest[:12]}..)"
+                    )
             integrity.append(
                 {
                     "path": str(resolved_path),
