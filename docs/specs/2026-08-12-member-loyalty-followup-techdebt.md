@@ -17,15 +17,15 @@
 
 ## 任务清单
 
-1. 盘点仓储返回类型标注缺口，逐个补齐，`mypy` 通过。
-2. 定位 `tests/scripts` 覆盖率抖动根因（如顺序依赖 / 随机时序 / 环境变量污染），修复并加并发隔离。
+1. 将 `CouponInventoryService.consume_once` / `refund_once` 注解统一为 `-> CouponInventoryEntry | None`（或显式 dict 化），并增加失败测试（运行期类型断言 / isinstance 校验），`mypy_nonblocking.py` 通过。
+2. 修复 SQLite 句柄释放时序（连接显式 close / 上下文管理），消除 `WinError 32`，恢复 `tests/scripts` 稳定覆盖率基线。
 3. 建立覆盖率稳定性断言，连续 N 次运行无抖动。
 4. LOGBOOK / 证据索引收口，使用独立 trace_id。
 
 ## 验收标准
 
-- 仓储返回类型注解完整，`mypy` 门禁无新增豁免。
-- `tests/scripts` 覆盖率连续稳定运行通过。
+- `consume_once` / `refund_once` 注解与实现一致（`CouponInventoryEntry`），运行期类型断言通过，mypy 无新增豁免。
+- `tests/scripts` 连续运行无 `WinError 32`，覆盖率稳定通过。
 - 无运行时行为变更（纯类型与测试工程）。
 
 ## 边界

@@ -1,3 +1,24 @@
+## [2026-08-14] - docs(governance): 会员账务域最后一轮一致性补丁（旧切换指令清除 / 口径统一 / 远端 master 同步）
+
+- 操作者: AI (Codex)
+- trace_id: 20260814-member-loyalty-followup-consistency-patch
+- parent_trace_id: 20260812-member-loyalty-storedvalue
+- 来源: 对 4f76b77 / 45d5235 的复核；评审推荐方案 A2（最后一轮一致性补丁）
+- 变更:
+  - 进度清单：清除两处 M4 旧切换指令（:9「观察稳定后再评估切 local」、:12「观察稳定后执行第二段切 local 再部署」），统一「第二阶段由 FP-2 执行」；提交链更新至 4f76b77
+  - ADR 0007 Verification：旧口径「本小程序为唯一权威」改为「Platform 本地账务域成为唯一数据权威，小程序作为唯一用户入口」
+  - FP-5：任务与验收残留统一为 consume_once/refund_once 注解（CouponInventoryEntry）与 SQLite 句柄释放（WinError 32）
+  - FP-1 / 主计划：写入目标统一为 member_balance / coupon_inventory / coupon_templates 三表；FP-1 验收补 coupon_templates 数量 / 字段 / template_id 关联校验
+  - LOGBOOK 与进度清单：本轮独立 trace 20260814-member-loyalty-followup-consistency-patch
+- 验证:
+  - `git diff --check`；pre-commit 变更范围 12 项全绿（含密钥硬编码扫描）
+  - `pre-commit run detect-secrets --all-files` 复跑 **Passed**：评审提及的 evidence-index :1950/:4893 历史命中在当前 .secrets.baseline v1.5.0 下已覆盖，评审问题 4 不可复现
+  - `python scripts/check_evidence_index.py` ok（347 条）
+- 同步:
+  - 按 commit-workflow 将 master fast-forward 至本轮提交，并推送 origin master 与 server master
+- changed_files: 项目进度与配置清单.md；docs/harness-engineering/adr/0007-local-authority-cutover.md；docs/specs/2026-08-12-member-loyalty-followup-techdebt.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；LOGBOOK.md
+- 版本: 0.132.1（纯文档治理，不触发部署）
+
 ## [2026-08-14] - docs(governance): 会员账务域最小一致性收口（ADR 权威矩阵 / 旧切换指令 / FP 细化 / 证据补档）
 
 - 操作者: AI (Codex)

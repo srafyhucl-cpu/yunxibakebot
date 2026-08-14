@@ -167,7 +167,7 @@
 - POINTS 去重键 `unique_id`；COUPON 去重键 `id+status+mobile`（状态流转写多行，符合生命周期记录语义）
 - `member_balance.upsert_identity` 采用「None 不更新、显式 0 覆盖」，防止卡片/身份事件抹掉积分余额
 - 会员域 API 名称以常量集中管理（`app/service/youzan/member_api.py`），真实店铺联调前需按实际开通权限验证
-- 全量导入只落余额快照与券库存，积分明细流水由 Webhook 增量维护，避免导入快照污染明细
+- 全量导入只落余额快照、券库存与券模板（`member_balance` / `coupon_inventory` / `coupon_templates`），积分明细流水由 Webhook 增量维护，避免导入快照污染明细
 
 ---
 

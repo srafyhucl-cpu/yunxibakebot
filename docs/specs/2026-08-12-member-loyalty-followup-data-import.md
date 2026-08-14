@@ -47,10 +47,11 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
 - 脚本增强通过（`failed>0` 非 0 退出、JSON 报告必带 `batch_id`、限流退避 / 断点续跑 / 失败重试有测试）。
 - dry-run 与全量 apply 报告 `failed=0`，导入数量与 eligible population 一致，幂等无重复，四类事件验收全部通过。
 - eligible population 界定明确；起止双水位校验通过，水位线窗口内事件回放无漏单、无重复。
+- coupon_templates 同步校验：模板数量、字段（折扣 / 类型 / 有效期）与 `coupon_inventory.template_id` 关联一致。
 - 备份与恢复 round-trip 演练通过。
 - LOGBOOK / 证据索引收口，使用独立 trace_id。
 
 ## 边界
 
-- 不导入积分明细流水（由 Webhook 增量维护），只落余额快照与券库存，避免导入快照污染明细。
+- 不导入积分明细流水（由 Webhook 增量维护），只落余额快照、券库存与券模板（`member_balance` / `coupon_inventory` / `coupon_templates`），避免导入快照污染明细。
 - 导入涉及生产数据：未完成阶段一脚本增强、未通过备份恢复演练前，禁止执行 apply。

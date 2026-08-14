@@ -74,7 +74,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 - 切换水位线、写入围栏、影子读对账均有运行记录，观察期无差异漂移。
 - 唯一键冲突解除设计（authority epoch / shadow audit / 状态投影）在隔离环境验证通过，local 状态可正常写入。
 - RPO / RTO 达成并演练。
-- 有赞小程序下线后，本小程序为唯一权威，无业务中断。
+- 有赞小程序下线后，Platform 本地账务域成为唯一数据权威，小程序作为唯一用户入口，无业务中断。
 
 ## 边界
 
