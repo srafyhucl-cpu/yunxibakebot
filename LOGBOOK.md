@@ -1,3 +1,21 @@
+## [2026-08-14] - docs(harness): M5 v0.132.1 生产闭环正向验证补强（thresholdFen/充值上限运行时证据 + CRLF 生效验证）
+
+- 操作人: AI (Codex)
+- trace_id: 20260814-member-loyalty-m5
+- 来源: M5 生产部署评审收口；评审指出 401 路由探针不足、CRLF 防线无生效证据、Harness 归档缺失
+- 变更:
+  - 无代码/配置变更（纯验证 + 文档收口）
+  - 生产验证方式：微信开发者工具 CLI 自动化（`cli auto` + miniprogram-automator）驱动模拟器，走真实 `wx.login` → 生产 `/auth/login` 链路
+- 验证:
+  - `GET /api/v1/miniapp/coupons`（真实 JWT）：200，`thresholdFen: 5000`、`valueFen: 1000`、`status: TAKE`（受控注入模板 `m5-verify-tpl` 满5000减1000验证，验证后清理）——M5 核心交付运行时证据
+  - `POST /api/v1/miniapp/recharges` amountFen=60000：400 "充值金额不能超过 50000 分"，校验先于写库零副作用——充值上限运行时证据
+  - `git ls-files --eol "*.sh"`：5 个脚本全部 `i/lf w/lf attr/text eol=lf`，`.gitattributes` 规则已生效
+  - 测试数据清理：customer_master/customer_identity_links/coupon_templates/coupon_inventory 4 表测试行全删，生产券域恢复 0 条
+- 说明:
+  - 生产运行提交 `aab1c56154` 落后远端 `2aa64ef` 属预期：`2aa64ef` 仅 .gitattributes + LOGBOOK 文档提交，不改变运行时代码，无需二次重启
+  - 本条目 + `reports/harness/handoff-20260814-member-loyalty-m5-20260814-020434.md`（evidence index E-20260814-001）为本次闭环证据载体
+- 版本: 0.132.1（无代码变更，版本不递增）
+
 ## [2026-08-14] - docs(harness): M5 Platform 生产部署 v0.132.1（thresholdFen/充值上限）+ 部署脚本 CRLF 修复
 
 - 操作人: AI (Codex)

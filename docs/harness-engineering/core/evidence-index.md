@@ -1,3 +1,17 @@
+## E-20260814-001：M5 v0.132.1 生产闭环正向验证（thresholdFen/充值上限运行时证据 + CRLF 生效验证）
+
+- trace_id: 20260814-member-loyalty-m5
+- generated_at: 2026-08-14
+- evidence_type: production/member-loyalty-m5-positive-verification
+- file: `D:\Project\YunxiBakeBot\reports\harness\handoff-20260814-member-loyalty-m5-20260814-020434.md`；`D:\Project\YunxiBakeBot\LOGBOOK.md`；`.gitattributes`；生产 `/opt/apps/yunxibakebot/data/bot.db`
+- command: 微信开发者工具 CLI（`cli auto --auto-port 9420` + miniprogram-automator）驱动模拟器真实 `wx.login` → `POST https://yunxifood.cn/api/v1/miniapp/auth/login` 换 JWT → `GET /api/v1/miniapp/coupons` 与 `POST /api/v1/miniapp/recharges`；生产库 sqlite3 事务注入/清理受控测试数据（4 表）；`git ls-files --eol "*.sh"`
+- result: pass
+- related_logbook: 2026-08-14 - docs(harness): M5 v0.132.1 生产闭环正向验证补强（thresholdFen/充值上限运行时证据 + CRLF 生效验证）
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录验证结果、测试数据标识（coupon_id m5-verify-001 / 模板 m5-verify-tpl / 手机号 19900000001 为受控注入且已清理）；不包含真实会员手机号、openid 之外的业务数据、token 或密钥。
+- summary: M5 部署评审收口：评审确认基础证据（systemd/health/ready/双远端/工作树）完整可确认上线成功，但缺正向功能验证与 Harness 归档。本次补强：1）真实微信登录链路生产验证 `get_my_coupons` 返回 `thresholdFen: 5000`（受控注入模板 m5-verify-tpl 满5000减1000，200/TAKE/有效期正确）；2）充值上限 `amountFen=60000` → 400 "充值金额不能超过 50000 分"（校验先于写库零副作用）；3）`git ls-files --eol "*.sh"` 5 脚本全部 i/lf w/lf，`.gitattributes` 生效；4）测试数据 4 表全清理，生产券域恢复 0 条。`2aa64ef` 为文档/换行治理提交，生产保持 `aab1c56154` 属预期无需重启。边界值（=50000）与有赞真实发券 webhook 链路未覆盖，由本地测试与待办承接。
+
 ## E-20260812-002：M2 会员储值余额 v0.112.0 生产部署
 
 - trace_id: 20260812-member-loyalty-storedvalue
