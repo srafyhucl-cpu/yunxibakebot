@@ -1,3 +1,21 @@
+## [2026-08-14] - docs(harness): M5 Platform 生产部署 v0.132.1（thresholdFen/充值上限）+ 部署脚本 CRLF 修复
+
+- 操作人: AI (Codex)
+- trace_id: 20260814-member-loyalty-m5
+- 来源: M5 跨仓小任务收口后的生产部署；skill `yunxibakebot-production-release`
+- 变更:
+  - 生产部署 v0.132.1（aab1c56）：`get_my_coupons` 输出 `thresholdFen`（`CouponTemplateRepo.list_by_ids` 批量查询避免 N+1，模板缺失 fallback 0）；`MAX_RECHARGE_FEN` 笔误修正 `5_000_00`→`50_000`（单笔充值上限 5000 元→500 元）。
+  - 部署事故：首次执行 `scripts/deploy.sh` 在服务器端 `deploy_server.sh` 第 2 行失败（`set: pipefail: invalid option name`）。根因：Windows `core.autocrlf=true` 使本地 checkout 的 `.sh` 脚本为 CRLF，scp 上传后 Linux bash 把 `` 并入选项名。修复：`deploy.sh`/`deploy_server.sh`/`pull_prod_snapshot.sh`/`setup_wecom.sh` 4 个文件转 LF（内容零变化），新增 `.gitattributes`（`*.sh text eol=lf`）防重犯。
+- 验证:
+  - `systemctl is-active yunxibakebot` → active；生产 worktree `aab1c56154`、VERSION `0.132.1`。
+  - `https://yunxifood.cn/health` → `{"status":"ok","version":"0.132.1"}`；`/ready` → ready 且 `database_schema_ready=true`、`youzan_production_mode_ready=true`、`youzan_mock_mode=false`。
+  - 路由探针（服务器 loopback）：`GET /api/v1/miniapp/coupons`、`GET /api/v1/miniapp/recharges` 均 401（路由已注册、鉴权拦截，非 404）。
+  - 生产代码确认：`app/service/coupon/__init__.py` 含 `threshold_fen` 输出、`app/repository/coupon_template_repo.py:32` 有 `list_by_ids`、`app/constants/stored_value.py:5` 为 `MAX_RECHARGE_FEN = 50_000`。
+- 待办:
+  - 小程序正式发布前依赖本版本（券中心 `thresholdFen` 门槛展示）；商户号到位后翻 `payment-gate.ts` 开关。
+  - 其余文本文件仍受 `autocrlf=true` 影响；后续提交 `.sh` 相关改动注意保持 LF。
+- 版本: 0.132.1（部署版本；本次仅文档/配置提交，版本不递增）
+
 ## [2026-08-14] - feat(coupon): get_my_coupons 补 thresholdFen（M5 跨仓小任务）
 
 - 操作人: AI (Codex)
