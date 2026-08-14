@@ -54,6 +54,9 @@ PREFLIGHT_CONTRACT_REQUIRED_SNIPPETS = (
     "preflight-contract-check-20260706-232901.json",
     "business_contracts.static_checks",
 )
+# 本地留存工件：gitignore 的本地报告/证据输出。缺失（如干净 clone / CI）时不阻断，
+# 仅登记名称、哈希与保留策略；仓内必需证据（其余路径）缺失仍阻断。
+LOCAL_ARTIFACT_PREFIXES = ("reports/harness",)
 
 
 @dataclass(frozen=True)
@@ -188,6 +191,20 @@ def _collect_file_integrity(
                 continue
             seen_paths.add(resolved_path)
             if not resolved_path.exists():
+                posix_path = resolved_path.as_posix()
+                is_local_artifact = any(
+                    f"{prefix}/" in posix_path for prefix in LOCAL_ARTIFACT_PREFIXES
+                )
+                if is_local_artifact:
+                    integrity.append(
+                        {
+                            "path": str(resolved_path),
+                            "exists": False,
+                            "sha256": "",
+                            "kind": "local-artifact-missing",
+                        }
+                    )
+                    continue
                 issues.append(f"{entry.entry_id}: evidence path missing `{reference}`")
                 integrity.append(
                     {

@@ -186,3 +186,33 @@ def test_missing_evidence_file_fails(tmp_path: Path) -> None:
 
     assert result.passed is False
     assert any("evidence path missing" in issue for issue in result.issues)
+
+
+def test_local_artifact_missing_does_not_block(tmp_path: Path) -> None:
+    _write_referenced_files(tmp_path)
+    evidence_file = tmp_path / "evidence-index.md"
+    entry = _valid_entry() + (
+        "\n## E-20260814-099：本地留存工件缺失容忍\n\n"
+        "- trace_id: 20260814-local-artifact-test\n"
+        "- generated_at: 2026-08-14\n"
+        "- evidence_type: governance/secret-scan-gate-finalize\n"
+        "- file: `reports/harness/missing-local-artifact-20260814.json`; "
+        "`scripts/check_preflight_business_contracts.py`\n"
+        "- command: `python -m pre_commit run detect-secrets --all-files`\n"
+        "- result: pass\n"
+        "- related_logbook: 2026-08-14 - docs(governance): 本地工件语义测试\n"
+        "- related_adr: none\n"
+        "- contains_sensitive_data: no\n"
+        "- retention_note: 本地留存工件缺失不阻断新环境。\n"
+        "- summary: 校验本地留存工件缺失时不阻断提交门禁。\n"
+    )
+    evidence_file.write_text("# Evidence Index\n\n" + entry, encoding="utf-8")
+
+    result = evidence_check.check_evidence_index(evidence_file)
+    report = evidence_check.build_json_report(result, evidence_file)
+
+    assert result.passed is True
+    assert any(
+        item["kind"] == "local-artifact-missing" for item in report["file_integrity"]
+    )
+    assert not any("missing" in issue for issue in result.issues)

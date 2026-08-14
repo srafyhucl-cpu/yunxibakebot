@@ -50,6 +50,7 @@ ______________________________________________________________________
 | [0005](0005-framework-first-single-path.md) | accepted | 通用能力框架优先，AI 应用层保持单一生产路径 |
 | [0006](0006-sqlite-inbox-outbox-exception.md) | accepted | 单机 SQLite 持久 inbox 的窄例外与退出条件 |
 | [0007](0007-local-authority-cutover.md) | accepted | 2027-06 为会员账务本地权威切换最早候选窗口，真实开放须项目负责人批准 |
+| [0008](0008-accounting-core-consistency.md) | proposed | 账务核心一致性：单一 Unit of Work、券事件-投影分离、持久退款聚合（待裁决） |
 
 ______________________________________________________________________
 

@@ -20,7 +20,7 @@
 | 储值余额（`member_balance.stored_value_fen`） | **Platform 本地账本**（v022 起由 `stored_value_recharge` / `balance_ledger` 本地维护） | Platform 本地账务域 |
 | 积分余额（`member_balance.points`） | 有赞 `total`（`POINTS_AUTHORITY=youzan`） | Platform 本地账务域（`POINTS_AUTHORITY=local`） |
 | 优惠券（`coupon_inventory`） | 有赞镜像 + 本地核销引擎（`COUPON_AUTHORITY=youzan`） | Platform 本地账务域（`COUPON_AUTHORITY=local`） |
-| 会员身份（`member_balance` / `customer_identity_links`） | Platform 本地（openid 预导入） | Platform 本地账务域 |
+| 会员身份（`member_balance` / `customer_identity_links`） | Platform 本地投影（openid 预导入） | Platform 本地投影（**一致性核对，非切换**） |
 
 **Platform 本地账务域是数据权威，小程序是唯一用户入口**。业务目标是**以本小程序替代有赞小程序**作为用户入口，切换完成后关停有赞小程序。切换涉及真实资金与券资产，且 `POINTS_AUTHORITY` / `COUPON_AUTHORITY` 为进程级配置，`coupon_inventory` 在 `local` 权威下只识别 `order/local` 来源，现有 `import` / `webhook` 券行会被过滤，需专门的迁移与围栏策略，不能仅做配置翻转。
 

@@ -10,7 +10,7 @@
 
 ## 背景
 
-组合支付结构（`remain_fen = total_fen - balance_fen - points_fen`）已上线，但真实微信支付受商户号阻塞。**这不是"商户号到位即可验证"**——当前还缺少真实支付所需的资金状态机与若干工程能力（见下）。
+组合支付结构（`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`，统一 `compute_remain_fen(total, coupon, balance, points)`）已上线，但真实微信支付受商户号阻塞。**这不是"商户号到位即可验证"**——当前还缺少真实支付所需的资金状态机与若干工程能力（见下）。
 
 ## 当前实现事实（复核修正）
 
@@ -39,7 +39,7 @@
 
 1. 真实 JSAPI 支付：充值 / 组合支付差额走微信 JSAPI，验证统一下单、调起支付、支付成功回调。
 2. 支付通知回调幂等：重复通知不重复入账、不重复发分 / 核销。
-3. 金额校验：微信通知金额与 `remain_fen` 严格一致，防篡改。
+3. 金额校验：微信通知金额与 `remain_fen`（= `compute_remain_fen(total, coupon, balance, points)`，含券/余额/积分抵扣）严格一致，防篡改。
 4. 取消与退款：取消 / 超时 / 后台取消按 `payment.balanceFen` 原路退款；余额全额支付退款走余额原路退回。
 5. 边界值验证：`amountFen=50000` 恰好等于上限的边界行为（60000 超限 400 已有证据）。
 6. 生产端到端证据归档：微信登录 → 下单 → 支付 → 回调 → 账务入账 → 退款 / 关单，证据索引 / LOGBOOK 收口（独立 trace_id）。

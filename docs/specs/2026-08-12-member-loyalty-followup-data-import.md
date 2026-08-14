@@ -51,6 +51,15 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
 - 备份与恢复 round-trip 演练通过。
 - LOGBOOK / 证据索引收口，使用独立 trace_id。
 
+## 导入批次持久化与回放设计（I1，proposed）
+
+> 设计裁决，关联 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md)。实施阶段落地，前置于正式全量导入。
+
+- 新增 `import_batch` 表：`batch_id`、`start_event_id`、`end_event_id`、`cursor`、`snapshot_version`、`stats`（JSON）、`failed_detail`（JSON）、`status`。
+- 双水位使用**不可变自增 ID**：投递端 `inbox_events.id`、处理端 `youzan_webhook_events.id`（均 AUTOINCREMENT；`msg_id` UNIQUE 幂等），不使用时间戳。
+- 回放：`youzan_webhook_events` 仅存 payload summary、原始 payload 在 `inbox_events.payload_json`；实施"规范化事件回放"（按 id 区间重放 inbox）或"有赞确定性增量补拉"（按事件游标拉取），并覆盖中断续跑、乱序到达、旧快照覆盖测试。
+- 导入批次与水位关联：记录导入起止事件游标，`[start, end]` 窗口内事件必须回放 / 补拉核对；批次失败明细持久化，`failed > 0` 以非 0 退出。
+
 ## 边界
 
 - 不导入积分明细流水（由 Webhook 增量维护），只落余额快照、券库存与券模板（`member_balance` / `coupon_inventory` / `coupon_templates`），避免导入快照污染明细。

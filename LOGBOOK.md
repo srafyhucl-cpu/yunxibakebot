@@ -1,3 +1,29 @@
+## [2026-08-14] - docs(governance): 方案 B 分层整改第一阶段（G1 治理修正 + D1/X1/I1/R1 设计裁决）
+
+- 操作者: AI (Codex)
+- trace_id: 20260814-member-loyalty-followup-b-design
+- parent_trace_id: 20260812-member-loyalty-storedvalue
+- 来源: 2026-08-14 完整复核（评审问题 1-11）；推荐方案 B（G1 → D1 → X1 → I1 → R1）
+- 范围: 仅治理修正与设计裁决，无运行时代码实施（资金/资产核心重构待各 ADR 裁决批准后单独实施）
+- G1 治理修正:
+  - 新增 `scripts/verify_secrets_baseline.py` 并注册 pre-commit 钩子：detect-secrets 之后校验 .secrets.baseline 未被意外改写（worktree 与 index 一致），基线更新必须走受控流程（候选副本 → diff/哈希校验 → 人工批准 → 单文件替换）
+  - `check_evidence_index.py`：区分「仓内必需证据」（缺失阻断）与「本地留存工件」（reports/harness，缺失仅登记不阻断），补测试
+  - 口径修正：主计划 M6「证据待归档」→「证据已归档（E-20260813-001/002），不代表真实业务闭环」；LOGBOOK 旧「全仓 0 命中」口径改为「Git 跟踪文件门禁通过」；主计划/FP-3 公式补 coupon_fen（统一 compute_remain_fen(total, coupon, balance, points)）
+- D1 账务核心 ADR 0008（proposed）:
+  - 单一 Unit of Work：仓储只执行 SQL 不自行 commit，事务边界唯一属主为应用服务；移除 savepoint 吞错
+  - 券生命周期事件与当前态投影分离：去重键改业务幂等键，支持 TAKE→CONSUME→BACK→CONSUME；前置于 FP-2/FP-3
+  - 持久退款聚合：refund_aggregate 表 + 微信关单/退款/退款查询 + 跨资金补偿顺序 + 对账
+  - 依据：CouponInventoryRepo.insert:70 / PointsLedgerRepo.insert:44 自 commit 破坏外层事务；券唯一索引 (coupon_id,status,mobile) 禁止二次核销；无退款表
+- X1 跨入口资产矩阵设计:
+  - 服务端资产策略开关（储值/积分/券写操作）在应用服务层与支付成功联动点强制执行，防 API 绕过
+  - 积分门禁三选一；核验结论：旧有赞小程序无储值/积分写 API
+- I1 导入批次设计（并入 FP-1）: import_batch 表 + 双水位（inbox_events.id / youzan_webhook_events.id 不可变 ID）+ 规范化事件回放/确定性补拉 + 断点续跑
+- R1 发布与切换裁决: FP-4 拆 FP-4B1（审核/非用户开放）/ FP-4B2（真实用户开放，需 FP-3 阶段二 + X1 + Go/No-Go）；FP-2 权威矩阵补储值（local→local）与身份（一致性核对非切换）+ 参数量化（裁决记录固定）；ADR-0007 身份表述同步
+- 验证: `git diff --check`；`python scripts/check_evidence_index.py` ok（348 条）；pytest tests/scripts/test_check_evidence_index.py 10 通过；`python scripts/verify_secrets_baseline.py` exit 0
+- changed_files: .pre-commit-config.yaml；LOGBOOK.md；docs/harness-engineering/adr/0007-local-authority-cutover.md；docs/harness-engineering/adr/0008-accounting-core-consistency.md（新）；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md（新）；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；scripts/check_evidence_index.py；scripts/verify_secrets_baseline.py（新）；tests/scripts/test_check_evidence_index.py
+- residual_risks: D1 资金/资产核心重构（UoW 实施、券表迁移、退款聚合）待 ADR 0008 裁决批准后实施；实施期间建议启用方案 C（服务端关闭储值/积分/券写操作）作临时边界
+- 版本: 0.132.1（纯治理与设计，不触发部署）
+
 ## [2026-08-14] - docs(governance): 密钥扫描范围口径修正与基线机械防线（A5 治理修正）
 
 - 操作者: AI (Codex)
@@ -50,8 +76,8 @@
   - 证据输出（reports/harness 下，被 gitignore，本地保留）：`dsecrets-allfiles-20260814.txt`、`dsecrets-raw-scan-20260814.json`、`dsecrets-allplugins-20260814.json`
 - 变更:
   - 修正 8fd3245 changed_files 记录：补充 `.secrets.baseline` 与 `docs/specs/2026-08-12-member-loyalty-followup-local-authority.md`（原记录遗漏 2 个文件）
-  - 更新验证证据说明，明确全仓密钥扫描可复现（Passed + 0 命中）
-- 验证: `pre-commit run detect-secrets --all-files` exit 0；`detect-secrets scan` 全仓 0 命中；`git diff --check`；`python scripts/check_evidence_index.py` ok（347 条）
+  - 更新验证证据说明，明确Git 跟踪文件密钥扫描可复现（Passed + 0 命中）
+- 验证: `pre-commit run detect-secrets --all-files` exit 0；`detect-secrets scan` （Git 跟踪文件）0 命中；`git diff --check`；`python scripts/check_evidence_index.py` ok（347 条）
 - changed_files: LOGBOOK.md
 - corrected_previous_changed_files（8fd3245 实际 8 个文件）: .secrets.baseline；LOGBOOK.md；docs/harness-engineering/adr/0007-local-authority-cutover.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-techdebt.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；项目进度与配置清单.md
 - 版本: 0.132.1（纯文档治理，不触发部署）

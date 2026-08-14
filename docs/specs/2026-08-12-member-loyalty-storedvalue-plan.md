@@ -41,7 +41,7 @@
 | M3 积分模块 | 🟡 第一阶段完成 | POINTS_AUTHORITY=youzan 已上线；local 权威第二阶段计划 2027-06（FP-2） |
 | M4 优惠券模块 | 🟡 第一阶段完成 | 核心功能已上线（COUPON_AUTHORITY=youzan）；local 切换及真实有赞发券链路未闭环（FP-2 / FP-1） |
 | M5 小程序前端 | 🟡 开发完成、发布未完成 | 页面与自动化验证完成；真机、体验版、正式审核、真实支付未完成（FP-4） |
-| M6 收口部署 | 🟡 部分完成 | Platform 第一阶段部署完成；M3/M4 生产部署证据待归档，业务闭环受上述事项约束 |
+| M6 收口部署 | 🟡 部分完成 | Platform 第一阶段部署完成；M3/M4 生产部署证据已归档（E-20260813-001/002），不代表真实业务闭环，业务闭环仍受上述事项约束 |
 
 状态枚举：✅ 已完成 / 🟡 第一阶段完成 / 🔴 外部依赖阻塞 / ⛔ 已取消
 
@@ -75,10 +75,10 @@
 
 **业务规则（已确认）**
 
-- 获得：`1 元实付 = 1 分`；实付现金 = `total_fen - balance_fen - points_fen`；不足 1 元向下取整，`award_points = cash_fen // 100`。
+- 获得：`1 元实付 = 1 分`；实付现金 = `total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）；不足 1 元向下取整，`award_points = cash_fen // 100`。
 - 抵扣：`100 分 = 1 元`；单笔最低 `100 分`；最高抵扣 `50% × total_fen`，且 `points_fen <= total_fen - balance_fen`；可用积分按百位向下取整，`points_used = floor(available / 100) × 100`。
 - 发放时点：支付成功即发分；`apply-points` 只写快照，支付成功时才真正扣减抵扣积分。
-- 叠加：`remain_fen = total_fen - balance_fen - points_fen`。
+- 叠加：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）。
 - 有效期：长期有效。
 - 退款：当前系统无部分退款；全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`。
 - 数据主从：配置开关 `points_authority`（默认 `youzan`）两步切换——第一阶段 M3 上线保持 `youzan`（有赞 `total` 继续维护余额）；第二阶段切 `local`（本地 `member_balance.points` 权威，有赞 `POINTS` 事件只写流水/审计）由 FP-2 执行，须满足 2027-06 候选窗口、项目负责人批准、唯一键阻断解除与独立切换窗口门禁，禁止仅修改进程级配置触发。
@@ -102,7 +102,7 @@
 
 - `payment.json` 新增 `pointsFen/pointsUsed/pointsAwarded`。
 - `apply-points` 必须把订单写为 `partial`，生成 `pointsFen/pointsUsed/remainFen`，后续微信/mock 按 `remainFen` 收款，不能只放快照。
-- `build_combined_payment`、`prepare-payment`、微信通知金额校验统一支持 `pointsFen`：`remain_fen = total_fen - balance_fen - points_fen`。
+- `build_combined_payment`、`prepare-payment`、微信通知金额校验统一支持 `couponFen/pointsFen`：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）。
 - 三条支付成功路径（mock、微信通知、储值全额支付）统一调 `award_on_payment`，重复通知幂等。
 - 取消/超时/后台取消按支付快照调 `refund_points`。
 
