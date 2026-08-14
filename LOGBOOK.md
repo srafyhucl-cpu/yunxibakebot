@@ -1,3 +1,24 @@
+## [2026-08-14] - docs(governance): 密钥扫描范围口径修正与基线机械防线（A5 治理修正）
+
+- 操作者: AI (Codex)
+- trace_id: 20260814-member-loyalty-followup-gate-scope
+- parent_trace_id: 20260812-member-loyalty-storedvalue
+- 来源: 对 f5d1126 的复核（评审 A5）；密钥扫描证据范围口径与基线防重犯
+- 范围口径修正:
+  - `detect-secrets scan` 未带 `--all-files` 时**仅扫描 Git 跟踪文件**；此前「全仓 0 命中」表述不准确
+  - 结论改为：**Git 跟踪文件全量密钥门禁通过**（pre-commit detect-secrets --all-files exit 0；scan 与 --force-use-all-plugins 在跟踪文件范围内 0 命中）
+  - 全工作树扫描（`detect-secrets scan --all-files`）命中 90 个未跟踪生成物（node_modules / .mypy_cache / .pytest_cache / .ruff_cache / htmlcov / reports\ui\*-chrome-profile / data\embeddings.json），为依赖与生成物、非真实密钥；不纳入提交门禁，单独定义排除规则后作审计（方案 B）
+- 基线机械防线:
+  - `.gitattributes` 新增 `.secrets.baseline text eol=lf`，固定基线为 LF，消除 w/crlf 与工具重写后的行尾漂移
+  - 受控命令拆分：验证（`detect-secrets-hook --baseline .secrets.baseline` 或 `pre-commit run detect-secrets`）与更新基线（`detect-secrets scan --baseline .secrets.baseline --update`）分离；验证前检查基线哈希未变化
+  - 全工作树审计规则建议使用跨平台路径分隔符，并显式排除生成物目录（node_modules / *.cache / htmlcov / reports\ui / data 等），列入后续独立审计脚本范围
+- 证据登记:
+  - evidence-index 新增 E-20260814-002（20260814-member-loyalty-followup-gate-finalize），记录命令参数、扫描范围、退出码、生成时间与 SHA-256
+  - 机器可读摘要 `reports/harness/dsecrets-gate-summary-20260814.json`（UTF-8，gitignore，本地保留）；原始输出文件保留，不入库
+- 验证: `pre-commit run detect-secrets --all-files` exit 0；`git diff --check`；`python scripts/check_evidence_index.py` ok
+- changed_files: .gitattributes；LOGBOOK.md；docs/harness-engineering/core/evidence-index.md
+- 版本: 0.132.1（配置与文档治理，不触发部署）
+
 ## [2026-08-14] - docs(governance): 全仓密钥扫描门禁最终复现（baseline 污染根因修复 + 证据补全）
 
 - 操作者: AI (Codex)
@@ -9,10 +30,10 @@
   - `git checkout -- .secrets.baseline` 恢复后，`pre-commit run detect-secrets --all-files` → Passed（exit 0）
 - 验证（当前干净工作区，均实测）:
   - `pre-commit run detect-secrets --all-files` → exit 0（Passed）
-  - `detect-secrets scan` 全仓 → 0 命中
-  - `detect-secrets scan --force-use-all-plugins` 全仓 → 0 命中
+  - `detect-secrets scan`（Git 跟踪文件）→ 0 命中
+  - `detect-secrets scan --force-use-all-plugins`（Git 跟踪文件）→ 0 命中
   - `git diff --check`；`python scripts/check_evidence_index.py` ok（347 条）
-- 证据文件（reports/harness，被 gitignore，本地保留）: dsecrets-allfiles-20260814.txt；dsecrets-raw-scan-20260814.json；dsecrets-allplugins-20260814.json
+- 证据文件（reports/harness，被 gitignore，本地保留）: dsecrets-allfiles-20260814.txt；dsecrets-raw-scan-20260814.json；dsecrets-allplugins-20260814.json；dsecrets-gate-summary-20260814.json（机器可读摘要，含命令 / 范围 / 退出码 / 时间 / SHA-256）
 - changed_files: LOGBOOK.md
 - 版本: 0.132.1（纯文档治理，不触发部署）
 
