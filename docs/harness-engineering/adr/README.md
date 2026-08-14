@@ -49,6 +49,7 @@ ______________________________________________________________________
 | [0004](0004-responsibility-first-file-size-governance.md) | accepted | 文件体量只触发职责评审，禁止为压行数机械拆分 |
 | [0005](0005-framework-first-single-path.md) | accepted | 通用能力框架优先，AI 应用层保持单一生产路径 |
 | [0006](0006-sqlite-inbox-outbox-exception.md) | accepted | 单机 SQLite 持久 inbox 的窄例外与退出条件 |
+| [0007](0007-local-authority-cutover.md) | accepted | 2027-06 为会员账务本地权威切换最早候选窗口，真实开放须项目负责人批准 |
 
 ______________________________________________________________________
 

@@ -36,15 +36,17 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
 ## 阶段三：生产全量导入与核对
 
 1. 全量执行：`python scripts/import_member_loyalty.py --apply --json --output "reports/import/member-loyalty-{timestamp}.json"`。
-2. 核对：导入数量与有赞源一致、幂等无重复、余额快照正确、`failed=0` 且退出码为 0。
-3. Webhook 水位线：记录导入完成时刻为水位线；导入窗口期产生的真实 `POINTS` / 券事件补拉核对，避免漏增量。
-4. 增量验证：真实 `POINTS` / `COUPON_CUSTOMER_PROMOTION` 事件触发后 ledger / inventory 正确更新。
+2. eligible population 界定：以 `customer_master` 中具备 `primary_phone` 的主档为导入范围（含授权测试账号），报告中明确 `total_eligible / 已导入 / 无手机号跳过 / 豁免`，作为验收基线。
+3. 核对：导入数量与 eligible population 一致、幂等无重复、余额快照正确、`failed=0` 且退出码为 0。
+4. Webhook 起止双水位：导入开始前记录 `start_watermark`，结束后记录 `end_watermark`；`[start, end]` 窗口内到达的真实 `POINTS` / `COUPON_CUSTOMER_PROMOTION` / `SCRM_CUSTOMER_CARD` / `SCRM_CUSTOMER_EVENT` 事件必须回放或补拉核对，防止旧快照覆盖新事件。
+5. 导入期间若增量处理暂停，恢复时必须先回放水位线窗口内事件再继续（禁止无回放的直接续跑）。
+6. 四类事件验收：`POINTS`（余额/流水一致）、`COUPON_CUSTOMER_PROMOTION`（券库存/状态一致）、`SCRM_CUSTOMER_CARD`（会员卡状态）、`SCRM_CUSTOMER_EVENT`（身份归属）各自核对通过。
 
 ## 验收标准
 
 - 脚本增强通过（`failed>0` 非 0 退出、JSON 报告必带 `batch_id`、限流退避 / 断点续跑 / 失败重试有测试）。
-- dry-run 与全量 apply 报告 `failed=0`，数量与有赞源一致，幂等无重复。
-- Webhook 水位线校验通过，无漏单、无重复。
+- dry-run 与全量 apply 报告 `failed=0`，导入数量与 eligible population 一致，幂等无重复，四类事件验收全部通过。
+- eligible population 界定明确；起止双水位校验通过，水位线窗口内事件回放无漏单、无重复。
 - 备份与恢复 round-trip 演练通过。
 - LOGBOOK / 证据索引收口，使用独立 trace_id。
 
