@@ -12,8 +12,8 @@
 
 ## 承接范围
 
-1. **仓储返回类型注解**（M4 评审遗留 #5）：补全仓储方法返回类型注解缺口，减少 `scripts/mypy_nonblocking.py` 渐进式扫描（当前非严格、不阻断提交）中的遗漏与豁免，不新增豁免项。
-2. **tests/scripts 覆盖率 flaky**：`tests/scripts` 目录覆盖率抖动（M4 评审遗留），定位确定性根因（排除顺序依赖 / 共享状态 / 时序抖动），修复后建立连续运行稳定性断言。
+1. **类型注解精确化**（M4 评审遗留 #5）：`app/service/coupon/inventory.py` 的 `CouponInventoryService.consume_once` / `refund_once` 注解为 `-> dict | None`，但实际返回 `CouponInventoryEntry`（经由 `app/repository/coupon_inventory_repo.py` 的 `consume` / `refund` 返回 `CouponInventoryEntry`）。目标：统一注解为 `-> CouponInventoryEntry | None`（或显式 dict 化），增加失败测试（运行期类型断言 / isinstance 校验），通过 `scripts/mypy_nonblocking.py` 渐进式扫描，不新增豁免项。
+2. **tests/scripts 覆盖率 flaky（WinError 32）**：`tests/scripts` 在 Windows 下偶发 `WinError 32`（SQLite 句柄未释放即被删除 / 占用），已记录于 M4 评审 #6。目标：修复句柄释放时序（连接显式 close / 上下文管理），消除 `WinError 32`，恢复稳定覆盖率基线并建立连续运行断言。
 
 ## 任务清单
 

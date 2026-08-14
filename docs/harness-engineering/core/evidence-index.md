@@ -1,3 +1,31 @@
+## E-20260813-001：M3 积分模块 v0.122.1 生产部署第一段（POINTS_AUTHORITY=youzan）
+
+- trace_id: 20260813-m3-points-prod-deploy-phase1
+- generated_at: 2026-08-13
+- evidence_type: production/member-loyalty-m3-points-phase1
+- file: `D:\Project\YunxiBakeBot\app\migrations\v023_points_order_source.sql`；`D:\Project\YunxiBakeBot\app\service\points\`；`D:\Project\YunxiBakeBot\app\api\channels\storefront\points.py`；生产 `/opt/apps/yunxibakebot/data/bot.db`
+- command: Git Bash `SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh`；生产 `systemctl is-active yunxibakebot`、`git -C /opt/apps/yunxibakebot rev-parse --short HEAD`、`cat /opt/apps/yunxibakebot/VERSION`、`curl https://yunxifood.cn/health`、`curl https://yunxifood.cn/ready`、生产库 `SELECT MAX(version) FROM _schema_version` 与 `points_ledger` 新列；服务器 loopback 积分路由探针
+- result: pass
+- related_logbook: 2026-08-13 - docs(harness): M3.6 积分模块生产部署第一段（POINTS_AUTHORITY=youzan）
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录版本、commit、服务状态、健康检查、schema 版本与路由探针；不包含会员积分、手机号、token 或密钥。
+- summary: 提交 `ef56092`（M3 积分模块闭环）部署 v0.122.1。验证：worktree HEAD `ef560926bb`、VERSION 0.122.1、systemd active、`/health` 200、`/ready` ready、生产库 `_schema_version` max=23（v023 于 2026-08-13 07:11:54 应用）、`points_ledger` 含 `biz_type/biz_id`、三条积分 API 路由 loopback 401 探测已注册。`POINTS_AUTHORITY` 生产未覆盖走默认 `youzan`（两步切换第一段）；第二阶段切 `local` 由 FP-2 执行（2027-06 候选窗口 + 项目负责人批准 + 门禁）。
+
+## E-20260813-002：M4 优惠券模块 v0.131.2 生产部署第一段（COUPON_AUTHORITY=youzan）
+
+- trace_id: 20260813-coupon-m4-prod-deploy
+- generated_at: 2026-08-13
+- evidence_type: production/member-loyalty-m4-coupon-phase1
+- file: `D:\Project\YunxiBakeBot\app\migrations\v024_coupon_module.sql`；`D:\Project\YunxiBakeBot\app\service\coupon\`；`D:\Project\YunxiBakeBot\app\api\channels\storefront\coupons.py`；生产 `/opt/apps/yunxibakebot/data/bot.db`
+- command: Git Bash `SSH_KEY=/c/Users/srafy/.ssh/id_ed25519 bash scripts/deploy.sh`；生产 `systemctl is-active yunxibakebot`、`git -C /opt/apps/yunxibakebot rev-parse --short HEAD`、`cat /opt/apps/yunxibakebot/VERSION`、`curl https://yunxifood.cn/health`、`curl https://yunxifood.cn/ready`、生产库 `SELECT MAX(version) FROM _schema_version` 与 `coupon_inventory` 新列；服务器 loopback 券路由探针
+- result: pass
+- related_logbook: 2026-08-13 - docs(harness): M4 优惠券模块生产部署第一段（COUPON_AUTHORITY=youzan）
+- related_adr: none
+- contains_sensitive_data: no
+- retention_note: 只记录版本、commit、服务状态、健康检查、schema 版本与路由探针；不包含会员券明细、手机号、token 或密钥。
+- summary: 提交 `d2ea497`（M4 优惠券模块，含 v024 迁移与券模板/库存账本/核销退回）部署 v0.131.2。首次 v0.131.1（0f825b9）启动崩溃（`CouponService()` 构造期访问 `_db`，见 M-20260813-001），回滚 v0.122.1 后修复（d2ea497）再部署。验证：worktree HEAD `d2ea497fea`、VERSION 0.131.2、systemd active、`/health` 200、`/ready` ready、生产库 `_schema_version` max=24、`coupon_inventory` 新列落库、三条券 API 路由 loopback 401 探测已注册。`COUPON_AUTHORITY` 生产未覆盖走默认 `youzan`（两步切换第一段）；第二阶段切 `local` 由 FP-2 执行。
+
 ## E-20260814-001：M5 v0.132.1 生产闭环正向验证（thresholdFen/充值上限运行时证据 + CRLF 生效验证）
 
 - trace_id: 20260814-member-loyalty-m5

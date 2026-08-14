@@ -1,3 +1,25 @@
+## [2026-08-14] - docs(governance): 会员账务域最小一致性收口（ADR 权威矩阵 / 旧切换指令 / FP 细化 / 证据补档）
+
+- 操作者: AI (Codex)
+- trace_id: 20260814-member-loyalty-followup-reconcile
+- parent_trace_id: 20260812-member-loyalty-storedvalue
+- 来源: 对 1f5db10 的复核；评审推荐方案 A（最小一致性收口）
+- 变更:
+  - ADR 0007：权威矩阵按储值 / 积分 / 券 / 身份分别列当前与目标权威；统一「Platform 本地账务域是数据权威，小程序是唯一用户入口」；纠正「余额由有赞维护」事实错误（stored_value_fen 已由本地账本维护）
+  - 删除 / 改写旧切换指令：主计划 M3 数据主从、M4 设计部署段、进度清单 M3.6 条目，统一指向 FP-2（2027-06 候选窗口 + 项目负责人批准 + 门禁）
+  - FP-2：唯一键解除设计明确为执行前设计门禁（选定模型 + schema / 查询投影 / 迁移批次 / 回滚条件）
+  - FP-3：退款聚合状态集 requested/processing/succeeded/failed/manual_review + 退款单号幂等 + 异步通知 + 查询补偿 + 重启恢复 + 对账
+  - FP-4：券门禁三选一（有赞核销同步 / 关闭旧入口 / 关闭券抵扣）+ 真实券测试前跨端双花检查
+  - FP-5：精确到 inventory.py consume_once/refund_once（注解 dict|None 实返 CouponInventoryEntry）；flaky 根因 WinError 32
+  - 证据索引：补 E-20260813-001（M3 生产部署）、E-20260813-002（M4 生产部署）
+  - 进度清单：提交链更新至 1f5db10；M3/M4 证据已补档
+- 验证: `git diff --check`；pre-commit 变更范围通过；`python scripts/check_text_encoding.py`
+- changed_files: docs/harness-engineering/adr/0007-local-authority-cutover.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；docs/superpowers/specs/2026-08-13-coupon-m4-design.md；项目进度与配置清单.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md；docs/specs/2026-08-12-member-loyalty-followup-techdebt.md；docs/harness-engineering/core/evidence-index.md；LOGBOOK.md
+- residual_risks:
+  - 全仓 `pre-commit run --all-files` 密钥扫描因既有测试、脚本与证据索引中的历史高熵 / 关键字命中失败；本次变更范围通过，历史基线失败单独登记，不作为本次提交阻断
+  - MiniApp 仓未配置远端，仅本地提交 4 个边界文档；无关 .wxss / scripts 改动不纳入
+- 版本: 0.132.1（纯文档治理，不触发部署）
+
 ## [2026-08-14] - docs(governance): 会员账务域双阶段裁决落地（058567e 基线有条件通过）
 
 - 操作者: AI (Codex)

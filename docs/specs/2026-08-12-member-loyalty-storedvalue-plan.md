@@ -3,7 +3,7 @@
 - 状态：核心主链路及 Platform 第一阶段部署完成；完整闭环仍需工程实现、外部资质与生产验收，拆分至后续工作包（2026-08-14 评审结项 + 深度复核修正）
 - trace_id：`20260812-member-loyalty-storedvalue`
 - 上线边界：截至 2027-05-31（含）仅开发 / 调试 / 测试；2027-06 只是最早候选上线窗口，必须经项目负责人明确批准后才可开放真实用户
-- 来源：迁移前功能补齐盘点。当前"我的"页面会员卡数据为静态假数据（`shop_page_config.py` 中 balanceFen=0, points=0, coupons=0），无真实账务域。
+- 来源：迁移前功能补齐盘点（**历史基线**，2026-08-12 前）。当时"我的"页面会员卡数据为静态假数据（`shop_page_config.py` 中 balanceFen=0, points=0, coupons=0），无真实账务域；M2/M3/M4/M5 交付后该现状已改变。
 - 前置依赖：微信支付商户号（阻塞，先 mock 跑通）
 - 消息推送：✅ 已订阅
 - 数据策略：全量导入打底 + Webhook 增量维持（同 openid 预导入模式）
@@ -81,7 +81,7 @@
 - 叠加：`remain_fen = total_fen - balance_fen - points_fen`。
 - 有效期：长期有效。
 - 退款：当前系统无部分退款；全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`。
-- 数据主从：配置开关 `points_authority`（默认 `youzan`）两步切换——M3 上线保持 `youzan`（有赞 `total` 继续维护余额），验证稳定后改 `local` 再部署，切为本地 `member_balance.points` 权威；`local` 下有赞 `POINTS` 事件只写流水/审计，不再覆盖余额。
+- 数据主从：配置开关 `points_authority`（默认 `youzan`）两步切换——第一阶段 M3 上线保持 `youzan`（有赞 `total` 继续维护余额）；第二阶段切 `local`（本地 `member_balance.points` 权威，有赞 `POINTS` 事件只写流水/审计）由 FP-2 执行，须满足 2027-06 候选窗口、项目负责人批准、唯一键阻断解除与独立切换窗口门禁，禁止仅修改进程级配置触发。
 
 **M3.1 数据/仓储**
 
@@ -161,7 +161,7 @@
 - 小程序 API ✅ `recharges.py`（充值/余额端点）+ `orders.py`（pay-with-balance / prepare-combined-payment）；既有 `POST /{order_id}/mock-pay` 支持从 partial 完成支付
 - 边界修复 ✅ 消除 `stored_value ↔ order` 循环导入（TYPE_CHECKING + `from __future__ import annotations`）；组合支付差额走微信时按 `remainFen` 校验通知金额；余额全额支付订单不可取消/不退款
 - 验证 ✅ 储值域 14 项测试全过；全套 1365 项通过（含 tests/scripts），覆盖率 82.54%；ruff / check_file_sizes / check_project --skip-tests 全绿；本地库 v022 已应用（schema_version=22）
-- 待办 ⏳ 真实微信支付（商户号到位后）：组合支付差额走微信 JSAPI、支付通知与余额原路退款；M5 小程序前端（充值页/余额明细/结算页组合支付入口）
+- 待办 ⏳ 真实微信支付（商户号到位后，见 FP-3）：组合支付差额走微信 JSAPI、支付通知与余额原路退款。M5 前端已交付（充值页/余额明细/结算页组合支付入口）。
 
 
 - POINTS 去重键 `unique_id`；COUPON 去重键 `id+status+mobile`（状态流转写多行，符合生命周期记录语义）

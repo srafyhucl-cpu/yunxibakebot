@@ -13,7 +13,16 @@
 
 ## Context
 
-会员储值 / 积分 / 优惠券账务域当前处于第一阶段：`POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=youzan`，余额、积分与券库存由有赞维护，本地写入 / 校验同步有赞。业务目标是**以本小程序替代有赞小程序**成为会员资产唯一入口与权威。该切换涉及真实资金与券资产，且 `POINTS_AUTHORITY` / `COUPON_AUTHORITY` 为进程级配置，`coupon_inventory` 在 `local` 权威下只识别 `order/local` 来源，现有 `import` / `webhook` 券行会被过滤，需专门的迁移与围栏策略，不能仅做配置翻转。
+会员账务域当前处于第一阶段，数据权威与用户入口需分别表述：
+
+| 资产域 | 当前数据权威 | 目标数据权威 |
+|---|---|---|
+| 储值余额（`member_balance.stored_value_fen`） | **Platform 本地账本**（v022 起由 `stored_value_recharge` / `balance_ledger` 本地维护） | Platform 本地账务域 |
+| 积分余额（`member_balance.points`） | 有赞 `total`（`POINTS_AUTHORITY=youzan`） | Platform 本地账务域（`POINTS_AUTHORITY=local`） |
+| 优惠券（`coupon_inventory`） | 有赞镜像 + 本地核销引擎（`COUPON_AUTHORITY=youzan`） | Platform 本地账务域（`COUPON_AUTHORITY=local`） |
+| 会员身份（`member_balance` / `customer_identity_links`） | Platform 本地（openid 预导入） | Platform 本地账务域 |
+
+**Platform 本地账务域是数据权威，小程序是唯一用户入口**。业务目标是**以本小程序替代有赞小程序**作为用户入口，切换完成后关停有赞小程序。切换涉及真实资金与券资产，且 `POINTS_AUTHORITY` / `COUPON_AUTHORITY` 为进程级配置，`coupon_inventory` 在 `local` 权威下只识别 `order/local` 来源，现有 `import` / `webhook` 券行会被过滤，需专门的迁移与围栏策略，不能仅做配置翻转。
 
 项目发布边界已经明确：截至 **2027 年 5 月 31 日（含）**，小程序只用于开发、调试和测试，不向真实用户开放。**2027 年 6 月只是最早候选上线窗口，不构成自动上线或自动切换授权**；正式开放必须由项目负责人明确批准。
 
@@ -37,7 +46,7 @@
 
 ## Consequences
 
-- 本小程序成为余额、积分、券库存唯一权威，有赞小程序下线。
+- Platform 本地账务域成为储值、积分、券、身份的唯一数据权威，小程序作为唯一用户入口；有赞小程序下线。
 - 2027-05-31（含）前维持开发测试属性；完成工程和外部验收不自动改变该属性。
 - 切换前需要完成数据导入、真实支付、正式发布与券迁移 / 围栏 / 对账能力，工程量前置明确。
 - 切换窗口存在资金与券资产风险，RPO / RTO 与回滚演练是硬约束。

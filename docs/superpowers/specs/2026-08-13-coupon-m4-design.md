@@ -196,5 +196,5 @@ api/ → service/coupon/ → repository/ → models/
 
 ## 收口
 
-- 本地验证全绿后按 M6 模式生产部署：先 `COUPON_AUTHORITY=youzan` 部署观察，稳定后（如需）切 `local`。
+- 本地验证全绿后按 M6 模式生产部署：第一阶段 `COUPON_AUTHORITY=youzan` 已上线（v0.131.2，见 LOGBOOK / E-20260813-002）；第二段切 `local` 由 FP-2 执行，须满足 2027-06 候选窗口、项目负责人批准、唯一键阻断解除与独立切换窗口门禁，禁止仅修改进程级配置触发。
 - LOGBOOK / 项目进度清单 / 执行计划（writing-plans）收口，证据归档按 harness 规范。
