@@ -1,3 +1,21 @@
+## [2026-08-15] - docs(governance): 账务核心合同收敛 B3.2（B3.1 最终评审 7 项一次性收口）
+
+- 操作者: AI (Codex)
+- trace_id: `20260815-member-loyalty-accounting-contract-b32`
+- parent_trace_id: `20260815-member-loyalty-accounting-contract-b31`
+- 来源: 对 `8b5b322`（B3.1）的只读最终复核（评审 B3.2）；结论：**Go/No-Go = 暂不通过**，7 项缺口按方案 B 一次性收口（审阅分支双远端均 `8b5b322`，master 与双远端 master 仍 `344b66a`，工作区干净）
+- 回调校验与事件键（评审问题 1）: 回调 / 查询以微信实际字段为校验来源，其中金额 `amount.total` / 币种 `fee_type=CNY` / 商户单号 `out_trade_no` **必须与不可变快照微信腿（`payment_snapshot_json` 中 `asset_type='wechat'` 的 `amount_fen`）一致**（快照微信腿是唯一本地参照，消除"唯一事实"与"不依赖内部快照比较"矛盾）；删除独立 `policy_version` / `asset_policy_snapshot` 列（策略固化唯一存快照 JSON 内）；支付 / 退款 / 查询三类通知分别定义稳定 `event_key`（`pay_notify` / `refund_notify` / `query_result`，键只含提供方稳定标识）
+- 查询代次与支付状态命令表（评审问题 2）: 支付 / 退款查询 `operation_key` 统一含 `query_generation`（`wechat:order_query:<merchant_order_no>:<payment_attempt_id>:<generation>` / `wechat:refund_query:<refund_no>:<payment_attempt_id>:<generation>`），受控 rearm（仅上一代查询终结才以新代次入队，代次递增 / 调度 / 回写同一 UoW/CAS），固定键不再被 UNIQUE 阻断持续查询；新增支付状态命令表（旧尝试确认终态前不得新建尝试、`prepay_*` 仅关单成功后释放、仅 `succeeded` 才能创建退款聚合）
+- 债务账户与剩余金额模型（评审问题 3）: `refund_shortfall_debt` 绑定 `member_balance_id` / `payment_attempt_id` / `refund_no`，增 `original / recovered / remaining_amount_fen` 与 `version`；每次入账按 `min(入账额, remaining)` 确定顺序原子部分收回（不再要求"入账额 >= 缺口额"），多次小额入账分次清偿；**入账先偿债后可用**（杜绝先被新支付预占）；补跨账户 / 并发入账 / 分次清偿 / 重启恢复测试
+- 券摄取 / 裁决同 UoW 关案（评审问题 4）: 受控外部 TAKE 摄取命令在同一 UoW 完成（观察幂等写入 → 案件 CAS 至 `verdict_applied → closed` → 券事件与投影 CAS），**摄取成功不得残留 `open` 案件**；FP-1 统一"观察只建案件、本地命令才改当前态"（删除"投影置 reconcile_hold"旧口径）；补迟到观察 / 重复观察 / 过期券裁决测试
+- epoch 入队 fence 与 identity_mode（评审问题 5）: **仅入队端读取 `authority_epoch_current` 指针并固化 `authority_epoch_id`，消费端一律按事件自身 epoch 路由（禁止读当前指针）**；`queue_control` 增 `enqueue_paused`（enqueue fence：切换窗口禁止新入队、holding 事件 fence 解除后按新指针 epoch 入队、fence 前事件完成或 quarantine、fence 后事件只进新 epoch）；**删除 `identity_mode`**（身份为本地投影、一致性核对非切换，ADR 0007 裁决）
+- CT-1A 围栏前置（评审问题 6）: **CT-1A 最小 fail-closed 围栏前移至 FP-4A 前**（体验版连接真实后端前已落地白名单围栏，消除未授权访问窗口）；唯一 DAG 更新为 `FP-1+FP-3a → CT-1A → FP-4A → CT-1 → FP-4B1 → FP-3b → FP-4B2 → FP-2`；**唯一主体格式定稿 `wx:<openid>` 单一口径**（JWT sub 一律冒号格式，无 `wx_` 形态）；累计上限按批次 × 主体 × 币种 × 时间窗**原子预占**（`controlled_test_quota` 单条条件更新）
+- FP-3 与 handoff 口径同步（评审问题 7）: FP-3 余额退款与硬门禁**直接引用 ADR 0008 D1-C 既定政策**（全额 + 部分净额退款），仅保留时限 / 审批阈值等参数裁决（默认 72h）；B3.1 handoff 重生成（记录实际远端 `8b5b322` 与已提交 E-005）
+- 验证: `python scripts/check_evidence_index.py --summary` ok（356 条 / failed=0 / verified_files=86，批处理 1.9s）；`python -m pytest tests/scripts/test_check_evidence_index.py --no-cov`（26 通过，**显式可写 `--basetemp=reports/harness/.pytest-tmp-b32`，规避默认临时目录 WinError 5**）；`git diff --check`（仅 LF→CRLF 提示）；`python -m ruff check` 通过；`python scripts/check_file_sizes.py` OK（402 文件，存量评审提示）；`python scripts/check_project.py --skip-tests` 质量门禁通过（仅存量警告）；`python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov`（29 通过）
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md；项目进度与配置清单.md；LOGBOOK.md；reports/harness/handoff-b31-accounting-contract-20260815-b31.md（重生成，gitignored）；reports/harness/handoff-b32-accounting-contract-20260815-b32.md（新，gitignored）
+- residual_risks: ADR 0008 仍为 proposed；B3.2 收口后由项目负责人做**一次最终全范围复核**再决定 master fast-forward 与 D1 放行；支付 / 退款 / epoch / 券对账 / 围栏均为实施阶段落地；截至 2027-05-31 仅开发测试边界不变，不部署、不开放资产写操作
+- 版本: 0.132.6（B3.2 为 docs-only 纯治理/设计文档，无代码文件变更，sync-version 不递增）
+
 ## [2026-08-15] - docs(governance): 账务核心合同收口 B3.1（B3 最终评审 9 项一次性收口）
 
 - 操作者: AI (Codex)
