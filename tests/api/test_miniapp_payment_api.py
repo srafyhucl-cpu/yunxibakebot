@@ -101,10 +101,11 @@ async def test_miniapp_payment_notify_marks_order_paid(
         config_repo=ConfigRepo(db),
     )
     monkeypatch.setattr(
-        "app.service.order.payment_runtime.settings.WECHAT_PAY_MCH_ID", ""
+        "app.service.order.payment_runtime.settings.WECHAT_PAY_MCH_ID", "mch-test"
     )
     monkeypatch.setattr(
-        "app.service.order.payment_runtime.settings.WECHAT_MINIAPP_APP_ID", ""
+        "app.service.order.payment_runtime.settings.WECHAT_MINIAPP_APP_ID",
+        "appid-test",
     )
     payload = {
         "id": "notify-1",
@@ -120,10 +121,10 @@ async def test_miniapp_payment_notify_marks_order_paid(
         {
             "out_trade_no": created["orderId"],
             "trade_state": "SUCCESS",
-            "mchid": "",
-            "appid": "",
-            "amount": {"total": 19800},
-            "currency": "CNY",
+            "mchid": "mch-test",
+            "appid": "appid-test",
+            # B3.5（评审问题 4）：币种在 amount.currency，顶层无 currency（真实 v3 报文）
+            "amount": {"total": 19800, "currency": "CNY"},
             "transaction_id": "4200000000202606171234567890",
             "success_time": "2026-06-17T12:00:00+08:00",
         },
@@ -150,10 +151,9 @@ async def test_miniapp_payment_notify_marks_order_paid(
         lambda self, resource: {
             "out_trade_no": created["orderId"],
             "trade_state": "SUCCESS",
-            "mchid": "",
-            "appid": "",
-            "amount": {"total": 19800},
-            "currency": "CNY",
+            "mchid": "mch-test",
+            "appid": "appid-test",
+            "amount": {"total": 19800, "currency": "CNY"},
             "transaction_id": "4200000000202606171234567890",
             "success_time": "2026-06-17T12:00:00+08:00",
         },

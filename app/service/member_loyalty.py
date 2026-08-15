@@ -54,31 +54,35 @@ class MemberLoyaltyImportService:
             )
             stats["points_total"] = points_total
             if should_apply:
-                await self._balance_repo.upsert_identity(
-                    mobile=mobile,
-                    customer_id=customer_id,
-                    points=points_total,
-                )
+                async with self._balance_repo.transaction():
+                    await self._balance_repo.upsert_identity(
+                        mobile=mobile,
+                        customer_id=customer_id,
+                        points=points_total,
+                    )
 
             cards = await self._member_api.list_customer_cards(mobile)
             stats["cards"] = len(cards)
             if should_apply and cards:
-                await self._balance_repo.upsert_identity(
-                    mobile=mobile,
-                    customer_id=customer_id,
-                    card_alias=str(
-                        cards[0].get("card_alias") or cards[0].get("alias") or ""
-                    ),
-                    card_no=str(cards[0].get("card_no") or ""),
-                    card_status=str(cards[0].get("status") or ""),
-                    is_member=1,
-                )
+                async with self._balance_repo.transaction():
+                    await self._balance_repo.upsert_identity(
+                        mobile=mobile,
+                        customer_id=customer_id,
+                        card_alias=str(
+                            cards[0].get("card_alias") or cards[0].get("alias") or ""
+                        ),
+                        card_no=str(cards[0].get("card_no") or ""),
+                        card_status=str(cards[0].get("status") or ""),
+                        is_member=1,
+                    )
 
             coupons = await self._member_api.list_customer_coupons(mobile)
             stats["coupons"] = len(coupons)
             if should_apply:
                 for coupon in coupons:
-                    await self._upsert_coupon(coupon, mobile, customer_id)
+                    # B3.5（评审问题 1）：单张券写入口独占事务，失败整张回滚不污染他券
+                    async with self._coupon_repo.transaction():
+                        await self._upsert_coupon(coupon, mobile, customer_id)
         except Exception as exc:
             stats["errors"].append(f"{type(exc).__name__}: {exc}")
             logger.error("会员账务导入失败 mobile=%s err=%s", mobile, exc)

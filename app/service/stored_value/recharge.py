@@ -50,7 +50,8 @@ class RechargeService:
             created_at=now,
             updated_at=now,
         )
-        await self._recharge_repo.create(recharge)
+        async with self._recharge_repo.transaction():
+            await self._recharge_repo.create(recharge)
         return self._serialize(recharge)
 
     async def cancel_unpaid_recharge(

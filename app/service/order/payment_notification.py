@@ -18,6 +18,10 @@ from app.service.order.payment_state import (
     now_text,
     status_value,
 )
+from app.service.order.wechat_normalizers import (
+    PayNotifyNormalizer,
+    WechatProtocolError,
+)
 
 
 class WechatPaymentNotificationService:
@@ -30,23 +34,27 @@ class WechatPaymentNotificationService:
     ) -> None:
         self._order_repo = order_repo
         self._event_repo = event_repo
+        self._pay_notify_normalizer = PayNotifyNormalizer()
 
     async def validate_transaction(self, transaction: dict) -> None:
-        """校验微信通知的商户、应用、金额、币种和交易号。"""
-        if str(transaction.get("mchid", "")).strip() != settings.WECHAT_PAY_MCH_ID:
+        """校验微信通知的商户、应用、金额、币种和交易号。
+
+        B3.5（评审问题 4）：币种取 v3 报文 `amount.currency`（顶层无 currency），
+        字段校验委托独立 PayNotifyNormalizer，逐字段负向用例见
+        tests/service/test_wechat_normalizers.py。
+        """
+        try:
+            notify = self._pay_notify_normalizer.normalize(transaction)
+        except WechatProtocolError as exc:
+            raise ValueError(str(exc)) from exc
+        if notify.mchid != settings.WECHAT_PAY_MCH_ID:
             raise ValueError("微信支付通知商户号不匹配")
-        if str(transaction.get("appid", "")).strip() != settings.WECHAT_MINIAPP_APP_ID:
+        if notify.appid != settings.WECHAT_MINIAPP_APP_ID:
             raise ValueError("微信支付通知 appid 不匹配")
-        if str(transaction.get("currency", "")).strip() != "CNY":
-            raise ValueError("微信支付通知币种不匹配")
-        transaction_id = str(transaction.get("transaction_id", "")).strip()
+        transaction_id = notify.transaction_id
         if not transaction_id:
             raise ValueError("微信支付通知缺少交易号")
-        try:
-            total_fen = int(transaction.get("amount", {}).get("total"))
-        except (AttributeError, TypeError, ValueError):
-            raise ValueError("微信支付通知金额无效") from None
-        order_id = str(transaction.get("out_trade_no", "")).strip()
+        order_id = notify.out_trade_no
         order = await self._order_repo.get_order(order_id)
         if order is None:
             raise ValueError("订单不存在")
@@ -63,7 +71,7 @@ class WechatPaymentNotificationService:
         )
         if expected_fen <= 0:
             raise ValueError("订单无需外部支付")
-        if total_fen != expected_fen:
+        if notify.total_fen != expected_fen:
             raise ValueError("微信支付通知金额不匹配")
 
     async def mark_paid(

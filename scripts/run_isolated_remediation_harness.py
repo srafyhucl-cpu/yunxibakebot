@@ -82,6 +82,9 @@ async def run_harness(work_dir: Path) -> dict[str, object]:
             SYNTHETIC_MESSAGE_KEY,
             json.dumps({"kind": "synthetic"}),
         )
+        # B3.5（问题 8）：InboxRepo 不再自提交——独立写流程须显式提交，
+        # 否则 close 时回滚导致 worker 子进程读不到该消息。
+        await connection.commit()
         await close_db(connection)
         connection = None
 
@@ -288,6 +291,9 @@ async def _verify_queue_recovery(
     final_status = str(rows[0]["status"]) if rows else ""
     final_count = int(rows[0]["count"]) if rows else 0
     pending = await repo.count_pending(SYNTHETIC_QUEUE)
+    # B3.5（问题 8）：InboxRepo 不再自提交——恢复校验的写（processed / 重复键）
+    # 须显式提交，保证校验基于真实持久化结果而非未提交会话。
+    await connection.commit()
     return [
         HarnessCheck(
             "queue.reclaimed_after_crash",

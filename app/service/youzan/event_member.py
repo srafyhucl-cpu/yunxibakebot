@@ -49,6 +49,15 @@ MEMBER_EVENT_TYPES: frozenset[str] = frozenset(
 )
 
 
+def _as_handle(db):
+    """裸 aiosqlite 连接包装为 DatabaseHandle（含 transaction()）。"""
+    from app.repository.base import DatabaseHandle
+
+    if hasattr(db, "transaction"):
+        return db
+    return DatabaseHandle(db)
+
+
 async def handle_member_event(
     db,
     youzan_client,
@@ -59,36 +68,47 @@ async def handle_member_event(
     audit_id: int | None = None,
     msg_id: str = "",
 ) -> None:
-    """按事件类型分发会员域 Webhook 写入。"""
+    """按事件类型分发会员域 Webhook 写入。
+
+    B3.5（评审问题 1）：账务写入口（积分 / 券 / 余额快照）由本分发器独占
+    事务边界，仓储不自提交；审计标记（audit_repo 自提交）在事务外单独落库，
+    账务写入失败整体回滚，不污染审计。
+    """
     event_type_lower = event_type.lower()
     balance_repo = MemberBalanceRepo(db)
     customer_repo = CustomerMasterRepo(db)
     try:
-        if event_type_lower == MemberEventType.POINTS:
-            await _handle_points_event(
-                db, balance_repo, customer_repo, msg_obj, updated_at_str
-            )
-        elif event_type_lower == MemberEventType.COUPON:
-            await _handle_coupon_event(
-                db, balance_repo, customer_repo, youzan_client, msg_obj, updated_at_str
-            )
-        elif event_type_lower == MemberEventType.CUSTOMER:
-            await _handle_customer_event(balance_repo, msg_obj)
-        elif event_type_lower == MemberEventType.CARD:
-            await _handle_card_event(balance_repo, msg_obj)
-        else:
-            logger.warning(
-                "未知会员事件类型，跳过: type=%s msg_id=%s", event_type, msg_id
-            )
-            await mark_audit(
-                audit_repo,
-                audit_id,
-                YouzanWebhookStatus.SKIPPED,
-                "member_unknown_type",
-                business_type=YouzanWebhookBusinessType.MEMBER,
-                error_type="unknown_event_type",
-            )
-            return
+        async with _as_handle(db).transaction():
+            if event_type_lower == MemberEventType.POINTS:
+                await _handle_points_event(
+                    db, balance_repo, customer_repo, msg_obj, updated_at_str
+                )
+            elif event_type_lower == MemberEventType.COUPON:
+                await _handle_coupon_event(
+                    db,
+                    balance_repo,
+                    customer_repo,
+                    youzan_client,
+                    msg_obj,
+                    updated_at_str,
+                )
+            elif event_type_lower == MemberEventType.CUSTOMER:
+                await _handle_customer_event(balance_repo, msg_obj)
+            elif event_type_lower == MemberEventType.CARD:
+                await _handle_card_event(balance_repo, msg_obj)
+            else:
+                logger.warning(
+                    "未知会员事件类型，跳过: type=%s msg_id=%s", event_type, msg_id
+                )
+                await mark_audit(
+                    audit_repo,
+                    audit_id,
+                    YouzanWebhookStatus.SKIPPED,
+                    "member_unknown_type",
+                    business_type=YouzanWebhookBusinessType.MEMBER,
+                    error_type="unknown_event_type",
+                )
+                return
         await mark_audit(
             audit_repo,
             audit_id,

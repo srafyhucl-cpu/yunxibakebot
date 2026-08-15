@@ -93,24 +93,25 @@ class AdminCouponService:
             granted_by=granted_by,
             channel="admin",
         )
-        await self._grant_repo.insert(grant)
-        await self._inventory_repo.insert(
-            CouponInventoryEntry(
-                coupon_id=coupon_id,
-                coupon_group_id=template_id,
-                customer_id="",
-                mobile=mobile,
-                status=CouponStatus.TAKE,
-                title=str(template.get("name", "")),
-                value_fen=int(template.get("value_fen", 0) or 0),
-                detail_json="{}",
-                source=LedgerSource.LOCAL,
-                occurred_at=now_str(),
-                template_id=template_id,
-                valid_from=str(template.get("valid_from", "")),
-                valid_until=str(template.get("valid_until", "")),
+        async with self._inventory_repo.transaction():
+            await self._grant_repo.insert(grant)
+            await self._inventory_repo.insert(
+                CouponInventoryEntry(
+                    coupon_id=coupon_id,
+                    coupon_group_id=template_id,
+                    customer_id="",
+                    mobile=mobile,
+                    status=CouponStatus.TAKE,
+                    title=str(template.get("name", "")),
+                    value_fen=int(template.get("value_fen", 0) or 0),
+                    detail_json="{}",
+                    source=LedgerSource.LOCAL,
+                    occurred_at=now_str(),
+                    template_id=template_id,
+                    valid_from=str(template.get("valid_from", "")),
+                    valid_until=str(template.get("valid_until", "")),
+                )
             )
-        )
         return {
             "couponId": coupon_id,
             "couponCode": coupon_code,

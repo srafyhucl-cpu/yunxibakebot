@@ -50,7 +50,11 @@ class MemberBalanceRepo(BaseRepository):
         points: int | None = None,
         stored_value_fen: int | None = None,
     ) -> None:
-        """按 mobile（openid 兜底）幂等合并会员身份/卡片/余额快照。"""
+        """按 mobile（openid 兜底）幂等合并会员身份/卡片/余额快照。
+
+        B3.5（评审问题 1）：账务仓储**不自提交**，由调用方命令独占事务边界
+        （member_loyalty 导入 / youzan 会员事件 / 支付链路外层事务提交）。
+        """
         now = now_str()
         existing = await self.get_by_mobile(mobile) if mobile else None
         if existing is None and yz_open_id:
@@ -116,7 +120,6 @@ class MemberBalanceRepo(BaseRepository):
                     int(existing["id"]),
                 ),
             )
-        await self._db.commit()
 
     async def get_stored_value_fen(self, mobile: str) -> int:
         """读取会员储值余额（分），账户不存在返回 0。"""

@@ -84,6 +84,10 @@ class PointsService:
         )
         order = await self._owned_order(order_id, user_id)
         mobile = await self.resolve_mobile(user_id)
+        if await self._balance_repo.get_by_mobile(mobile) is None:
+            # B3.5（评审问题 2）：账户缺失必须明确拒绝，禁止被 get_points 的 0
+            # 余额掩盖成「积分不足」（保持 settling，进入人工核对）
+            raise ValueError("积分账户不存在，订单不能应用积分抵扣")
         balance = await self._balance_repo.get_points(mobile)
         payment = loads_payment(order.payment)
         if int(payment.get("balanceFen", 0) or 0) > 0:
@@ -94,12 +98,14 @@ class PointsService:
         points_used = redeem_units(balance, total_fen, balance_fen, coupon_fen)
         if points_used <= 0:
             raise ValueError("积分不足或订单金额不支持抵扣")
-        return await payment_service.apply_points_snapshot(
-            order,
-            user_id=user_id,
-            points_used=points_used,
-            mobile=mobile,
-        )
+        # B3.5（评审问题 1）：快照写入口由门面独占事务边界，仓储与服务不自提交
+        async with self._order_repo.transaction():
+            return await payment_service.apply_points_snapshot(
+                order,
+                user_id=user_id,
+                points_used=points_used,
+                mobile=mobile,
+            )
 
     async def refund_points(self, order: Order) -> None:
         """按支付快照退回抵扣积分并收回已发积分（幂等）。"""

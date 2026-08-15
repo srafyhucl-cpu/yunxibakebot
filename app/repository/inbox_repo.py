@@ -16,7 +16,12 @@ class InboxRepo(BaseRepository):
         message_key: str,
         payload_json: str,
     ) -> bool:
-        """写入一条 inbox 记录；重复键只返回 False。"""
+        """写入一条 inbox 记录；重复键只返回 False。
+
+        B3.5（评审问题 8）：仓储**不自提交**——调用方（webhook 网关 / 消息队列）
+        各自以 db_session_scope 提交；持有型原子转账等需与业务写同事务的
+        调用方在自身事务内使用本方法（无中间提交边界）。
+        """
         cursor = await self._db.execute(
             "INSERT INTO inbox_events "
             "(queue_name, message_key, payload_json, status, created_at, updated_at) "
@@ -24,7 +29,6 @@ class InboxRepo(BaseRepository):
             "ON CONFLICT(message_key) DO NOTHING",
             (queue_name, message_key, payload_json),
         )
-        await self._db.commit()
         return bool(cursor.rowcount == 1)
 
     async def claim(
@@ -69,16 +73,19 @@ class InboxRepo(BaseRepository):
             }
 
     async def mark_processed(self, message_key: str) -> None:
-        """将已成功处理的任务置为终态。"""
+        """将已成功处理的任务置为终态。
+
+        B3.5（评审问题 8）：不自提交——业务写与 processed 标记须同一事务
+        （调用方合并为一个 db_session_scope，见 YouzanWebhookDispatcher）。
+        """
         await self._db.execute(
             "UPDATE inbox_events SET status = 'processed', lease_until = NULL, "
             "updated_at = datetime('now') WHERE message_key = ?",
             (message_key,),
         )
-        await self._db.commit()
 
     async def mark_failed(self, message_key: str, error_message: str) -> None:
-        """记录失败并按次数决定重试或 dead-letter。"""
+        """记录失败并按次数决定重试或 dead-letter（不自提交，由调用方 scope 提交）。"""
         await self._db.execute(
             "UPDATE inbox_events SET status = CASE "
             "WHEN attempt_count >= ? THEN 'dead_letter' ELSE 'failed' END, "
@@ -92,7 +99,29 @@ class InboxRepo(BaseRepository):
                 message_key,
             ),
         )
-        await self._db.commit()
+
+    async def renew_or_validate_lease(
+        self,
+        message_key: str,
+        expected_attempt: int,
+        lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    ) -> bool:
+        """校验并续租：仅当任务仍归当前 worker 时续租（claim_token 语义）。
+
+        B3.5（评审问题 8）：以 claim 时的 attempt_count 作为 claim_token——
+        lease 过期被其他 worker 接管后 attempt_count 递增，陈旧 worker 在
+        业务写**之前**于同一 UoW 内校验失败即跳过处理，杜绝陈旧 worker
+        继续提交资产。调用方必须在事务内调用（不自提交）。
+        """
+        sign = "+" if lease_seconds >= 0 else "-"
+        cursor = await self._db.execute(
+            "UPDATE inbox_events SET lease_until = datetime('now', ?), "
+            "updated_at = datetime('now') "
+            "WHERE message_key = ? AND status = 'processing' "
+            "AND lease_until > datetime('now') AND attempt_count = ?",
+            (f"{sign}{abs(lease_seconds)} seconds", message_key, expected_attempt),
+        )
+        return int(cursor.rowcount or 0) == 1
 
     async def count_pending(self, queue_name: str) -> int:
         """统计尚未进入成功终态的任务。"""

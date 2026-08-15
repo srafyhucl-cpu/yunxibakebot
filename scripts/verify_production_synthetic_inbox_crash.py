@@ -168,6 +168,9 @@ async def enqueue_synthetic(database_path: Path, message_key: str) -> tuple[bool
             json.dumps({"kind": "synthetic-inbox-crash"}),
         )
         duplicate_inserted = await repo.enqueue(QUEUE_NAME, message_key, "{}")
+        # B3.5（问题 8）：InboxRepo 不再自提交——独立写流程须显式提交，
+        # 否则 close 时回滚导致子进程 worker 读不到该消息。
+        await connection.commit()
         return inserted, duplicate_inserted
     finally:
         await close_db(connection)
@@ -250,6 +253,8 @@ async def run_worker_stage(args: argparse.Namespace) -> int:
             return 2
         if args.worker_action == "complete":
             await repo.mark_processed(args.message_key)
+            # B3.5（问题 8）：InboxRepo 不再自提交——worker 终态写须显式提交
+            await connection.commit()
             return 0
         await asyncio.sleep(WORKER_HOLD_SECONDS)
         return 0

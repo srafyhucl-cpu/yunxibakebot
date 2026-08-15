@@ -521,8 +521,10 @@ async def test_wechat_notify_rejects_business_field_mismatch(
         "out_trade_no": created["orderId"],
         "mchid": "mch-test",
         "appid": "appid-test",
-        "amount": {"total": 19800},
-        "currency": "CNY",
+        "trade_state": "SUCCESS",
+        "success_time": "2026-06-17T12:00:00+08:00",
+        # B3.5（评审问题 4）：币种在 amount.currency（真实 v3 报文）
+        "amount": {"total": 19800, "currency": "CNY"},
         "transaction_id": "4200000000202606171234567891",
     }
     invalid_transactions = [

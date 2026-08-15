@@ -514,3 +514,46 @@ async def test_redeem_preview_empty_when_balance_partial_paid(
     await service.prepare_combined_payment(order_id, user_id=USER_ID, balance_fen=3000)
     result = await coupon_service.redeem_preview(order_id, user_id=USER_ID)
     assert result["available"] == []
+
+
+@pytest.mark.asyncio
+async def test_coupon_consumed_then_points_fail_rolls_back_all(
+    db: aiosqlite.Connection,
+    coupon_service,
+    order_service,
+) -> None:
+    """B3.5（评审问题 1）：券核销成功 + 积分扣减失败 → 外层事务整体回滚。
+
+    复现评审描述：修复前仓储自提交导致「券已 CONSUME、订单已 paid、积分流水为空」；
+    修复后统一支付应用服务独占事务，券与积分任一失败全部资产回滚。
+    """
+    await _seed_member(db)  # points = 0，积分扣减必然失败
+    await _seed_template(db)
+    await _seed_coupon(db)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await coupon_service.apply_coupon(order_id, user_id=USER_ID, coupon_id="c1")
+    # 直写积分抵扣 partial（绕过 B3.4 围栏，聚焦结算链路整体回滚）
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment["status"] = "partial"
+    payment["method"] = "combined"
+    payment["pointsUsed"] = 5000
+    payment["pointsFen"] = 5000
+    payment["remainFen"] = 4500
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await OrderRepo(db)._db.commit()
+    with pytest.raises(ValueError, match="积分余额不足"):
+        await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    # 整体回滚：订单未支付、券未核销、无积分流水
+    order_latest = await OrderRepo(db).get_order(order_id)
+    assert order_latest is not None
+    assert str(loads_payment(order_latest.payment).get("status")) == "partial"
+    rows = await db.execute_fetchall(
+        "SELECT status FROM coupon_inventory WHERE coupon_id = 'c1' ORDER BY id DESC LIMIT 1"
+    )
+    assert rows and rows[0]["status"] == "TAKE"
+    ledger = await db.execute_fetchall(
+        "SELECT COUNT(*) AS c FROM points_ledger WHERE mobile = ?", (MOBILE,)
+    )
+    assert int(ledger[0]["c"]) == 0

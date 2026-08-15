@@ -21,7 +21,11 @@ class PointsLedgerRepo(BaseRepository):
         return rows[0] if rows else None
 
     async def insert(self, entry: PointsLedgerEntry) -> None:
-        """写入一条积分流水。"""
+        """写入一条积分流水。
+
+        B3.5（评审问题 1）：账务仓储**不自提交**，由调用方统一支付应用服务 /
+        摄取命令独占事务边界（流水与结算标记同一 UoW 提交，评审问题 2）。
+        """
         await self._db.execute(
             "INSERT INTO points_ledger (unique_id, customer_id, mobile, yz_open_id, "
             "amount, total, event_type, source, biz_type, biz_id, occurred_at, created_at) "
@@ -41,7 +45,6 @@ class PointsLedgerRepo(BaseRepository):
                 now_str(),
             ),
         )
-        await self._db.commit()
 
     async def list_by_mobile(self, mobile: str, *, limit: int = 50) -> list[dict]:
         """按手机号读取积分流水，按 id 倒序。"""

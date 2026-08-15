@@ -583,3 +583,339 @@ async def test_settled_refund_credits_and_does_not_log_reconcile(
     assert await _points(db) == 100_000
     reconcile = await _reconcile_rows(db, order_id)
     assert reconcile == []
+
+
+# ==================== B3.5（评审问题 2 / 3）====================
+
+
+@pytest.mark.asyncio
+async def test_apply_points_binds_member_balance_id(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """问题 2：应用积分时快照绑定不可变余额账户 ID。"""
+    monkeypatch.setattr("app.service.points.payment.POINTS_DEDUCTION_FENCE", False)
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    payment = loads_payment(order.payment)
+    rows = await db.execute_fetchall(
+        "SELECT id FROM member_balance WHERE mobile = ?", (MOBILE,)
+    )
+    assert rows
+    assert str(payment.get("memberBalanceId")) == str(rows[0]["id"])
+
+
+@pytest.mark.asyncio
+async def test_apply_points_rejects_missing_account(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """问题 2：积分账户不存在（member_balance 无行）禁止应用抵扣。"""
+    monkeypatch.setattr("app.service.points.payment.POINTS_DEDUCTION_FENCE", False)
+    # 只建客户身份，不建 member_balance 账户
+    await db.execute(
+        "INSERT INTO customer_master (id, tenant_id, status, primary_phone, "
+        "phone_verified, display_name, identity_confidence, has_miniapp_identity) "
+        "VALUES (?, 'yunxi', 'active', ?, 1, '积分账户缺失测试', 'high', 1)",
+        (f"cm_{OPENID}", MOBILE),
+    )
+    await db.execute(
+        "INSERT INTO customer_identity_links (id, tenant_id, customer_id, "
+        "identity_type, identity_value, identity_value_normalized, source_system, "
+        "link_status, verification_status, confidence_score) "
+        "VALUES (?, 'yunxi', ?, 'miniapp_openid', ?, ?, 'miniapp', 'active', "
+        "'verified', 100)",
+        (f"cil_{OPENID}", f"cm_{OPENID}", OPENID, OPENID),
+    )
+    await db.commit()
+    order_id = await _create_order(order_service, price_fen=10_000)
+    with pytest.raises(ValueError, match="积分账户不存在"):
+        await points_service.apply_points(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    assert str(loads_payment(order.payment).get("status")) == "unpaid"
+
+
+@pytest.mark.asyncio
+async def test_award_blocks_when_points_account_missing(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """问题 2：有抵扣但积分账户不存在 → 结算被拒，订单保持未支付（禁止免费抵扣）。"""
+    await db.execute(
+        "INSERT INTO customer_master (id, tenant_id, status, primary_phone, "
+        "phone_verified, display_name, identity_confidence, has_miniapp_identity) "
+        "VALUES (?, 'yunxi', 'active', ?, 1, '结算账户缺失测试', 'high', 1)",
+        (f"cm_{OPENID}", MOBILE),
+    )
+    await db.execute(
+        "INSERT INTO customer_identity_links (id, tenant_id, customer_id, "
+        "identity_type, identity_value, identity_value_normalized, source_system, "
+        "link_status, verification_status, confidence_score) "
+        "VALUES (?, 'yunxi', ?, 'miniapp_openid', ?, ?, 'miniapp', 'active', "
+        "'verified', 100)",
+        (f"cil_{OPENID}", f"cm_{OPENID}", OPENID, OPENID),
+    )
+    await db.commit()
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await _seed_points_partial(db, order_id, points_used=5000, points_fen=5000)
+    with pytest.raises(ValueError, match="积分账户不存在"):
+        await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    assert str(loads_payment(order.payment).get("status")) == "partial"
+
+
+@pytest.mark.asyncio
+async def test_award_blocks_when_account_switched_after_apply(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """问题 2：应用后换绑账户 → 结算按快照绑定账户校验拒绝（账户漂移）。"""
+    monkeypatch.setattr("app.service.points.payment.POINTS_DEDUCTION_FENCE", False)
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    # 换绑：客户手机号改为新号，且新号有独立账户行
+    await db.execute(
+        "UPDATE customer_master SET primary_phone = ? WHERE id = ?",
+        ("13900000099", f"cm_{OPENID}"),
+    )
+    await db.execute(
+        "INSERT INTO member_balance (mobile, points) VALUES (?, 100000)",
+        ("13900000099",),
+    )
+    await db.commit()
+    with pytest.raises(ValueError, match="积分账户已变更"):
+        await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    assert str(loads_payment(order.payment).get("status")) == "partial"
+
+
+@pytest.mark.asyncio
+async def test_settled_refund_writes_facts_and_clears_snapshot(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """问题 3：退款全成功 → 结算/退款事实链 + refund_operation succeeded + 快照清除。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await _seed_points_partial(db, order_id, points_used=5000, points_fen=5000)
+    await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    await points_service.refund_points(order)
+    assert await _points(db) == 100_000
+    facts = await db.execute_fetchall(
+        "SELECT operation_type, amount FROM ledger_operation "
+        "WHERE subject_type = 'order' AND subject_id = ? ORDER BY id ASC",
+        (order_id,),
+    )
+    assert [row["operation_type"] for row in facts] == [
+        "settle_redeem",
+        "settle_award",
+        "refund_return",
+        "refund_clawback",
+    ]
+    assert int(facts[0]["amount"]) == -5000
+    assert int(facts[3]["amount"]) == -50
+    ops = await db.execute_fetchall(
+        "SELECT status, return_amount, clawback_amount FROM refund_operation "
+        "WHERE order_id = ?",
+        (order_id,),
+    )
+    assert ops and ops[0]["status"] == "succeeded"
+    assert int(ops[0]["return_amount"]) == 5000
+    assert int(ops[0]["clawback_amount"]) == 50
+    payment = loads_payment((await OrderRepo(db).get_order(order_id)).payment)
+    assert int(payment.get("pointsUsed") or 0) == 0
+    assert int(payment.get("pointsAwarded") or 0) == 0
+
+
+@pytest.mark.asyncio
+async def test_refund_shortfall_keeps_snapshot_and_writes_debt(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """问题 3：奖励积分扣回余额不足 → 欠账 + 保留事实快照（补偿未终结）。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await _seed_points_partial(db, order_id, points_used=5000, points_fen=5000)
+    await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    # 已发积分账面划入无余额账户（模拟原发分账户已空），clawback 扣回失败
+    await db.execute(
+        "UPDATE points_ledger SET mobile = '13900000000' WHERE unique_id = ?",
+        (f"points:award:{order_id}",),
+    )
+    await db.commit()
+    order = await OrderRepo(db).get_order(order_id)
+    await points_service.refund_points(order)
+    # return 退回 5000；clawback 失败 → 欠账 50，不静默跳过
+    assert await _points(db) == 100_050
+    debts = await db.execute_fetchall(
+        "SELECT amount, status, operation_key FROM refund_shortfall_debt "
+        "WHERE order_id = ?",
+        (order_id,),
+    )
+    assert debts and int(debts[0]["amount"]) == 50
+    assert debts[0]["status"] == "open"
+    assert debts[0]["operation_key"] == f"points:refund:{order_id}:clawback"
+    ops = await db.execute_fetchall(
+        "SELECT status, shortfall_amount FROM refund_operation WHERE order_id = ?",
+        (order_id,),
+    )
+    assert ops and ops[0]["status"] == "shortfall"
+    assert int(ops[0]["shortfall_amount"]) == 50
+    # 补偿未终结：事实快照保留（pointsUsed 不清零），可重试
+    payment = loads_payment((await OrderRepo(db).get_order(order_id)).payment)
+    assert int(payment.get("pointsUsed") or 0) == 5000
+    assert payment.get("pointsSettledAt")
+
+
+# ==================== B3.5（评审问题 5：双连接真实并发）====================
+
+
+@pytest.mark.asyncio
+async def test_dual_connection_concurrent_settle_single_winner(
+    tmp_path,
+) -> None:
+    """问题 5：两个数据库连接 + 同步屏障并发结算同一订单，只有一个活跃尝试胜出。
+
+    评审指出 B3.4 的「并发测试」为顺序执行（同一连接）；本测试用独立连接
+    与 asyncio.Barrier 制造真实并发。WAL 读升写竞争下败者可能得到瞬时
+    `database is locked`（SQLite 死锁回避，非 busy 重试），或 CAS 冲突
+    ValueError——两条路径都不会产生第二个活跃尝试；结算事实（积分流水 /
+    余额 / 订单状态）只出现一次。
+    """
+    import asyncio
+    import sqlite3
+
+    from app.database import close_db, init_db
+    from app.repository.base import DatabaseHandle
+    from tests.helpers.catalog_seed import seed_catalog_product
+
+    db_path = tmp_path / "dual_settle.db"
+    conn_a = await init_db(str(db_path))
+    conn_b = await init_db(str(db_path))
+    try:
+        handle_a = DatabaseHandle(conn_a)
+        handle_b = DatabaseHandle(conn_b)
+        await seed_catalog_product(
+            conn_a,
+            item_id=81099,
+            title="并发结算蛋糕",
+            price_fen=10_000,
+            stock=8,
+        )
+        await conn_a.commit()
+
+        def build_service(handle: DatabaseHandle) -> OrderApplicationService:
+            return OrderApplicationService(
+                order_repo=OrderRepo(handle),
+                event_repo=OrderEventRepo(handle),
+                session_repo=SessionRepo(handle),
+                product_repo=YouzanProductRepo(handle),
+                inventory_repo=YouzanInventoryRepo(handle),
+                config_repo=ConfigRepo(handle),
+            )
+
+        seeder = build_service(handle_a)
+        created = await seeder.create_order(
+            {
+                "items": [
+                    {
+                        "productId": "81099",
+                        "title": "并发结算蛋糕",
+                        "priceFen": 10_000,
+                        "quantity": 1,
+                    }
+                ],
+                "receiverName": "并发测试",
+                "receiverPhone": "18800000099",
+                "deliveryType": "delivery",
+                "deliveryAddress": "并发测试地址",
+                "expectTime": "2026-08-20 19:00",
+            },
+            user_id="wx_openid_dual_001",
+        )
+        order_id = created["orderId"]
+        # 直写积分抵扣 partial（结算将产生可观测的积分流水，用于证明只结算一次）
+        order = await OrderRepo(conn_a).get_order(order_id)
+        payment = loads_payment(order.payment)
+        payment.update(
+            {
+                "status": "partial",
+                "method": "combined",
+                "pointsUsed": 5000,
+                "pointsFen": 5000,
+                "remainFen": 5000,
+            }
+        )
+        await OrderRepo(conn_a).update_payment(
+            order_id, dumps_payment(payment), now_text()
+        )
+        await conn_a.commit()
+        # 并发结算前先建好客户身份与积分账户（扣减目标）
+        await conn_a.execute(
+            "INSERT INTO customer_master (id, tenant_id, status, primary_phone, "
+            "phone_verified, display_name, identity_confidence, has_miniapp_identity) "
+            "VALUES ('cm_dual_001', 'yunxi', 'active', '18800000099', 1, "
+            "'并发结算测试', 'high', 1)"
+        )
+        await conn_a.execute(
+            "INSERT INTO customer_identity_links (id, tenant_id, customer_id, "
+            "identity_type, identity_value, identity_value_normalized, source_system, "
+            "link_status, verification_status, confidence_score) "
+            "VALUES ('cil_dual_001', 'yunxi', 'cm_dual_001', 'miniapp_openid', "
+            "'openid_dual_001', 'openid_dual_001', 'miniapp', 'active', 'verified', 100)"
+        )
+        await conn_a.execute(
+            "INSERT INTO member_balance (mobile, points) VALUES ('18800000099', 100000)"
+        )
+        await conn_a.commit()
+
+        svc_a = build_service(handle_a)
+        svc_b = build_service(handle_b)
+        barrier = asyncio.Barrier(2)
+
+        async def attempt(svc: OrderApplicationService) -> str:
+            await barrier.wait()
+            try:
+                await svc.confirm_mock_payment(order_id, user_id="wx_openid_dual_001")
+                return "ok"
+            except ValueError:
+                return "conflict"
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc).lower():
+                    raise
+                return "locked"
+
+        results = await asyncio.gather(attempt(svc_a), attempt(svc_b))
+        # 恰有一个活跃尝试胜出；败者要么 CAS 冲突，要么瞬时锁（读升写竞争）
+        assert results.count("ok") == 1
+        assert set(results) == {"ok", "conflict"} or set(results) == {"ok", "locked"}
+        # 结算事实只出现一次：积分流水恰 2 条（redeem + award），余额唯一
+        rows = await conn_a.execute_fetchall(
+            "SELECT COUNT(*) AS c FROM points_ledger WHERE biz_id = ?", (order_id,)
+        )
+        assert int(rows[0]["c"]) == 2
+        balance = await conn_a.execute_fetchall(
+            "SELECT points FROM member_balance WHERE mobile = '18800000099'"
+        )
+        assert balance and int(balance[0]["points"]) == 95_050
+        orders = await conn_a.execute_fetchall(
+            "SELECT payment FROM orders WHERE id = ?", (order_id,)
+        )
+        assert orders
+        assert str(loads_payment(str(orders[0]["payment"])).get("status")) == "paid"
+    finally:
+        await close_db(conn_a)
+        await close_db(conn_b)

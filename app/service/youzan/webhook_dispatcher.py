@@ -92,9 +92,19 @@ class YouzanWebhookDispatcher:
             key = str(row["message_key"])
             try:
                 payload = json.loads(str(row["payload_json"]))
+                # B3.5（评审问题 8）：业务写与 mark_processed 同一事务——
+                # 先在同一 UoW 内校验 lease 归属（claim_token 语义：被接管则
+                # 跳过处理且不写业务、不标记失败，由新持有者负责），
+                # 处理成功与 processed 标记原子提交，失败整体回滚可重试。
                 async with db_session_scope():
+                    if not await InboxRepo().renew_or_validate_lease(
+                        key, expected_attempt=int(row["attempt_count"])
+                    ):
+                        logger.warning(
+                            "有赞 webhook 已被其他 worker 接管，跳过处理: key=%s", key
+                        )
+                        continue
                     await process_youzan_webhook(self._chat_service, payload)
-                async with db_session_scope():
                     await InboxRepo().mark_processed(key)
             except Exception as exc:
                 logger.error("有赞持久 webhook 处理失败 key=%s err=%s", key, exc)

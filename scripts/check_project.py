@@ -415,14 +415,17 @@ def _rel_doc_path(file_path: Path) -> Path:
         return Path(str(file_path))
 
 
-# ── D1-0 直接写状态守卫（B3.4，评审问题 4）─────────────────────────────────
+# ── D1-0 直接写状态守卫（B3.4 落地 + B3.5 升级为 AST 方法级，评审问题 4/10）────
 # 与 ADR 0008 D1-0 迁移矩阵逐行封闭对应：仅矩阵列明的旧写路径模块允许
-# 直接写账务状态（写 order.payment / 余额 / 积分 / 券等）；矩阵外的
-# service / api 模块直接写即检查失败。矩阵新增写路径必须同步本白名单。
+# 直接写账务状态（写 order.payment / 余额 / 积分 / 券等），且 B3.5 起按
+# **方法级 allowlist** 收口——白名单模块内只有矩阵逐行对应的函数允许直写，
+# 其他函数（含白名单模块新增写路径）一律检查失败；矩阵外模块任何函数
+# 直写即失败。矩阵新增写路径必须同步本白名单与方法级 allowlist（封闭核对）。
 D1_MATRIX_LEGACY_WRITE_MODULES: tuple[str, ...] = (
     "app/api/channels/storefront/payments.py",
     "app/api/channels/storefront/recharges.py",
     "app/service/coupon/admin.py",
+    "app/service/coupon/inventory.py",
     "app/service/coupon/payment.py",
     "app/service/member_loyalty.py",
     "app/service/order/application.py",
@@ -439,6 +442,56 @@ D1_MATRIX_LEGACY_WRITE_MODULES: tuple[str, ...] = (
     "app/service/youzan/event_member.py",
 )
 
+# B3.5（评审问题 10）：方法级 allowlist——各白名单模块内允许直写账务状态的
+# 函数名（与 ADR 0008 D1-0 迁移矩阵逐行封闭对应；从真实写点枚举校准，
+# 含 _repo.consume / _repo.refund 等正则时代漏检的仓储写方法）。
+D1_MATRIX_ALLOWED_WRITE_FUNCTIONS: dict[str, frozenset[str]] = {
+    "app/service/coupon/admin.py": frozenset({"grant_coupon"}),
+    "app/service/coupon/inventory.py": frozenset({"consume_once", "refund_once"}),
+    "app/service/coupon/payment.py": frozenset(
+        {"apply_coupon_snapshot", "clear_coupon_snapshot", "consume_on_payment"}
+    ),
+    "app/service/member_loyalty.py": frozenset({"_upsert_coupon", "import_one"}),
+    "app/service/order/cancellation.py": frozenset({"_cancel_order"}),
+    "app/service/order/expiration.py": frozenset({"_close_unpaid_order"}),
+    "app/service/order/payment_notification.py": frozenset(
+        {"_claim_transaction", "mark_paid"}
+    ),
+    "app/service/order/payment_runtime.py": frozenset(
+        {"_mark_wechat_payment_paid", "confirm_mock_payment"}
+    ),
+    "app/service/order/status_flow.py": frozenset({"_cancel_order"}),
+    "app/service/points/ledger.py": frozenset({"credit", "deduct"}),
+    "app/service/points/payment.py": frozenset(
+        {
+            "apply_points_snapshot",
+            "refund_settled_points",
+            "_record_awarded",
+            "_clear_awarded",
+            "award_on_payment",
+        }
+    ),
+    "app/service/stored_value/member.py": frozenset({"credit", "deduct"}),
+    "app/service/stored_value/payment.py": frozenset(
+        {"pay_order_with_balance", "prepare_combined_payment"}
+    ),
+    "app/service/stored_value/recharge.py": frozenset(
+        {
+            "cancel_unpaid_recharge",
+            "create_recharge",
+            "confirm_mock_recharge_payment",
+        }
+    ),
+    "app/service/youzan/event_member.py": frozenset(
+        {
+            "_handle_points_event",
+            "_handle_coupon_event",
+            "_handle_customer_event",
+            "_handle_card_event",
+        }
+    ),
+}
+
 DIRECT_WRITE_SQL_RE = re.compile(
     r"(INSERT INTO|UPDATE|DELETE FROM)\s+"
     r"(orders|member_balance|points_ledger|coupon_inventory|coupon_events|"
@@ -449,40 +502,190 @@ DIRECT_WRITE_SQL_RE = re.compile(
     re.IGNORECASE,
 )
 
-REPO_WRITE_CALL_RE = re.compile(
-    r"(?:[a-z_]*repo|_service|_inventory_service|_notification_service|"
-    r"_member_service)\.(update_payment|update_payment_to_|close_unpaid_order|"
-    r"cancel_unpaid_order|credit_points|deduct_points_if_sufficient|"
-    r"credit_stored_value|deduct_stored_value|consume_once|back_once|"
-    r"mark_paid|insert|grant)\("
+# 仓储接收者形态：模块级属性 / 局部变量名形如 *_repo / *_service / db / handle
+_D1_RECEIVER_RE = re.compile(
+    r"(?:[a-z_]*repo|_db|db|handle|_service|_inventory_service|"
+    r"_notification_service|_member_service)\Z"
 )
+
+# 账务仓储提示词：接收者名含以下任一提示时才把「通用写方法名」视为账务写
+_D1_ACCOUNTING_HINT_RE = re.compile(
+    r"(ledger|balance|points|coupon|recharge|refund|inventory|grant|hold|"
+    r"quota|outbox|reconcile|shortfall|payment_attempt|account|dedup)"
+)
+
+# 显式账务写方法：任何 *_repo / *_service 接收者调用即视为直写（B3.5 补入
+# consume / refund——正则时代漏检 _repo.consume / _repo.refund，评审问题 10）
+_D1_EXPLICIT_WRITE_ATTRS: frozenset[str] = frozenset(
+    {
+        "update_payment",
+        "update_payment_if_unpaid_active",
+        "update_payment_to_partial_if_unpaid_active",
+        "update_payment_to_partial_if_unpaid_or_partial_active",
+        "update_payment_to_paid_if_unpaid_or_partial_active",
+        "close_unpaid_order",
+        "cancel_unpaid_order",
+        "claim_payment_transaction",
+        "upsert_identity",
+        "credit_points",
+        "deduct_points_if_sufficient",
+        "credit_stored_value",
+        "deduct_stored_value_if_sufficient",
+        "mark_paid",
+        "consume_once",
+        "back_once",
+        "consume",
+        "refund",
+        "mark_paid_if_unpaid",
+        "cancel_if_unpaid",
+        "expire_if_unpaid",
+        "close_open",
+        "open_case",
+    }
+)
+
+# 通用写方法名：仅当接收者名含账务提示词时视为直写（避免误伤 session / config
+# / transfer 等非账务仓储的 insert / create / append / set 调用）
+_D1_GENERIC_WRITE_ATTRS: frozenset[str] = frozenset(
+    {
+        "insert",
+        "create",
+        "append",
+        "grant",
+        "revoke",
+        "deduct",
+        "credit",
+        "add_points",
+        "award_points",
+        "refund_coupon",
+        "clear_coupon_snapshot",
+        "consume_coupon",
+    }
+)
+
+
+def _d1_receiver_is_repo(node: ast.expr) -> bool:
+    """接收者是否为仓储 / 服务实例形态（Name 或 Attribute 末段匹配）。"""
+    if isinstance(node, ast.Name):
+        return bool(_D1_RECEIVER_RE.match(node.id))
+    if isinstance(node, ast.Attribute):
+        return bool(_D1_RECEIVER_RE.match(node.attr))
+    return False
+
+
+def _d1_receiver_hint(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ""
+
+
+def _d1_write_sites(tree: ast.Module) -> list[tuple[str, int]]:
+    """收集模块内全部账务直写点（AST）：直接 SQL 常量 / execute(SQL) / 仓储写方法。
+
+    B3.5（评审问题 10）：方法级归因——每个写点随后归属到最内层函数，
+    守卫按「白名单模块 × 方法级 allowlist」裁决，不再整文件跳过白名单模块。
+    """
+    sites: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if DIRECT_WRITE_SQL_RE.search(node.value):
+                sites.append(("SQL", getattr(node, "lineno", 0)))
+            continue
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not isinstance(func, ast.Attribute) or not _d1_receiver_is_repo(func.value):
+            continue
+        attr = func.attr
+        line = getattr(node, "lineno", 0)
+        recv = _d1_receiver_hint(func.value)
+        if attr in ("execute", "execute_fetchall", "executemany"):
+            sql_args = list(node.args) + [
+                kw.value for kw in node.keywords if kw.arg in ("sql", "query")
+            ]
+            for arg in sql_args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    if DIRECT_WRITE_SQL_RE.search(arg.value):
+                        sites.append((f"{attr}(SQL)", line))
+        elif attr in _D1_EXPLICIT_WRITE_ATTRS:
+            sites.append((attr, line))
+        elif attr in _D1_GENERIC_WRITE_ATTRS and _D1_ACCOUNTING_HINT_RE.search(recv):
+            sites.append((attr, line))
+    return sites
+
+
+def _d1_line_to_func(tree: ast.Module) -> dict[int, str]:
+    """行号 → 最外层函数名（嵌套函数归到其所在方法，写点以方法为裁决单位）。"""
+    result: dict[int, str] = {}
+
+    def visit(node: ast.AST, stack: tuple[str, ...]) -> None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            stack = stack + (node.name,)
+        for child in ast.iter_child_nodes(node):
+            visit(child, stack)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for child in ast.walk(ast.Module(body=node.body, type_ignores=[])):
+                if hasattr(child, "lineno"):
+                    result.setdefault(child.lineno, ".".join(stack))
+
+    visit(tree, ())
+    return result
 
 
 def check_d1_migration_guard(
     scan_dirs: tuple[Path, ...] | None = None,
 ) -> CheckResult:
-    """D1-0 直接写状态守卫（B3.4，评审问题 4）。
+    """D1-0 直接写状态守卫（B3.4 + B3.5 升级为 AST 方法级 allowlist，评审问题 4/10）。
 
     扫描 service / api 层直接写账务状态（直接 SQL 写或仓储写方法调用：
     order.payment、member_balance、points_ledger、coupon_inventory、
     stored_value、recharges 及 D1 账务表），凡未在 ADR 0008 D1-0 迁移矩阵
-    逐行列明（白名单 D1_MATRIX_LEGACY_WRITE_MODULES）的模块一律检查失败；
+    逐行列明（白名单 D1_MATRIX_LEGACY_WRITE_MODULES + 方法级
+    D1_MATRIX_ALLOWED_WRITE_FUNCTIONS）的模块 / 函数一律检查失败；
     仓储层（app/repository）为受权存储层，不在此扫描范围。
     """
     violations: list[str] = []
     targets = scan_dirs or (APP_DIR / "service", APP_DIR / "api")
     for file_path in iter_python_files(targets):
         rel = str(_rel_doc_path(file_path)).replace("\\", "/")
-        if rel in D1_MATRIX_LEGACY_WRITE_MODULES:
-            continue
         try:
+            tree = ast.parse(
+                file_path.read_text(encoding=TEXT_ENCODING), filename=str(file_path)
+            )
+        except SyntaxError:
+            # 语法不完整（如测试夹具中的裸 SQL 行 / 模块级 await）：退回行级扫描
             text = file_path.read_text(encoding=TEXT_ENCODING)
+            for line_no, line_text in enumerate(text.splitlines(), start=1):
+                if DIRECT_WRITE_SQL_RE.search(line_text):
+                    violations.append(
+                        f"{rel}:{line_no}: 绕过统一支付应用服务直接写状态"
+                        f"（SQL，非 AST 可解析模块）: {line_text.strip()}"
+                    )
+            continue
         except OSError:
             continue
-        for line_no, line in enumerate(text.splitlines(), start=1):
-            if DIRECT_WRITE_SQL_RE.search(line) or REPO_WRITE_CALL_RE.search(line):
+        sites = _d1_write_sites(tree)
+        if not sites:
+            continue
+        in_matrix = rel in D1_MATRIX_LEGACY_WRITE_MODULES
+        allowed = D1_MATRIX_ALLOWED_WRITE_FUNCTIONS.get(rel, frozenset())
+        line_to_func = _d1_line_to_func(tree)
+        source_lines = file_path.read_text(encoding=TEXT_ENCODING).splitlines()
+        for kind, line in sites:
+            func_name = ""
+            for ln in range(line, 0, -1):
+                if ln in line_to_func:
+                    func_name = line_to_func[ln]
+                    break
+            if not in_matrix or func_name not in allowed:
+                raw = (
+                    source_lines[line - 1].strip() if line <= len(source_lines) else ""
+                )
                 violations.append(
-                    f"{rel}:{line_no}: 绕过统一支付应用服务直接写状态: {line.strip()}"
+                    f"{rel}:{line}: 绕过统一支付应用服务直接写状态"
+                    f"（{kind}@{func_name or '<模块级>'}）: {raw}"
                 )
     return CheckResult("D1-0 直接写状态守卫", not violations, violations)
 

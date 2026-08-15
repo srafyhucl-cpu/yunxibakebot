@@ -39,7 +39,11 @@ class CouponInventoryRepo(BaseRepository):
         return rows[0] if rows else None
 
     async def insert(self, entry: CouponInventoryEntry) -> None:
-        """写入一条优惠券生命周期记录（含模板/有效期/核销回填列）。"""
+        """写入一条优惠券生命周期记录（含模板/有效期/核销回填列）。
+
+        B3.5（评审问题 1）：账务仓储**不自提交**，由调用方统一支付应用服务 /
+        发券 / 摄取命令独占事务边界（外层 transaction 或 db_session_scope 提交）。
+        """
         await self._db.execute(
             "INSERT INTO coupon_inventory (coupon_id, coupon_group_id, customer_id, "
             "mobile, status, order_no, title, value_fen, detail_json, source, "
@@ -67,7 +71,6 @@ class CouponInventoryRepo(BaseRepository):
                 entry.refunded_at,
             ),
         )
-        await self._db.commit()
 
     async def list_by_mobile(
         self, mobile: str, *, authority: str = "youzan", limit: int = 100

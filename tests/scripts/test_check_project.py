@@ -152,6 +152,52 @@ def test_migration_guard_passes_real_repo() -> None:
     assert result.passed, result.details
 
 
+def test_migration_guard_flags_bare_repo_consume_refund(tmp_path) -> None:
+    """D1-0 迁移守卫（B3.5，评审问题 10）：`_repo.consume / _repo.refund` 不再漏检。
+
+    正则时代 REPO_WRITE_CALL_RE 缺 consume / refund 属性，白名单外模块
+    `self._repo.consume(...)` 直写券状态可绕过守卫；AST 方法级守卫必须拦截。
+    """
+    module = tmp_path / "rogue_coupon_consume.py"
+    module.write_text(
+        "# 未列入迁移矩阵的直写模块\n"
+        "async def rogue() -> None:\n"
+        "    await self._repo.consume('c1', '13900000000', order_no='o1')\n"
+        "    await self._repo.refund('c1', '13900000000', order_no='o1')\n",
+        encoding="utf-8",
+    )
+    result = check_project.check_d1_migration_guard((tmp_path,))
+    assert not result.passed
+    assert any("绕过统一支付应用服务直接写状态" in detail for detail in result.details)
+
+
+def test_migration_guard_is_method_level_allowlist(tmp_path, monkeypatch) -> None:
+    """D1-0 迁移守卫（B3.5，评审问题 10）：白名单模块内仅 allowlist 函数可直写。
+
+    白名单模块不再是整文件放行——非 allowlist 函数新增直写即失败。
+    """
+    module = tmp_path / "matrix_writer.py"
+    module.write_text(
+        "# 模拟矩阵白名单模块\n"
+        "async def allowed_fn() -> None:\n"
+        "    await self._inventory_repo.insert(coupon)\n"
+        "async def rogue_fn() -> None:\n"
+        "    await self._inventory_repo.insert(coupon)\n",
+        encoding="utf-8",
+    )
+    rel = str(check_project._rel_doc_path(module)).replace("\\", "/")
+    monkeypatch.setattr(check_project, "D1_MATRIX_LEGACY_WRITE_MODULES", (rel,))
+    monkeypatch.setattr(
+        check_project,
+        "D1_MATRIX_ALLOWED_WRITE_FUNCTIONS",
+        {rel: frozenset({"allowed_fn"})},
+    )
+    result = check_project.check_d1_migration_guard((tmp_path,))
+    assert not result.passed
+    assert any("rogue_fn" in detail for detail in result.details)
+    assert not any("allowed_fn" in detail for detail in result.details)
+
+
 def test_payment_notify_migration_chain_present() -> None:
     """D1-0 迁移表支付通知行按真实调用链命名（B3.4，评审问题 4）。"""
     import app.api.channels.storefront.payments as api_mod

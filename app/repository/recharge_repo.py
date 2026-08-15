@@ -14,7 +14,11 @@ class RechargeRepo(BaseRepository):
     )
 
     async def create(self, recharge: RechargeOrder) -> None:
-        """创建充值单。"""
+        """创建充值单。
+
+        B3.5（评审问题 1）：账务仓储**不自提交**，由调用方服务事务边界提交
+        （RechargeService 外层 transaction 或 db_session_scope）。
+        """
         await self._db.execute(
             "INSERT INTO stored_value_recharge (id, user_id, mobile, amount_fen, "
             "status, payment_method, paid_at, expired_at, created_at, updated_at) "
@@ -32,7 +36,6 @@ class RechargeRepo(BaseRepository):
                 recharge.updated_at,
             ),
         )
-        await self._db.commit()
 
     async def get(self, recharge_id: str) -> RechargeOrder | None:
         """按充值单号读取充值单。"""

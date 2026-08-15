@@ -14,7 +14,11 @@ class CouponGrantRepo(BaseRepository):
     )
 
     async def insert(self, grant: CouponGrant) -> None:
-        """写入发券记录。"""
+        """写入发券记录。
+
+        B3.5（评审问题 1）：账务仓储**不自提交**，由调用方命令（发券 / 导入）
+        外层事务提交。
+        """
         await self._db.execute(
             "INSERT INTO coupon_grants (id, template_id, customer_id, mobile, coupon_code, "
             "granted_by, channel, audience_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -31,7 +35,6 @@ class CouponGrantRepo(BaseRepository):
                 grant.created_at or now_str(),
             ),
         )
-        await self._db.commit()
 
     async def get(self, grant_id: str) -> dict | None:
         """按发券记录 ID 读取。"""
@@ -67,9 +70,8 @@ class CouponGrantRepo(BaseRepository):
         return await self._db.execute_fetchall(sql, params)
 
     async def revoke(self, grant_id: str) -> None:
-        """回收发券记录。"""
+        """回收发券记录（B3.5：账务仓储不自提交，由调用方事务提交）。"""
         await self._db.execute(
             "UPDATE coupon_grants SET status = 'revoked' WHERE id = ?",
             (grant_id,),
         )
-        await self._db.commit()

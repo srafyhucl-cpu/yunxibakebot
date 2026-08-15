@@ -441,9 +441,19 @@ async def test_combined_payment_wechat_notify_uses_remainder_amount(
         "out_trade_no": order_id,
         "mchid": "mch-stored",
         "appid": "appid-stored",
-        "currency": "CNY",
+        "trade_state": "SUCCESS",
+        "success_time": "2026-08-15T12:00:00+08:00",
         "transaction_id": "4200000000202608121234567890",
     }
-    await notifier.validate_transaction({**base, "amount": {"total": 3000}})
+    # B3.5（评审问题 4）：币种取 amount.currency（顶层无 currency），字段按真实 v3 报文
+    await notifier.validate_transaction(
+        {**base, "amount": {"total": 3000, "currency": "CNY"}}
+    )
     with pytest.raises(ValueError, match="金额不匹配"):
-        await notifier.validate_transaction({**base, "amount": {"total": 5000}})
+        await notifier.validate_transaction(
+            {**base, "amount": {"total": 5000, "currency": "CNY"}}
+        )
+    with pytest.raises(ValueError, match="币种"):
+        await notifier.validate_transaction(
+            {**base, "amount": {"total": 3000, "currency": "USD"}}
+        )
