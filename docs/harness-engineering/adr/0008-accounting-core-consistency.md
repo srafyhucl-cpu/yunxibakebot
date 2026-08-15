@@ -5,7 +5,7 @@
 - trace_id: `20260814-member-loyalty-accounting-contract`
 - decision_owner: project owner（决策主体 / 唯一批准人）
 - technical_advisor: AI (Codex)（仅技术建议，不构成批准）
-- revised_at: 2026-08-14（B1.6 合同完成包：补齐真实 UoW 清单与 outbox schema、定稿券事件合同、明确退款 Saga 语义并记录项目负责人三项裁决；B1.7 合同收口：券命令模型 / RESERVED 预占 / 投影 CAS、净额退款与退款预占、outbox fencing、新账务仓储入零 commit 契约）
+- revised_at: 2026-08-15（B1.6 合同完成包：补齐真实 UoW 清单与 outbox schema、定稿券事件合同、明确退款 Saga 语义并记录项目负责人三项裁决；B1.7 合同收口：券命令模型 / RESERVED 预占 / 投影 CAS、净额退款与退款预占、outbox fencing、新账务仓储入零 commit 契约；B1.8 合同修正：transition_key 含类型与支付尝试（修复 RESERVE/CONSUME 键冲突）、order_refund_quota 单条条件更新预占、上游版本合同与重建 UoW 原子性、持久 payment_attempt 表）
 - related_docs:
   - `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`
   - `docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md`
@@ -44,7 +44,8 @@
 | `OrderEventRepo` | `add` | 订单状态事件写路径（真实储值链路一环） |
 | `AccountingOutboxRepo`（新建） | `enqueue` / `claim` / `complete` / `fail` | B1.7 新增，写 `accounting_outbox`，纳入故障注入矩阵 |
 | `CouponEventRepo`（新建） | `append`（含条件投影 CAS 同一 UoW） | B1.7 新增，写 `coupon_events` + `coupon_current_state` |
-| `RefundRepo`（新建） | `create_refund` / `update_quota` / `operation_update` | B1.7 新增，写 `refund_aggregate` + `refund_operation` |
+| `RefundRepo`（新建） | `create_refund` / `quota_reserve`（单条条件更新）/ `quota_release` / `operation_update` | B1.7 + B1.8 新增，写 `refund_aggregate` + `refund_operation` + `order_refund_quota` |
+| `PaymentAttemptRepo`（新建） | `create` / `settle_if_valid` / `invalidate` | B1.8 新增，写 `payment_attempt`（`merchant_order_no` 唯一不可复用） |
 
 **`InboxRepo` 不纳入零 commit 契约**：`InboxRepo` 是 ADR 0006 定义的入站持久队列，其 `enqueue` / `claim` / `mark_processed` / `mark_failed` 的自提交是**队列自身持久化语义**，不属于账务 UoW 写入；账务 UoW 只把「外部动作投递」写入独立 `accounting_outbox`。禁止把通用入站队列方法笼统纳入"零 commit"规则——账务 UoW 写入与队列自身持久化必须区分。
 
@@ -83,10 +84,12 @@
 
 **唯一模型（B1.6 + B1.7 定稿，不再保留多个实施候选）**：
 
-- 事件表 `coupon_events`（v025+ 迁移）：每行一条券生命周期事件。**事件标识拆分（B1.7）**：
-  - `transition_key`：**不含来源**的逻辑转换幂等键，`UNIQUE`，用于业务转换去重：`transition_key = sha256(coupon_id + ":" + mobile + ":" + business_ref + ":" + cycle_no)`；`business_ref` 为 `order:<order_no>`（核销 / 预占）、`refund:<refund_no>`（退回）、`take:<外部事件 ID>`（领取）、`import:<导入批次 ID>`（导入）、`legacy:<coupon_inventory.id>`（历史行迁移）；`cycle_no` 为同券同业务引用周期序号（int，从 0 起）。
+- 事件表 `coupon_events`（v025+ 迁移）：每行一条券生命周期事件。**事件标识拆分（B1.7 + B1.8）**：
+  - `transition_key`：**不含来源**的逻辑转换幂等键，`UNIQUE`，用于业务转换去重。**必须包含事件类型与支付尝试（B1.8 修正，否则 `RESERVE` 与同订单 `CONSUME` 生成同一键被自身幂等拒绝）**：
+    `transition_key = sha256(coupon_id + ":" + mobile + ":" + transition_type + ":" + business_ref + ":" + cycle_no + ":" + payment_attempt_id)`
+    其中 `transition_type ∈ {TAKE, RESERVE, RELEASE, CONSUME, BACK, EXPIRE}`；`business_ref` 为 `order:<order_no>`（预占 / 核销）、`refund:<refund_no>`（退回）、`take:<外部事件 ID>`（领取）、`import:<导入批次 ID>`（导入）、`legacy:<coupon_inventory.id>`（历史行迁移）；`payment_attempt_id` 仅订单路径事件携带（非订单路径为空串）；**`RESERVE` 成功时分配 `cycle_no`，同 `payment_attempt_id` 的 `CONSUME` 复用该预占周期**（同一转换键语义：预占 + 核销各自独立一行）。
   - `ingest_source`：摄取来源字段（`import` / `webhook` / `order` / `local` / `legacy`），**不参与 `transition_key`**。
-  - `origin_event_id`：外部原始事件 ID（如有赞 `msg_id` / 导入批次行 ID）。**同一外部事件经 import 与 webhook 两条通道到达时，以 `origin_event_id` 幂等去重**，不产生两条业务事件；无法确认来源事件的记录隔离待对账，**禁止伪造外部事件 ID**。
+  - `origin_event_id`：**上游稳定事件 ID**（B1.8：必须可跨 import / webhook 通道对齐，如由有赞业务事件确定的 `msg_id` / 事件主键；**导入批次行 ID 不能默认等同 webhook `msg_id`**，仅当二者可证实指向同一上游事件时才允许对齐）；同一外部事件双通道到达以 `origin_event_id` 幂等去重；**无法确认来源的事件隔离待对账，禁止伪造外部事件 ID**。
 - **券生命周期状态迁移表（B1.7 加入 `RESERVED` 预占，唯一允许的迁移，禁止跨状态跳转）**：
 
   | from | event | to | 前置条件 |
@@ -101,7 +104,7 @@
 
 - **投影版本 / CAS（B1.7）**：`coupon_current_state` 含单调 `version`、`expected_status`；转换采用**条件更新**——追加事件与更新投影**在同一 UoW 内**执行，投影 `UPDATE ... WHERE coupon_id=? AND mobile=? AND version=expected_version AND status=expected_status`，不满足则事务整体回滚（防两个订单同时读 `TAKE` 并各自建支付会话：第二个 `RESERVE` 条件更新失败）。
 - **因果顺序规则（B1.7）**：`CONSUME` 事件必须引用同一 `payment_attempt_id` 的 `RESERVE` 事件；`RELEASE` / `CONSUME` / `BACK` 均以投影 `expected_status` 做 CAS，保证因果顺序；来源权重不再参与事件排序（`(occurred_at, id)` 单调，迟到事件追加后重算投影）。
-- **跨来源重复事件规则**：同一 `transition_key` 幂等拒绝（`UNIQUE` 兜底）；同一外部事件（同 `origin_event_id`）重复摄取拒绝，跨来源不再互相占用唯一键位。
+- **跨来源重复事件规则**：同一 `transition_key`（含 `transition_type` + `payment_attempt_id`）幂等拒绝（`UNIQUE` 兜底）；同一上游事件（同 `origin_event_id`，须可跨通道证实对齐）重复摄取拒绝，跨来源不再互相占用唯一键位。
 - 当前态投影 `coupon_current_state`（条件投影）：按 `coupon_id + mobile` 聚合最新事件行，投影出 `status / order_no / refund_no / payment_attempt_id / valid_from / valid_until / value_fen / version` 等当前态字段，供可用券列表、核销判定与 local 权威读取。
 - **历史行迁移（B1.7）**：现有 `coupon_inventory` 行迁移为 `transition_key = legacy:<coupon_inventory.id>`（无法确认外部来源事件 ID，不作伪造）；迁移完成后旧 `idx_coupon_inventory_dedup (coupon_id, status, mobile)`（v024:66）标为**"第一阶段现状，禁止用于新实现"**并最终删除。
 - local 权威下 webhook/import 券以事件形式入 `coupon_events`，不再被 `source IN ('order','local')` 过滤丢券；FP-2 切换唯一键冲突与 FP-3 券 BACK 二次核销限制一并解除。
@@ -121,7 +124,8 @@
 - **跨微信退款采用 Saga 最终一致**：微信退款成功是外部不可逆动作。**微信已退款成功、本地补偿失败时不能整体回滚**，只能进入 `manual_review` 并等待对账 / 人工补录。
 
 - 新增 `refund_aggregate`：`refund_no`、`order_id`、`policy`（`full` / `partial`）、**原支付快照**（`payment.json` 原文：total/coupon/balance/points/remain + 行级折扣分摊）、各资产分摊（微信款 / 余额 / 积分）、总状态集 `requested / processing / succeeded / failed / manual_review`、对账状态。
-- **订单级退款汇总 / 预占（B1.7）**：`refund_aggregate` 维护 `refunded_fen` 与 `reserved_fen`，任何新 `refund_aggregate` 创建 / 更新必须满足条件约束 **`requested + processing + succeeded <= refundable_fen`**（`refundable_fen` 取自支付快照净额），并随申请即时预占 `reserved_fen`，防止并发部分退款超退。
+- **订单级退款汇总 / 预占（B1.7 + B1.8）**：新增 **`order_refund_quota`** 表，按 `UNIQUE(order_id, payment_attempt_id)` 一行额度（字段：`refundable_fen` / `reserved_fen` / `refunded_fen` / `version`）。任何新 `refund_aggregate` 创建 / 更新先对额度行做**单条条件更新预占**：`UPDATE order_refund_quota SET reserved_fen = reserved_fen + ? , version = version + 1 WHERE order_id=? AND payment_attempt_id=? AND version=? AND refunded_fen + reserved_fen + ? <= refundable_fen`——不满足即整笔拒绝（并发部分退款不可能超额预占）。
+- **预占释放规则（B1.8 明确）**：`refund_aggregate` 成功 → 预占转实退（`reserved -= x; refunded += x`）；**微信退款尚未发起即失败 / 取消** → 释放预占（`reserved -= x`）；**微信退款成功或进入 `manual_review`** → 保持占用（`reserved` 不变），直到对账关闭或人工裁决释放。
 - 新增 `refund_operation`（子操作）：每步补偿一个资产——`operation_key` 幂等键（B1.7：**所有账本操作一律按 `refund_no` 幂等**，即 `refund_operation.operation_key = "refund:<refund_no>:<asset>"`，不再以 `order_id` 为键，支持同一订单多笔部分退款）、资产类型、金额 / 积分单位、状态 `pending / success / failed / manual_review`、重试计数、人工复核条件、微信退款号 / 异步结果关联。
 - **积分收回不足（B1.7 裁决）**：按 `refund_no` 收回 `pointsAwarded` 时积分余额不足，缺口记录为 **`manual_review` + 冻结额度**（`refund_operation.points_shortfall_frozen`），不产生负余额；后续积分到账按冻结额度优先补扣，补扣成功后冲减冻结，全部补齐后方可关闭该 `refund_operation`。对账任务须对 `manual_review` 超过最大未决时长的缺口升级人工。
 - **人工复核进入条件（明确）**：任一 `refund_operation` 重试达上限仍失败，或「微信退款步骤已 `success`、后续本地补偿步骤 `failed`」（即微信已退、本地未补偿，必须可观测、可人工补录），或积分收回不足触发冻结。
@@ -142,18 +146,20 @@
 
 - 所有支付 / 退款路径的事务边界收敛到 UoW 属主：**本地账务 UoW 原子回滚；跨微信退款按 Saga 最终一致，微信已退本地未补偿进入人工复核**，不再声称"可整体回滚"。
 - 券生命周期支持 `RESERVED` 预占与多周期核销退回（投影 CAS 防双花）；local 切换唯一键冲突消除（需 v025+ 迁移与基线迁移）。
-- 退款具备持久状态、幂等（`refund_no`）、预占约束、净额口径、对账与人工复核能力；积分收回不足为 manual_review + 冻结额度。
+- 退款具备持久状态、幂等（`refund_no`）、`order_refund_quota` 单条条件更新预占（并发不可超额）、净额口径、对账与人工复核能力；积分收回不足为 manual_review + 冻结额度。
 - outbox 具备 fencing（lease_token 条件更新）、依赖顺序、最大重试与微信商户幂等映射。
-- 涉及核心迁移（券表、退款表、`accounting_outbox`）与全量回归；故障注入测试纳入门禁。
+- 支付尝试持久化（`payment_attempt` + `out_trade_no` 不可复用），迟到通知无法按新快照结算旧尝试。
+- 涉及核心迁移（券表、退款表、`accounting_outbox`、`payment_attempt`）与全量回归；故障注入测试纳入门禁。
 - 实施期间建议配合方案 C（服务端关闭储值/积分/券写操作）作为临时边界，降低风险；积分门禁已裁决为关闭 Platform 积分写操作，券门禁已裁决为关闭旧入口券能力 + 正式版关闭券抵扣。
 
 ## Verification（实施阶段验收）
 
-- 账务仓储清单（含 B1.7 新增 `AccountingOutboxRepo` / `CouponEventRepo` / `RefundRepo`）"零 commit/rollback"静态检查通过（红绿迁移）。
+- 账务仓储清单（含 B1.7/B1.8 新增 `AccountingOutboxRepo` / `CouponEventRepo` / `RefundRepo` / `PaymentAttemptRepo`）"零 commit/rollback"静态检查通过（红绿迁移）。
 - 故障注入集成测试：订单 / 余额 / 券 / 积分 / outbox 任一步注入失败，断言全部状态回滚（无 paid、无扣款、无核销、无发分、无外发）。
-- 券命令模型测试：`TAKE → RESERVE → CONSUME → BACK`（含 `RESERVED → RELEASE`）全周期；两个订单并发 `RESERVE` 同一 TAKE 券只有一个成功（投影 CAS）；同一外部事件 import/webhook 双通道仅一条 `transition_key`；`origin_event_id` 幂等去重；legacy 行迁移不伪造外部事件 ID。
-- 投影重建测试：新事件处理后旧快照覆盖，投影重建恢复（关联 FP-1 I1 重建器）。
-- 退款聚合测试：`refund_aggregate + refund_operation` 幂等（`refund_no` 键）、订单级退款预占约束 `requested+processing+succeeded <= refundable_fen`、净额口径分摊、积分收回不足的 manual_review + 冻结额度、微信已退本地未补偿的人工复核路径、进程重启恢复、对账一致。
+- 券命令模型测试：`TAKE → RESERVE → CONSUME → BACK`（含 `RESERVED → RELEASE`）全周期；**`RESERVE` 与同订单 `CONSUME` 的 `transition_key` 不相同（含 `transition_type` + `payment_attempt_id`，无键冲突回归测试）**；两个订单并发 `RESERVE` 同一 TAKE 券只有一个成功（投影 CAS）；同一外部事件 import/webhook 双通道仅一条 `transition_key`；`origin_event_id` 须可跨通道对齐，导入批次行 ID 不等同 webhook `msg_id`，无法对齐的隔离对账；legacy 行迁移不伪造外部事件 ID。
+- 投影重建测试：新事件处理后旧快照覆盖，投影重建恢复（关联 FP-1 I1 重建器）；按聚合上游版本胜出、`UNIQUE(batch_id, asset, inbox_event_id)` 物化幂等、投影 / 物化 / checkpoint 同 UoW。
+- 退款聚合测试：`refund_aggregate + refund_operation` 幂等（`refund_no` 键）、**`order_refund_quota` 单条条件更新并发预占（两笔并发部分退款不可能超额）**、预占释放规则（失败未发起微信释放 / 微信成功或 manual_review 保持占用）、净额口径分摊、积分收回不足的 manual_review + 冻结额度、微信已退本地未补偿的人工复核路径、进程重启恢复、对账一致。
 - outbox fencing 测试：claim 租约 token 条件更新、陈旧 worker token 不匹配完成被拒绝、依赖顺序、`max_attempts` 转 dead_letter、微信 `out_trade_no` / `out_refund_no` 幂等映射。
+- payment_attempt 测试：`merchant_order_no`（`out_trade_no`）唯一不可复用；回调按 `out_trade_no` 查尝试并校验状态 / 金额 / 快照哈希；超时尝试置终态后迟到通知按新快照结算被拒绝（进入对账）。
 - `compute_remain_fen` 四资产组合支付与净额退款金额测试。
 - 全量回归 + `ruff` + `check_project --skip-tests` 门禁通过。

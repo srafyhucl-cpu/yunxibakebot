@@ -37,6 +37,9 @@
   | 退款 / 对账补偿 | `asset_policy_snapshot` | 不禁用，按快照原路补偿 |
 
 - 资产策略**写入订单支付快照**（`payment.json` 内 `payment_attempt_id + policy_version + asset_policy_snapshot`），区分三态：`拒绝新业务` / `完成在途结算` / `退款对账补偿`。**不能用单一布尔开关阻断退款与对账补偿**。
+- **持久 `payment_attempt` 表（B1.8）**：`payment.json` 可被覆盖，不能承载不可变支付尝试事实。新增 `payment_attempt` 表（v025+ 迁移），每行一次支付尝试，字段：`payment_attempt_id`（主键）、`order_id`、**`merchant_order_no`（微信 `out_trade_no`，`UNIQUE NOT NULL`，不可复用）**、`amount_fen`、`snapshot_hash`（固化时点的 `payment.json` + 策略快照哈希）、`status`（`created / processing / succeeded / failed / expired`）、`provider_transaction_id`（微信 transaction_id，异步回填）、`policy_version`、`asset_policy_snapshot`（JSON）、`created_at / updated_at`。
+- **回调结算校验（B1.8）**：支付通知回调**先按 `out_trade_no`（= `merchant_order_no`）查 `payment_attempt`**，再校验该尝试仍可结算（`status ∈ {processing}` 且金额一致、快照哈希一致），通过后才按该尝试的 `asset_policy_snapshot` 结算；尝试不存在、状态已终态或金额 / 快照不匹配 → 拒绝结算并进入对账。
+- **尝试失效（B1.8）**：超时或替代尝试发起后，原尝试置 `expired / failed` 终态**永久失效**；**禁止复用 `merchant_order_no`（`out_trade_no`）**——新尝试必须生成新的商户单号，杜绝迟到支付通知按新快照结算旧尝试。
 - 开发 / 测试 / mock 阶段保持 `enabled`；进入受控真实测试或正式上线前，由项目负责人裁决逐项切换并留证。
 
 ## 积分门禁（B1.6 已裁决：关闭 Platform 积分写操作）
@@ -56,6 +59,7 @@
 
 - 服务端资产开关生效：每个受控写操作在 `disabled` 时被拒绝（含直接 API 调用绕过测试）；支付快照三态（拒绝新业务 / 完成在途结算 / 退款对账补偿）测试通过，退款与补偿不被开关阻断。
 - **承诺点固化测试（B1.7）**：余额预占 / 券 `RESERVE` / 微信支付会话任一创建后开关关闭，`payment_attempt_id` 按快照完成结算；同一 `payment_attempt_id` 重试沿用快照；超时重新发起生成新 `payment_attempt_id` 且按实时策略重新授权。
+- **payment_attempt 校验（B1.8）**：`out_trade_no` 与 `payment_attempt` 一对一不可复用（复用被唯一键拒绝）；回调按 `out_trade_no` 查尝试并校验状态 / 金额 / 快照哈希；超时尝试置终态后迟到通知按新快照结算被拒绝（进入对账）。
 - 支付成功联动点统一读取开关 / 快照：**新业务禁写不产生资产副作用；在途结算与退款补偿按 `asset_policy_snapshot` 完成，不因实时开关关闭而中断**（覆盖"支付通知到达前关闭开关"场景）。
 - **FP-4B2 门禁（B1.6 补强，不能以"矩阵文档存在"代替验收）**：正式开放前必须归档——
   1. 已选积分策略证据：`ASSET_POINTS_WRITE=disabled` 的配置与 `disabled` 时写操作拒绝的运行证据；

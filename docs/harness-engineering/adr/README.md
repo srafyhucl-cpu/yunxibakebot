@@ -50,7 +50,7 @@ ______________________________________________________________________
 | [0005](0005-framework-first-single-path.md) | accepted | 通用能力框架优先，AI 应用层保持单一生产路径 |
 | [0006](0006-sqlite-inbox-outbox-exception.md) | accepted | 单机 SQLite 持久 inbox 的窄例外与退出条件 |
 | [0007](0007-local-authority-cutover.md) | accepted | 2027-06 为会员账务本地权威切换最早候选窗口，真实开放须项目负责人批准 |
-| [0008](0008-accounting-core-consistency.md) | proposed | 账务核心一致性：单一 Unit of Work、券命令模型（transition_key/origin_event_id/RESERVED 预占/投影 CAS）、持久退款聚合（B1.6+B1.7 补齐 UoW/outbox/退款/资产快照合同并记录项目负责人裁决，批准后进入代码实施） |
+| [0008](0008-accounting-core-consistency.md) | proposed | 账务核心一致性：单一 Unit of Work、券命令模型（transition_key 含类型+支付尝试/RESERVED 预占/投影 CAS）、持久退款聚合（B1.6+B1.7+B1.8 补齐 UoW/outbox/退款额度/payment_attempt 合同并记录项目负责人裁决，批准后进入代码实施） |
 
 ______________________________________________________________________
 

@@ -1,3 +1,19 @@
+## E-20260815-001：B1.8 账务核心合同修正治理校验
+
+- trace_id: 20260815-member-loyalty-accounting-contract-b18
+- generated_at: 2026-08-15
+- evidence_type: governance/accounting-contract-b18
+- file: `repo:docs/harness-engineering/adr/0008-accounting-core-consistency.md`；`repo:docs/specs/2026-08-12-member-loyalty-followup-data-import.md`；`repo:docs/specs/2026-08-12-member-loyalty-followup-local-authority.md`；`repo:docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md`；`repo:LOGBOOK.md`；`local:reports/harness/handoff-b18-accounting-contract-20260815-b18.md`
+- command: `python scripts/check_evidence_index.py --summary`（351 条 / failed=0）；`python -m pytest tests/scripts/test_verify_secrets_baseline.py tests/scripts/test_check_evidence_index.py tests/scripts/test_migrate_evidence_index_scope.py --no-cov`（32 通过）；`python scripts/verify_secrets_baseline.py`（exit 0）；`python -m ruff check/format`；`git diff --check`
+- result: pass
+- related_logbook: 2026-08-15 - docs(governance): 账务核心合同修正 B1.8（transition_key 键冲突 / 退款额度行 / 上游版本合同 / payment_attempt 表）
+- related_adr: 0008-accounting-core-consistency
+- contains_sensitive_data: no
+- retention_note: 只记录验证命令、条目数与守卫结论；不含密钥、客户数据或订单明细。
+- summary: B1.8 合同修正治理校验：券 `transition_key` 加入 `transition_type` + `payment_attempt_id`（修复 RESERVE/CONSUME 确定性键冲突，RESERVE 分配周期、CONSUME 复用；origin_event_id 可跨通道对齐、导入批次行 ID 不默认等同 webhook msg_id、缺失隔离对账）；`order_refund_quota` 单条条件更新预占与释放规则（成功转实退/未发起失败释放/微信成功或 manual_review 保持占用）；I1 上游版本合同（inbox_events.id 仅游标、按聚合上游版本胜出、冲突进对账队列、投影+物化+checkpoint 同一 UoW）；持久 `payment_attempt` 表（out_trade_no 唯一不可复用、快照哈希、回调先查尝试再校验）。ADR 0008 仍为 proposed；B1.8 完成后统一推送双 master，最终 Go/No-Go 由项目负责人作出。
+
+- storage_scope: repository
+- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=d93b3149fbc0709eee3416aefe8d364f2e42dbf16869131ba56524a035bced19；docs/specs/2026-08-12-member-loyalty-followup-data-import.md=efa6cfe5141ca92fdbec860dade197e2bdb25d246add3347daaa87b317a50492；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md=b0c9a441017361a1568f2e8aeabc6869c3ad46b7d38e0820ad5e2fb3f9d75609；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md=c56c3c0c449848e54742db8ba7b3528606fe2b97f18a39f9a4d3f11fa53a666b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260814-004：B1.7 账务核心合同收口治理校验
 
 - trace_id: 20260814-member-loyalty-accounting-contract-b17
@@ -13,7 +29,7 @@
 - summary: B1.7 合同收口治理校验：券命令模型（`transition_key` 不含来源 + `origin_event_id` 双通道幂等 + `RESERVED` 预占 + 投影版本 CAS）；I1 独立投影重建器（按资产快照版本合同，不再复用 Webhook handler）；净额退款（券不产生货币退款，订单级预占约束，`refund_no` 幂等，积分收回不足 manual_review+冻结）；资产快照在首次不可逆承诺前固化（`payment_attempt_id + policy_version`，授权三分类）；outbox fencing（operation_type/provider/request/response/lease_token/max_attempts/depends_on + token 条件完成）；FP-2 唯一水位 `inbox_events.id` + 仅 roll-forward 不可逆边界；G1 守卫 git diff 仅允许 0/1（128 阻断），证据索引 storage_scope 明确为摘要字段。项目负责人裁决：净额退款 / 积分收回不足 manual_review+冻结 / 仅 roll-forward。ADR 0008 仍为 proposed，B1.7 收口后由项目负责人做最终 Go/No-Go 再进入 D1/X1/I1/R1 代码实施。
 
 - storage_scope: repository
-- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=0a96856c72a51fdf67ac26f09bd0b7639242bdf94e6ac280ca46ea060e4ca975；docs/specs/2026-08-12-member-loyalty-followup-data-import.md=716f16d4271b2ea57fc82f2fadbd62a2d23470f39d735e9016e8a908c3ce14e0；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md=a9d6f334bd7cc756ada41d694da0ba0aa3e59c70d436f6c3cd8025a30339030a；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md=80c7b116173be48c21ef8d68c9fb1f6f0ab8704efd2cedbb774493398b7757af；scripts/verify_secrets_baseline.py=d40cec9af6fa1bb09b449d8ffbe5fb7b0375808eee031821002dd92f76bca1b2；scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；tests/scripts/test_verify_secrets_baseline.py=e670f77672f322224f5c5424685aed22d6b3fcfaa91ae280e7ce796f1641ff67；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=d93b3149fbc0709eee3416aefe8d364f2e42dbf16869131ba56524a035bced19；docs/specs/2026-08-12-member-loyalty-followup-data-import.md=efa6cfe5141ca92fdbec860dade197e2bdb25d246add3347daaa87b317a50492；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md=b0c9a441017361a1568f2e8aeabc6869c3ad46b7d38e0820ad5e2fb3f9d75609；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md=c56c3c0c449848e54742db8ba7b3528606fe2b97f18a39f9a4d3f11fa53a666b；scripts/verify_secrets_baseline.py=d40cec9af6fa1bb09b449d8ffbe5fb7b0375808eee031821002dd92f76bca1b2；scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；tests/scripts/test_verify_secrets_baseline.py=e670f77672f322224f5c5424685aed22d6b3fcfaa91ae280e7ce796f1641ff67；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260814-003：B1.6 账务核心合同完成包治理校验
 
 - trace_id: 20260814-member-loyalty-accounting-contract-b16
@@ -29,7 +45,7 @@
 - summary: B1.6 完成包治理校验：ADR 0008 补齐真实 UoW 清单（RechargeRepo/BalanceLedgerRepo/OrderEventRepo）与 accounting_outbox 最小 schema、券事件合同（event_key/状态迁移/乱序/跨来源重复）与旧索引「第一阶段现状，禁止用于新实现」、退款 Saga 语义（微信已退不可回滚 + 人工复核条件/补录幂等键/最大未决时长/对账关闭条件）；FP-2 券切换固定 ADR 0008 唯一模型；FP-1 回放固定 inbox 回放；资产矩阵策略快照三态 + FP-4B2 证据；G1 守卫改读 index 校验完整字段（补未暂存记录/字段缺失/历史复用/Git 故障测试）；证据索引迁移至工件级 repo:/local:/production:/external: 引用（storage_scope/sha256 必填、绝对路径迁移）。项目负责人三项裁决：支持部分退款（快照占比分摊、券仅全单退回）；积分门禁=关闭 Platform 积分写操作；券门禁=关闭旧入口券能力+正式版关闭券抵扣。ADR 0008 仍为 proposed，批准后进入 D1/X1/I1/R1 代码实施。
 
 - storage_scope: repository
-- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=0a96856c72a51fdf67ac26f09bd0b7639242bdf94e6ac280ca46ea060e4ca975；scripts/verify_secrets_baseline.py=d40cec9af6fa1bb09b449d8ffbe5fb7b0375808eee031821002dd92f76bca1b2；scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；scripts/migrate_evidence_index_scope.py=daa50f4a307027b0a820bb8d9d84a9cf93cfa83986573d7b804101924a7dbc1d；tests/scripts/test_verify_secrets_baseline.py=e670f77672f322224f5c5424685aed22d6b3fcfaa91ae280e7ce796f1641ff67；tests/scripts/test_check_evidence_index.py=de0ee2d39525e2b68f36d6fe301997864f92c518fc335ca5c983c0b3090a4a65；tests/scripts/test_migrate_evidence_index_scope.py=af86e47554f24f0e9477409cd3210c3c5d0bc3a02d4c8b939d5f008a4d595809；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=d93b3149fbc0709eee3416aefe8d364f2e42dbf16869131ba56524a035bced19；scripts/verify_secrets_baseline.py=d40cec9af6fa1bb09b449d8ffbe5fb7b0375808eee031821002dd92f76bca1b2；scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；scripts/migrate_evidence_index_scope.py=daa50f4a307027b0a820bb8d9d84a9cf93cfa83986573d7b804101924a7dbc1d；tests/scripts/test_verify_secrets_baseline.py=e670f77672f322224f5c5424685aed22d6b3fcfaa91ae280e7ce796f1641ff67；tests/scripts/test_check_evidence_index.py=de0ee2d39525e2b68f36d6fe301997864f92c518fc335ca5c983c0b3090a4a65；tests/scripts/test_migrate_evidence_index_scope.py=af86e47554f24f0e9477409cd3210c3c5d0bc3a02d4c8b939d5f008a4d595809；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260814-002：全仓密钥扫描门禁最终复现（Git 跟踪文件门禁通过 + 全工作树审计边界）
 
 - trace_id: 20260814-member-loyalty-followup-gate-finalize
@@ -42,7 +58,7 @@
 - related_adr: none
 - contains_sensitive_data: no
 - retention_note: 只记录命令、退出码、扫描范围、文件哈希与结论；evidence 原始输出不入库（reports/harness gitignore）；本索引条目入库。
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 - summary: 修复 .secrets.baseline worktree 污染（工具重写导致 hook 报 unstaged）后，pre-commit detect-secrets --all-files → exit 0；原生 scan 与 --force-use-all-plugins 在 Git 跟踪文件范围内均 0 命中。全工作树扫描（--all-files）命中 90 个未跟踪生成物（node_modules / 缓存 / htmlcov / chrome 配置 / data/embeddings.json），经查为依赖与生成物、非真实密钥，单独定义排除规则后作审计，不纳入提交门禁。结论：Git 跟踪文件密钥门禁通过且可复现。
 
 - storage_scope: repository
@@ -93,7 +109,7 @@
 - summary: M5 部署评审收口：评审确认基础证据（systemd/health/ready/双远端/工作树）完整可确认上线成功，但缺正向功能验证与 Harness 归档。本次补强：1）真实微信登录链路生产验证 `get_my_coupons` 返回 `thresholdFen: 5000`（受控注入模板 m5-verify-tpl 满5000减1000，200/TAKE/有效期正确）；2）充值上限 `amountFen=60000` → 400 "充值金额不能超过 50000 分"（校验先于写库零副作用）；3）`git ls-files --eol "*.sh"` 5 脚本全部 i/lf w/lf，`.gitattributes` 生效；4）测试数据 4 表全清理，生产券域恢复 0 条。`2aa64ef` 为文档/换行治理提交，生产保持 `aab1c56154` 属预期无需重启。边界值（=50000）与有赞真实发券 webhook 链路未覆盖，由本地测试与待办承接。
 
 - storage_scope: production
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；.gitattributes=da2723deb16c7aef87cf2ec062ccf0768290ec671af2dc45f13abf68668a99f7
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；.gitattributes=da2723deb16c7aef87cf2ec062ccf0768290ec671af2dc45f13abf68668a99f7
 ## E-20260812-002：M2 会员储值余额 v0.112.0 生产部署
 
 - trace_id: 20260812-member-loyalty-storedvalue
@@ -171,7 +187,7 @@
 - summary: 通过 Git bundle 将 `201e0bb` 部署到 `/opt/apps/yunxibakebot`，VERSION 由 `0.109.22` 递增为 `0.109.23`。验收：服务 active、服务器 HEAD `201e0bb`、`/health` 与 `/ready` 均 `200` 且版本一致、ready 全部 checks true（含 `handoff_staff_userid_ready`）。回调探针两次运行失败项 2→1 且均为 `ReadTimeout`，判定为外部 MiMo LLM 抖动而非部署回归（本次部署无 `app/` 产品代码变更），记录不阻断。真实微信支付/退款仍因无客户商户号保持 blocked。
 
 - storage_scope: production
-- sha256: scripts/deploy.sh=afb4973e3b5f06453196a36498dad204ae3175551a8d16ebe1b64295d8fc04c3；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e；docs/release/server-layout.md=333905bd040387e33add9b1471f6ec2b4ed7040aefa33223a08a6007d98bb306；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/deploy.sh=afb4973e3b5f06453196a36498dad204ae3175551a8d16ebe1b64295d8fc04c3；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e；docs/release/server-layout.md=333905bd040387e33add9b1471f6ec2b4ed7040aefa33223a08a6007d98bb306；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260810-006：WP4 DevTools 真实登录态 service smoke 闭环
 
 - trace_id: 20260807-post-p0-production-closure
@@ -218,7 +234,7 @@
 - summary: 本轮最终收口只保留 P17b/P19c 提交前自检、P23b-P23f 外部证据交接汇总的最小可用增强，并清理 LOGBOOK/evidence-index 的微切片记录和非语义换行重写。该收口不接入真实数据、不访问生产、不改变 `candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`langsmith_enabled=false`、`external_evidence_complete=false` 或 `portfolio_complete=false`。
 
 - storage_scope: repository
-- sha256: scripts/build_real_conversation_replay_intake_packet.py=3046a2f0c6ccdda04acc3e36642957f701019b9f19108d945a5022301f62f75c；scripts/build_rag_shadow_log_intake_packet.py=67d6d3b2b57279a1f4fb5f99cfe23bae81a96308df142ccdd92980df66184d60；scripts/build_langchain_external_evidence_handoff_packet.py=2d644dd153e4cc773a1380da420ec140d1602799ea3f1c77fbe1f516d94a683d；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；tests/scripts/test_build_real_conversation_replay_intake_packet.py=070b505751984f6c0e2c3f42ca5c8f013a85a290a0f4a5303514407173cfab6a；tests/scripts/test_build_rag_shadow_log_intake_packet.py=06ec5f4e53ed2be30c0a470a62939e2a9f59ca9c777923bc139ca515c320cae9；tests/scripts/test_build_langchain_external_evidence_handoff_packet.py=37f69106b4b08f15ad8caee1ae199a2f026411426d395ad03d2ed9a5f3062c42；tests/scripts/test_check_langchain_ai_layer_production_plan.py=e7999bf180c933841c1f80d232c9fdb3ec0f4f93f17b5b0a28228fd90fa8d8cd；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_real_conversation_replay_intake_packet.py=3046a2f0c6ccdda04acc3e36642957f701019b9f19108d945a5022301f62f75c；scripts/build_rag_shadow_log_intake_packet.py=67d6d3b2b57279a1f4fb5f99cfe23bae81a96308df142ccdd92980df66184d60；scripts/build_langchain_external_evidence_handoff_packet.py=2d644dd153e4cc773a1380da420ec140d1602799ea3f1c77fbe1f516d94a683d；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；tests/scripts/test_build_real_conversation_replay_intake_packet.py=070b505751984f6c0e2c3f42ca5c8f013a85a290a0f4a5303514407173cfab6a；tests/scripts/test_build_rag_shadow_log_intake_packet.py=06ec5f4e53ed2be30c0a470a62939e2a9f59ca9c777923bc139ca515c320cae9；tests/scripts/test_build_langchain_external_evidence_handoff_packet.py=37f69106b4b08f15ad8caee1ae199a2f026411426d395ad03d2ed9a5f3062c42；tests/scripts/test_check_langchain_ai_layer_production_plan.py=e7999bf180c933841c1f80d232c9fdb3ec0f4f93f17b5b0a28228fd90fa8d8cd；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260807-001：生产目录与发布工作流同步
 
 - trace_id: 20260807-production-layout-sync
@@ -234,7 +250,7 @@
 - summary: 已将活动生产拓扑、Git Bundle 发布顺序、systemd/readiness 验证边界和 MiniApp 生产 smoke 入口同步到当前路径；本地合同和静态检查通过，生产发布验证另由 E-20260807-002 单独记录。
 
 - storage_scope: repository
-- sha256: docs/release/server-layout.md=333905bd040387e33add9b1471f6ec2b4ed7040aefa33223a08a6007d98bb306；.agents/skills/yunxibakebot-production-release/SKILL.md=ce22371741db06177141dc4b64caf1e13f7b6ac738fba97ff5b40a149b505b6a；docs/harness-engineering/specs/2026-08-07-production-layout-sync-plan.md=969bf9f7d0040a9aa7fcc6e2dcc94048480ef49e98b77ec7eed45cd228be5073；tests/scripts/test_deploy_server_contract.py=f5c195dfed7cfbb0bcf55f63ab1e06dc9e3757d69ee345e9f09f331371fff6c6；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/release/server-layout.md=333905bd040387e33add9b1471f6ec2b4ed7040aefa33223a08a6007d98bb306；.agents/skills/yunxibakebot-production-release/SKILL.md=ce22371741db06177141dc4b64caf1e13f7b6ac738fba97ff5b40a149b505b6a；docs/harness-engineering/specs/2026-08-07-production-layout-sync-plan.md=969bf9f7d0040a9aa7fcc6e2dcc94048480ef49e98b77ec7eed45cd228be5073；tests/scripts/test_deploy_server_contract.py=f5c195dfed7cfbb0bcf55f63ab1e06dc9e3757d69ee345e9f09f331371fff6c6；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260807-002: Production release and online verification after layout migration
 
 - trace_id: 20260807-production-layout-release
@@ -276,7 +292,7 @@
 - summary: `090317a / 0.105.17` 已同步双远端和生产并重启。公网 `/health`、`/ready`、运行时版本门禁、加强 release gate `8/8`、P13b、生产容量、严格 release packet、严格 portfolio 工程证据和 P23a 外部证据交接汇总包均通过。`verified_evidence_ready=true`，但 E1-E5 外部证据未齐，`candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`external_evidence_complete=false`、`portfolio_complete=false` 保持不变。
 
 - storage_scope: production
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-052：P23a 外部证据交接汇总包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -292,7 +308,7 @@
 - summary: P23a 将 E1 真实 replay 接入包、E2 真实 RAG shadow log 接入包和 E6 作品集缺口聚合成统一外部证据交接清单。当前只证明交接入口和边界可复核，不代表外部证据完成；`candidate_ready=false`、`real_sample_ready=false`、`shadow_log_ready=false`、`external_evidence_complete=false`、`portfolio_complete=false` 保持不变。
 
 - storage_scope: repository
-- sha256: scripts/build_langchain_external_evidence_handoff_packet.py=2d644dd153e4cc773a1380da420ec140d1602799ea3f1c77fbe1f516d94a683d；tests/scripts/test_build_langchain_external_evidence_handoff_packet.py=37f69106b4b08f15ad8caee1ae199a2f026411426d395ad03d2ed9a5f3062c42；scripts/build_langchain_portfolio_evidence_packet.py=d29294197137347297b2cec526da51eff9ccad074eb9095136eee9c8e23a5dff；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_langchain_external_evidence_handoff_packet.py=2d644dd153e4cc773a1380da420ec140d1602799ea3f1c77fbe1f516d94a683d；tests/scripts/test_build_langchain_external_evidence_handoff_packet.py=37f69106b4b08f15ad8caee1ae199a2f026411426d395ad03d2ed9a5f3062c42；scripts/build_langchain_portfolio_evidence_packet.py=d29294197137347297b2cec526da51eff9ccad074eb9095136eee9c8e23a5dff；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-051：P19c shadow log 接入增强生产验证
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -308,7 +324,7 @@
 - summary: `dbf3bb2 / 0.105.16` 已在生产运行。公网 `/health`、`/ready`、加强 release gate `8/8`、P13b、生产容量、严格 release packet 和严格 portfolio 工程证据均通过；默认 Agent Eval `133/133`、扩展回复回放 `163/163`、生产 callback `61/61`。`verified_evidence_ready=true`，但没有仓库外真实 replay、真实 RAG shadow log、planned-hybrid 灰度或 LangSmith 外发证据，`external_evidence_complete=false`、`portfolio_complete=false` 保持不变。
 
 - storage_scope: production
-- sha256: docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-050：P19c 真实 RAG shadow log 外部交接与来源证明
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -324,7 +340,7 @@
 - summary: P19c 为 E2 增加仓库外交接模板和来源证明门禁。模板可被严格观测器直接消费；未填写审核字段、错误日期、损坏 JSON、非对象 metadata、非数组 records 和 query 中明显敏感模式都会结构化失败。当前没有真实脱敏日志，`shadow_log_ready=false` 保持不变。
 
 - storage_scope: repository
-- sha256: scripts/build_rag_shadow_log_intake_packet.py=67d6d3b2b57279a1f4fb5f99cfe23bae81a96308df142ccdd92980df66184d60；scripts/report_rag_shadow_log_observability.py=7add6223849f26114dfcb1f8e490e7f924231804756cfa22eb3f8558a69bad49；tests/scripts/test_build_rag_shadow_log_intake_packet.py=06ec5f4e53ed2be30c0a470a62939e2a9f59ca9c777923bc139ca515c320cae9；tests/scripts/test_report_rag_shadow_log_observability.py=d7ef55946098083f9abffc67340376d42cb03689153d045fddb24792f3c7d490；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/build_langchain_portfolio_evidence_packet.py=d29294197137347297b2cec526da51eff9ccad074eb9095136eee9c8e23a5dff；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_rag_shadow_log_intake_packet.py=67d6d3b2b57279a1f4fb5f99cfe23bae81a96308df142ccdd92980df66184d60；scripts/report_rag_shadow_log_observability.py=7add6223849f26114dfcb1f8e490e7f924231804756cfa22eb3f8558a69bad49；tests/scripts/test_build_rag_shadow_log_intake_packet.py=06ec5f4e53ed2be30c0a470a62939e2a9f59ca9c777923bc139ca515c320cae9；tests/scripts/test_report_rag_shadow_log_observability.py=d7ef55946098083f9abffc67340376d42cb03689153d045fddb24792f3c7d490；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/build_langchain_portfolio_evidence_packet.py=d29294197137347297b2cec526da51eff9ccad074eb9095136eee9c8e23a5dff；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-049：E6a 作品集证据清单生产验证
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -340,7 +356,7 @@
 - summary: `90a284f / 0.105.15` 已同步双远端和生产并重启，公网 `/health`、`/ready`、runtime gate、加强 release gate、P13b、容量、严格 release packet 和严格 portfolio 工程证据均通过。`verified_evidence_ready=true`，但 E1-E5 外部证据未齐，`external_evidence_complete=false`、`portfolio_complete=false` 保持不变。
 
 - storage_scope: production
-- sha256: docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-048：LangChain AI 应用层 P5b / E6a 作品集证据真值清单
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -356,7 +372,7 @@
 - summary: E6a 把当前可展示工程证据与 E1-E5 外部完成度拆成独立真值。当前 `verified_evidence_ready=true`，但真实 replay、真实 RAG shadow log、planned-hybrid 灰度、LangSmith 外发和真实事实敏感覆盖尚未完成，因此 `external_evidence_complete=false`、`portfolio_complete=false`；完整性严格门禁退出 1 是预期结果，不视为实现失败。
 
 - storage_scope: repository
-- sha256: scripts/build_langchain_portfolio_evidence_packet.py=d29294197137347297b2cec526da51eff9ccad074eb9095136eee9c8e23a5dff；tests/scripts/test_build_langchain_portfolio_evidence_packet.py=a45be9e9a24e2eb4e82cba0b665b80c27bdd0925e7afdfe3d26c0af99d89c4cf；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_langchain_portfolio_evidence_packet.py=d29294197137347297b2cec526da51eff9ccad074eb9095136eee9c8e23a5dff；tests/scripts/test_build_langchain_portfolio_evidence_packet.py=a45be9e9a24e2eb4e82cba0b665b80c27bdd0925e7afdfe3d26c0af99d89c4cf；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-047：P17b 工具链增强与 Harness 治理生产收口
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -372,7 +388,7 @@
 - summary: `37bfc58 / 0.105.14` 已同步生产并重启，runtime、加强 release gate、P13b 发布观测复核、生产容量和严格证据包均通过，`packet_ready=true`。本轮不接入真实 replay 样本，`candidate_ready=false`、`real_sample_ready=false` 仍为正确边界。
 
 - storage_scope: production
-- sha256: docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-046：版本与项目进度表头同步修复
 
 - trace_id: 20260710-version-progress-sync
@@ -388,7 +404,7 @@
 - summary: 版本同步脚本现可识别当前和旧版进度表头，未知格式会阻断而不是静默成功；生成的 VERSION 和项目进度文件会同时加入暂存区。4 项回归测试覆盖两种格式、未知格式和仓库实际版本一致性，当前均为 `0.105.14`。
 
 - storage_scope: repository
-- sha256: scripts/sync_version.py=f8abc43ef6363eff6863222e6f96fda87bcfb925d7d0692aba5dece1e622df2a；tests/scripts/test_sync_version.py=b9d552cc06b2158fb0dca302e18cc73daaeb0355022e6c4710f1c6d03fcb26c9；VERSION=04d81abf05725dabe18012d7f74138c61fb2ab6c68a014f88161b6040ec0ae1c；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；docs/AGENTS/commit-workflow.md=e4a935d9fb469c42802620a98430349e4d265be4029563d03a46a169f0e94e3d；docs/harness-engineering/core/mistake-ledger.md=c78e7d4a38a868b45c2d775d12632f4f65bc9c3c9fbe258d452900acc55d41f3；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/sync_version.py=f8abc43ef6363eff6863222e6f96fda87bcfb925d7d0692aba5dece1e622df2a；tests/scripts/test_sync_version.py=b9d552cc06b2158fb0dca302e18cc73daaeb0355022e6c4710f1c6d03fcb26c9；VERSION=c3b2fbefe9663c9d6e33ebc7919dfcc594780f0c3b87a4514c88116e67d05132；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；docs/AGENTS/commit-workflow.md=e4a935d9fb469c42802620a98430349e4d265be4029563d03a46a169f0e94e3d；docs/harness-engineering/core/mistake-ledger.md=c78e7d4a38a868b45c2d775d12632f4f65bc9c3c9fbe258d452900acc55d41f3；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-045：文件体量责任优先治理
 
 - trace_id: 20260710-responsibility-first-file-size-governance
@@ -404,7 +420,7 @@
 - summary: 文件体量治理从“超线即拆”的冲突口径升级为责任优先评审。行数只触发评审；职责混杂时按稳定且可独立测试的边界拆分，职责高度内聚时记录理由保留，暂不能安全拆分时记录候选边界。门禁继续阻断未经评审的新超线文件，但明确禁止为了压行数机械切分。
 
 - storage_scope: repository
-- sha256: .agents/skills/yunxi-file-size-guard/SKILL.md=93bd5b9894dc01ad11f3aa06b555cf7def4579ad47f8732eeb282d0bccde4599；.agents/skills/yunxi-clean-code-guard/SKILL.md=b29e9bf0a41f447bf9494becedae21fd8c0809f85fdddbfcd9ed91770c8efccc；.pre-commit-config.yaml=fdb766ccfd3b68bceae6e47e6887c68f47317f220fcf9ec98503c49b4465a4e6；scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；tests/scripts/test_check_file_sizes.py=3c99f7a24a331fb7184031d2881fc3a876284071b62b9b270d416aa99064f140；docs/harness-engineering/adr/0004-responsibility-first-file-size-governance.md=4d2e92cd3136b89515fa9bb0f4072c9eaaf026d281cceffc34b6889e87c7bebb；AGENTS.md=beec7a6ad8660bd33a0a3e0ad523cef7c72cbafed812f20a1904b3e9382679a9；docs/AGENTS/coding-red-lines.md=33a3989c2926f10f5d0839db2491e19cba5454daf9ffcb0e9ddbee12f0e704ea；docs/AGENTS/skill-reference.md=f4ef63528c1a7825c21fd2ee0c4a7e9507102fdea58561ee21f97adbaab0478a；.agents/SKILL_AUDIT.md=90122c45162b9ce013a2828f562ea37c256884e8ee3627075eb32dbd8d28ee29；docs/harness-engineering/core/verification-matrix.md=20601780a3fded6ba13cc2f206d038e2726ada7159cc9652137bb85b1f8584e9；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: .agents/skills/yunxi-file-size-guard/SKILL.md=93bd5b9894dc01ad11f3aa06b555cf7def4579ad47f8732eeb282d0bccde4599；.agents/skills/yunxi-clean-code-guard/SKILL.md=b29e9bf0a41f447bf9494becedae21fd8c0809f85fdddbfcd9ed91770c8efccc；.pre-commit-config.yaml=fdb766ccfd3b68bceae6e47e6887c68f47317f220fcf9ec98503c49b4465a4e6；scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；tests/scripts/test_check_file_sizes.py=3c99f7a24a331fb7184031d2881fc3a876284071b62b9b270d416aa99064f140；docs/harness-engineering/adr/0004-responsibility-first-file-size-governance.md=4d2e92cd3136b89515fa9bb0f4072c9eaaf026d281cceffc34b6889e87c7bebb；AGENTS.md=beec7a6ad8660bd33a0a3e0ad523cef7c72cbafed812f20a1904b3e9382679a9；docs/AGENTS/coding-red-lines.md=33a3989c2926f10f5d0839db2491e19cba5454daf9ffcb0e9ddbee12f0e704ea；docs/AGENTS/skill-reference.md=f4ef63528c1a7825c21fd2ee0c4a7e9507102fdea58561ee21f97adbaab0478a；.agents/SKILL_AUDIT.md=90122c45162b9ce013a2828f562ea37c256884e8ee3627075eb32dbd8d28ee29；docs/harness-engineering/core/verification-matrix.md=20601780a3fded6ba13cc2f206d038e2726ada7159cc9652137bb85b1f8584e9；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-044：LangChain AI 应用层 P17b 接入模板与命令链增强
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -420,7 +436,7 @@
 - summary: P17b-intake 现在输出与现有导出器一致的可填写扁平模板，并通过端到端测试证明模板可被导出器消费；命令链新增候选审计 JSON 留档，显式携带真实来源类型、脱敏审核、原始来源不入仓和 evidence ID。当前仍无仓库外真实脱敏输入，`candidate_ready=false`、`real_sample_ready=false` 仍是正确状态。
 
 - storage_scope: repository
-- sha256: scripts/build_real_conversation_replay_intake_packet.py=3046a2f0c6ccdda04acc3e36642957f701019b9f19108d945a5022301f62f75c；scripts/prepare_real_conversation_replay_pool_entry.py=27e1d859308cf4cd52e182c0cb5fbb1cc82e3f781a5c25c03f17752649c39f4d；tests/scripts/test_build_real_conversation_replay_intake_packet.py=070b505751984f6c0e2c3f42ca5c8f013a85a290a0f4a5303514407173cfab6a；tests/scripts/test_prepare_real_conversation_replay_pool_entry.py=77f21d351f13ed1e0c50415c9a29d664aad2b0f69fa3093045fe14558ef1f695；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_real_conversation_replay_intake_packet.py=3046a2f0c6ccdda04acc3e36642957f701019b9f19108d945a5022301f62f75c；scripts/prepare_real_conversation_replay_pool_entry.py=27e1d859308cf4cd52e182c0cb5fbb1cc82e3f781a5c25c03f17752649c39f4d；tests/scripts/test_build_real_conversation_replay_intake_packet.py=070b505751984f6c0e2c3f42ca5c8f013a85a290a0f4a5303514407173cfab6a；tests/scripts/test_prepare_real_conversation_replay_pool_entry.py=77f21d351f13ed1e0c50415c9a29d664aad2b0f69fa3093045fe14558ef1f695；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-043：LangChain AI 应用层后续增强可执行计划
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -436,7 +452,7 @@
 - summary: 新增 `langchain-ai-layer-next-enhancement-execution-plan.md`，把 P22a 之后的剩余增强拆成 E0-E6：生产证据基线复核、P17b 首批真实脱敏样本接入、真实 RAG shadow log 接入、RAG planned-hybrid 小流量灰度、LangSmith 生产小流量外发、事实敏感场景真实样本强化和作品集证据包升级。计划明确无真实脱敏输入、无真实 shadow log、无人工外发合规确认时不得把 readiness 状态改为 ready。
 
 - storage_scope: repository
-- sha256: docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/langchain-ai-layer-next-enhancement-execution-plan.md=c56748826daacf5554630aaeaeef065170c9b3cac30e9a4687dda58465c84b7b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-042：LangChain AI 应用层 P22a 发布证据包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -452,7 +468,7 @@
 - summary: P22a 新增 `build_langchain_release_evidence_packet.py`。默认模式用于 readiness，不把缺失或过期 release JSON 伪装成生产就绪；严格模式用于上线收口，要求生产 release gate 和 P13b 生产观测发布复核通过。生产 `/opt/yunxibakebot` 已确认位于 `bae86cead38722d7ec30e9b703456a2c9cc4ea51`、`VERSION=0.105.13`，重启后服务 `active`；runtime gate、容量门禁、加强 release gate、P13b 生产观测发布复核均通过，严格发布证据包输出 `packet_ready=true`。
 
 - storage_scope: repository
-- sha256: scripts/build_langchain_release_evidence_packet.py=7d89fa026d72740195aab63494462f683956bf2a8a3d747f5777457b452ba3bd；tests/scripts/test_build_langchain_release_evidence_packet.py=8c182291c97e1f162d1222705a70c0c2b02f1905affa6c43fa4ea57374cd1a4e；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_langchain_release_evidence_packet.py=7d89fa026d72740195aab63494462f683956bf2a8a3d747f5777457b452ba3bd；tests/scripts/test_build_langchain_release_evidence_packet.py=8c182291c97e1f162d1222705a70c0c2b02f1905affa6c43fa4ea57374cd1a4e；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-041：LangChain AI 应用层待发货 callback 受控空结果探针修正
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -468,7 +484,7 @@
 - summary: P17b-candidate 生产验证时发现 `p2c-today-wait-seller-send-list` 在当天无待发货订单时返回受控空结果，但 callback probe 未允许该 case 走空结果分支。已仅对该 probe 增加 `allow_empty_result=True`，并补回归测试；全局语义规则和隐私/禁用词约束不变。生产已同步并重启到 `0.105.12 / 2e9537aa8784c80c61c886c4153047044367651b`，runtime gate、callback probe、生产容量门禁、加强 release gate 和 P13b 生产观测发布证据门禁均通过。
 
 - storage_scope: repository
-- sha256: scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-040：LangChain AI 应用层 P17b-candidate 真实 replay 候选样本准入审计
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -484,7 +500,7 @@
 - summary: P17b-candidate 新增真实 replay 候选样本准入审计。默认报告通过但 `candidate_ready=false`，strict 模式缺 fixture 按预期失败；有 fixture 时复用 replay 与 coverage 门禁，并要求真实来源、脱敏审核、原始来源不入仓和 evidence ID。该切片把真实样本接入前的人工审核条件固化为机器门禁，但当前仓库仍未接入真实脱敏客户样本。
 
 - storage_scope: repository
-- sha256: scripts/audit_real_conversation_replay_candidate.py=7b41ae0ae8ce3f6cb308fb4decdf6a01566d875ef1ce821ff0045e2106f14c97；tests/scripts/test_audit_real_conversation_replay_candidate.py=67c1231a5888de94c1d050ed22513690189fc61d399b0a65480ace99ab50bbf1；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/audit_real_conversation_replay_candidate.py=7b41ae0ae8ce3f6cb308fb4decdf6a01566d875ef1ce821ff0045e2106f14c97；tests/scripts/test_audit_real_conversation_replay_candidate.py=67c1231a5888de94c1d050ed22513690189fc61d399b0a65480ace99ab50bbf1；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-039：LangChain AI 应用层 P21d 生产观测发布证据容量校验
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -500,7 +516,7 @@
 - summary: P21d 将 `langchain_ai_layer_capacity` 纳入 P13b 生产观测发布证据门禁。生产已同步并重启到 `0.105.10 / b4ff71344b0b28501e4832dd5e7acba6f3b8c1ce`，加强 release gate 和 P13b 门禁均通过，P13b summary 输出 `production_versions=0.105.10`、`capacity_runtime=ok`；生产只读容量门禁也通过，`production_runtime=ok`。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_production_observability_release.py=71bc783dde4790da436157ffd990afa305e26eea09df7a5452afbde16aa22f1c；tests/scripts/test_check_langchain_production_observability_release.py=7e36ec998e6babc1dc238512579314f3e5f0527beec77bc005b65a4ee016079c；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_production_observability_release.py=71bc783dde4790da436157ffd990afa305e26eea09df7a5452afbde16aa22f1c；tests/scripts/test_check_langchain_production_observability_release.py=7e36ec998e6babc1dc238512579314f3e5f0527beec77bc005b65a4ee016079c；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-038：LangChain AI 应用层 P21c 生产资源观测 release gate 加强模式
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -516,7 +532,7 @@
 - summary: P21c 新增 `--include-production-runtime-capacity`，release gate 可串联生产 smoke、观测证据和生产只读容量门禁。生产已同步并重启到 `0.105.9 / 8b92e4889b178ea29b9c8765c463aeb4acb26db6`，加强 release gate 通过 `total=8 failed=0`；生产观测发布证据门禁通过，`callback_failed=0`；生产只读容量门禁通过，`production_runtime=ok`。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-037：LangChain AI 应用层 P21b 生产只读资源观测门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -532,7 +548,7 @@
 - summary: P21b 扩展 LangChain AI 层容量门禁，默认不访问生产，显式 `--include-production-runtime` 时通过 SSH 只读检查生产资源与版本。本地默认容量门禁已通过；生产已同步并重启到 `0.105.8 / 8a966c09caf53f41a874e793a2a5f884134ba3db`，生产只读观测 `production_runtime=ok`，runtime gate 和显式生产 release gate 均通过。该结论是资源边界门禁，不等同于压测。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_capacity.py=c0e04d7f462a6c91dfbaf67fe005905359592945e6c18201cdc50f26c26e72fb；tests/scripts/test_check_langchain_ai_layer_capacity.py=e85729169ac91e5c972d47814f36b6d452b0616b223b5b83cdfdc966e899ba31；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_capacity.py=c0e04d7f462a6c91dfbaf67fe005905359592945e6c18201cdc50f26c26e72fb；tests/scripts/test_check_langchain_ai_layer_capacity.py=e85729169ac91e5c972d47814f36b6d452b0616b223b5b83cdfdc966e899ba31；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-036：LangChain AI 应用层 P19b RAG shadow log 观测输入门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -548,7 +564,7 @@
 - summary: P19b 新增 RAG shadow log 观测输入门禁。默认报告通过但 `shadow_log_ready=false`，strict 模式缺输入失败；该切片不改变客户热路径、不写业务数据库、不调用外部 LLM、不向 LangSmith 外发。生产已同步并重启到 `0.105.7 / a76922c4827c1604179bde810e5c2d8a84feb212`，runtime gate 和显式生产 release gate 均通过。
 
 - storage_scope: repository
-- sha256: scripts/report_rag_shadow_log_observability.py=7add6223849f26114dfcb1f8e490e7f924231804756cfa22eb3f8558a69bad49；tests/scripts/test_report_rag_shadow_log_observability.py=d7ef55946098083f9abffc67340376d42cb03689153d045fddb24792f3c7d490；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_rag_shadow_log_observability.py=7add6223849f26114dfcb1f8e490e7f924231804756cfa22eb3f8558a69bad49；tests/scripts/test_report_rag_shadow_log_observability.py=d7ef55946098083f9abffc67340376d42cb03689153d045fddb24792f3c7d490；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-035：LangChain AI 应用层 P19a RAG shadow 观测报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -564,7 +580,7 @@
 - summary: P19a 新增 RAG shadow 观测报告。当前客户 golden cases 下 hybrid baseline Recall@5 `0.9857`、MRR `0.8881`；planned-hybrid 与 baseline 持平，可作为受控灰度候选；planned-hybrid+rerank Recall@5 下降 `-0.0143`，继续保持 shadow-only。生产已同步并重启到 `0.105.6 / 5c06a1ed476a8ecce2c18a1b4f06cae75db11e0f`，runtime gate 和显式生产 release gate 均通过。
 
 - storage_scope: repository
-- sha256: scripts/report_rag_shadow_observability.py=0915e3dd48b41e71d4b28393c98ecc1f79f210f4349c41d8eb2e1a8ca3230e27；tests/scripts/test_report_rag_shadow_observability.py=523a64d1e9175a88e6777a15eddde75c44ab5d55a4716fa0ffd1357bed5a8aa8；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_rag_shadow_observability.py=0915e3dd48b41e71d4b28393c98ecc1f79f210f4349c41d8eb2e1a8ca3230e27；tests/scripts/test_report_rag_shadow_observability.py=523a64d1e9175a88e6777a15eddde75c44ab5d55a4716fa0ffd1357bed5a8aa8；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-034：LangChain AI 应用层 P21a 容量门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -580,7 +596,7 @@
 - summary: P21a 新增 LangChain AI 层容量门禁，检查 trace probe 耗时、payload 大小、event 数、冷导入和 LangSmith 默认关闭态。当前本地默认门禁通过，受控 trace probe 耗时约 3.1 秒、payload 约 2.2KB；该结论是发布前轻量容量边界，不等同于生产压测。生产已同步并重启到 `0.105.5 / 0fe2f0298afb911dacaa7c07924d8db1e836da8a`，runtime gate 和显式生产 release gate 均通过。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_capacity.py=c0e04d7f462a6c91dfbaf67fe005905359592945e6c18201cdc50f26c26e72fb；tests/scripts/test_check_langchain_ai_layer_capacity.py=e85729169ac91e5c972d47814f36b6d452b0616b223b5b83cdfdc966e899ba31；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_capacity.py=c0e04d7f462a6c91dfbaf67fe005905359592945e6c18201cdc50f26c26e72fb；tests/scripts/test_check_langchain_ai_layer_capacity.py=e85729169ac91e5c972d47814f36b6d452b0616b223b5b83cdfdc966e899ba31；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-033：LangChain AI 应用层 P18b LangSmith 生产启用操作包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -596,7 +612,7 @@
 - summary: P18b 新增 LangSmith 生产启用操作包，固定环境变量、启用前 strict gate、启用后观测命令、人工合规确认和回滚命令。默认采样率 `0.05`，不超过 P18a 安全上限；本切片不代表生产外发已打开，P18c 仍需生产仓库外注入 key/project/tracing 后复验。生产已同步并重启到 `0.105.4 / 6152861fe13309821100a2df5468accf23d3598b`，runtime gate 和显式生产 release gate 均通过。
 
 - storage_scope: repository
-- sha256: scripts/build_langsmith_production_enablement_packet.py=714e3f98f4e28ffb04131ee31a4f7094528074e17df78b602afce3a0644739f8；tests/scripts/test_build_langsmith_production_enablement_packet.py=ba11f5ed098487208b275d3a4f4d9cc2288258144b30291be593278f362c04d8；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_langsmith_production_enablement_packet.py=714e3f98f4e28ffb04131ee31a4f7094528074e17df78b602afce3a0644739f8；tests/scripts/test_build_langsmith_production_enablement_packet.py=ba11f5ed098487208b275d3a4f4d9cc2288258144b30291be593278f362c04d8；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-032：LangChain AI 应用层 P18a LangSmith 生产灰度发布预检
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -612,7 +628,7 @@
 - summary: P18a 新增 LangSmith 生产灰度发布预检。默认关闭态采样率 `0.0` 通过，用于证明当前不外发仍安全；严格启用模式要求 runtime safe_to_enable、人工外发合规确认和安全采样率。生产已同步并重启到 `0.105.3 / 0822b6e09ddeabc4db94d5aa628876693142d4fd`，runtime gate 和显式生产 release gate 均通过。下一步 P18b 需要生产注入 key/project/tracing 开关，并用小采样率复验后才可打开外发。
 
 - storage_scope: repository
-- sha256: scripts/check_langsmith_production_rollout.py=605e20d61579e721f1c22bb91583323acdb2baf7e42eaae53aec2f33a4657c28；tests/scripts/test_check_langsmith_production_rollout.py=b81e9dd5e5e01242c606ee9dc0d45f278d24a11b76e8ac91aea4c664a931c6e5；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langsmith_production_rollout.py=605e20d61579e721f1c22bb91583323acdb2baf7e42eaae53aec2f33a4657c28；tests/scripts/test_check_langsmith_production_rollout.py=b81e9dd5e5e01242c606ee9dc0d45f278d24a11b76e8ac91aea4c664a931c6e5；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-031：LangChain AI 应用层 P17b-intake 外部真实 replay 接入操作包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -628,7 +644,7 @@
 - summary: P17b-intake 新增真实 replay 外部接入操作包，固定原始记录字段、脱敏审核要求、事实敏感场景覆盖目标和从导出到 strict gate 的命令链。当前仓库仍未接入真实脱敏客户样本，`real_sample_ready=false` 仍是正确状态；该操作包用于让具备权限的人在仓库外完成真实样本准备后再进入 manifest 接入。生产已同步并重启到 `0.105.2 / b1701f00d5471d50c67dfb510f7317e71d024761`，runtime gate 和显式生产 release gate 均通过。
 
 - storage_scope: repository
-- sha256: scripts/build_real_conversation_replay_intake_packet.py=3046a2f0c6ccdda04acc3e36642957f701019b9f19108d945a5022301f62f75c；tests/scripts/test_build_real_conversation_replay_intake_packet.py=070b505751984f6c0e2c3f42ca5c8f013a85a290a0f4a5303514407173cfab6a；scripts/check_real_conversation_replay_intake_readiness.py=1fa28d3449d4905d2c2c778bba4071cebe47884c9d78cfd67ce072a5b33a284a；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/build_real_conversation_replay_intake_packet.py=3046a2f0c6ccdda04acc3e36642957f701019b9f19108d945a5022301f62f75c；tests/scripts/test_build_real_conversation_replay_intake_packet.py=070b505751984f6c0e2c3f42ca5c8f013a85a290a0f4a5303514407173cfab6a；scripts/check_real_conversation_replay_intake_readiness.py=1fa28d3449d4905d2c2c778bba4071cebe47884c9d78cfd67ce072a5b33a284a；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-030：LangChain AI 应用层 P14c 生产 release gate 收口
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -644,7 +660,7 @@
 - summary: P14c 已完成生产收口：生产 `/health` 和 `/ready` 均返回 `0.105.1`，显式生产 release gate `total=7 failed=0`，P13b 发布证据门禁 `failed=0 callback_failed=0`，P14 handoff `blockers=0`，callback failure report `failed=0`。下一步转向 P17b 首批真实脱敏样本接入，P18 生产 LangSmith/Trace 灰度需先完成合规和容量确认。
 
 - storage_scope: production
-- sha256: docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-029：LangChain AI 应用层 P14c callback 稳定化本地修复
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -660,7 +676,7 @@
 - summary: P14c 本地稳定化修复已完成：订单状态词不再作为商品关键词，允许显式受控空结果但不放宽隐私禁词，退款/售后知识缺失时输出保守治理话术而不是“未找到匹配知识”。本证据只证明本地修复和测试通过，P14c 完成仍需要部署 `0.105.1` 后通过生产 runtime gate、显式生产 release gate、P13b 发布证据门禁和 P14 handoff。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_order_keyword_extract.py=3c9f61b7f9cf34bff589a432806763d1cdb138f64d4ffa8a5ac299423c0ed24c；app/service/wecom/intelligent_bot_knowledge_format.py=768a1f8710a78f30214ac169be75e4b5f1662a6e6f8028f3a5503720b0ad60a3；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_intelligent_bot_knowledge_reply.py=15a77eccf7df891b19b2de6cd07c122d07e9e70c25b73a0e8ae367de81e5cd44；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/employee_agent_order_keyword_extract.py=3c9f61b7f9cf34bff589a432806763d1cdb138f64d4ffa8a5ac299423c0ed24c；app/service/wecom/intelligent_bot_knowledge_format.py=768a1f8710a78f30214ac169be75e4b5f1662a6e6f8028f3a5503720b0ad60a3；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_intelligent_bot_knowledge_reply.py=15a77eccf7df891b19b2de6cd07c122d07e9e70c25b73a0e8ae367de81e5cd44；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-028：LangChain AI 应用层 P17b-prep 真实 replay pool 条目草稿生成器
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -676,7 +692,7 @@
 - summary: P17b-prep 新增真实 replay pool manifest 条目草稿生成器。工具只接受已脱敏且已审核的 replay fixture，生成前复用 coverage checker，并要求真实来源类型、脱敏方法、审核人、审核日期和原始来源不入仓声明；合成来源会被拒绝。当前仓库仍未接入真实脱敏客户样本，readiness 默认通过但 `real_sample_ready=false` 仍是正确状态。
 
 - storage_scope: repository
-- sha256: scripts/prepare_real_conversation_replay_pool_entry.py=27e1d859308cf4cd52e182c0cb5fbb1cc82e3f781a5c25c03f17752649c39f4d；tests/scripts/test_prepare_real_conversation_replay_pool_entry.py=77f21d351f13ed1e0c50415c9a29d664aad2b0f69fa3093045fe14558ef1f695；scripts/check_real_conversation_replay_intake_readiness.py=1fa28d3449d4905d2c2c778bba4071cebe47884c9d78cfd67ce072a5b33a284a；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/prepare_real_conversation_replay_pool_entry.py=27e1d859308cf4cd52e182c0cb5fbb1cc82e3f781a5c25c03f17752649c39f4d；tests/scripts/test_prepare_real_conversation_replay_pool_entry.py=77f21d351f13ed1e0c50415c9a29d664aad2b0f69fa3093045fe14558ef1f695；scripts/check_real_conversation_replay_intake_readiness.py=1fa28d3449d4905d2c2c778bba4071cebe47884c9d78cfd67ce072a5b33a284a；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-027：LangChain AI 应用层 P17a 真实 replay 接入准备度报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -692,7 +708,7 @@
 - summary: P17a 新增真实脱敏 replay 接入准备度报告。默认报告通过并明确 `real_sample_ready=false`，因为当前只有合成 contract pool；严格 `--require-real` 按预期失败。release gate 新增显式 `--include-real-replay-intake-readiness`，日常项目门禁也会运行 readiness 默认检查，防止后续把合成样例误当真实业务分布证据。
 
 - storage_scope: repository
-- sha256: scripts/check_real_conversation_replay_intake_readiness.py=1fa28d3449d4905d2c2c778bba4071cebe47884c9d78cfd67ce072a5b33a284a；tests/scripts/test_check_real_conversation_replay_intake_readiness.py=092d3f918fa63e7e5ff66db177a5e512ebdb782f948345e0f5b17c149c60bb05；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_real_conversation_replay_intake_readiness.py=1fa28d3449d4905d2c2c778bba4071cebe47884c9d78cfd67ce072a5b33a284a；tests/scripts/test_check_real_conversation_replay_intake_readiness.py=092d3f918fa63e7e5ff66db177a5e512ebdb782f948345e0f5b17c149c60bb05；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-026：LangChain AI 应用层 P16a LangSmith 运行时配置预检
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -708,7 +724,7 @@
 - summary: P16a 新增 LangSmith runtime config 预检，默认关闭态通过，严格启用模式在当前缺 key/tracing 开关时按预期失败；release gate 的 `--include-observability-evidence` 已先运行 `langsmith_runtime_config` 再运行原有观测证据包，避免线上 LangSmith 外发前缺少配置和脱敏边界检查。
 
 - storage_scope: repository
-- sha256: scripts/check_langsmith_runtime_config.py=e6d1d23f18cb6c472dce197f38dc2bc7908a7e38a9e9fea52f40aef9ce2d72f2；tests/scripts/test_check_langsmith_runtime_config.py=aae5bc85c9b5d2f57c2f24e804c3d4511bbc2127aae7545384b90fb3a8affeef；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langsmith_runtime_config.py=e6d1d23f18cb6c472dce197f38dc2bc7908a7e38a9e9fea52f40aef9ce2d72f2；tests/scripts/test_check_langsmith_runtime_config.py=aae5bc85c9b5d2f57c2f24e804c3d4511bbc2127aae7545384b90fb3a8affeef；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-025：LangChain AI 应用层 P15a 真实 replay 样本池脱敏证明准入
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -724,7 +740,7 @@
 - summary: P15a 增强真实 replay 样本池准入：真实条目必须声明真实来源类型、脱敏方式、审核人、审核时间和原始来源不入仓；真实 fixture 不能使用 synthetic/schema sample 来源声明。当前默认合成样例仍可验证门禁形状但 `real_pool_ready=false`，`--require-real` 按预期失败，不能作为真实问题分布证据。
 
 - storage_scope: repository
-- sha256: scripts/check_real_conversation_replay_pool.py=97464fd7c2688794215923be56abd54cac34f32315167f64aa91896e7c704ad7；tests/scripts/test_check_real_conversation_replay_pool.py=8ef7b502b13e32c72d07cdf4f8d2c55629d4084ada768d1fbfc4ab24f2348ce8；tests/fixtures/customer_real_replay_pool_manifest_sample.json=31c2bb623863932687305e3f62595cf3c8b59d507094c5de881973a2cbc32dbb；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_real_conversation_replay_pool.py=97464fd7c2688794215923be56abd54cac34f32315167f64aa91896e7c704ad7；tests/scripts/test_check_real_conversation_replay_pool.py=8ef7b502b13e32c72d07cdf4f8d2c55629d4084ada768d1fbfc4ab24f2348ce8；tests/fixtures/customer_real_replay_pool_manifest_sample.json=31c2bb623863932687305e3f62595cf3c8b59d507094c5de881973a2cbc32dbb；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-024：LangChain AI 应用层 P14c callback 失败定位报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -740,7 +756,7 @@
 - summary: P14c repo 侧新增生产 callback 失败定位报告，聚合两个失败 case 的实际回复预览、期望语义、诊断分类和下一步动作，并接入 P14 handoff 的 post-sync 复验清单。当前报告按预期 blocked：生产 runtime 仍为旧版本，`p2c-today-wait-buyer-confirm-list` 与 `p2c-refund-policy-knowledge` 暂归类为 `runtime_version_not_current`，必须先完成生产同步重启并让 runtime gate 通过，再判断是否需要修业务逻辑、生产知识或 callback 断言。
 
 - storage_scope: repository
-- sha256: scripts/report_langchain_production_callback_failures.py=3e7c3f8e646085fd3bfada6e3f4e6472f35f130bce3336d8f9a170a2d56beef3；tests/scripts/test_report_langchain_production_callback_failures.py=5e9c98e0497efe4e6f82add48aa42643e03de216f9a9a9e3cc6618603b0518ab；scripts/report_langchain_production_sync_handoff.py=67262f4ae9c21185716bc35d80bf3954d905f6b66633ed96f902d77d8d26da29；tests/scripts/test_report_langchain_production_sync_handoff.py=4cf20d303382f873b7d1a746d240884ecffbbb7674b43fab79a1b105ebb2b88b；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_langchain_production_callback_failures.py=3e7c3f8e646085fd3bfada6e3f4e6472f35f130bce3336d8f9a170a2d56beef3；tests/scripts/test_report_langchain_production_callback_failures.py=5e9c98e0497efe4e6f82add48aa42643e03de216f9a9a9e3cc6618603b0518ab；scripts/report_langchain_production_sync_handoff.py=67262f4ae9c21185716bc35d80bf3954d905f6b66633ed96f902d77d8d26da29；tests/scripts/test_report_langchain_production_sync_handoff.py=4cf20d303382f873b7d1a746d240884ecffbbb7674b43fab79a1b105ebb2b88b；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-023：LangChain AI 应用层 P14b 生产运行时版本门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -756,7 +772,7 @@
 - summary: P14b 新增生产运行时版本门禁，直接把公网 `/health`、`/ready` 的真实 `version` 与本地 `VERSION` 单一来源比对，并接入 P14 handoff blockers。当前门禁按预期失败，生产 runtime_versions=`0.85.2`；handoff blockers 变为 `production_release_not_ready`、`production_runtime_version_mismatch` 和 `server_ssh_unavailable`。后续 P14c 需要具备生产权限的账号同步并重启服务，先让 runtime gate 通过，再复跑 release gate 和 callback probe。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_production_runtime_version.py=8a1e558284bfb34cc76206c62e00c3e6826d4a640f4da09bf101ed3f046f3633；tests/scripts/test_check_langchain_production_runtime_version.py=22246383d44660961b7e72a7b9848bc4688dde10805b866cca04384e4942f697；scripts/report_langchain_production_sync_handoff.py=67262f4ae9c21185716bc35d80bf3954d905f6b66633ed96f902d77d8d26da29；tests/scripts/test_report_langchain_production_sync_handoff.py=4cf20d303382f873b7d1a746d240884ecffbbb7674b43fab79a1b105ebb2b88b；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_production_runtime_version.py=8a1e558284bfb34cc76206c62e00c3e6826d4a640f4da09bf101ed3f046f3633；tests/scripts/test_check_langchain_production_runtime_version.py=22246383d44660961b7e72a7b9848bc4688dde10805b866cca04384e4942f697；scripts/report_langchain_production_sync_handoff.py=67262f4ae9c21185716bc35d80bf3954d905f6b66633ed96f902d77d8d26da29；tests/scripts/test_report_langchain_production_sync_handoff.py=4cf20d303382f873b7d1a746d240884ecffbbb7674b43fab79a1b105ebb2b88b；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-022：LangChain AI 应用层 P14a 生产同步交接报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -772,7 +788,7 @@
 - summary: P14a 新增生产同步诊断和交接报告。当前生产同步目标以本轮最新 `git rev-parse HEAD` 和仓库 `VERSION` 为准；生产 `/health`、`/ready` 仍返回 `0.85.2`，P13b 发布证据未通过，且当前非交互 SSH 为 `Permission denied (publickey,password)`。报告输出 blocked，blockers 为 `production_release_not_ready` 和 `server_ssh_unavailable`，后续需使用具备生产权限的账号检查 `/opt/yunxibakebot`、重启 `yunxibakebot` 并复跑 release gate。
 
 - storage_scope: repository
-- sha256: scripts/report_langchain_production_sync_handoff.py=67262f4ae9c21185716bc35d80bf3954d905f6b66633ed96f902d77d8d26da29；tests/scripts/test_report_langchain_production_sync_handoff.py=4cf20d303382f873b7d1a746d240884ecffbbb7674b43fab79a1b105ebb2b88b；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_langchain_production_sync_handoff.py=67262f4ae9c21185716bc35d80bf3954d905f6b66633ed96f902d77d8d26da29；tests/scripts/test_report_langchain_production_sync_handoff.py=4cf20d303382f873b7d1a746d240884ecffbbb7674b43fab79a1b105ebb2b88b；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-021：LangChain AI 应用层 P13b 生产观测发布证据门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -788,7 +804,7 @@
 - summary: P13b 新增生产观测发布证据门禁，复核显式生产 release gate 是否足以作为上线收口。门禁要求 release gate、生产 smoke、企微员工助手 callback probe 和 LangChain 观测证据包均通过；同时从 `/health`、`/ready` detail 解析生产接口真实版本并与本地目标版本比对，避免只看 smoke metadata。当前报告按预期失败，明确指出 release_gate.failed、production_callback.failed 和 production_version_mismatch：生产接口仍返回 `0.85.2`，本地目标以仓库 `VERSION` 为准，callback 失败用例为 `p2c-today-wait-buyer-confirm-list`、`p2c-refund-policy-knowledge`。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_production_observability_release.py=71bc783dde4790da436157ffd990afa305e26eea09df7a5452afbde16aa22f1c；tests/scripts/test_check_langchain_production_observability_release.py=7e36ec998e6babc1dc238512579314f3e5f0527beec77bc005b65a4ee016079c；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_production_observability_release.py=71bc783dde4790da436157ffd990afa305e26eea09df7a5452afbde16aa22f1c；tests/scripts/test_check_langchain_production_observability_release.py=7e36ec998e6babc1dc238512579314f3e5f0527beec77bc005b65a4ee016079c；scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-020：LangChain AI 应用层 P13 观测证据包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -804,7 +820,7 @@
 - summary: P13a 新增 LangChain AI 应用层观测证据包。脚本默认运行本地 trace probe 并汇总双机器人 trace，同时检查 LangSmith 默认关闭且密钥不进入报告，并验证 `app.config` 和 `app.service.agents.rag.modes` 冷导入不加载 `langsmith`、`langchain_openai`、`langgraph`、`langchain_core` 等重依赖。release gate 新增显式 `--include-observability-evidence`，项目门禁 `check_project.py --skip-tests` 也接入该检查。
 
 - storage_scope: repository
-- sha256: scripts/report_langchain_observability_evidence.py=b37cd8ea5a23c698fc5802c238de304a65689a41889fc156771131713447beac；tests/scripts/test_report_langchain_observability_evidence.py=3ee11efcacf00c388a95f19dbda18cbf7e24a8a2cd2db0d0db0383b66a4c4704；scripts/probe_agent_traces.py=c2550b074cafbea940d0e606b349a7b0d9c6c0cffac4b9524bf8284df05fa0f3；scripts/report_agent_traces.py=fbd5531c5094f953bfcff33f0a0bc4625500567d46cdcb99340f36aaca2a6b4a；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_langchain_observability_evidence.py=b37cd8ea5a23c698fc5802c238de304a65689a41889fc156771131713447beac；tests/scripts/test_report_langchain_observability_evidence.py=3ee11efcacf00c388a95f19dbda18cbf7e24a8a2cd2db0d0db0383b66a4c4704；scripts/probe_agent_traces.py=c2550b074cafbea940d0e606b349a7b0d9c6c0cffac4b9524bf8284df05fa0f3；scripts/report_agent_traces.py=fbd5531c5094f953bfcff33f0a0bc4625500567d46cdcb99340f36aaca2a6b4a；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-019：LangChain AI 应用层 P12 real replay 样本池准入门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -820,7 +836,7 @@
 - summary: P12 增加 real replay 样本池 manifest 准入门禁。样例 manifest 通过 replay 和 coverage 检查，但因 `is_real_customer_data=false`，报告显示 `real_entries=0`、`real_pool_ready=false`。release gate 新增显式 `--include-real-replay-pool` 和 `--require-real-replay-pool`，默认行为不变；强制真实模式可阻断只有合成样例的伪真实样本池。
 
 - storage_scope: repository
-- sha256: scripts/check_real_conversation_replay_pool.py=97464fd7c2688794215923be56abd54cac34f32315167f64aa91896e7c704ad7；tests/fixtures/customer_real_replay_pool_manifest_sample.json=31c2bb623863932687305e3f62595cf3c8b59d507094c5de881973a2cbc32dbb；tests/scripts/test_check_real_conversation_replay_pool.py=8ef7b502b13e32c72d07cdf4f8d2c55629d4084ada768d1fbfc4ab24f2348ce8；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_real_conversation_replay_pool.py=97464fd7c2688794215923be56abd54cac34f32315167f64aa91896e7c704ad7；tests/fixtures/customer_real_replay_pool_manifest_sample.json=31c2bb623863932687305e3f62595cf3c8b59d507094c5de881973a2cbc32dbb；tests/scripts/test_check_real_conversation_replay_pool.py=8ef7b502b13e32c72d07cdf4f8d2c55629d4084ada768d1fbfc4ab24f2348ce8；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-018：LangChain AI 应用层生产增强计划状态门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -836,7 +852,7 @@
 - summary: 增加 LangChain AI 应用层生产增强计划静态验收，防止计划文档在 P0-P11d 已完成后仍保留“待执行”或“下一步 P0”等旧口径。检查已接入 `check_project.py --skip-tests` 业务合约，当前计划状态为持续执行中，下一步建议进入 P12，并明确合成覆盖样例不等同真实客服样本池。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；tests/scripts/test_check_langchain_ai_layer_production_plan.py=e7999bf180c933841c1f80d232c9fdb3ec0f4f93f17b5b0a28228fd90fa8d8cd；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_production_plan.py=3af1411c87715877fdfe8a1de4901f144275a45a76e57fa2eade3a40eadb447a；tests/scripts/test_check_langchain_ai_layer_production_plan.py=e7999bf180c933841c1f80d232c9fdb3ec0f4f93f17b5b0a28228fd90fa8d8cd；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-017：LangChain AI 应用层 P11d real replay 场景覆盖门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -852,7 +868,7 @@
 - summary: P11d 为 real replay 增加场景覆盖率门禁。默认读取客户 golden fixture 的 required_sensitive_scenarios，并要求每类至少 5 条 replay case。合成覆盖样例 30/30 通过 P11a checker，coverage gate 显示 order=6、refund=6、after_sales=8、inventory=5、price=6、human_transfer=16；显式 release gate `--include-real-replay --include-real-replay-coverage` 6/6 通过。当前样例不等同真实客服样本池，后续真实数据接入需复用同一门禁。
 
 - storage_scope: repository
-- sha256: scripts/check_real_conversation_replay_coverage.py=fb8649bf49688bc8574cb604647d23302b63971d773cbe38fbd297ae175eaf3f；tests/fixtures/customer_real_replay_coverage_sample.json=e1ef640f907615c64159519ef999b3aa685e1a210b77d0eff1b8c27dec6b1b8b；scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_real_conversation_replay_coverage.py=b2cd93065175100401caa20b8ba8506a3521e2db41172729d70c8eef227c33da；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_real_conversation_replay_coverage.py=fb8649bf49688bc8574cb604647d23302b63971d773cbe38fbd297ae175eaf3f；tests/fixtures/customer_real_replay_coverage_sample.json=e1ef640f907615c64159519ef999b3aa685e1a210b77d0eff1b8c27dec6b1b8b；scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_real_conversation_replay_coverage.py=b2cd93065175100401caa20b8ba8506a3521e2db41172729d70c8eef227c33da；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-016：LangChain AI 应用层 P11c real replay 脱敏导出器
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -868,7 +884,7 @@
 - summary: P11c 新增离线 real replay fixture 导出器，支持 JSON / JSONL 原始记录、字段别名、显式 `golden_case_id` 绑定和敏感文本替换。合成输入样例导出 2/2 通过，导出 draft 再经 P11a checker 2/2 通过，并可作为 P11b `--real-replay-fixture` 输入进入 release gate，门禁 5/5 通过；聚合 Agent Eval 仍为 135/135。
 
 - storage_scope: repository
-- sha256: scripts/export_real_conversation_replay_fixture.py=431348c3c5c235aab0eb01bacab9e743f0b9593cdabdefa0e98c3363e2d83c57；tests/fixtures/customer_real_replay_export_records_sample.json=3ded8a2da063f5b7fdc3292e9376ef48d2cf2eb38946b848a8b538e91e342ddd；tests/scripts/test_export_real_conversation_replay_fixture.py=be6fde3925b6c02078aac9fcc7586e8c0bf8a07005646e57a1449fbb3d19513f；scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/export_real_conversation_replay_fixture.py=431348c3c5c235aab0eb01bacab9e743f0b9593cdabdefa0e98c3363e2d83c57；tests/fixtures/customer_real_replay_export_records_sample.json=3ded8a2da063f5b7fdc3292e9376ef48d2cf2eb38946b848a8b538e91e342ddd；tests/scripts/test_export_real_conversation_replay_fixture.py=be6fde3925b6c02078aac9fcc7586e8c0bf8a07005646e57a1449fbb3d19513f；scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-015：LangChain AI 应用层 P11b real replay 发布门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -884,7 +900,7 @@
 - summary: P11b 将脱敏真实会话 replay 接入 LangChain AI 应用层 release gate。默认门禁仍保持 3 步并通过 3/3；显式 `--include-real-replay` 后追加 replay 契约检查和 `--include-real-replay` 聚合 Agent Eval，门禁 5/5 通过。JSON 摘要显示默认 Agent Eval 133/133、回复回放扩展 163/163、real replay 样例 2/2、并入聚合 Agent Eval 后 135/135。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；tests/scripts/test_check_real_conversation_replay.py=bc7d7c000ccd2d159fa560406b36891f7220aba3cc7dba6b4a6d6fac6f2a2ebe；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；tests/scripts/test_check_real_conversation_replay.py=bc7d7c000ccd2d159fa560406b36891f7220aba3cc7dba6b4a6d6fac6f2a2ebe；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-014：LangChain AI 应用层 P11a 脱敏真实会话回放入口
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -900,7 +916,7 @@
 - summary: P11a 为真实业务问题回放建立脱敏数据契约。`check_real_conversation_replay.py` 要求每条 replay case 绑定客户敏感 golden case，并复用对应 forbidden reply patterns 检查最终回复；同时检查手机号、长订单号、UUID、open_id、完整地址和完整订单号等隐私模式。样例 replay 2/2 通过，导出的 replies-json 可被既有 customer_reply_replay 消费，聚合 Agent Eval 显式包含 real replay 后 135/135 通过，同时包含 reply replay 与 real replay 后 165/165 通过。
 
 - storage_scope: repository
-- sha256: scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；tests/fixtures/customer_real_replay_sample.json=a3b593ae1b6cf3c5a145dbeaf075d1cb1433eb91fbcdc681b2bef6b9b5027126；scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；tests/scripts/test_check_real_conversation_replay.py=bc7d7c000ccd2d159fa560406b36891f7220aba3cc7dba6b4a6d6fac6f2a2ebe；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_real_conversation_replay.py=8bf8d25fa639fbf867db8a50b4977522ed2a65873804a9dbe8b254762bebd014；tests/fixtures/customer_real_replay_sample.json=a3b593ae1b6cf3c5a145dbeaf075d1cb1433eb91fbcdc681b2bef6b9b5027126；scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；tests/scripts/test_check_real_conversation_replay.py=bc7d7c000ccd2d159fa560406b36891f7220aba3cc7dba6b4a6d6fac6f2a2ebe；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-013：LangChain AI 应用层 P10c 发布摘要结构化
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -916,7 +932,7 @@
 - summary: P10c 在 LangChain AI 应用层 release gate 顶层新增 `release_summary`，把默认 133 eval、扩展 163 eval、RAG matrix、生产 http-only smoke 和生产 callback probe 的关键结果抽成结构化摘要。默认门禁和 RAG 加强门禁均通过；当前摘要显示默认 eval 133/133、扩展 eval 163/163、RAG best=hybrid，Recall@5=0.9857，MRR=0.8881。摘要不改变门禁判定，只降低上线报告和作品集证据整理成本。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-012：LangChain AI 应用层 P10b 生产 smoke/callback 可选门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -932,7 +948,7 @@
 - summary: P10b 将生产 `/health`、`/ready` 和企微员工助手 callback probe 编排进显式 release gate。默认门禁仍不触碰生产；`--include-production-smoke` 才追加生产只读探针。`smoke_test.py --http-only` 避免把本地静态配置误判为远程生产失败。本地脚本测试、Ruff、默认 release gate 均通过；显式生产 gate 的本地 133 eval、客户回复回放 probe、扩展 163 eval 和生产 http-only smoke 均通过，但当前线上 `0.85.2` callback probe 61 项中 2 项语义失败，需部署当前 `0.89.0` 或补齐生产员工知识后复验。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/smoke_test.py=d212b3d273d822d612525a1dd884c30e920c005bd3b180f1fb749f2b2ed426f8；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；tests/scripts/test_smoke_test.py=d853e7b4c992997a2afea1a31e8533c113a191688ee343e78e04f20f03e26f82；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；scripts/smoke_test.py=d212b3d273d822d612525a1dd884c30e920c005bd3b180f1fb749f2b2ed426f8；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；tests/scripts/test_smoke_test.py=d853e7b4c992997a2afea1a31e8533c113a191688ee343e78e04f20f03e26f82；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-011：LangChain AI 应用层 P10a 发布门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -948,7 +964,7 @@
 - summary: P10a 新增一条 LangChain AI 应用层 release gate：默认串联 133 项双机器人 eval、客户 graph 回复回放 probe 和 163 项扩展 eval；加强模式额外运行 RAG 矩阵。脚本已处理子进程非 UTF-8 输出和报告目录不存在问题，默认门禁 3/3 通过，加强门禁 4/4 通过。
 
 - storage_scope: repository
-- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_langchain_ai_layer_release_gate.py=670d6cc9bb2f4d79f297376c1ff45b6fe3a36b3e7ad6163aef03b8380fdc028b；tests/scripts/test_check_langchain_ai_layer_release_gate.py=7b969fc3e4be7c51fe1e5584921b39af5b9f69bfbf6f67cf199cf715e0ffeba1；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-010：LangChain AI 应用层 P6d 回复回放并入聚合 Agent Eval
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -964,7 +980,7 @@
 - summary: P6d 将客户回复回放作为可选第三个 agent 维度并入 `report_agent_eval.py`。默认 `--latest` 仍保持 133/133 双机器人 eval，显式 `--include-reply-replay` 后聚合客户 RAG、员工助手和客户回复回放三类结果，当前 163/163 通过；报告 metadata 记录 `include_reply_replay` 和 `reply_replay_source`，便于作品集和上线门禁引用。
 
 - storage_scope: repository
-- sha256: scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；scripts/check_customer_reply_replay.py=d07cebd3c1fa96b1ea72a72a32590ebe3ff60ac493d3c05f8ca963ac3beef775；scripts/probe_customer_reply_replay.py=3a8ff281746590743fe1467e6772ff950b8228efd888c8ec93d29a30f767337d；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；tests/scripts/test_probe_customer_reply_replay.py=c0a1142fb903aa11c54d03123d6be3a60d859bd5a0002c020d0e805168bc8cd7；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；scripts/check_customer_reply_replay.py=d07cebd3c1fa96b1ea72a72a32590ebe3ff60ac493d3c05f8ca963ac3beef775；scripts/probe_customer_reply_replay.py=3a8ff281746590743fe1467e6772ff950b8228efd888c8ec93d29a30f767337d；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；tests/scripts/test_probe_customer_reply_replay.py=c0a1142fb903aa11c54d03123d6be3a60d859bd5a0002c020d0e805168bc8cd7；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-009：LangChain AI 应用层 P6b 客户 graph 回复回放探针
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -980,7 +996,7 @@
 - summary: P6b 新增客户 LangGraph 回复回放探针，复用 `CustomerAgentGraphService.answer_with_trace()` 生成 30 条事实敏感 case 的 replies JSON，再交给 P6a 禁止输出检查。该切片把“回复文本检查”从默认安全句推进到客户 graph/finalizer 输出形态，同时保持 fake model、离线、可重复和不改热路径。
 
 - storage_scope: repository
-- sha256: scripts/probe_customer_reply_replay.py=3a8ff281746590743fe1467e6772ff950b8228efd888c8ec93d29a30f767337d；scripts/check_customer_reply_replay.py=d07cebd3c1fa96b1ea72a72a32590ebe3ff60ac493d3c05f8ca963ac3beef775；tests/scripts/test_probe_customer_reply_replay.py=c0a1142fb903aa11c54d03123d6be3a60d859bd5a0002c020d0e805168bc8cd7；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/probe_customer_reply_replay.py=3a8ff281746590743fe1467e6772ff950b8228efd888c8ec93d29a30f767337d；scripts/check_customer_reply_replay.py=d07cebd3c1fa96b1ea72a72a32590ebe3ff60ac493d3c05f8ca963ac3beef775；tests/scripts/test_probe_customer_reply_replay.py=c0a1142fb903aa11c54d03123d6be3a60d859bd5a0002c020d0e805168bc8cd7；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-008：LangChain AI 应用层 P6a 客户回复回放安全检查
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -996,7 +1012,7 @@
 - summary: P6a 将 P4d 的 `forbidden_reply_patterns` 从 eval metadata 推进到最终回复文本断言。新增回放脚本可读取外部 `--replies-json`，对 30 条事实敏感客户 case 检查禁止承诺、编造订单状态、乱报退款、承诺库存、私自报价或拒绝转人工等模式；默认安全回放 30/30 通过，并有单测证明命中禁止短语时会失败。
 
 - storage_scope: repository
-- sha256: scripts/check_customer_reply_replay.py=d07cebd3c1fa96b1ea72a72a32590ebe3ff60ac493d3c05f8ca963ac3beef775；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_customer_reply_replay.py=d07cebd3c1fa96b1ea72a72a32590ebe3ff60ac493d3c05f8ca963ac3beef775；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-007：LangChain AI 应用层 P5a 作品集证据包
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1012,7 +1028,7 @@
 - summary: P5a 将 LangChain / LangGraph AI 应用层迁移成果整理为可面试展示的证据包。作品集文档同步当前 133/133 双机器人 eval、70 条客户业务样本、事实敏感治理矩阵、RAG 检索模式决策和 LangChain 少写代码估算；README 与 docs 导航新增入口，便于从仓库首页追溯到代码路径、验证命令和治理证据。
 
 - storage_scope: repository
-- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/architecture/langchain-ai-layer-portfolio.md=8de03fb5359cfb1ac156e92b7f115f1ac1f86844bbe848a9a033c6ad4ec87641；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-006：LangChain AI 应用层 P4d 禁止回复模式输出契约
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1028,7 +1044,7 @@
 - summary: P4d 为订单、退款、售后、库存、价格和转人工 6 类事实敏感场景新增派生式禁止回复模式。客户 eval case metadata 输出 `forbidden_reply_patterns`，并通过 `forbidden_reply_patterns.present` 断言保证敏感 case 具备后续真实回复回放所需的禁止输出契约。客户 golden cases 检查通过 136/136，客户 eval 通过 71/71，双机器人聚合 eval 通过 133/133。
 
 - storage_scope: repository
-- sha256: scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-005：LangChain AI 应用层 P4c 事实敏感场景报告汇总
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1044,7 +1060,7 @@
 - summary: P4c 在通用 Agent Eval 模型层新增事实敏感场景汇总，单 agent 与双机器人聚合报告均输出 `sensitive_scenarios`。当前报告显示 after_sales 8、human_transfer 16、inventory 5、order 6、price 6、refund 6，失败数均为 0；双机器人聚合 eval 继续通过 133/133。
 
 - storage_scope: repository
-- sha256: app/service/agents/evaluation.py=5a1932b7788fc322a74ce46a6a876feadddfb028dd9d6682352de56ad28d9711；tests/service/agents/test_evaluation.py=2a7a79fcdc4d34b2792daf0911a192c6df92f1d0daa7e9828c526f4b18396bc3；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/evaluation.py=5a1932b7788fc322a74ce46a6a876feadddfb028dd9d6682352de56ad28d9711；tests/service/agents/test_evaluation.py=2a7a79fcdc4d34b2792daf0911a192c6df92f1d0daa7e9828c526f4b18396bc3；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-004：LangChain AI 应用层 P4b 事实敏感策略契约断言
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1060,7 +1076,7 @@
 - summary: P4b 将 P4a 的 `sensitive_scenarios` 标签升级为可机器检查的策略契约。订单、退款、售后、库存、价格、转人工 6 类高风险场景均要求 guardrails 命中对应策略关键词组；客户 eval 对每条敏感 case 输出 `sensitive_policy.<scenario>` 断言。客户 golden cases 检查通过 130/130，客户 eval 通过 71/71，双机器人聚合 eval 通过 133/133。
 
 - storage_scope: repository
-- sha256: scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；tests/fixtures/customer_rag_golden_cases.json=bc600582547621b539e7e02bf2a8a7f8697e31347faff1b587684723dbc6a653；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；tests/fixtures/customer_rag_golden_cases.json=bc600582547621b539e7e02bf2a8a7f8697e31347faff1b587684723dbc6a653；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-003：LangChain AI 应用层 P4a 客户事实敏感场景 eval 扩容
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1076,7 +1092,7 @@
 - summary: P4a 将客户 RAG golden cases 从 40 条业务样本扩展到 70 条，新增 `sensitive_scenarios` 标签和每类至少 5 条的机器检查，覆盖订单、退款、售后、库存、价格和转人工 6 类事实敏感场景。客户 eval 通过 71/71，双机器人聚合 eval 通过 133/133；70 条可评估客户样本下 hybrid Recall@5=0.9857、MRR=0.8881，planned-hybrid 持平，planned-hybrid+rerank Recall@5=0.9714、MRR=0.9136。
 
 - storage_scope: repository
-- sha256: tests/fixtures/customer_rag_golden_cases.json=bc600582547621b539e7e02bf2a8a7f8697e31347faff1b587684723dbc6a653；scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: tests/fixtures/customer_rag_golden_cases.json=bc600582547621b539e7e02bf2a8a7f8697e31347faff1b587684723dbc6a653；scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-002：LangChain AI 应用层 P3e RAG 检索模式热路径门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1092,7 +1108,7 @@
 - summary: P3e 将 `RAG_RETRIEVAL_MODE` 接入客户 RAG 热路径。默认 `hybrid` 仍直接调用原 `KnowledgeRetriever.search()`，保持生产稳定路径；`planned-hybrid` 和 `planned-hybrid-rerank` 才通过 LangChain retriever adapter 进入 query planning / rerank 编排，并把 Document 还原为现有 `KnowledgeEntry`。客户 eval 默认模式与 `planned-hybrid` 环境变量模式均 41/41 通过；检索矩阵显示 planned-hybrid 与 hybrid 持平，planned-hybrid+rerank 仍低于 baseline。
 
 - storage_scope: repository
-- sha256: app/service/chat_context.py=97120a2d26d36c2326c0b90c5625294414c1e535cc9d4a0c9cadad0b065df961；app/service/agents/rag/documents.py=2317b2654644c2c7b7e77a84ff81186be1774d6557162f8b0dfbb06f5f95f93c；tests/service/test_chat_refactor.py=3c045e77ed9fc7dda39a06be7afc6cdc3b9308134759c0e91c1b63d75f67ff57；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/chat_context.py=97120a2d26d36c2326c0b90c5625294414c1e535cc9d4a0c9cadad0b065df961；app/service/agents/rag/documents.py=2317b2654644c2c7b7e77a84ff81186be1774d6557162f8b0dfbb06f5f95f93c；tests/service/test_chat_refactor.py=3c045e77ed9fc7dda39a06be7afc6cdc3b9308134759c0e91c1b63d75f67ff57；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260710-001：LangChain AI 应用层 P3d RAG shadow compare 显式探针
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1108,7 +1124,7 @@
 - summary: P3d 将 RAG shadow compare 升级为显式运维探针，支持 `--baseline-mode` 和可重复 `--candidate-mode`，报告 metadata 记录当前 `RAG_RETRIEVAL_MODE`。真实 embedding 路径下，400 条启用知识、40 条客户样本的 baseline hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375。当前证据仍不支持热启 rerank。
 
 - storage_scope: repository
-- sha256: scripts/report_retrieval_shadow_compare.py=4c877ec1273180515ff3f4f02e6f28f24e3e82fe59d3d21337f00f6fa61aa562；tests/scripts/test_report_retrieval_shadow_compare.py=334c2544b9273081a242ec108b2fed5ea01afca552ffb8a587ec26bc1a188867；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_retrieval_shadow_compare.py=4c877ec1273180515ff3f4f02e6f28f24e3e82fe59d3d21337f00f6fa61aa562；tests/scripts/test_report_retrieval_shadow_compare.py=334c2544b9273081a242ec108b2fed5ea01afca552ffb8a587ec26bc1a188867；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-012：LangChain AI 应用层 P3c RAG 检索模式策略 helper
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1124,7 +1140,7 @@
 - summary: P3c 新增只读 RAG retrieval mode strategy/helper，把 `hybrid` 映射为稳定单查询，把 `planned-hybrid` 映射为 query planner，把 `planned-hybrid-rerank` 映射为 query planner + reranker。该 helper 尚未接入客户 graph 或线上回复，生产默认仍由现有稳定链路承载；冷导入 helper 不加载 LangChain 或 LangGraph 重依赖。
 
 - storage_scope: repository
-- sha256: app/service/agents/rag/modes.py=31ff630b091220a811bfc5e6e5cd207b3770a879b51fd07701cb8fef3b7959b6；tests/service/agents/test_rag_retriever.py=3fadf2b4ef1ed0334ab5a4dc141f11488b15bdffd83337025993da2298d94df2；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/rag/modes.py=31ff630b091220a811bfc5e6e5cd207b3770a879b51fd07701cb8fef3b7959b6；tests/service/agents/test_rag_retriever.py=3fadf2b4ef1ed0334ab5a4dc141f11488b15bdffd83337025993da2298d94df2；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-011：LangChain AI 应用层 P3b RAG 检索模式配置门禁
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1140,7 +1156,7 @@
 - summary: P3b 新增 `RAG_RETRIEVAL_MODE` 配置门禁，默认保持 `hybrid`，允许 `hybrid`、`planned-hybrid` 和 `planned-hybrid-rerank`，非法值在 `Settings` 初始化时失败。该配置当前只完成解析和测试，不接入客户热路径、不改变生产回复；冷导入 `app.config` 不加载 `langsmith`、`langchain_openai` 或 `langgraph`。
 
 - storage_scope: repository
-- sha256: app/config.py=b615377aa28527710c76152ea4d6aac46da54a20626f97878b308231e4071b02；tests/test_config.py=9b7dd8dbfee3200bc26ac836ab8010304e9fdb53c227f724012806d6caa94cfe；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/config.py=b615377aa28527710c76152ea4d6aac46da54a20626f97878b308231e4071b02；tests/test_config.py=9b7dd8dbfee3200bc26ac836ab8010304e9fdb53c227f724012806d6caa94cfe；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-010：LangChain AI 应用层 P3a RAG shadow compare
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1156,7 +1172,7 @@
 - summary: P3a 新增离线 RAG shadow compare 报告，baseline 默认为 `hybrid`，候选为 `planned-hybrid` 与 `planned-hybrid+rerank`。在 `data\bot.db` 400 条启用知识、40 条可评估客户样本下，baseline hybrid Recall@5=0.975、MRR=0.9437；planned-hybrid 持平；planned-hybrid+rerank Recall@5=0.95、MRR=0.9375，说明当前不应直接热启 rerank，应继续以 shadow compare 收集差异。
 
 - storage_scope: repository
-- sha256: scripts/report_retrieval_shadow_compare.py=4c877ec1273180515ff3f4f02e6f28f24e3e82fe59d3d21337f00f6fa61aa562；tests/scripts/test_report_retrieval_shadow_compare.py=334c2544b9273081a242ec108b2fed5ea01afca552ffb8a587ec26bc1a188867；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/report_retrieval_shadow_compare.py=4c877ec1273180515ff3f4f02e6f28f24e3e82fe59d3d21337f00f6fa61aa562；tests/scripts/test_report_retrieval_shadow_compare.py=334c2544b9273081a242ec108b2fed5ea01afca552ffb8a587ec26bc1a188867；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-009：LangChain AI 应用层 P2d Agent Eval 分组统计
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1172,7 +1188,7 @@
 - summary: P2d 为 Agent Eval JSON 增加作品集友好的统计字段：顶层 `agent_totals` 显示 customer 41 项、employee 62 项均通过；顶层 `case_groups` 汇总客户商品咨询、库存、配送、退款售后、转人工、知识未命中、员工 planner 和 capability contracts 等覆盖面；每个 agent 也单独输出 `case_groups`，后续 README/作品集可直接引用，无需人工二次统计。
 
 - storage_scope: repository
-- sha256: app/service/agents/evaluation.py=5a1932b7788fc322a74ce46a6a876feadddfb028dd9d6682352de56ad28d9711；tests/service/agents/test_evaluation.py=2a7a79fcdc4d34b2792daf0911a192c6df92f1d0daa7e9828c526f4b18396bc3；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/evaluation.py=5a1932b7788fc322a74ce46a6a876feadddfb028dd9d6682352de56ad28d9711；tests/service/agents/test_evaluation.py=2a7a79fcdc4d34b2792daf0911a192c6df92f1d0daa7e9828c526f4b18396bc3；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-008：LangChain AI 应用层 P2c 员工助手 eval 样本扩容
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1188,7 +1204,7 @@
 - summary: P2c 将员工助手离线 eval 从 49 项提升到 62 项，其中 planner 探针从 48 条提升到 61 条；双机器人聚合 eval 提升到 `passed total=103 failed=0`。新增样本覆盖交易成功、已关闭、待收货、待发货、上午/下午约送、商品销量、精确订单详情、客户复购、退款规则、客户线索和 unsupported；不改线上 planner、工具执行或确定性 finalizer。
 
 - storage_scope: repository
-- sha256: scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-007：LangChain AI 应用层 P2b 客户 eval 样本扩容
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1204,7 +1220,7 @@
 - summary: P2b 将客户 RAG golden cases 从 8 条业务样本扩充到 40 条业务样本，新增 `inventory` 与 `knowledge_no_match` required groups。客户 eval 当前 `passed total=41 failed=0`，双机器人聚合 eval 当前 `passed total=90 failed=0`。RAG 检索矩阵在 400 条启用知识、40 条客户标注样本下可跑通，best=hybrid，Recall@5=0.975，MRR=0.9437；这比旧小样本 1.0 更接近真实回归基线。
 
 - storage_scope: repository
-- sha256: tests/fixtures/customer_rag_golden_cases.json=bc600582547621b539e7e02bf2a8a7f8697e31347faff1b587684723dbc6a653；scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: tests/fixtures/customer_rag_golden_cases.json=bc600582547621b539e7e02bf2a8a7f8697e31347faff1b587684723dbc6a653；scripts/check_customer_rag_golden_cases.py=aec7ca5b290ab8a9a88efdcc91b23e793bc981f35c9c5bb63f3171e9a66fdf7d；tests/scripts/test_check_customer_rag_golden_cases.py=c683c5599ff76bc0f76ffe00274daf50d3859110251d820cf143a74f22b17592；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-006：LangChain AI 应用层 P2a eval runner 参数与 JSON 归档
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1220,7 +1236,7 @@
 - summary: P2a 为客户、员工和双机器人聚合 eval runner 增加 `--case-id`、`--fail-fast`、`--json-out`，并为聚合报告增加 `--agent customer|employee|all`。`reports\agent-eval\latest.json` 归档结果为 `passed total=58 failed=0 pass_rate=1.0`，case filter 可将客户或员工报告收敛到单 case，后续 P2b/P2c 扩真实业务样本时可快速定位失败 case 与断言。
 
 - storage_scope: repository
-- sha256: app/service/agents/evaluation.py=5a1932b7788fc322a74ce46a6a876feadddfb028dd9d6682352de56ad28d9711；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；scripts/eval_employee_agent.py=cb5f8b5b83c45303a4493978555f4c8bca28389d1f67b00de2dadfcf26acb1de；scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；tests/service/agents/test_evaluation.py=2a7a79fcdc4d34b2792daf0911a192c6df92f1d0daa7e9828c526f4b18396bc3；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/evaluation.py=5a1932b7788fc322a74ce46a6a876feadddfb028dd9d6682352de56ad28d9711；scripts/eval_customer_agent.py=f69f36cbfbf41873c3a6a30f97c2310f65a9b8c31e397b72eafce11a4e156d37；scripts/eval_employee_agent.py=cb5f8b5b83c45303a4493978555f4c8bca28389d1f67b00de2dadfcf26acb1de；scripts/report_agent_eval.py=f26a0158645789538b05517216d28aa86c01d88383cb188310b450b1b5fbcc88；tests/service/agents/test_evaluation.py=2a7a79fcdc4d34b2792daf0911a192c6df92f1d0daa7e9828c526f4b18396bc3；tests/scripts/test_agent_eval_scripts.py=d85eaafdd3eb2274a40976b4b2046798f7900bcf7997bec5c041fef1834cff98；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-005：LangChain AI 应用层 P1d 本地 trace probe 闭环
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1236,7 +1252,7 @@
 - summary: P1d 新增本地双机器人 trace probe，使用 `answer_with_trace()` 生成 customer 与 employee 两条 `AgentTraceRun` 并写入 `reports\agent-traces\agent-traces-20260709-224837.json`。`scripts\report_agent_traces.py --latest --summary` 返回 `agent_traces status=ok total_runs=2 agents=2`，JSON 汇总显示 customer 4 个节点、employee 7 个节点。P1 本地 trace 报告、显式导出、节点字段和 latest 报告闭环已具备。
 
 - storage_scope: repository
-- sha256: scripts/probe_agent_traces.py=c2550b074cafbea940d0e606b349a7b0d9c6c0cffac4b9524bf8284df05fa0f3；tests/scripts/test_probe_agent_traces.py=c8c3cfb3d356bcbbabf8f86b2bbd03b173885977c37d91d9f3b0b49a5b698736；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/probe_agent_traces.py=c2550b074cafbea940d0e606b349a7b0d9c6c0cffac4b9524bf8284df05fa0f3；tests/scripts/test_probe_agent_traces.py=c8c3cfb3d356bcbbabf8f86b2bbd03b173885977c37d91d9f3b0b49a5b698736；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-004：LangChain AI 应用层 P1c graph 节点 trace 字段补齐
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1252,7 +1268,7 @@
 - summary: P1c 补齐客户与员工 graph 节点 trace 字段。客户侧模型结果显式携带 `model_name`，load/model/tool 节点记录 RAG 命中、模型、耗时、工具数量和 fallback reason；员工侧工具选择、工具执行和确定性 finalizer 记录工具字段与 final status。字段只包含可观测结构化元数据，不扩大 LangSmith 外发或业务表写入边界。
 
 - storage_scope: repository
-- sha256: app/service/agents/customer/model.py=bbcfafaebf570adad645fd2f264adbd3dbf28ca10a417d7caa2a65aaf323286f；app/service/chat_context.py=97120a2d26d36c2326c0b90c5625294414c1e535cc9d4a0c9cadad0b065df961；app/service/agents/customer/nodes.py=802ff541f583b41e1ce1ca77c44f0c74bf8b2675373885de80f082ada4c9e63f；app/service/agents/employee/nodes.py=cd4b0c979371ec1c316c25925b87027890ca4308ef11854a731352aa1cdaea89；tests/service/agents/test_customer_model.py=cd1af4e0abfa23d3660a760dcd002f0575b8924d0a6388fa1a23d786ad6e3323；tests/service/agents/test_customer_graph.py=fc6b9532020bf60f0945de6be28032405bcee5a093be73084c5c237b691a0d5f；tests/service/agents/test_employee_graph.py=71c516cf55793f7e61949ec4193e479c28ed480a1d2bc75e7023a011b4737a99；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/customer/model.py=bbcfafaebf570adad645fd2f264adbd3dbf28ca10a417d7caa2a65aaf323286f；app/service/chat_context.py=97120a2d26d36c2326c0b90c5625294414c1e535cc9d4a0c9cadad0b065df961；app/service/agents/customer/nodes.py=802ff541f583b41e1ce1ca77c44f0c74bf8b2675373885de80f082ada4c9e63f；app/service/agents/employee/nodes.py=cd4b0c979371ec1c316c25925b87027890ca4308ef11854a731352aa1cdaea89；tests/service/agents/test_customer_model.py=cd1af4e0abfa23d3660a760dcd002f0575b8924d0a6388fa1a23d786ad6e3323；tests/service/agents/test_customer_graph.py=fc6b9532020bf60f0945de6be28032405bcee5a093be73084c5c237b691a0d5f；tests/service/agents/test_employee_graph.py=71c516cf55793f7e61949ec4193e479c28ed480a1d2bc75e7023a011b4737a99；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-003：LangChain AI 应用层 P1b graph 显式 trace 导出
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1268,7 +1284,7 @@
 - summary: P1b 为客户机器人和员工助手 graph service 增加 `answer_with_trace()`，在保留原 `answer()` 字符串返回行为的同时显式暴露可序列化 `AgentTraceRun`。本切片不默认写 `reports\agent-traces\`，避免生产热路径每条消息产生文件；后续显式探针、eval 或结构化日志可调用该入口导出 trace JSON，再交给 `scripts\report_agent_traces.py` 汇总。
 
 - storage_scope: repository
-- sha256: app/service/agents/customer/service.py=dd8c1096a356efe6122194188b34ad0d3b65bfbc116eeaa793f2156b42d6da0a；app/service/agents/employee/service.py=34fcdc1b2b4d60e45b23dfa35b90d269fc130fa18f0787c682f4c313d7ccef1d；app/service/agents/trace_report.py=fe01c3ce93d66333e6095af16bc96158188bd35a0f1064b6c733c27718275490；tests/service/agents/test_customer_graph.py=fc6b9532020bf60f0945de6be28032405bcee5a093be73084c5c237b691a0d5f；tests/service/agents/test_employee_graph.py=71c516cf55793f7e61949ec4193e479c28ed480a1d2bc75e7023a011b4737a99；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/customer/service.py=dd8c1096a356efe6122194188b34ad0d3b65bfbc116eeaa793f2156b42d6da0a；app/service/agents/employee/service.py=34fcdc1b2b4d60e45b23dfa35b90d269fc130fa18f0787c682f4c313d7ccef1d；app/service/agents/trace_report.py=fe01c3ce93d66333e6095af16bc96158188bd35a0f1064b6c733c27718275490；tests/service/agents/test_customer_graph.py=fc6b9532020bf60f0945de6be28032405bcee5a093be73084c5c237b691a0d5f；tests/service/agents/test_employee_graph.py=71c516cf55793f7e61949ec4193e479c28ed480a1d2bc75e7023a011b4737a99；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-002：LangChain AI 应用层 P1a 本地 Agent trace 报告
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1284,7 +1300,7 @@
 - summary: P1a 建立本地 Agent trace 报告闭环，新增只读聚合模块和 CLI，可从指定 JSON 或 `reports\agent-traces\` 最新 JSON 输出双机器人节点级摘要；当前未改 graph 热路径、未写业务表、未打开 LangSmith 外发。无 trace JSON 时脚本返回 `agent_traces status=no_traces total_runs=0 agents=0`，为 P1b 接入真实运行 trace 落盘预留稳定入口。
 
 - storage_scope: repository
-- sha256: app/service/agents/observability.py=a23993141413aab6f376d5eee0d488312a5756d00754c98baeb3f4bd8e77dd97；app/service/agents/trace_report.py=fe01c3ce93d66333e6095af16bc96158188bd35a0f1064b6c733c27718275490；scripts/report_agent_traces.py=fbd5531c5094f953bfcff33f0a0bc4625500567d46cdcb99340f36aaca2a6b4a；tests/service/agents/test_observability.py=ebcb0e824fbf674ecb9e7ddc20f4e572642157320369592ca97348efe5f16aa9；tests/service/agents/test_trace_report.py=4e976156aa24e7afbce89d80be557cc3fe091c2f3e649794ef44e01272ecf21a；tests/scripts/test_report_agent_traces.py=49acb35efa7fc4558d2b91b7a9d0e29e1f004bc4406003172892b2dd3f60a467；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/agents/observability.py=a23993141413aab6f376d5eee0d488312a5756d00754c98baeb3f4bd8e77dd97；app/service/agents/trace_report.py=fe01c3ce93d66333e6095af16bc96158188bd35a0f1064b6c733c27718275490；scripts/report_agent_traces.py=fbd5531c5094f953bfcff33f0a0bc4625500567d46cdcb99340f36aaca2a6b4a；tests/service/agents/test_observability.py=ebcb0e824fbf674ecb9e7ddc20f4e572642157320369592ca97348efe5f16aa9；tests/service/agents/test_trace_report.py=4e976156aa24e7afbce89d80be557cc3fe091c2f3e649794ef44e01272ecf21a；tests/scripts/test_report_agent_traces.py=49acb35efa7fc4558d2b91b7a9d0e29e1f004bc4406003172892b2dd3f60a467；docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260709-001：LangChain AI 应用层 P0 生产验证闭环
 
 - trace_id: 20260709-langchain-ai-layer-production-enhancement
@@ -1300,7 +1316,7 @@
 - summary: LangChain AI 应用层接管成果已同步到生产 0.85.2，`/health` 与 `/ready` 均通过，员工助手生产 callback 探针 48/48 通过。首次探针失败暴露商品库存语义验收硬编码实时库存数字的问题，已改为动态库存治理口径：高库存商品只要求返回库存事实和安全下一步，零库存或已下架商品分别允许“暂无可售库存并建议替代款”或“未命中且不得当作缺货结论”的安全结果。
 
 - storage_scope: repository
-- sha256: docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/langchain-ai-layer-production-enhancement-plan.md=e36cf6e8c43dcbe4a1ff12ab9c26d37f0b625a3535a120b30fc01d4a0c297a03；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260707-004：GitHub 参考计划双仓执行交接快照
 
 - trace_id: 20260707-github-reference-execution-handoff
@@ -1316,7 +1332,7 @@
 - summary: 归档 GitHub 参考计划阶段 0-6 双仓执行状态。Platform 侧七类业务合约通过，MiniApp 页面 API 覆盖、可观测和 miniprogram-ci 准备合约通过命令门槛；当前剩余不是代码边界问题，而是微信开发者工具 `islogin=false` / `需要重新登录 (code 10)` 导致按钮触达扫描和预览二维码无法刷新，以及真实 miniprogram-ci 上传所需仓库外私钥、依赖、机器人号、版本号、说明、体验版二维码和真机/支付/审核证据缺失。交接快照明确不引入 LangChain / LangGraph，不改客户热路径、不改员工助手主链路、不让 MiniApp 沉淀业务真相。
 
 - storage_scope: repository
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260707-003：GitHub 参考计划全量回归缺口修复
 
 - trace_id: 20260707-github-reference-full-suite-regression
@@ -1332,7 +1348,7 @@
 - summary: 全量后端测试暴露向量重建旧表夹具缺 v015 知识治理字段、企微员工助手 callback 假客户端未覆盖新增探针语义两类缺口。已让 `scripts/rebuild_embeddings.py` 在读取知识前同时检查必需表和必需字段，旧库缺字段时按 schema not ready 处理；测试夹具补齐当前治理字段并新增旧表缺字段回归；callback 假客户端补齐“明天预定订单”和“同步失败有哪些”回复。聚焦回归、Ruff、全量 `python -m pytest tests/ -q`、统一质量门禁、后台 `npm run typecheck`、后台 `npm run build:production`、架构扫描、mistake ledger、evidence index 和 diff 空白检查均通过。
 
 - storage_scope: repository
-- sha256: scripts/rebuild_embeddings.py=10156931e0cd66983682dabe0afc92aa55ea4530fbaec76d674181f053191437；tests/scripts/test_rebuild_embeddings.py=9aa7a8d1425fe24c829956b36d71aab39eb208aa3437ea3fed0cddd4106941bf；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/rebuild_embeddings.py=10156931e0cd66983682dabe0afc92aa55ea4530fbaec76d674181f053191437；tests/scripts/test_rebuild_embeddings.py=9aa7a8d1425fe24c829956b36d71aab39eb208aa3437ea3fed0cddd4106941bf；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260707-002：GitHub 参考实施计划静态门禁
 
 - trace_id: 20260707-github-reference-plan-contract
@@ -1348,7 +1364,7 @@
 - summary: 新增 GitHub 参考实施计划静态门禁，冻结阶段状态、客户热路径和员工事实回复不迁移、MiniApp 不沉淀业务真相、LangGraph 仅限可选离线固定流程等边界。新增 `scripts/check_github_reference_implementation_plan.py --summary`，并作为第七类业务合约接入统一质量门禁、生产预检和预检证据复核；本片未引入 LangChain / LangGraph，未改客户机器人热路径，未改员工助手 planner、工具调用或确定性回复。实际预检报告 `reports\preflight-github-reference-plan-contract-20260707-012412.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=8 failed=0`。
 
 - storage_scope: repository
-- sha256: docs/architecture/github-reference-benchmark-and-implementation-plan.md=be8fe04d88e050ca6b4a770bd46c664e2e915f16d692f275c2216fe55b74aa86；scripts/check_github_reference_implementation_plan.py=dbccc3602b2ad4043a5f18d742cedebea4a32d829ae6f8498a0df6f7e55eaa25；tests/scripts/test_check_github_reference_implementation_plan.py=5c39d9f4a1df114b69e0c657fa9fc2cb155c2378ee7ceb2609e95019bbeb2453；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/harness-engineering/core/verification-matrix.md=20601780a3fded6ba13cc2f206d038e2726ada7159cc9652137bb85b1f8584e9；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/github-reference-benchmark-and-implementation-plan.md=be8fe04d88e050ca6b4a770bd46c664e2e915f16d692f275c2216fe55b74aa86；scripts/check_github_reference_implementation_plan.py=dbccc3602b2ad4043a5f18d742cedebea4a32d829ae6f8498a0df6f7e55eaa25；tests/scripts/test_check_github_reference_implementation_plan.py=5c39d9f4a1df114b69e0c657fa9fc2cb155c2378ee7ceb2609e95019bbeb2453；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/harness-engineering/core/verification-matrix.md=20601780a3fded6ba13cc2f206d038e2726ada7159cc9652137bb85b1f8584e9；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260707-001：MiniApp 页面 API 覆盖合约静态门禁
 
 - trace_id: 20260707-miniapp-page-api-coverage-contract
@@ -1364,7 +1380,7 @@
 - summary: 新增 MiniApp 页面 API 覆盖合约，冻结首页、商品、详情、购物车、结算、政策、地址、订单、客户群登记、客服和会员中心等页面依赖的 Platform API，并明确会员权益、积分、储值余额、优惠券、配送费、满减和活动价必须先回 Platform 补 API 契约。新增 `scripts/check_miniapp_page_api_contract.py --summary`，并作为第六类业务合约接入统一质量门禁和生产预检。实际预检报告 `reports\preflight-miniapp-contract-20260707-001659.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=7 failed=0`。
 
 - storage_scope: repository
-- sha256: docs/architecture/miniapp-page-api-coverage-contract.md=cb3ac802806ddc7c2c1b5cb8bb2b6be6e8ede3d51558a10aee53523400283d47；scripts/check_miniapp_page_api_contract.py=a780bf8df52a5f504265e5f6e9634ceb4974cd5969d2e7a2bb9dad25f838ed31；tests/scripts/test_check_miniapp_page_api_contract.py=6250bb67fd0278e888efe19038b41bf2c4307864e6f21ca256f7be79f64aed82；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/miniapp-page-api-coverage-contract.md=cb3ac802806ddc7c2c1b5cb8bb2b6be6e8ede3d51558a10aee53523400283d47；scripts/check_miniapp_page_api_contract.py=a780bf8df52a5f504265e5f6e9634ceb4974cd5969d2e7a2bb9dad25f838ed31；tests/scripts/test_check_miniapp_page_api_contract.py=6250bb67fd0278e888efe19038b41bf2c4307864e6f21ca256f7be79f64aed82；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260706-004：客户机器人可观测合约静态门禁
 
 - trace_id: 20260706-customer-observability-contract
@@ -1380,7 +1396,7 @@
 - summary: 新增客户机器人可观测合约，冻结知识命中、无资料兜底、转人工、工具成功、上下文压力等指标，以及 trace、渠道、机器人类型、意图、转人工原因、兜底原因等事件字段。新增 `scripts/check_customer_observability_contract.py --summary`，并作为第五类业务合约接入统一质量门禁和生产预检。实际预检报告 `reports\preflight-observability-contract-20260707-000652.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=6 failed=0`。
 
 - storage_scope: repository
-- sha256: docs/architecture/customer-observability-contract.md=252a00c3859420fe1c2c356f8a98cc028f8c447c4bf3011fbcf9b96d44981670；scripts/check_customer_observability_contract.py=d7777525d95968e4d2b5cc1fe3eed95e605546797d64eeb3873868a2fe6c4de9；tests/scripts/test_check_customer_observability_contract.py=f8cd4d111eee9998fb119f5a2693cd5ba75ab752dfc691f8bdc246ac6328faf4；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/customer-observability-contract.md=252a00c3859420fe1c2c356f8a98cc028f8c447c4bf3011fbcf9b96d44981670；scripts/check_customer_observability_contract.py=d7777525d95968e4d2b5cc1fe3eed95e605546797d64eeb3873868a2fe6c4de9；tests/scripts/test_check_customer_observability_contract.py=f8cd4d111eee9998fb119f5a2693cd5ba75ab752dfc691f8bdc246ac6328faf4；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260706-003：客户长期记忆治理计划静态门禁
 
 - trace_id: 20260706-customer-memory-governance-plan
@@ -1396,7 +1412,7 @@
 - summary: 新增客户长期记忆治理计划，冻结 `customer_profiles` 与 `conversation_summaries` 边界，要求长期画像只作为可审计服务提示，必须具备来源证据、置信度、状态、撤销、过期和会话摘要隔离边界。新增 `scripts/check_customer_memory_governance_plan.py --summary`，并接入统一质量门禁和生产预检业务合约明细；本片不改热路径、不改 `MemoryAgent` 写入策略、不改 `customer_profiles` 表结构。实际预检报告 `reports\preflight-memory-contract-20260706-235559.json` 因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约复核通过，`preflight_business_contracts status=passed total=5 failed=0`。
 
 - storage_scope: repository
-- sha256: docs/architecture/customer-memory-governance-plan.md=fb234dcf174b6d84a7045c50dd7bf7f115047530277353a047ee61732e0a57e2；scripts/check_customer_memory_governance_plan.py=02eb6fd43dac8b1fe618636be2ddf68802c960b47c82555445d451bd7bad9b3d；tests/scripts/test_check_customer_memory_governance_plan.py=8cad1d9ccee5701fa87ab556823de8f6de57b2a78cb14ba3b64af8837fc32ae0；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/customer-memory-governance-plan.md=fb234dcf174b6d84a7045c50dd7bf7f115047530277353a047ee61732e0a57e2；scripts/check_customer_memory_governance_plan.py=02eb6fd43dac8b1fe618636be2ddf68802c960b47c82555445d451bd7bad9b3d；tests/scripts/test_check_customer_memory_governance_plan.py=8cad1d9ccee5701fa87ab556823de8f6de57b2a78cb14ba3b64af8837fc32ae0；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260706-002：Harness 证据索引结构门禁
 
 - trace_id: 20260706-evidence-index-guard
@@ -1412,7 +1428,7 @@
 - summary: 新增只读脚本校验 Harness evidence index 的必填字段、结果枚举、敏感数据标记、重复 ID 和预检业务合约证据引用；历史重复证据 ID 已重编号为未占用编号，避免后续按 evidence id 追溯时歧义。脚本已接入 pre-commit `check-evidence-index`。
 
 - storage_scope: repository
-- sha256: scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；tests/scripts/test_check_evidence_index.py=de0ee2d39525e2b68f36d6fe301997864f92c518fc335ca5c983c0b3090a4a65；.pre-commit-config.yaml=fdb766ccfd3b68bceae6e47e6887c68f47317f220fcf9ec98503c49b4465a4e6；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；tests/scripts/test_check_evidence_index.py=de0ee2d39525e2b68f36d6fe301997864f92c518fc335ca5c983c0b3090a4a65；.pre-commit-config.yaml=fdb766ccfd3b68bceae6e47e6887c68f47317f220fcf9ec98503c49b4465a4e6；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260706-001：预检业务合约证据复核
 
 - trace_id: 20260706-preflight-contract-evidence-check
@@ -1428,7 +1444,7 @@
 - summary: 新增只读脚本校验已保存的 preflight JSON 是否包含 `business_contracts.static_checks`，且员工助手能力合约、客户 RAG golden cases、知识治理计划三类状态均为 passed。实际本地预检报告因既有 `handoff_staff_userid_ready` 环境配置缺口整体失败，但业务合约证据复核通过，`preflight_business_contracts status=passed total=4 failed=0`。
 
 - storage_scope: repository
-- sha256: scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；tests/scripts/test_check_preflight_business_contracts.py=bfe298c9b1670b588df4cc0309f5cafdbb732521e976e6adb5252fb9c44230c6；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_preflight_business_contracts.py=dd4d1f06b194c8a793be5b69c3f1e12c518130ab9d8d664d369628e5ec9f79d5；tests/scripts/test_check_preflight_business_contracts.py=bfe298c9b1670b588df4cc0309f5cafdbb732521e976e6adb5252fb9c44230c6；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260705-001：企微员工助手确定性直出重构
 
 - trace_id: 20260704-wecom-employee-agent-deterministic-reply
@@ -1444,7 +1460,7 @@
 - summary: 员工助手员工可见回复移除回复期 LLM 润色和两个旧 guard 文件，统一由确定性工具结果和模板生成后经过 `clean_plain_text_reply()` 返回；LLM 仅保留在结构化规划兜底阶段。本地员工助手相关 91 条测试、45/45 规划探针和全量测试通过，覆盖率 79.08%。生产已同步到 `0.74.32`，`/health` 返回 `status=ok`，`/ready` 返回 `status=ready` 且企微智能机器人回调配置检查通过；45 问加密回调探针报告 `D:\Project\YunxiBakeBot\reports\wecom-employee-agent\callback-20260705-151936.json` 显示 `status=passed,total=45,failed=0,app_version=0.74.32`。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_order_list_guard.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_order_list_guard.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-041：企微员工助手商品无库存和未命中回复口径
 
 - trace_id: 20260704-wecom-employee-agent-product-stockout-miss
@@ -1460,7 +1476,7 @@
 - summary: 员工助手商品回复事实保真层新增两个守卫：商品未命中时，LLM 润色不能丢掉“未命中不等于缺货”的保护语；0 库存商品只允许建议同品类或相近价位替代，不能编造具体替代品名。首次生产复查暴露“如北海道吐司 / 原味手撕包”仍会漏过，已把“如 + 具体替代品”纳入同一守卫，并把对应具体品名加入共享探针禁用词。共享探针新增 `no-stock-product` 与 `missing-product`，规划和回调验收样本扩展到 45 条。本地聚焦回归 9 条、补漏聚焦回归 3 条、员工助手和企微插件相关测试、45/45 规划探针、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；生产同步待执行。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；VERSION=04d81abf05725dabe18012d7f74138c61fb2ab6c68a014f88161b6040ec0ae1c；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；VERSION=c3b2fbefe9663c9d6e33ebc7919dfcc594780f0c3b87a4514c88116e67d05132；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-040：企微员工助手商品高库存下一步动作
 
 - trace_id: 20260704-wecom-employee-agent-product-stock-action
@@ -1476,7 +1492,7 @@
 - summary: 商品查询工具的下一步动作从固定低库存提示改为按命中商品库存动态生成。未命中、无库存、低库存、高库存分别输出不同员工动作建议；当前明确要求 `库存 72` 的高库存商品探针禁止出现“低库存”。生产 `0.74.27 / 786b738a3` 已通过 `/health`、`/ready` 和 43/43 加密回调探针；商品完整回复抽查 `casual-inventory`、`casual-product-stock`、`order-product-inventory`、`product-stock-customer-reply` 均保留 `库存72`，且未出现“低库存”误导提示。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_product_action.py=bc917030f91ce448072a25096b1a8ddc38f38b19c99532fa822fa4209573ca97；app/service/wecom/intelligent_bot_tools.py=2a881784d3bcddd2bda17aa70300ba408353769dd2256d0189e2173b1137c228；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_product_action.py=bc917030f91ce448072a25096b1a8ddc38f38b19c99532fa822fa4209573ca97；app/service/wecom/intelligent_bot_tools.py=2a881784d3bcddd2bda17aa70300ba408353769dd2256d0189e2173b1137c228；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-039：企微员工助手普通订单列表结构保真
 
 - trace_id: 20260704-wecom-employee-agent-order-list-shape
@@ -1492,7 +1508,7 @@
 - summary: 普通订单列表新增行级结构保真守卫。确定性结果中多条订单行若包含尾号、状态、金额和物流标记，LLM 润色必须保留同等数量级的行级字段，否则回退确定性工具结果；物流标记计数使用非重叠匹配，避免 `暂无物流` 与 `无物流` 子串双计数。待发货和无物流探针也升级为必须出现尾号、物流和状态词。生产 `0.74.26 / 8b669d8e8` 已通过 `/health`、`/ready` 和 43/43 加密回调探针；普通订单列表解密抽查 `pending-shipment-list`、`casual-pending-shipment`、`missing-logistics-list`、`casual-missing-logistics`、`tomorrow-pending-orders`、`weekend-pending-orders` 均保留 `尾号 / 待发货或待收货 / 金额 / 暂无物流` 行级字段。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_order_list_guard.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_order_list_guard.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-038：企微员工助手履约风险列表结构保真
 
 - trace_id: 20260704-wecom-employee-agent-fulfillment-list-shape
@@ -1508,7 +1524,7 @@
 - summary: 履约风险订单列表标题明确按约送时间升序展示，下一步动作提示优先处理已过约送时间或暂无物流订单；LLM 润色若压缩多单列表并丢失尾号、约送、物流、待发货/待收货状态，或减少尾号数量，会回退确定性工具结果。生产 `0.74.24 / 121b1331a` 已通过 `/health`、`/ready` 和 43/43 加密回调探针；`fulfillment-risk-list`、`casual-fulfillment-pressure`、`today-action-items` 解密抽查均保留 `尾号 / 约送 / 物流`，且履约风险列表按约送时间展示。本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_delivery_format.py=29188ae73590fc9f9bb14a2089efa55e1f533fb51630db5be67336de147eac66；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_delivery_format.py=29188ae73590fc9f9bb14a2089efa55e1f533fb51630db5be67336de147eac66；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-037：企微员工助手已过约送时间履约风险标记
 
 - trace_id: 20260704-wecom-employee-agent-overdue-fulfillment-marker
@@ -1524,7 +1540,7 @@
 - summary: 订单行会对已过约送时间追加明确标记，LLM 润色若把逾期风险改写为未来截止表达会回退确定性工具结果；43 问探针已加入“需在 / 前完成 / 前安排”禁用词。生产 `0.74.23 / cae499c82` 已通过 `/health`、`/ready`、43 问加密回调探针和履约风险完整回复抽查。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_order_insights.py=a3b75c41304b9efa1ada080f768651092b286b07104be2d4974b719de503307e；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_order_insights.py=a3b75c41304b9efa1ada080f768651092b286b07104be2d4974b719de503307e；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-036：企微员工助手履约日期和销量备货口径守卫
 
 - trace_id: 20260704-wecom-employee-agent-delivery-date-scope
@@ -1540,7 +1556,7 @@
 - summary: 员工助手回复事实保真层新增绝对约送日期守卫：工具结果出现 `约送 YYYY-MM-DD` 时，润色不能凭空改写成“明天 / 后天 / 周末 / 下周”等相对日期。同步 `0.74.20 / 6bc3ec5a5` 后生产 43 问首次验收发现 `this-week-top-products` 仍被润色为“优先备货”，补充将销量排行备货建议守卫扩展到所有销量排行工具结果。本地聚焦回归 4 条、员工助手相关 79 条测试、43 问规划探针、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已重新同步生产 `0.74.21 / 3f80aa025`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`this-week-top-products` 不再出现“优先备货”，履约风险类未再出现错误相对日期漂移；本轮两个同步 bundle 均已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-035：企微员工助手无物流关闭退款口径守卫
 
 - trace_id: 20260704-wecom-employee-agent-missing-logistics-scope
@@ -1556,7 +1572,7 @@
 - summary: 员工助手无物流列表回复新增范围口径守卫。确定性结果为“暂无物流 / 无物流”但没有明确排除关闭或退款单时，LLM 润色若凭空声明“已剔除 / 不含已关闭 / 不含退款 / 剔除已关闭 / 剔除退款”会回退确定性工具结果。无物流探针样本同步加入禁用词。本地聚焦回归 2 条、员工助手相关 75 条测试、43 问规划探针、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.19 / 3adede196`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`missing-logistics-list` 和 `casual-missing-logistics` 生产预览均未出现“已剔除 / 不含已关闭 / 不含退款”；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-034：企微员工助手销量并列爆款判断收紧
 
 - trace_id: 20260704-wecom-employee-agent-top-products-tie
@@ -1572,7 +1588,7 @@
 - summary: 销量排行工具结果新增第一名并列提示，低样本并列不再判断单一爆款；LLM 润色若把并列结果改写为“销量第一 / 当前爆款 / 优先备货”会回退确定性结果；43 问探针禁止销量排行类回复只凭排行给出“优先备货”。本地聚焦回归 3 条通过，员工助手相关 73 条测试通过，43 问规划探针通过，Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.18 / 4c38fadcb`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`casual-top-product` 生产预览已不再出现“优先备货”；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_top_products_format.py=d96bde68908e210eb9b6e5a4439c3ffe7ce0dd95d8c724e136462458863c17de；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_top_products_format.py=d96bde68908e210eb9b6e5a4439c3ffe7ce0dd95d8c724e136462458863c17de；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-033：企微员工助手 Markdown 引用符清理
 
 - trace_id: 20260704-wecom-employee-agent-blockquote-cleanup
@@ -1588,7 +1604,7 @@
 - summary: 员工助手回复统一纯文本清理新增行首 `>` blockquote 引用符清理，并把 callback 语义验收升级为拒绝 `>` 引用符。聚焦回归 3 条通过，员工助手相关 90 条测试通过，43 问规划探针通过，Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.17 / d562e5d0d`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`refund-order-customer-reply` 生产预览已无 `>` blockquote 引用符；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/chat_reply.py=0f4e0b4918e6ca68432f4e45dfa976dbb90ba7ea49f434b100cff193421ba2ea；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；tests/service/test_chat_refactor.py=3c045e77ed9fc7dda39a06be7afc6cdc3b9308134759c0e91c1b63d75f67ff57；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/chat_reply.py=0f4e0b4918e6ca68432f4e45dfa976dbb90ba7ea49f434b100cff193421ba2ea；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；tests/service/test_chat_refactor.py=3c045e77ed9fc7dda39a06be7afc6cdc3b9308134759c0e91c1b63d75f67ff57；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-032：企微员工助手订单混合问法客户回复话术
 
 - trace_id: 20260704-wecom-employee-agent-order-customer-reply
@@ -1604,7 +1620,7 @@
 - summary: 订单+知识库混合问法中，员工问“怎么跟客户说 / 怎么回复客户”时不再只返回订单列表；多工具整理层会在订单工具结果后追加“给客户可复制回复”，退款/售后和未发货场景分别生成确定性话术。回复守卫要求 LLM 润色保留“客户 / 回复”，否则回退确定性结果。43 问探针同步强化 `pending-shipment-customer-reply` 和 `refund-order-customer-reply`，要求同时包含“客户 / 回复”。本地相关测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.16 / 712ec0533`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_mixed_reply.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_mixed_reply.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-031：企微员工助手客户线索查询归一与脱敏
 
 - trace_id: 20260704-wecom-employee-agent-ops-empty-readable
@@ -1620,7 +1636,7 @@
 - summary: 客户线索查询从员工自然问法中清理“查一下 / 地址线索 / 地址”等口语噪声，把有效姓名、手机号或地址关键词交给后端查询；工具 payload 与员工回复只展示脱敏后的查询预览，避免手机号等敏感查询回显。本地 API/callback/plans/service 相关 88 条测试通过，43 问规划通过，Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.15 / 9addc9fc5`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`customer-lookup` 预览已只展示 `张三` 线索结果，不再回显整句查询；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/intelligent_bot_ops_tools.py=6d8b3d663dd875d4b179b5a8c74243aad39ff35925166780ff8dd729617bc60a；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/intelligent_bot_ops_tools.py=6d8b3d663dd875d4b179b5a8c74243aad39ff35925166780ff8dd729617bc60a；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-030：企微员工助手离线复盘摘要可读性
 
 - trace_id: 20260704-wecom-employee-agent-offline-review-readable
@@ -1636,7 +1652,7 @@
 - summary: 离线复盘摘要原先会把 `outside_night_window` 和 `skippedReason` 这类内部调度字段拼到员工回复中。本轮在格式层新增中文跳过原因映射和统一下一步动作，单工具调试字段继续保留，但员工可见 `result` 与 `nextAction` 不再暴露内部字段。探针样本新增离线复盘禁用词，callback 语义检查补拒绝裸跳过字段回归。本地相关测试、员工 Agent 46 条测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.13 / e27090cb1`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`offline-review-summary` 预览为“当前不在夜间复盘窗口，最近一轮没有执行...”，未出现内部字段；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/intelligent_bot_status_tools.py=61c7822308a76c7886ae545edf1bb4243f4b628d3945c0a43cbbd08152a98f16；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_ops_format.py=40dd2bfdcf44eb55a5e7d3bc9a80ca6ecb52d4fa46a8d7d505509d469b1bee3a；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/intelligent_bot_status_tools.py=61c7822308a76c7886ae545edf1bb4243f4b628d3945c0a43cbbd08152a98f16；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_ops_format.py=40dd2bfdcf44eb55a5e7d3bc9a80ca6ecb52d4fa46a8d7d505509d469b1bee3a；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-029：企微员工助手待人工摘要 UMP 标记清理
 
 - trace_id: 20260704-wecom-employee-agent-handoff-ump-cleanup
@@ -1652,7 +1668,7 @@
 - summary: 待人工摘要会话预览中出现 `[UMP: type=card&id=...]` 商品卡片协议标记；生产首次同步后进一步发现历史摘要可能保存缺少右中括号的残缺 `[UMP: ...` 尾部。现复用既有 `parse_ump_tags()` 清完整标记，并新增残缺 UMP 尾部清理；同时 43 问探针的待人工样本禁止 `UMP / type=card / %E5%` 残留，避免语义验收漏过机器协议噪声。本地相关测试、员工 Agent 46 条测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.11 / db8176469`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`handoff-pending` 与 `casual-handoff-pending` 预览均不再出现 UMP 协议噪声；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_ops_format.py=40dd2bfdcf44eb55a5e7d3bc9a80ca6ecb52d4fa46a8d7d505509d469b1bee3a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_ops_format.py=40dd2bfdcf44eb55a5e7d3bc9a80ca6ecb52d4fa46a8d7d505509d469b1bee3a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-028：企微员工助手运营状态可读性
 
 - trace_id: 20260704-wecom-employee-agent-ops-readable
@@ -1668,7 +1684,7 @@
 - summary: 运营状态和待人工回复从机器字段展示收口为员工可读动作摘要：`attention` 转为“系统需要关注”，观察台计数只展示有问题的类别并提示先看 Webhook 失败或内容回写历史；待人工列表继续只展示工单尾号，同时增加已脱敏的会话摘要预览。本地相关测试、员工 Agent 80 条测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.9 / 91ab70cc9`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`ops-status` 与 `casual-ops-status` 均返回“系统需要关注...”中文动作摘要；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/intelligent_bot_status_tools.py=61c7822308a76c7886ae545edf1bb4243f4b628d3945c0a43cbbd08152a98f16；tests/service/test_wecom_intelligent_bot_ops_format.py=40dd2bfdcf44eb55a5e7d3bc9a80ca6ecb52d4fa46a8d7d505509d469b1bee3a；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/intelligent_bot_status_tools.py=61c7822308a76c7886ae545edf1bb4243f4b628d3945c0a43cbbd08152a98f16；tests/service/test_wecom_intelligent_bot_ops_format.py=40dd2bfdcf44eb55a5e7d3bc9a80ca6ecb52d4fa46a8d7d505509d469b1bee3a；tests/api/test_wecom_intelligent_bot_plugin_api.py=372f0552e5b02831fea5710bc37edea77f2f11018f17081de24b4920e9c5efa9；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-027：企微员工助手纯文本回复清理
 
 - trace_id: 20260704-wecom-employee-agent-plain-text-reply
@@ -1684,7 +1700,7 @@
 - summary: 生产回调探针预览暴露 `**尾号...**`、`**优先级...**` 等 Markdown 装饰残留。员工助手最终回复现统一复用 `clean_plain_text_reply()`，覆盖确定性回复、知识/运营跳过润色回复和 LLM 润色回复；回调验收新增全局纯文本规则，出现 `**`、`__` 或反引号即判定语义失败。本地相关测试、43 问规划、Ruff、文件体量、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.7 / a4c9f8d0e`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`fulfillment-risk-list`、`tomorrow-pending-orders`、`today-action-items`、`casual-order-attention`、`top-products` 和 `casual-top-product` 的回复预览均不再出现 `**` 或反引号；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/chat_reply.py=0f4e0b4918e6ca68432f4e45dfa976dbb90ba7ea49f434b100cff193421ba2ea；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；tests/service/test_chat_refactor.py=3c045e77ed9fc7dda39a06be7afc6cdc3b9308134759c0e91c1b63d75f67ff57；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/chat_reply.py=0f4e0b4918e6ca68432f4e45dfa976dbb90ba7ea49f434b100cff193421ba2ea；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；tests/service/test_chat_refactor.py=3c045e77ed9fc7dda39a06be7afc6cdc3b9308134759c0e91c1b63d75f67ff57；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-026：企微员工助手空订单查询范围保真
 
 - trace_id: 20260704-wecom-employee-agent-empty-order-scope
@@ -1700,7 +1716,7 @@
 - summary: 订单动态查询为空时，员工助手会基于 `OrderQueryPlan` 的约送日期、约送时间段、状态、无物流、履约风险和商品关键词生成具体范围说明；LLM 润色若引入“换商品名 / 时间范围再查 / 日期需确认”等泛化绕路话术，会回退确定性工具结果。空结果范围 helper 已拆入独立文件，避免继续扩大订单格式文件。本地文件体量、相关测试、43 问规划、Ruff、项目红线、架构扫描、编码检查、mistake ledger 和 diff 空白检查均通过；已同步生产 `0.74.6 / c70aff42`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`evening-pending-orders` 返回约送日期 2026-07-04、时间 18:00-23:59 的具体空结果范围，未出现“换商品名 / 时间范围再查”；`after-tomorrow-pending-orders` 与 `next-monday-pending-orders` 也通过空结果泛化绕路禁用词检查；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_order_empty_format.py=336314779109389326abad103161897da4b170185f3c5aafecbb0b5c54a8df0f；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_order_lookup.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_order_lookup.py=55256c7383c41b001fca617831d2f1f03e88cbe21d69e3c74aa957ba3d580f2f；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_order_empty_format.py=336314779109389326abad103161897da4b170185f3c5aafecbb0b5c54a8df0f；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_order_lookup.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_order_lookup.py=55256c7383c41b001fca617831d2f1f03e88cbe21d69e3c74aa957ba3d580f2f；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-025：企微员工助手商品话术无命中兜底
 
 - trace_id: 20260704-wecom-employee-agent-product-knowledge-miss
@@ -1716,7 +1732,7 @@
 - summary: 商品实时数据 + 知识库话术组合问法在知识库无命中时，不再把“未找到匹配知识。”直接拼给员工；新增多工具回复整理，基于实时库存生成员工可执行建议，并保留纯知识问法的无命中提示。共享探针已禁止商品+话术样本出现“未找到匹配知识”。本地相关测试 63 条通过，规划探针 43/43 通过；已同步生产 `0.74.5 / a4558172`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`product-stock-recommend-replacement` 和 `product-stock-customer-reply` 均返回基于库存的员工建议，未裸露“未找到匹配知识”；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_mixed_reply.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_mixed_reply.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-024：企微员工助手配送知识兜底增强
 
 - trace_id: 20260704-wecom-employee-agent-delivery-knowledge
@@ -1732,7 +1748,7 @@
 - summary: 员工助手知识类问法 `明天能配送吗` 在知识库无命中时，从弱提示“知识库没有命中”升级为员工可复制的保守话术：以门店实际排期为准，不承诺一定准时送达，先收集客户期望配送时间、地址区域和联系方式，急单、指定准确送达或疑似超区需求转人工确认。共享探针强化 `delivery-knowledge`，要求回复包含配送和排期/确认/人工/可配送时段等动作语义。本地相关测试 60 条通过，规划探针 43/43 通过；已同步生产 `0.74.4 / f0aabffa`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`delivery-knowledge` 返回可复制配送话术，未再出现“知识库没有命中”弱兜底；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_knowledge_format.py=768a1f8710a78f30214ac169be75e4b5f1662a6e6f8028f3a5503720b0ad60a3；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_knowledge_reply.py=15a77eccf7df891b19b2de6cd07c122d07e9e70c25b73a0e8ae367de81e5cd44；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_knowledge_format.py=768a1f8710a78f30214ac169be75e4b5f1662a6e6f8028f3a5503720b0ad60a3；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_intelligent_bot_knowledge_reply.py=15a77eccf7df891b19b2de6cd07c122d07e9e70c25b73a0e8ae367de81e5cd44；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-023：企微员工助手无物流标记保真
 
 - trace_id: 20260704-wecom-employee-agent-missing-logistics-guard
@@ -1748,7 +1764,7 @@
 - summary: 生产回调探针显示 `missing-logistics-list` 的确定性结果含“暂无物流”，但 LLM 润色概括成普通“未发货”列表，丢失员工真正要看的物流状态。补丁在回复守卫中要求确定性结果含“暂无物流/无物流”时，润色结果必须保留“物流”，否则回退确定性结果；同时将两个无物流回调样本升级为必须包含“物流”。本地相关测试 58 条通过，规划探针 43/43 通过；已同步生产 `0.74.3 / 00a99a3f5`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`missing-logistics-list` 回复保留“暂无物流”，`casual-missing-logistics` 回复保留“物流”；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260704-022：企微员工助手发货压力口径一致性
 
 - trace_id: 20260704-wecom-employee-agent-fulfillment-pressure
@@ -1764,7 +1780,7 @@
 - summary: 员工助手“今天发货压力大不大”类履约风险列表问法复用今日经营待办的压力阈值，确定性结果补充“发货压力：偏高/中等/低”和待处理/履约风险计数；回复守卫要求润色结果保留同一压力等级，避免把 5 单偏高场景说成“压力不大”。共享探针强化 `casual-fulfillment-pressure`，禁止“压力不大”逃过验收。本地相关测试 97 条通过，规划探针 43/43 通过；已同步生产 `0.74.1 / 686aa43c1`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，`casual-fulfillment-pressure` 回复为“发货压力偏高”；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_intelligent_bot_order_lookup.py=55256c7383c41b001fca617831d2f1f03e88cbe21d69e3c74aa957ba3d580f2f；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_intelligent_bot_order_lookup.py=55256c7383c41b001fca617831d2f1f03e88cbe21d69e3c74aa957ba3d580f2f；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-021：企微员工助手今日经营待办洞察
 
 - trace_id: 20260704-wecom-employee-agent-action-insights
@@ -1780,7 +1796,7 @@
 - summary: 员工助手 `action_items` 订单结果从字段汇总升级为确定性经营洞察：回复包含今日订单量和金额、发货压力、待处理/履约风险/退款/无物流计数、优先级标题和下一步动作。仍复用既有订单动态查询结果，不新增 SQL、不改变企微回调入口。共享探针强化“今天有什么要盯的 / 今天订单有没有需要注意的”必须包含“优先级”和“压力”；本地相关测试 92 条通过，规划探针 43/43 通过。首次同步生产 `0.72.1 / e46a84aab` 后 `/health` 与 `/ready` 通过，但回调探针 42/43，`today-action-items` 因 LLM 润色删掉“压力”失败；已补 `preserve_tool_facts` 经营洞察标记守卫，本地相关测试 94 条通过，规划探针 43/43 通过。已同步生产 `0.74.0 / 0d9e9b47e`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过；`today-action-items` 与 `casual-order-attention` 均保留“优先级 / 压力”经营洞察标记；本轮两个同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_order_insights.py=a3b75c41304b9efa1ada080f768651092b286b07104be2d4974b719de503307e；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_order_insights.py=a3b75c41304b9efa1ada080f768651092b286b07104be2d4974b719de503307e；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-020：企微员工助手润色回复隐私回退
 
 - trace_id: 20260704-wecom-employee-agent-privacy-polish-guard
@@ -1796,7 +1812,7 @@
 - summary: 生产 43 项员工助手回调探针中，旧混合问法“还有哪些没发货，怎么跟客户说”被 LLM 润色引入“完整订单号”提示，确定性工具结果本身安全。补丁在回复守卫中检测润色结果是否新增手机号、完整订单号、完整地址、买家 ID 或英文私有字段名，命中则回退确定性回复。本地相关测试 90 条通过，规划探针 43/43 通过；已同步生产 `0.72.0 / 1053f6be5`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过，旧混合问法已通过线上语义和隐私检查；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-019：企微员工助手更宽自然时间问法
 
 - trace_id: 20260704-wecom-employee-agent-wider-date-phrases
@@ -1812,7 +1828,7 @@
 - summary: 员工助手订单日期解析新增“本月/这个月/当月”“上周/上星期”“周五/星期五”“下周一/下星期一”等自然时间表达，继续生成 `date_from/date_to/date_field` 结构化计划，不生成 SQL。共享探针从 39 项扩展到 43 项，新增“本月销售额怎么样”“上周退款多少”“下周一有哪些待处理订单”“周五椰椰凤梨卖了几单”；本地规划 43/43 通过，相关测试 88 条通过；已同步生产 `0.72.0 / 1053f6be5`，`/health` ok，`/ready` ready，43/43 端到端加密回调探针通过；新增四条自然时间问法均通过线上语义和隐私检查；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_date_calendar.py=85968294bdd8d485da93e81289a3dbbc3928afd076084e6d74cdb89165829ab2；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_stop_words.py=b2a1b3300e6bd2268bdf2d6b1b348a176ca19f2d9c73707270b00bdb338b8314；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；tests/service/test_wecom_employee_agent_file_size.py=efbacabe3789340232b488462ee7acb90b2b4f7d22ebe8417d3d2d203a380e59；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_date_calendar.py=85968294bdd8d485da93e81289a3dbbc3928afd076084e6d74cdb89165829ab2；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_stop_words.py=b2a1b3300e6bd2268bdf2d6b1b348a176ca19f2d9c73707270b00bdb338b8314；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；tests/service/test_wecom_employee_agent_file_size.py=efbacabe3789340232b488462ee7acb90b2b4f7d22ebe8417d3d2d203a380e59；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-018：企微员工助手自然日期订单问法
 
 - trace_id: 20260704-wecom-employee-agent-natural-dates
@@ -1828,7 +1844,7 @@
 - summary: 员工助手订单日期解析新增“后天”“周末/本周末/这个周末”和具体月日表达，继续生成 `date_from/date_to/date_field` 结构化计划，不生成 SQL。共享探针从 36 项扩展到 39 项，覆盖“后天有哪些待处理订单”“周末有哪些待处理订单”“7月5日椰椰凤梨卖了几单”；本地规划 39/39 通过，相关测试 84 条通过；已同步生产 `0.70.8 / 734a74e60`，`/health` ok，`/ready` ready，39/39 端到端加密回调探针通过；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-017：企微员工助手按约送日期查询订单
 
 - trace_id: 20260704-wecom-employee-agent-date-field
@@ -1844,7 +1860,7 @@
 - summary: 员工助手新增 `date_field` 计划字段，用于区分经营统计的下单/支付日期和履约问法的约送日期。“明天有哪些待处理订单”会生成 `date_from/date_to=明天`、`date_field=delivery_time`、待处理状态；repository 仅通过白名单表达式在 `ORDER_TIME_EXPR` 与 `DELIVERY_TIME_EXPR` 间切换，仍为参数化 SQL。共享探针从 35 项扩到 36 项，本地规划 36/36 通过；已同步生产 `0.70.6 / d4058b3e6`，`/health` ok，`/ready` ready，36/36 端到端加密回调探针通过；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-016：企微员工助手配送时间段订单查询
 
 - trace_id: 20260704-wecom-employee-agent-delivery-window
@@ -1860,7 +1876,7 @@
 - summary: 员工助手新增配送时间段查询计划，支持“晚上还有哪些待处理订单”这类口语问法。规划层输出 `delivery_time_start=18:00`、`delivery_time_end=23:59` 和待处理状态，仓储层以白名单字段和参数化 SQL 过滤 `delivery_time`，不让模型生成 SQL。共享探针从 34 项扩到 35 项，本地规划 35/35 通过；已同步生产 `0.70.4 / 18b6aacfd`，`/health` ok，`/ready` ready，35/35 端到端加密回调探针通过；本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/service/wecom/employee_agent_order_delivery_time.py=739d5ac6f6005e09b8bd919fd1653f6365c5ac005694f5ecbac1f82cdb645d10；app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/service/wecom/employee_agent_order_delivery_time.py=739d5ac6f6005e09b8bd919fd1653f6365c5ac005694f5ecbac1f82cdb645d10；app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-015：企微员工助手润色回复库存数值保真
 
 - trace_id: 20260704-wecom-employee-agent-reply-fact-guard
@@ -1876,7 +1892,7 @@
 - summary: 生产复跑 34 项员工助手回调探针时，商品+知识替代推荐回复偶发丢失库存数字，说明 LLM 润色需要事实保真兜底。补丁新增回复守卫：确定性工具结果含库存数值而润色结果缺失时，回退确定性回复。已同步生产 `0.70.2 / 3aee20c15`，`/health` ok，`/ready` ready，34/34 端到端加密回调探针通过；本轮三个同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_reply_guard.py=b52e8a421feebb7c668263bb3dfe48bd8a61eb6bf502f4cd9ceaab64221dfacb；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-014：企微员工助手经营汇总下一步提示收紧
 
 - trace_id: 20260704-wecom-employee-agent-revenue-summary-hint
@@ -1892,7 +1908,7 @@
 - summary: 生产 34 项员工助手回调探针中，商品+知识混合新增样本已通过；旧经营汇总样本“今天营业额多少”因订单统计 `next_action` 带后台核对兜底，被 LLM 润色为绕路提示。补丁收紧成功统计结果的下一步提示，只保留尾号追问详情，避免经营汇总类回答退回后台核对。已随 `0.70.2 / 3aee20c15` 生产复跑确认 34/34 通过。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-013：企微员工助手商品数据加话术混合问法
 
 - trace_id: 20260704-wecom-employee-agent-product-knowledge
@@ -1908,7 +1924,7 @@
 - summary: 员工助手新增商品实时数据 + 知识库回复组合规划，覆盖“伯牙绝弦库存不够怎么推荐替代”“伯牙绝弦没货怎么跟客户说”等商品经营问法。规划层新增非订单模块，商品+知识分支优先于客户线索/运营类工具，避免“客户”关键词误路由。商品过滤清理替代推荐和对客回复噪声词，仍能命中真实商品。共享探针从 32 项扩到 34 项，本地规划 34/34 通过；已随 `0.70.2 / 3aee20c15` 生产复跑确认 34/34 通过。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_non_order_plan.py=3eea98a735c85aef544196e510095a0a89dffbd610ec3558f96d6c4310cd1dad；app/service/wecom/employee_agent_product_query.py=fbfd5ef2d978b0f47306bdcdfcfb3e8bea5124026ef06e0a2fbaaff4837fa38f；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/intelligent_bot_product_filter.py=805eb2597e599ebb8d68da8b9be62fd93ff9ed911ec4ad67e85efcaa3eea691e；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_product_filter.py=cf35532b1cce4faccc5a69c5c7d9ed31634bbf1c4418654a2419480391c59b7a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_non_order_plan.py=3eea98a735c85aef544196e510095a0a89dffbd610ec3558f96d6c4310cd1dad；app/service/wecom/employee_agent_product_query.py=fbfd5ef2d978b0f47306bdcdfcfb3e8bea5124026ef06e0a2fbaaff4837fa38f；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/intelligent_bot_product_filter.py=805eb2597e599ebb8d68da8b9be62fd93ff9ed911ec4ad67e85efcaa3eea691e；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_product_filter.py=cf35532b1cce4faccc5a69c5c7d9ed31634bbf1c4418654a2419480391c59b7a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-012：企微员工助手订单数据加话术混合问法
 
 - trace_id: 20260704-wecom-employee-agent-order-knowledge
@@ -1924,7 +1940,7 @@
 - summary: 员工助手 `MULTI_TOOL` 新增订单动态查询 + 知识库回复组合能力，覆盖“还有哪些没发货，怎么跟客户说”“今天有退款订单，怎么回复客户”等混合问法。纯规则问法仍走知识库，数据问法仍保留订单查询计划；话术短语已从订单 keyword 中清理，避免误过滤商品或订单。共享探针从 30 项扩到 32 项，本地规划 32/32 通过。已同步生产 `0.69.15 / 7d7cc21`，`/health` ok，`/ready` ready，32/32 端到端加密回调探针通过；新增两条订单+话术生产回复均通过语义和隐私检查。本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_predicates.py=607e3c1b309601fdde709615b246d1a6cff6b2444a1c250ced9c5912c0997b68；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_predicates.py=607e3c1b309601fdde709615b246d1a6cff6b2444a1c250ced9c5912c0997b68；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-011：企微员工助手今日经营待办概览
 
 - trace_id: 20260704-wecom-employee-agent-action-items
@@ -1940,7 +1956,7 @@
 - summary: 员工助手新增 `action_items` 订单计划类型，用于“今天有什么要盯的”“今天订单有没有需要注意的”等自由问法。service 层组合既有白名单查询计划输出今日订单总览、待处理、履约风险、退款/售后和无物流提醒，repository 层不新增 SQL 形态且仍参数化执行。共享探针从 28 项扩到 30 项，本地规划 30/30 通过。已同步生产 `0.69.14 / f4fdad4`，`/health` ok，`/ready` ready，30/30 端到端加密回调探针通过；新增两条 action_items 生产回复均为员工可读待办概览且通过隐私检查。本轮同步 bundle 已按明确单文件路径清理。
 
 - storage_scope: repository
-- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_predicates.py=607e3c1b309601fdde709615b246d1a6cff6b2444a1c250ced9c5912c0997b68；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/intelligent_bot_order_action_items.py=f2113c8381e89cecff96a04ccfa15ff68567f02cc3e021ec293728739856ab1c；app/service/wecom/intelligent_bot_order_lookup.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_intelligent_bot_order_lookup.py=55256c7383c41b001fca617831d2f1f03e88cbe21d69e3c74aa957ba3d580f2f；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_predicates.py=607e3c1b309601fdde709615b246d1a6cff6b2444a1c250ced9c5912c0997b68；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/intelligent_bot_order_action_items.py=f2113c8381e89cecff96a04ccfa15ff68567f02cc3e021ec293728739856ab1c；app/service/wecom/intelligent_bot_order_lookup.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_intelligent_bot_order_lookup.py=55256c7383c41b001fca617831d2f1f03e88cbe21d69e3c74aa957ba3d580f2f；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-010：企微员工助手履约风险问法
 
 - trace_id: 20260704-wecom-employee-agent-fulfillment-risk
@@ -1956,7 +1972,7 @@
 - summary: 员工助手订单动态查询新增 `needs_fulfillment_risk` 查询计划字段，仓库层白名单筛选待发货/待收货且有约送时间的订单，并按 `delivery_time` 升序给员工展示优先处理顺序。共享探针从 26 项扩到 28 项，本地 28/28 规划通过；新增履约风险回调样本在本地通过。本地回调整体 21/28，失败的 7 个旧样本依赖生产商品/订单数据，不能作为本轮行为失败结论。已同步生产 `0.69.12 / 5d3a376`，`/health`、`/ready` 和 28/28 回调探针通过，生产“哪些单快超时了”返回待履约订单尾号、状态、约送时间和物流提示。
 
 - storage_scope: repository
-- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_predicates.py=607e3c1b309601fdde709615b246d1a6cff6b2444a1c250ced9c5912c0997b68；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_keywords.py=d79c7d644c0e9bb6c6d9dff65e463d4d4116c1c8cb42f6fa4c52090f136830e7；app/service/wecom/employee_agent_order_predicates.py=607e3c1b309601fdde709615b246d1a6cff6b2444a1c250ced9c5912c0997b68；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-009：企微员工助手退款订单数据问法
 
 - trace_id: 20260704-wecom-employee-agent-refund-query
@@ -1972,7 +1988,7 @@
 - summary: 员工助手订单动态查询新增 `needs_refund` 查询计划字段，仓库层白名单执行 `refund_state != 0`，用于“今天有退款订单吗”“本周退款多少”等经营异常数据问法；“退款规则/话术/政策”仍走知识库。共享探针从 24 项扩到 26 项，本地 26/26 规划通过；用新探针打旧生产 `0.69.10` 时 `this-week-refund-summary` 按预期失败，旧版本误路由到知识库。已同步生产 `0.69.11 / 31e64dd`，`/health`、`/ready` 和 26/26 回调探针通过，生产“本周退款多少”返回退款订单数、金额和状态分布。
 
 - storage_scope: repository
-- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_order_lookup.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/models/employee_agent.py=b36835417016a81c82cce57b17c7739b03a34a358e0f3434d30ad37c43384cc8；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_order_lookup.py=9d6109eb8fbf2b0f811c137ed8ab6f443f6f8d76b8a50f3b63403cf4e29c0a5d；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；tests/repository/test_youzan_repo.py=fee30f2b50a343ca56f4f000b04ce3b637826204142e3f1f9fac09c4f81da25b；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-008：企微员工助手订单经营金额问法
 
 - trace_id: 20260704-wecom-employee-agent-revenue-summary
@@ -1988,7 +2004,7 @@
 - summary: 员工助手订单能力新增“营业额、销售额、收入、流水、成交额、卖了多少钱”等经营金额关键词，金额类问法统一规划为订单 summary，复用现有 `summarize_orders()` 白名单参数化统计。共享探针新增 `today-revenue-summary` 与 `this-week-revenue-summary`，规划验收从 22 项扩展到 24 项，本地 24/24 通过；金额类语义规则同步拦截“未找到/暂无销售额/后台订单页”类兜底伪成功。用新探针打旧生产 `0.69.9` 时 `today-revenue-summary` 与 `this-week-revenue-summary` 按预期失败，旧版本分别误路由到观察台状态或返回无数据兜底。已同步生产 `0.69.10 / 5bed12a`，`/health`、`/ready` 和 24/24 回调探针通过，生产金额问法返回真实订单金额汇总。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-007：企微员工助手订单相对时间范围
 
 - trace_id: 20260704-wecom-employee-agent-relative-date
@@ -2004,7 +2020,7 @@
 - summary: 员工助手订单计划新增最近/近 N 天、近一周/最近一周、本周/这周/本星期时间范围解析，并清理时间表达避免“3天”残留为商品关键词。共享探针新增 `recent-days-product-order-summary` 与 `this-week-top-products`，规划验收从 20 项扩展到 22 项，本地 22/22 通过；用新探针打旧生产 `0.69.8` 时 `this-week-top-products` 按预期失败，证明旧生产尚未支持本周范围。同步生产 `0.69.9 / 4bf0659` 后，`/health` ok，`/ready` ready，22/22 回调探针通过。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_agent_file_size.py=efbacabe3789340232b488462ee7acb90b2b4f7d22ebe8417d3d2d203a380e59；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/service/wecom/employee_agent_order_date.py=b02e86ebf5a2a2d0f06a733429e04f60d313354fa289d0e6154c8215d618791e；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/service/test_wecom_employee_agent_file_size.py=efbacabe3789340232b488462ee7acb90b2b4f7d22ebe8417d3d2d203a380e59；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260704-006：企微员工助手商品库存问法匹配收紧
 
 - trace_id: 20260704-wecom-employee-agent-product-keyword
@@ -2020,7 +2036,7 @@
 - summary: 生产 `0.69.5` 在收紧后的探针下暴露 `order-product-inventory` 与 `casual-product-stock` 两个库存问法失败，原因是商品工具把员工口语整句作为商品查询，导致“伯牙绝弦”未稳定匹配。业务代码已改为清理商品问法噪声词，并在多工具计划中优先使用订单计划抽出的商品 keyword；生产 `0.69.6` 已恢复 20/20 回调通过，脚本语义增强用 `required_all_terms` 确认库存问法同时包含“库存”和真实库存数字。
 
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_product_filter.py=805eb2597e599ebb8d68da8b9be62fd93ff9ed911ec4ad67e85efcaa3eea691e；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_product_filter.py=cf35532b1cce4faccc5a69c5c7d9ed31634bbf1c4418654a2419480391c59b7a；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/intelligent_bot_product_filter.py=805eb2597e599ebb8d68da8b9be62fd93ff9ed911ec4ad67e85efcaa3eea691e；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；tests/service/test_wecom_product_filter.py=cf35532b1cce4faccc5a69c5c7d9ed31634bbf1c4418654a2419480391c59b7a；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260704-005：企微员工助手 20 项口语自由问法验收
 
 - trace_id: 20260704-wecom-employee-agent-casual-probes
@@ -2036,7 +2052,7 @@
 - summary: 员工助手规划与端到端回调探针从 13 项扩展到 20 项，并将问法、计划期望、语义必需词和隐私禁止词收口到共享探针样本。新增覆盖“今天单量咋样”“发货还有没处理的吗”“哪些单子还没出物流”“今天卖爆的是哪个”“后台现在稳不稳”“有没有需要人接的”等口语表达。本地规划验收 20/20 通过；使用本地扩展脚本打生产回调入口 20/20 通过。待本轮提交同步后复验生产版本、健康检查和 20/20 回调探针。
 
 - storage_scope: repository
-- sha256: scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；tests/scripts/test_check_wecom_employee_agent_plans.py=e2b854d8742dec534414b04cba0617dfc4e45efd448067958db8040e0383851d；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；tests/scripts/test_check_wecom_employee_agent_plans.py=e2b854d8742dec534414b04cba0617dfc4e45efd448067958db8040e0383851d；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260704-004：企微员工助手订单规划文件体量收口
 
 - trace_id: 20260704-wecom-employee-agent-order-plan-split
@@ -2052,7 +2068,7 @@
 - summary: `employee_agent_order_plan.py` 从 253 行拆到 114 行；新增 `employee_agent_order_query.py` 120 行和 `employee_agent_order_constants.py` 51 行，职责分别为查询计划解析和常量口径。新增文件体量回归测试锁定三份订单规划文件不超过 150 行警戒线。员工助手规划探针 13/13 通过；生产已同步到 `0.69.4 / b539cd537`，`/health` ok，`/ready` ready，回调探针 13/13 通过，证明重构未改变员工入口行为；本地和生产临时 bundle 均已按明确路径清理。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；tests/service/test_wecom_employee_agent_file_size.py=efbacabe3789340232b488462ee7acb90b2b4f7d22ebe8417d3d2d203a380e59；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_order_query.py=758e9e3ff15dbf26ab96f070dd601c435e4ded3dcefe0532d4af7e4071ff7e36；app/service/wecom/employee_agent_order_constants.py=95163e085cc99db3b7cf0dd9acb8945c31b5d9a74ced26bf0f56fe294aba193c；app/service/wecom/employee_agent_llm_plan.py=0acbb7d018be526cd837986d1a1cb43bb3b42a39a387c799b7723500195ee8d9；tests/service/test_wecom_employee_agent_file_size.py=efbacabe3789340232b488462ee7acb90b2b4f7d22ebe8417d3d2d203a380e59；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260704-003：企微员工助手待人工工单尾号展示收口
 
 - trace_id: 20260704-wecom-employee-agent-handoff-privacy
@@ -2068,7 +2084,7 @@
 - summary: 同步前生产 `0.69.0` 的 13 项回调验收按预期失败 1/13，失败项 `handoff-pending` 暴露完整内部 UUID；本轮改为待人工列表只展示 `工单尾号 <后5位>`，并把完整 UUID 加入回调探针隐私泄漏规则。生产已同步到 `0.69.3 / c833fb172`，`/health` ok，`/ready` ready，13 项回调验收 13/13 通过，`handoff-pending` 只返回工单尾号；本地和生产临时 bundle 均已按明确路径清理。
 
 - storage_scope: production
-- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260704-002：企微员工助手 13 项回调生产语义验收
 
 - trace_id: 20260704-wecom-employee-agent-ops-expansion
@@ -2084,7 +2100,7 @@
 - summary: 生产 `0.67.3` 已通过员工助手 13 项端到端加密回调验收；语义规则允许正确的“观察台状态”和“活动批次不存在”口径，同时继续禁止群活动问法被带偏到库存、小程序商品、退款或后台订单工作流。
 
 - storage_scope: production
-- sha256: scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260704-001：企微员工助手运营类工具接入 Agent
 
 - trace_id: 20260704-wecom-employee-agent-ops-expansion
@@ -2100,7 +2116,7 @@
 - summary: 员工助手 API 模式自然语言入口新增复用既有只读 `customer_lookup`、`group_campaign_summary`、`offline_review_summary` 工具，规划探针扩展为 13/13。未同步生产前，端到端回调语义验收正确抓到旧生产 `group-campaign-summary` 和 `offline-review-summary` 语义带偏，作为同步后复验基线。
 
 - storage_scope: repository
-- sha256: app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_ops_plan.py=380aa00c51b848b7be4141c45108a3d2cc0ace948ab6e0ce34dc6ddcd321e52b；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_plans.py=e2b854d8742dec534414b04cba0617dfc4e45efd448067958db8040e0383851d；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/employee_agent_capabilities.py=b2465b918b8225f3cd452a669a6ed15bf6d36c839e5d036cd09226c759df2974；app/service/wecom/employee_agent_ops_plan.py=380aa00c51b848b7be4141c45108a3d2cc0ace948ab6e0ce34dc6ddcd321e52b；app/service/wecom/employee_agent_order_plan.py=ba4c9e181ddfcdf82570f7479676044830741a672e061cceb94fee10dee3855a；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；tests/service/test_wecom_employee_agent.py=e50efdf0f81d41a4ee2e0423db4be9f410d6a053ada6cf8c5aad51bc9f045c75；tests/scripts/test_check_wecom_employee_agent_plans.py=e2b854d8742dec534414b04cba0617dfc4e45efd448067958db8040e0383851d；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260703-008：企微员工助手语义回调生产复验
 
 - trace_id: 20260703-wecom-employee-agent-semantic-acceptance
@@ -2116,7 +2132,7 @@
 - summary: 生产已同步到 `0.67.2 / 466f4d43`，服务 active，`/health` ok，`/ready` ready，tracked dirty 为 `0`；本地和生产临时 bundle 均已按单文件路径清理。端到端员工助手回调语义验收 10/10 通过，`delivery-knowledge` 已返回配送规则兜底，不再被订单尾号排查话术污染。剩余事项是真实企微客户端或群内 10 个自由问法验收。
 
 - storage_scope: production
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a
 ## E-20260703-007：企微员工助手知识问法语义验收
 
 - trace_id: 20260703-wecom-employee-agent-semantic-acceptance
@@ -2132,7 +2148,7 @@
 - summary: 端到端回调脚本新增 `semantic_safe`，把 10 个自由问法从“非空即可”升级为按问法检查必需/禁止语义词。未同步生产前脚本正确抓到 `delivery-knowledge` 被订单尾号话术污染；本地代码已改为知识类跳过 LLM 润色，并为配送类知识无命中提供规则类兜底。
 
 - storage_scope: repository
-- sha256: scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；app/service/wecom/intelligent_bot_knowledge_format.py=768a1f8710a78f30214ac169be75e4b5f1662a6e6f8028f3a5503720b0ad60a3；app/service/wecom/intelligent_bot_tools.py=2a881784d3bcddd2bda17aa70300ba408353769dd2256d0189e2173b1137c228；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；tests/service/test_wecom_intelligent_bot_knowledge_reply.py=15a77eccf7df891b19b2de6cd07c122d07e9e70c25b73a0e8ae367de81e5cd44；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；app/service/wecom/intelligent_bot_knowledge_format.py=768a1f8710a78f30214ac169be75e4b5f1662a6e6f8028f3a5503720b0ad60a3；app/service/wecom/intelligent_bot_tools.py=2a881784d3bcddd2bda17aa70300ba408353769dd2256d0189e2173b1137c228；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；tests/service/test_wecom_intelligent_bot_knowledge_reply.py=15a77eccf7df891b19b2de6cd07c122d07e9e70c25b73a0e8ae367de81e5cd44；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260703-006：企微员工助手回调验收与隐私文案收紧
 
 - trace_id: 20260703-wecom-employee-agent-callback-acceptance
@@ -2148,7 +2164,7 @@
 - summary: 新增贴近真实企微 API 模式的员工助手端到端回调验收脚本，10 个自由问法会加密 POST 到 `/api/v1/wecom/intelligent-bot/callback` 并解密校验 `stream` 回复；本地测试锁定报告脱敏、隐私泄漏拦截、订单只用尾号和待人工不展示用户标识。首次生产探针发现“完整订单号”提示和买家 ID 展示风险，本轮已在格式层收紧并同步生产到 `0.67.1 / 0fe9fda`；生产回调验收 10/10 通过，tracked dirty 为 0。剩余事项是真实企微客户端群内验收。
 
 - storage_scope: repository
-- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；tests/service/test_wecom_employee_privacy_format.py=e67e1f0375727e27f88be230a2782069d14534bb6e579b152115873265e546f6；app/service/wecom/intelligent_bot_order_format.py=ec48f91b54061d689c712c5a2eff232d0946e0e29045535adeee3168a923ce9d；app/service/wecom/intelligent_bot_ops_format.py=ca90c1f7cf11f48d722b4156c0070a9d80b0964b4dd47c4452c4eba518d5fec1；app/service/wecom/employee_agent_service.py=0169b0d98e84fab7204213c6bd1a780a91b1dcc0d939d4a8c18919db5a142d56；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260703-005：企微员工助手生产 git 工作区清理复核
 
 - trace_id: 20260703-wecom-employee-agent-production-gate
@@ -2164,7 +2180,7 @@
 - summary: 生产已处于 `0.67.0 / 241ed517`，tracked dirty 数为 `0`；`git status --short` 仅剩历史 `.bak-wecom-*`、`.windsurf/workflows/sync-docs.md` 和 `backups/` 等未跟踪备份。复核后 `/health` ok、`/ready` ready，员工助手 10 个自由问法规划探针 10/10 通过，企微工具契约 4/4 通过。剩余事项仍是真实企微群内员工入口验收。
 
 - storage_scope: production
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260703-004：企微员工助手 Agent 底座生产同步与规划验收
 
 - trace_id: 20260703-wecom-employee-agent-production-gate
@@ -2180,7 +2196,7 @@
 - summary: 生产已同步员工助手 Agent 底座到 `0.67.0 / 20f690ec`，随后文档元数据同步到 `241ed517`。`/health` 为 ok，`/ready` 为 ready；企微工具 smoke 13/13 通过；自由问法规划探针 10/10 通过，并确认订单统计/待发货/缺物流/销量排行类计划不会带噪声 keyword；加密 callback POST 探针返回 200、签名校验通过、`msgtype=stream` 且内容非空。生产 git 工作区清理复核见 `E-20260703-005`；剩余事项是企微群内真实员工入口 10 个问法验收。
 
 - storage_scope: production
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；scripts/check_wecom_employee_agent_plans.py=bb42fe54acd945fe88c23f251b8c764cef1aa61b74f855a328d6d441b4823ac1
 ## E-20260703-002：企微智能机器人 API 模式 URL 回调本地验收
 
 - trace_id: 20260703-wecom-aibot-url-callback
@@ -2196,7 +2212,7 @@
 - summary: 本地已完成智能机器人 API 模式 URL 回调 GET 验证、POST 加密 JSON 消息解密与加密被动回复测试；普通模式工具路由仍通过。长连接草稿文件已移除，主入口固定为 `/api/v1/wecom/intelligent-bot/callback`。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；app/api/integrations/wecom_intelligent_bot.py=4b72518c5e141704dc21cecd9a97e819c72be3c6022208eee1758c147ab118dd；app/service/wecom/intelligent_bot_callback.py=9e7cef3d240b4cfd839bef49a24c72a29672dd6c1266277c99357cb66ed9df1b；app/service/wecom/intelligent_bot_dispatcher.py=716ca94e2ddf63e6953079df51e37b4317298debc800d708e839213eb3d89546；app/service/wecom/intelligent_bot_messages.py=4c291053b3e3967dc4309232afcc9edd1c36423b13b1526f4bd30390d6bd4f2e；tests/api/test_wecom_intelligent_bot_callback_api.py=8fa03a0795897d7d606d783eddf35c43a240aba8704bacca09476179db63eae6
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；app/api/integrations/wecom_intelligent_bot.py=4b72518c5e141704dc21cecd9a97e819c72be3c6022208eee1758c147ab118dd；app/service/wecom/intelligent_bot_callback.py=9e7cef3d240b4cfd839bef49a24c72a29672dd6c1266277c99357cb66ed9df1b；app/service/wecom/intelligent_bot_dispatcher.py=716ca94e2ddf63e6953079df51e37b4317298debc800d708e839213eb3d89546；app/service/wecom/intelligent_bot_messages.py=4c291053b3e3967dc4309232afcc9edd1c36423b13b1526f4bd30390d6bd4f2e；tests/api/test_wecom_intelligent_bot_callback_api.py=8fa03a0795897d7d606d783eddf35c43a240aba8704bacca09476179db63eae6
 ## E-20260703-003：企微智能机器人 API 模式 URL 回调生产同步
 
 - trace_id: 20260703-wecom-aibot-url-callback
@@ -2212,7 +2228,7 @@
 - summary: 生产已同步智能机器人 API 模式 URL 回调入口 `/api/v1/wecom/intelligent-bot/callback`。首次重启因漏同步 `intelligent_bot_status_tools.py` 出现短暂 502，补同步后 `/health` 与 `/ready` 均恢复 200；生产加密 GET/POST 探针通过，普通模式工具 smoke 13/13 通过。
 
 - storage_scope: production
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90
 ## E-20260703-001：企微智能机器人工具输出适配与商品匹配修复
 
 - trace_id: 20260703-wecom-tool-result-not-visible
@@ -2228,7 +2244,7 @@
 - summary: 生产已同步统一 `result` / `resultText` 输出字段，企微后台可统一配置一个 String 输出参数；`product-lookup` 对具体商品无匹配时不再返回无关 fallback 商品。生产备份目录为 `/opt/yunxibakebot/backups/wecom-bot-result-adapter-20260703-125246`，增强 smoke 脚本备份目录为 `/opt/yunxibakebot/backups/wecom-smoke-result-contract-20260703-132901`；重启后服务 active，契约检查与完整 smoke 通过，10 个业务/连通工具均 `result_present=true`。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；app/service/wecom/intelligent_bot_plugin.py=3733e6ffbe635c280f4dd4c206f61794491c0af7e81d2865cfad990fbfdf49c0；app/service/wecom/intelligent_bot_tool_response.py=a6db6f375777cf19ef664d75d051a985c74cece856a8447332330482d7b496a7；app/service/wecom/intelligent_bot_tool_format.py=25dc457664308724e978efbba49432179e0765c7b84efef9c5fb0448050d9d31；app/service/wecom/intelligent_bot_product_filter.py=805eb2597e599ebb8d68da8b9be62fd93ff9ed911ec4ad67e85efcaa3eea691e；tests/service/test_wecom_intelligent_bot_tool_response_and_format.py=d3985a234a9a20a341838a28cf861aa13728856f586cbcd050dea5c6d4a5c1d6
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；app/service/wecom/intelligent_bot_plugin.py=3733e6ffbe635c280f4dd4c206f61794491c0af7e81d2865cfad990fbfdf49c0；app/service/wecom/intelligent_bot_tool_response.py=a6db6f375777cf19ef664d75d051a985c74cece856a8447332330482d7b496a7；app/service/wecom/intelligent_bot_tool_format.py=25dc457664308724e978efbba49432179e0765c7b84efef9c5fb0448050d9d31；app/service/wecom/intelligent_bot_product_filter.py=805eb2597e599ebb8d68da8b9be62fd93ff9ed911ec4ad67e85efcaa3eea691e；tests/service/test_wecom_intelligent_bot_tool_response_and_format.py=d3985a234a9a20a341838a28cf861aa13728856f586cbcd050dea5c6d4a5c1d6
 ## E-20260702-001：企微智能机器人工具生产级验收
 
 - trace_id: 20260702-wecom-bot-production-hardening
@@ -2261,7 +2277,7 @@
 - summary: 新增独立 `Load Test` workflow，通过 `workflow_dispatch` 按需触发并发压测，准备隔离测试库、启动 FastAPI、运行 `scripts/test_concurrent_100.py` 并上传 `reports/load-test/`。压测脚本已支持并发路数和沉降等待时间参数化，有赞 Mock 模式下可复用 CI fixture；完整 LLM 对话循环仍要求仓库配置 `MIMO_API_KEY` secret。
 
 - storage_scope: repository
-- sha256: .github/workflows/load-test.yml=eccfacd33120f6b328ff63c03f930aee0b360c1b1282eb4ccd5b20be191becf8；scripts/test_concurrent_100.py=75b6c98c4ed864686b74d9e3c75e581e588dcfd3e3f751aa97bb6a0e4c15d824；scripts/prepare_load_test_fixture.py=fe15325549ab93d71eec079ba0d9e49f8cd8d36b67cf7579f4e279c6c5b0d593；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: .github/workflows/load-test.yml=eccfacd33120f6b328ff63c03f930aee0b360c1b1282eb4ccd5b20be191becf8；scripts/test_concurrent_100.py=75b6c98c4ed864686b74d9e3c75e581e588dcfd3e3f751aa97bb6a0e4c15d824；scripts/prepare_load_test_fixture.py=fe15325549ab93d71eec079ba0d9e49f8cd8d36b67cf7579f4e279c6c5b0d593；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260623-002：1 对 1 AI 自动回复生产验收
 
 - trace_id: 20260623-wecom-1on1-production-acceptance
@@ -2277,7 +2293,7 @@
 - summary: 生产机当前版本活跃，服务在线；真实 1 对 1 对话已触发自动回复链路，日志显示会话切换为智能助手并成功发送客服文本消息，满足 1 对 1 AI 自动回复的生产验收最小闭环。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；app/api/integrations/wecom.py=2425414927f12a6f7e945bdacdddb92da8e2582c2aeba2b794e0ba056cda5cba；app/service/wecom/message_queue.py=3d46c386405e945f7fdfe478122d9e3c844af4362047a19b20419303bcbe6ef7；app/models/session.py=449f00622ea16ef9b40009101d94b37746647eb7149de8b4a47067f3ba8eaa50
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；app/api/integrations/wecom.py=2425414927f12a6f7e945bdacdddb92da8e2582c2aeba2b794e0ba056cda5cba；app/service/wecom/message_queue.py=3d46c386405e945f7fdfe478122d9e3c844af4362047a19b20419303bcbe6ef7；app/models/session.py=449f00622ea16ef9b40009101d94b37746647eb7149de8b4a47067f3ba8eaa50
 ## E-20260623-001：企微回调生产联调验证
 
 - trace_id: 20260623-wecom-callback-production-joint-test
@@ -2297,7 +2313,7 @@ eadiness.py`
 本文件是 Harness 证据包索引。它不保存敏感报告内容，只记录证据文件的位置、用途、生成命令和验证结论，方便上线前后审计、复盘和交接。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；scripts/setup_wecom.sh=20f003bba537236c99c8605540ed3115365f471a517e0ecf961346e08ae31263；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/smoke_test.py=d212b3d273d822d612525a1dd884c30e920c005bd3b180f1fb749f2b2ed426f8
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；scripts/setup_wecom.sh=20f003bba537236c99c8605540ed3115365f471a517e0ecf961346e08ae31263；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/smoke_test.py=d212b3d273d822d612525a1dd884c30e920c005bd3b180f1fb749f2b2ed426f8
 ## E-20260711-001：R0 白名单安全快照与 CI 基线整改
 
 - trace_id: 20260711-global-risk-remediation
@@ -2476,7 +2492,7 @@ ______________________________________________________________________
 - summary: 四份客户迁移相关文档的结尾口径已收口为当前入口，不再保留未来态“下一步”措辞。
 
 - storage_scope: repository
-- sha256: docs/architecture/customer-master-v1.md=23a2264f3e90b46216a837283d33d90879f2abe2c40598669abb86b873fc2ced；docs/architecture/customer-master-v1-schema-draft.md=00fdc71406e2ab39833f76188697328e1298240159ea0ff4a6bcb3bfedd3cb14；docs/architecture/youzan-customer-migration-audit-checklist.md=2107d36b724d6ba9da806b13157590c94732b38ad3a67a75ec291c4c221b2d01；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/customer-master-v1.md=23a2264f3e90b46216a837283d33d90879f2abe2c40598669abb86b873fc2ced；docs/architecture/customer-master-v1-schema-draft.md=00fdc71406e2ab39833f76188697328e1298240159ea0ff4a6bcb3bfedd3cb14；docs/architecture/youzan-customer-migration-audit-checklist.md=2107d36b724d6ba9da806b13157590c94732b38ad3a67a75ec291c4c221b2d01；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-033：产品角色名与仓库路径名澄清
 
 - trace_id: 20260620-name-clarification-role-vs-slug
@@ -2492,7 +2508,7 @@ ______________________________________________________________________
 - summary: 产品角色名、渠道角色名和仓库路径名的口径已重新压实，历史仓名只保留在路径和过渡引用里。
 
 - storage_scope: repository
-- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-010：MiniApp 过渡文档历史化
 
 - trace_id: 20260620-miniapp-history-only
@@ -2780,7 +2796,7 @@ ______________________________________________________________________
 - summary: 产品角色名、渠道角色名和仓库路径名的口径已重新压实，历史仓名只保留在路径和过渡引用里。
 
 - storage_scope: repository
-- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-003：客户迁移闭环入口收束
 
 - trace_id: 20260620-customer-master-next-steps; 20260620-root-readme-customer-links; 20260620-platform-miniapp-contract-customer-links; 20260620-miniapp-handoff-customer-links; 20260620-customer-import-boundary-links; 20260620-customer-master-schema-next-steps; 20260620-customer-audit-next-steps; 20260620-customer-loop-four-sections
@@ -2812,7 +2828,7 @@ ______________________________________________________________________
 - summary: 活文档中已无客户迁移旧“三份/三段”口径，LOGBOOK 中也无“待执行”残留；客户迁移入口的四段闭环收口已进入稳定态。
 
 - storage_scope: repository
-- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/architecture/customer-master-v1.md=23a2264f3e90b46216a837283d33d90879f2abe2c40598669abb86b873fc2ced；docs/architecture/customer-master-v1-schema-draft.md=00fdc71406e2ab39833f76188697328e1298240159ea0ff4a6bcb3bfedd3cb14；docs/architecture/youzan-customer-migration-audit-checklist.md=2107d36b724d6ba9da806b13157590c94732b38ad3a67a75ec291c4c221b2d01；docs/architecture/youzan-customer-formal-import-runbook.md=f13910da033a64d3e1feddbeed2e964d06092f819df11aa8ccce17490df7c451；docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md=070d219fca90a8a91bd3d019849953e5f324fb7c0ac0c0b67f87fb0ba1eed823；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559；docs/architecture/miniapp-ai-handoff-plan.md=42a111f1fc703e122fbf0725b7068576b476d5fa4e8a77db8606ae4a4f128d2c；docs/architecture/miniapp-phase1-execution-checklist.md=90633cd33ff0de467ff63f3d32bee98399a5333498b4d9098b68731bb2c40990；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/architecture/two-repo-rollout-plan.md=be9d3cc0dc5459dc18e50543933fc856e36e7e901be3945a23e64693e899a50c；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/architecture/customer-master-v1.md=23a2264f3e90b46216a837283d33d90879f2abe2c40598669abb86b873fc2ced；docs/architecture/customer-master-v1-schema-draft.md=00fdc71406e2ab39833f76188697328e1298240159ea0ff4a6bcb3bfedd3cb14；docs/architecture/youzan-customer-migration-audit-checklist.md=2107d36b724d6ba9da806b13157590c94732b38ad3a67a75ec291c4c221b2d01；docs/architecture/youzan-customer-formal-import-runbook.md=f13910da033a64d3e1feddbeed2e964d06092f819df11aa8ccce17490df7c451；docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md=070d219fca90a8a91bd3d019849953e5f324fb7c0ac0c0b67f87fb0ba1eed823；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559；docs/architecture/miniapp-ai-handoff-plan.md=42a111f1fc703e122fbf0725b7068576b476d5fa4e8a77db8606ae4a4f128d2c；docs/architecture/miniapp-phase1-execution-checklist.md=90633cd33ff0de467ff63f3d32bee98399a5333498b4d9098b68731bb2c40990；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/architecture/two-repo-rollout-plan.md=be9d3cc0dc5459dc18e50543933fc856e36e7e901be3945a23e64693e899a50c；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-005：客户迁移闭环入口四段稳定态
 
 - trace_id: 20260620-customer-loop-four-sections
@@ -2828,7 +2844,7 @@ ______________________________________________________________________
 - summary: 客户迁移闭环入口已统一为审计、正式迁移、迁移后核对、交接/回滚四段口径，并且活文档与 LOGBOOK 中不再残留旧的三段/待执行表述；这套入口当前处于稳定态。
 
 - storage_scope: repository
-- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/architecture/customer-master-v1.md=23a2264f3e90b46216a837283d33d90879f2abe2c40598669abb86b873fc2ced；docs/architecture/customer-master-v1-schema-draft.md=00fdc71406e2ab39833f76188697328e1298240159ea0ff4a6bcb3bfedd3cb14；docs/architecture/youzan-customer-migration-audit-checklist.md=2107d36b724d6ba9da806b13157590c94732b38ad3a67a75ec291c4c221b2d01；docs/architecture/youzan-customer-formal-import-runbook.md=f13910da033a64d3e1feddbeed2e964d06092f819df11aa8ccce17490df7c451；docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md=070d219fca90a8a91bd3d019849953e5f324fb7c0ac0c0b67f87fb0ba1eed823；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559；docs/architecture/miniapp-ai-handoff-plan.md=42a111f1fc703e122fbf0725b7068576b476d5fa4e8a77db8606ae4a4f128d2c；docs/architecture/miniapp-phase1-execution-checklist.md=90633cd33ff0de467ff63f3d32bee98399a5333498b4d9098b68731bb2c40990；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/architecture/two-repo-rollout-plan.md=be9d3cc0dc5459dc18e50543933fc856e36e7e901be3945a23e64693e899a50c；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/architecture/customer-master-v1.md=23a2264f3e90b46216a837283d33d90879f2abe2c40598669abb86b873fc2ced；docs/architecture/customer-master-v1-schema-draft.md=00fdc71406e2ab39833f76188697328e1298240159ea0ff4a6bcb3bfedd3cb14；docs/architecture/youzan-customer-migration-audit-checklist.md=2107d36b724d6ba9da806b13157590c94732b38ad3a67a75ec291c4c221b2d01；docs/architecture/youzan-customer-formal-import-runbook.md=f13910da033a64d3e1feddbeed2e964d06092f819df11aa8ccce17490df7c451；docs/architecture/youzan-customer-import-handoff-and-rollback-runbook.md=070d219fca90a8a91bd3d019849953e5f324fb7c0ac0c0b67f87fb0ba1eed823；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559；docs/architecture/miniapp-ai-handoff-plan.md=42a111f1fc703e122fbf0725b7068576b476d5fa4e8a77db8606ae4a4f128d2c；docs/architecture/miniapp-phase1-execution-checklist.md=90633cd33ff0de467ff63f3d32bee98399a5333498b4d9098b68731bb2c40990；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；docs/architecture/two-repo-rollout-plan.md=be9d3cc0dc5459dc18e50543933fc856e36e7e901be3945a23e64693e899a50c；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-006：MiniApp 接力文档建议项机械核对
 
 - trace_id: 20260620-miniapp-ai-handoff-plan-regression-scan
@@ -2937,7 +2953,7 @@ ______________________________________________________________________
 - summary: 后端发布文档、技术架构、有赞 webhook、管理后台子域、Nginx/certbot 示例与项目配置清单已统一到 `yunxifood.cn` / `admin.yunxifood.cn`；旧域名未在发布文档和脚本范围内残留。生产 HTTPS 与根入口已由 E-20260617-042 收口，微信公众平台和有赞云配置仍需复验。
 
 - storage_scope: repository
-- sha256: docs/design/1-业务方案.md=f070aae78d9737d8edd2b03b12c006e8c38c6eb7ab3d5e9868a80ba2ecbde060；docs/design/2-工作流设计.md=7ceea8ed8ba3f2cf645a4855c808c1d08a5a61b6cddc4a5d0ae74e53105e5f86；docs/design/3-技术架构.md=406af39542089ebf9978f6bc830ad7e62721474a2938ac8232b3f82c08b5b854；docs/design/4-上线检查清单.md=96e9a3f016d23a04a2ba3b2fa1bd42d7901bccd4b38cb13cdc5919968404079f；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；scripts/setup_wecom.sh=20f003bba537236c99c8605540ed3115365f471a517e0ecf961346e08ae31263
+- sha256: docs/design/1-业务方案.md=f070aae78d9737d8edd2b03b12c006e8c38c6eb7ab3d5e9868a80ba2ecbde060；docs/design/2-工作流设计.md=7ceea8ed8ba3f2cf645a4855c808c1d08a5a61b6cddc4a5d0ae74e53105e5f86；docs/design/3-技术架构.md=406af39542089ebf9978f6bc830ad7e62721474a2938ac8232b3f82c08b5b854；docs/design/4-上线检查清单.md=96e9a3f016d23a04a2ba3b2fa1bd42d7901bccd4b38cb13cdc5919968404079f；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；scripts/setup_wecom.sh=20f003bba537236c99c8605540ed3115365f471a517e0ecf961346e08ae31263
 ## E-20260617-040：发布 readiness 总门槛
 
 - trace_id: 20260617-release-readiness-gate
@@ -3935,7 +3951,7 @@ ______________________________________________________________________
 - summary: 确认 `app/service/miniapp_*.py` 已基本退为兼容 facade，真实实现主要落在 canonical 领域；下一阶段优先迁测试和内部依赖，地址域采用 repo/model 别名过渡，不改外部路径、请求头或数据库表名。
 
 - storage_scope: repository
-- sha256: docs/architecture/platform-domain-migration-inventory.md=50701fc263fc4628822d2b69b7d957a89c480dfd503ff0a5f39f948dcb330b99；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/platform-domain-migration-inventory.md=50701fc263fc4628822d2b69b7d957a89c480dfd503ff0a5f39f948dcb330b99；docs/architecture/project-boundaries.md=8219a364c88eeeff14eebbee9a3b1c76718857401ff2d3424337a2057d00f7d5；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-028：测试依赖迁移到 canonical 服务
 
 - trace_id: 20260620-platform-test-dependency-migration
@@ -3951,7 +3967,7 @@ ______________________________________________________________________
 - summary: 订单、支付和会话 API 相关测试已改为依赖 canonical 服务名；兼容层引用只保留在红线测试样例和 `app/service/miniapp_*.py` facade 中。
 
 - storage_scope: repository
-- sha256: tests/service/test_miniapp_order.py=6fca7f78e6ffecab4a8b56afba876d4f77f62b3b543cfa25c2bb8553bad39bca；tests/api/test_admin_order_api.py=344ebd409d4a2c9c690e140ea6b0db1051773d2b4f8e44d955f782fe069f97c5；tests/api/test_miniapp_payment_api.py=0375f155ec1d8c2f33dfe45005b3fc687fc5f0ebb04744b7928532d1fbe263e3；tests/api/test_miniapp_chat_api.py=49f19adee0197b7e9f43ad354b5b67cac7000bb6673c45c89cd62e18b705761f；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: tests/service/test_miniapp_order.py=6fca7f78e6ffecab4a8b56afba876d4f77f62b3b543cfa25c2bb8553bad39bca；tests/api/test_admin_order_api.py=344ebd409d4a2c9c690e140ea6b0db1051773d2b4f8e44d955f782fe069f97c5；tests/api/test_miniapp_payment_api.py=0375f155ec1d8c2f33dfe45005b3fc687fc5f0ebb04744b7928532d1fbe263e3；tests/api/test_miniapp_chat_api.py=49f19adee0197b7e9f43ad354b5b67cac7000bb6673c45c89cd62e18b705761f；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-029：地址域仓储和模型 canonical 命名收口
 
 - trace_id: 20260620-customer-address-canonical-repo
@@ -3967,7 +3983,7 @@ ______________________________________________________________________
 - summary: 地址域新增 customer 语义模型和仓储，旧 `MiniappAddress*` 模块退为兼容导出；数据库表名、历史迁移文件和 `/api/v1/miniapp/addresses` 路径保持不变。
 
 - storage_scope: repository
-- sha256: app/models/customer_address.py=724ba911b430f6dc6f3c530ac00e9ef2cac99aab73f897148c393ddb882b4468；app/repository/customer_address_repo.py=68e1095b6d666c1e7ba37422e2822b0a945cd420d1a3ed6f77cb11e6f56e9366；app/repository/customer_address_audit_repo.py=a19149be2c92b423f9d8ec3d11c85e533868e97b9e2a1920d0d309c32dc76687；app/service/customer/address.py=3c89991f55d06ff98bcc371e1f4485dfeab410bc7c04d3e07b49cc473205add3；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/models/customer_address.py=724ba911b430f6dc6f3c530ac00e9ef2cac99aab73f897148c393ddb882b4468；app/repository/customer_address_repo.py=68e1095b6d666c1e7ba37422e2822b0a945cd420d1a3ed6f77cb11e6f56e9366；app/repository/customer_address_audit_repo.py=a19149be2c92b423f9d8ec3d11c85e533868e97b9e2a1920d0d309c32dc76687；app/service/customer/address.py=3c89991f55d06ff98bcc371e1f4485dfeab410bc7c04d3e07b49cc473205add3；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-030：lifespan 兼容 key 集中管理
 
 - trace_id: 20260620-lifespan-legacy-key-aliases
@@ -3983,7 +3999,7 @@ ______________________________________________________________________
 - summary: `lifespan` 真实装配优先 canonical key，旧 `miniapp_*` service/repo key 通过集中 alias map 保留兼容，并由测试确认别名指向 canonical 对象。
 
 - storage_scope: repository
-- sha256: app/lifespan_services.py=654ff17f3cecfdbdc131b230fca4bf362a1c8f6a177ffeaf497aead1c2fba2aa；app/main.py=40cddf72d85d938a6e7e46741abe4a62161a15fe07c3a3a5952c25516dfe153c；tests/test_lifespan_routes_services.py=78e34776043ead2607e308cc0208d8bddc794af4a530132d042c2de11c6fc9d7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/lifespan_services.py=654ff17f3cecfdbdc131b230fca4bf362a1c8f6a177ffeaf497aead1c2fba2aa；app/main.py=40cddf72d85d938a6e7e46741abe4a62161a15fe07c3a3a5952c25516dfe153c；tests/test_lifespan_routes_services.py=78e34776043ead2607e308cc0208d8bddc794af4a530132d042c2de11c6fc9d7；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-031：前台会话渠道常量收口
 
 - trace_id: 20260620-storefront-conversation-constants
@@ -3999,7 +4015,7 @@ ______________________________________________________________________
 - summary: `StorefrontConversationService` 不再直接依赖 `miniapp` 常量或硬编码消息前缀；兼容期内 channel、消息 ID 前缀、demo 用户和默认转人工原因保持现有值不变。
 
 - storage_scope: repository
-- sha256: app/constants/storefront.py=cf3de2d34b6189f2c34b1e1d2494e432113bc9672541137729bedcea164eabe5；app/service/conversation/storefront.py=dea91b9d6865c0de5fe2cd307ce7b2882d56f57035d580b33429fbc66e6900b0；tests/service/test_miniapp_chat.py=49f19adee0197b7e9f43ad354b5b67cac7000bb6673c45c89cd62e18b705761f；tests/api/test_miniapp_chat_api.py=49f19adee0197b7e9f43ad354b5b67cac7000bb6673c45c89cd62e18b705761f；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/constants/storefront.py=cf3de2d34b6189f2c34b1e1d2494e432113bc9672541137729bedcea164eabe5；app/service/conversation/storefront.py=dea91b9d6865c0de5fe2cd307ce7b2882d56f57035d580b33429fbc66e6900b0；tests/service/test_miniapp_chat.py=49f19adee0197b7e9f43ad354b5b67cac7000bb6673c45c89cd62e18b705761f；tests/api/test_miniapp_chat_api.py=49f19adee0197b7e9f43ad354b5b67cac7000bb6673c45c89cd62e18b705761f；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260620-032：Platform 架构收口 P1-P3
 
 - trace_id: 20260620-platform-architecture-closure
@@ -4015,7 +4031,7 @@ ______________________________________________________________________
 - summary: 订单域、前台认证服务和 MiniApp API 内部默认用户已切到 storefront 常量；服务测试与商品测试 helper 已迁到 canonical 领域语义；旧 MiniApp API 契约、请求头、历史表名、迁移文件和微信平台配置保持不变。
 
 - storage_scope: repository
-- sha256: app/constants/storefront.py=cf3de2d34b6189f2c34b1e1d2494e432113bc9672541137729bedcea164eabe5；app/service/order/application.py=e84e1a8c02de2123ae6d6c54e2f96239603805eda734d58b09121ec8b38886a9；app/api/miniapp_orders.py=1203ac9793321cc5d7afb53212814b507acc0b0c747ccda776da2580c8d6d293；tests/helpers/catalog_seed.py=bf9e75f8fc6205619f04207518b437b79e825359923757d5705db4b66b3cac3a；docs/architecture/platform-domain-migration-inventory.md=50701fc263fc4628822d2b69b7d957a89c480dfd503ff0a5f39f948dcb330b99；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/constants/storefront.py=cf3de2d34b6189f2c34b1e1d2494e432113bc9672541137729bedcea164eabe5；app/service/order/application.py=e84e1a8c02de2123ae6d6c54e2f96239603805eda734d58b09121ec8b38886a9；app/api/miniapp_orders.py=1203ac9793321cc5d7afb53212814b507acc0b0c747ccda776da2580c8d6d293；tests/helpers/catalog_seed.py=bf9e75f8fc6205619f04207518b437b79e825359923757d5705db4b66b3cac3a；docs/architecture/platform-domain-migration-inventory.md=50701fc263fc4628822d2b69b7d957a89c480dfd503ff0a5f39f948dcb330b99；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260621-006：前台渠道 API 目录切换 P4
 
 - trace_id: 20260621-storefront-api-directory
@@ -4031,7 +4047,7 @@ ______________________________________________________________________
 - summary: `app/api/channels/storefront/*` 承载前台 API 真实实现，`app/api/miniapp_*.py` 退为兼容导出，`lifespan` 装配优先使用 canonical router；新增红线防止 MiniApp API 兼容文件重新承载真实 FastAPI router。外部 `/api/v1/miniapp/*` 和 `x-miniapp-user-id` 保持不变。
 
 - storage_scope: repository
-- sha256: app/api/channels/storefront/auth.py=eec2f46d99a214e5213e7b4e6fd78c479433be419d26f29a078177ece81b5e1d；app/api/channels/storefront/orders.py=4ca99ea3338756e8e146be7e6cc5d10dedd70172f41b43c305c7ec2e260e1542；app/api/miniapp_orders.py=1203ac9793321cc5d7afb53212814b507acc0b0c747ccda776da2580c8d6d293；app/lifespan_routes.py=43cf823052bdd3b4ab8ee13cf967aa485cec0c6b92724e72cbe507b5e5c4d845；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；tests/test_red_line_rules.py=1e66027c72fbac9db7c16ffd9a4c2a9f17dc4d77f1db77a99c540cafa8da6b30；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/api/channels/storefront/auth.py=eec2f46d99a214e5213e7b4e6fd78c479433be419d26f29a078177ece81b5e1d；app/api/channels/storefront/orders.py=4ca99ea3338756e8e146be7e6cc5d10dedd70172f41b43c305c7ec2e260e1542；app/api/miniapp_orders.py=1203ac9793321cc5d7afb53212814b507acc0b0c747ccda776da2580c8d6d293；app/lifespan_routes.py=43cf823052bdd3b4ab8ee13cf967aa485cec0c6b92724e72cbe507b5e5c4d845；scripts/check_project.py=0b4ac25e3a4134a308ba1bccefe4b4f9788277eae8656c79e01f8b1881db39c5；tests/test_red_line_rules.py=1e66027c72fbac9db7c16ffd9a4c2a9f17dc4d77f1db77a99c540cafa8da6b30；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260703-009：企微智能机器人 URL 回调改为 stream 回复
 
 - trace_id: 20260703-wecom-aibot-stream-reply
@@ -4046,7 +4062,7 @@ ______________________________________________________________________
 - retention_note: 仅登记命令、状态码、回复类型和备份目录，不包含企微密钥、员工原文或回复正文。
 - summary: URL 回调从 `msgtype=text` 改为一次性 `msgtype=stream`、`finish=true` 的被动回复，并增加不含正文的路由观测日志；生产加密探针确认返回 200、签名通过、解密后为 stream 回复。
 - storage_scope: repository
-- sha256: app/service/wecom/intelligent_bot_callback.py=9e7cef3d240b4cfd839bef49a24c72a29672dd6c1266277c99357cb66ed9df1b；app/service/wecom/intelligent_bot_dispatcher.py=716ca94e2ddf63e6953079df51e37b4317298debc800d708e839213eb3d89546；tests/api/test_wecom_intelligent_bot_callback_api.py=8fa03a0795897d7d606d783eddf35c43a240aba8704bacca09476179db63eae6；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/intelligent_bot_callback.py=9e7cef3d240b4cfd839bef49a24c72a29672dd6c1266277c99357cb66ed9df1b；app/service/wecom/intelligent_bot_dispatcher.py=716ca94e2ddf63e6953079df51e37b4317298debc800d708e839213eb3d89546；tests/api/test_wecom_intelligent_bot_callback_api.py=8fa03a0795897d7d606d783eddf35c43a240aba8704bacca09476179db63eae6；docs/architecture/wecom-intelligent-bot-tools.md=96319320b16b2e75f9bbdfe0568f74b4a55d23c5781ab38d880dcace38022c90；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260711-002：R1-A 认证归属与支付闭环本地验证
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4329,7 +4345,7 @@ ______________________________________________________________________
 - summary: 本地整改列车恢复全量绿色；生产部署、容器真实运行、异盘加密恢复和 R5 剩余单路径收敛仍是未完成项。
 
 - storage_scope: repository
-- sha256: docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；docs/harness-engineering/adr/0005-framework-first-single-path.md=adf76531cfd81151f1c0309ebf64f5e91315a13af0975fac2c916ba681dacdb7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；docs/harness-engineering/adr/0005-framework-first-single-path.md=adf76531cfd81151f1c0309ebf64f5e91315a13af0975fac2c916ba681dacdb7；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260711-020：R5-A 删除通用文本 OpenAI SDK 路径
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4594,7 +4610,7 @@ ______________________________________________________________________
 - summary: 证据索引 270 条目通过结构和路径完整性检查，459 个本地文件生成 SHA-256；目录引用单独标记，历史重命名路径通过显式 alias 解析，缺失路径会阻断。
 
 - storage_scope: repository
-- sha256: scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；tests/scripts/test_check_evidence_index.py=de0ee2d39525e2b68f36d6fe301997864f92c518fc335ca5c983c0b3090a4a65；docs/harness-engineering/README.md=f04c49dc6c3240b903f94933bcf5e490da63aef875a26b8cc9f3aa1b921fe229；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_evidence_index.py=f39774ca3f77794ea3dc6b621b00e488761be52a3444cb789babda9cdc835f59；tests/scripts/test_check_evidence_index.py=de0ee2d39525e2b68f36d6fe301997864f92c518fc335ca5c983c0b3090a4a65；docs/harness-engineering/README.md=f04c49dc6c3240b903f94933bcf5e490da63aef875a26b8cc9f3aa1b921fe229；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-037：R6 Agent/订单仓储超线职责评审
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4610,7 +4626,7 @@ ______________________________________________________________________
 - summary: `employee/nodes.py` 329 行和 `youzan_order_repo.py` 251 行均完成机器可读职责评审并保留内聚边界；文件体量门禁通过，不为压行数机械拆分。
 
 - storage_scope: repository
-- sha256: scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；app/service/agents/employee/nodes.py=cd4b0c979371ec1c316c25925b87027890ca4308ef11854a731352aa1cdaea89；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；tests/scripts/test_check_file_sizes.py=3c99f7a24a331fb7184031d2881fc3a876284071b62b9b270d416aa99064f140；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；app/service/agents/employee/nodes.py=cd4b0c979371ec1c316c25925b87027890ca4308ef11854a731352aa1cdaea89；app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；tests/scripts/test_check_file_sizes.py=3c99f7a24a331fb7184031d2881fc3a876284071b62b9b270d416aa99064f140；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-038：R6 后台最小 Playwright E2E 与 edge receive 修复
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4626,7 +4642,7 @@ ______________________________________________________________________
 - summary: 真实浏览器 3 项通过：登录/订单页、向量接口未登录 401 与 Cookie 会话、ready degraded 503；首次运行发现并修复 edge protection receive 递归，15 项后端运行时回归通过。
 
 - storage_scope: repository
-- sha256: web/admin/package.json=73366a41b4d8d4a90e12ddf5f78411a45dd0b0bcdb9a09ec0021203412bed8e1；web/admin/package-lock.json=c7d6ccf724ad0490af620bfb4d27f63b536550c1a9a8fac66d520bf6527fb86c；web/admin/playwright.config.ts=2312f0393cf2abeaad2a1e40d72b60a04cc70ca185f57e56d7dbae7d4abedc7e；web/admin/e2e/admin.spec.ts=3b50dded188469ce3f67f363ea8cc73fc2845a30883633ef270d29d385af4f16；app/middleware/edge_protection.py=ff1c82c783e34ab4ebe4cc35ade3fc9cae564abc0a9ab6be47ae04dce810f0eb；tests/test_main_runtime.py=479a610939730e0bf15497dd11e9dcb99b1b9cf4c3f6457340997334231f8119；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: web/admin/package.json=73366a41b4d8d4a90e12ddf5f78411a45dd0b0bcdb9a09ec0021203412bed8e1；web/admin/package-lock.json=c7d6ccf724ad0490af620bfb4d27f63b536550c1a9a8fac66d520bf6527fb86c；web/admin/playwright.config.ts=2312f0393cf2abeaad2a1e40d72b60a04cc70ca185f57e56d7dbae7d4abedc7e；web/admin/e2e/admin.spec.ts=3b50dded188469ce3f67f363ea8cc73fc2845a30883633ef270d29d385af4f16；app/middleware/edge_protection.py=ff1c82c783e34ab4ebe4cc35ade3fc9cae564abc0a9ab6be47ae04dce810f0eb；tests/test_main_runtime.py=479a610939730e0bf15497dd11e9dcb99b1b9cf4c3f6457340997334231f8119；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-039：R6 AdminService 仓储依赖显式注入首片
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4642,7 +4658,7 @@ ______________________________________________________________________
 - summary: `AdminService` 相关定向测试 11 项通过，四处 `KnowledgeRepo._db` 穿透已移除；全量 service 扫描仍显示知识实时增强和 LLM 工具链遗留穿透，R6 第 3 项未完成。
 
 - storage_scope: repository
-- sha256: app/service/admin.py=a339f5086300c8608f5e3ee76df5b8d4a21b5e87f0d968b3f1f01801a13470ae；app/lifespan_services.py=654ff17f3cecfdbdc131b230fca4bf362a1c8f6a177ffeaf497aead1c2fba2aa；tests/api/test_admin_featured_catalog_api.py=c7f1c8789395f4bfb398f5f8c0f227f1979a320793edee87b53e047677670117；tests/api/test_shop_operations_api.py=773c4ecde68849787ff4b91dbb239dbabba82e82e91cbcfdcd836f55fc37ee67；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/admin.py=a339f5086300c8608f5e3ee76df5b8d4a21b5e87f0d968b3f1f01801a13470ae；app/lifespan_services.py=654ff17f3cecfdbdc131b230fca4bf362a1c8f6a177ffeaf497aead1c2fba2aa；tests/api/test_admin_featured_catalog_api.py=c7f1c8789395f4bfb398f5f8c0f227f1979a320793edee87b53e047677670117；tests/api/test_shop_operations_api.py=773c4ecde68849787ff4b91dbb239dbabba82e82e91cbcfdcd836f55fc37ee67；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-040：R6 service 仓储句柄穿透全量收敛
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4658,7 +4674,7 @@ ______________________________________________________________________
 - summary: 两组定向回归分别通过 `57 passed` 和 `30 passed`；service 私有仓储连接穿透静态扫描零命中，商品 RAG/Webhook 业务语义保持通过。
 
 - storage_scope: repository
-- sha256: app/service/knowledge_live_data.py=453cf0328a7fb98acd74c36e01b38566145d9622eb13c70bc766a70d123e9aaa；app/service/knowledge_retriever.py=db8c8ca2c5706021f8b4a74fe024088ac011cf1d4e3da21393db9e90dc7ae1e2；app/service/llm/function_tool_order.py=c56f2c30026739ddeb83bb0b1ddeaa3f6353ba1854070aa7d971297ad14bb3d1；app/service/llm/function_tool_product.py=c6c0b8b8fe26aa99f2180a7f62ca2d91b0327026f700fd65ac77f636b7a6e8fb；app/service/youzan/product_sync.py=0b0fe760c426e54d534c8f88e0179e34006e33cad317b010f84720cc115cade4；app/service/agents/customer/contracts.py=d263c4e97654c63a31e573dc25a487ce6307208dd35dbbf6d0953f85863c82e9；app/service/agents/tools/customer.py=81986864b2867529b2dd2d933005c1124806201bc3a4b8f02e50cd78f18bf52c；app/lifespan_services.py=654ff17f3cecfdbdc131b230fca4bf362a1c8f6a177ffeaf497aead1c2fba2aa；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/knowledge_live_data.py=453cf0328a7fb98acd74c36e01b38566145d9622eb13c70bc766a70d123e9aaa；app/service/knowledge_retriever.py=db8c8ca2c5706021f8b4a74fe024088ac011cf1d4e3da21393db9e90dc7ae1e2；app/service/llm/function_tool_order.py=c56f2c30026739ddeb83bb0b1ddeaa3f6353ba1854070aa7d971297ad14bb3d1；app/service/llm/function_tool_product.py=c6c0b8b8fe26aa99f2180a7f62ca2d91b0327026f700fd65ac77f636b7a6e8fb；app/service/youzan/product_sync.py=0b0fe760c426e54d534c8f88e0179e34006e33cad317b010f84720cc115cade4；app/service/agents/customer/contracts.py=d263c4e97654c63a31e573dc25a487ce6307208dd35dbbf6d0953f85863c82e9；app/service/agents/tools/customer.py=81986864b2867529b2dd2d933005c1124806201bc3a4b8f02e50cd78f18bf52c；app/lifespan_services.py=654ff17f3cecfdbdc131b230fca4bf362a1c8f6a177ffeaf497aead1c2fba2aa；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-041：R6 商品工具实时刷新职责拆分
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4674,7 +4690,7 @@ ______________________________________________________________________
 - summary: 定向回归 `32 passed`；商品工具入口文件 150 行，实时职责模块 181 行，旧实现路径已移除。
 
 - storage_scope: repository
-- sha256: app/service/llm/function_tool_product.py=c6c0b8b8fe26aa99f2180a7f62ca2d91b0327026f700fd65ac77f636b7a6e8fb；app/service/llm/function_tool_product_live.py=fa40deb365d1677a89050e19ee47e742e594333b4bda94e2b4ac9e19efe7f67e；tests/service/youzan/test_event_handler_edge.py=5696fcd6a7dc83990ccd4a7fa845603e29d6d250a4cfe8922bebd6223331e729；tests/service/youzan/test_product_rag_text.py=860d87dc5a321481a470ca7c11485ec73534645b192020140d54522add1be28a；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/llm/function_tool_product.py=c6c0b8b8fe26aa99f2180a7f62ca2d91b0327026f700fd65ac77f636b7a6e8fb；app/service/llm/function_tool_product_live.py=fa40deb365d1677a89050e19ee47e742e594333b4bda94e2b4ac9e19efe7f67e；tests/service/youzan/test_event_handler_edge.py=5696fcd6a7dc83990ccd4a7fa845603e29d6d250a4cfe8922bebd6223331e729；tests/service/youzan/test_product_rag_text.py=860d87dc5a321481a470ca7c11485ec73534645b192020140d54522add1be28a；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-042：R6 有赞 Webhook 负载解析职责拆分
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4690,7 +4706,7 @@ ______________________________________________________________________
 - summary: `12 passed`；Webhook 签名/JSON 解析与商品 ID 负载提取已分离，canonical 调用方已切换。
 
 - storage_scope: repository
-- sha256: app/service/youzan/webhook.py=ec861e0780537a8b95647c5abf635e1430cb53aa3f708ffcde5855163c73d307；app/service/youzan/webhook_payload.py=6ba4db8a5c1942fd567f91a56cc00593c557a39a5efdc49011f7466902f1a785；app/service/youzan/event_handler.py=7455a1f2eca261dbcda51db04615f3ee199da990a515a3c9802c63fdf03cc7db；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/youzan/webhook.py=ec861e0780537a8b95647c5abf635e1430cb53aa3f708ffcde5855163c73d307；app/service/youzan/webhook_payload.py=6ba4db8a5c1942fd567f91a56cc00593c557a39a5efdc49011f7466902f1a785；app/service/youzan/event_handler.py=7455a1f2eca261dbcda51db04615f3ee199da990a515a3c9802c63fdf03cc7db；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-043：R6 商品事件与客服队列职责收敛
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4706,7 +4722,7 @@ ______________________________________________________________________
 - summary: 商品事件/同步回归 `27 passed`，客服队列/UMP/客户端回归 `30 passed`；旧无调用方 RAG 实现已删除，卡片发送已独立。
 
 - storage_scope: repository
-- sha256: app/service/youzan/event_item.py=4dc70953da1bc44b1d5896e195727baf27b92f3b9e65a80ee50364a56e7841d0；app/service/youzan/event_item_parser.py=229b731c54a5961ee6658e357a7dfd3ad719b78d1063742fa61a47c90a68bd44；app/service/wecom/kf_message_queue.py=b8ffd6b754ca210884f950ed234b31a934bf6c9aa2dd4e890715bdb43a3378fa；app/service/wecom/kf_card_sender.py=120ae91455598737e0b7cfcae8a2c768ce02af5cc2aa49aed6a04c9197318e6e；scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/youzan/event_item.py=4dc70953da1bc44b1d5896e195727baf27b92f3b9e65a80ee50364a56e7841d0；app/service/youzan/event_item_parser.py=229b731c54a5961ee6658e357a7dfd3ad719b78d1063742fa61a47c90a68bd44；app/service/wecom/kf_message_queue.py=b8ffd6b754ca210884f950ed234b31a934bf6c9aa2dd4e890715bdb43a3378fa；app/service/wecom/kf_card_sender.py=120ae91455598737e0b7cfcae8a2c768ce02af5cc2aa49aed6a04c9197318e6e；scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-044：R6 客服非文本输入预处理职责拆分
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4722,7 +4738,7 @@ ______________________________________________________________________
 - summary: `30 passed`；队列主文件 241 行，输入预处理模块 105 行，图片/语音/非文本输入适配已从队列编排中分离。
 
 - storage_scope: repository
-- sha256: app/service/wecom/kf_message_queue.py=b8ffd6b754ca210884f950ed234b31a934bf6c9aa2dd4e890715bdb43a3378fa；app/service/wecom/kf_message_preprocessor.py=96c60f5f53e3f6ee3699ff50a86168d5b068f63e886d366e44320b0c4e792700；app/service/wecom/kf_card_sender.py=120ae91455598737e0b7cfcae8a2c768ce02af5cc2aa49aed6a04c9197318e6e；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/wecom/kf_message_queue.py=b8ffd6b754ca210884f950ed234b31a934bf6c9aa2dd4e890715bdb43a3378fa；app/service/wecom/kf_message_preprocessor.py=96c60f5f53e3f6ee3699ff50a86168d5b068f63e886d366e44320b0c4e792700；app/service/wecom/kf_card_sender.py=120ae91455598737e0b7cfcae8a2c768ce02af5cc2aa49aed6a04c9197318e6e；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-045：R6 README 与运行/备份事实同步
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4738,7 +4754,7 @@ ______________________________________________________________________
 - summary: 全量 Pytest 通过；文档已对齐 `0.105.19`、MiMo 默认 provider、单 worker 和 AES-256-GCM 备份操作口径。
 
 - storage_scope: repository
-- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/AGENTS/quick-reference.md=c0ab380935390e8df7de1ec7bd2f8758e99359bcc33c6a6bee0dba8835e6b7e4；VERSION=04d81abf05725dabe18012d7f74138c61fb2ab6c68a014f88161b6040ec0ae1c；Dockerfile=ec551581702e1d1c8f24a0378e0b0ff2db94efc6191475014fb08790c7a36f53；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: README.md=a68c4f8c19ac4fe2ace893b3f694ab837b5844f30bb6e8dfd004a222c1d15f3e；docs/README.md=84a0dfffa759f1156b7955a944015ade430affe26e2cc7e7525adf54a85093c7；docs/AGENTS/quick-reference.md=c0ab380935390e8df7de1ec7bd2f8758e99359bcc33c6a6bee0dba8835e6b7e4；VERSION=c3b2fbefe9663c9d6e33ebc7919dfcc594780f0c3b87a4514c88116e67d05132；Dockerfile=ec551581702e1d1c8f24a0378e0b0ff2db94efc6191475014fb08790c7a36f53；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-046：R6 链式脚本 Ruff 存量清理
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4753,7 +4769,7 @@ ______________________________________________________________________
 - retention_note: 仅验证本地脚本静态质量和项目门禁；未访问生产、真实客户数据、密钥或外部服务。
 - summary: 5 个脚本中的 19 个 Ruff 问题已清理，全仓 Ruff check 与项目红线检查通过。
 - storage_scope: repository
-- sha256: scripts/append_logbook.py=473e717b61afc465ee4f84bf0848879fa18d48fd25623a20b8a9e0a9a026e128；scripts/mypy_nonblocking.py=566a37d6073faa188464b8b06cec175bb7d1b66bbaa1301ef9ddd96ab60d0e16；scripts/remove_current_tab.py=ce6298ba53fec6f8421f4938bda4fa7f0940ff9cc64e4516c7cba35342cd0888；scripts/remove_current_tab_vue.py=a28dcd6bf760233f5ff3bb227792c967004cb4483dfd54511cee9f52a1bda80d；scripts/test_chain_order.py=4fa8871c085787960e6420bdcd01769f6909c7f6bf4487d5dcf3c67a6c37315a；scripts/test_chain_product_chat.py=bf6912533ef5a8eb167273f08f2ff0376adc1c551d4a8d1f3796ef0400c602db；scripts/test_chain_webhook.py=168187f6e19c5a0023bcbeff1b74b5111476860e07e7956c1f2dd89f0ea1919d；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/append_logbook.py=473e717b61afc465ee4f84bf0848879fa18d48fd25623a20b8a9e0a9a026e128；scripts/mypy_nonblocking.py=566a37d6073faa188464b8b06cec175bb7d1b66bbaa1301ef9ddd96ab60d0e16；scripts/remove_current_tab.py=ce6298ba53fec6f8421f4938bda4fa7f0940ff9cc64e4516c7cba35342cd0888；scripts/remove_current_tab_vue.py=a28dcd6bf760233f5ff3bb227792c967004cb4483dfd54511cee9f52a1bda80d；scripts/test_chain_order.py=4fa8871c085787960e6420bdcd01769f6909c7f6bf4487d5dcf3c67a6c37315a；scripts/test_chain_product_chat.py=bf6912533ef5a8eb167273f08f2ff0376adc1c551d4a8d1f3796ef0400c602db；scripts/test_chain_webhook.py=168187f6e19c5a0023bcbeff1b74b5111476860e07e7956c1f2dd89f0ea1919d；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-047：R6 全局门禁与运行态探针收口
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4768,7 +4784,7 @@ ______________________________________________________________________
 - retention_note: 仅使用本地 synthetic/配置状态；未访问生产、真实客户数据或密钥；不把旧 7002 进程结果当作当前代码证据。
 - summary: 本地门禁收口通过；真实容器和生产项保持未验证，启动安全配置缺口已明确暴露。
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；app/main.py=40cddf72d85d938a6e7e46741abe4a62161a15fe07c3a3a5952c25516dfe153c
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；app/main.py=40cddf72d85d938a6e7e46741abe4a62161a15fe07c3a3a5952c25516dfe153c
 ## E-20260712-048：R5 Query Rewrite 与 Handoff Runnable 收敛
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4783,7 +4799,7 @@ ______________________________________________________________________
 - retention_note: 仅使用本地 synthetic 测试；Runnable 测试确认手机号和订单号在 prompt 前被脱敏；未访问生产、真实客户数据或密钥。
 - summary: `35 passed`；两个默认能力已去除 `chat_completion` 兼容层依赖；剩余兼容调用明确留在意图识别、会话摘要和三个离线 Agent，R5 仍未全部完成。
 - storage_scope: repository
-- sha256: app/service/llm/query_rewriter.py=8e599d6f690af81bc331ae1724c535c728ffea7df69315adc364fed1135ae7e9；app/service/transfer_handoff_summary.py=445a57aa9eaa188065aa0aa392706e9c9334b69b0b9188fda330eb286d18ffe8；tests/service/llm/test_query_rewriter.py=b00cfd3baa04f14dd345a801bb6f56c59678e6e9ae1c2c39c0f553ccecef3a83；tests/service/test_transfer_handoff_summary.py=5cc023129807e4fed8cf33b851dc30ca39c1bb8148a699bf43525f39087cec82；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/llm/query_rewriter.py=8e599d6f690af81bc331ae1724c535c728ffea7df69315adc364fed1135ae7e9；app/service/transfer_handoff_summary.py=445a57aa9eaa188065aa0aa392706e9c9334b69b0b9188fda330eb286d18ffe8；tests/service/llm/test_query_rewriter.py=b00cfd3baa04f14dd345a801bb6f56c59678e6e9ae1c2c39c0f553ccecef3a83；tests/service/test_transfer_handoff_summary.py=5cc023129807e4fed8cf33b851dc30ca39c1bb8148a699bf43525f39087cec82；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-049：R5 意图识别 Runnable 收敛
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4798,7 +4814,7 @@ ______________________________________________________________________
 - retention_note: 仅使用本地 synthetic 意图测试；未访问生产、真实客户数据或密钥。
 - summary: `35 passed`；意图识别已切换统一 Runnable 并保留失败/回退语义；剩余兼容调用仅在会话摘要和三个离线 Agent。
 - storage_scope: repository
-- sha256: app/service/llm/intent.py=7f46f4bc4872d362799016d3d1d9cb71ab7927f257dcd3bebe5ff80bbf74a2e5；tests/service/llm/test_intent.py=92369ad2ea292d7c69845fbde814f468495ff12a87e1cadee72280f7d09d617e；tests/service/llm/test_intent_negation.py=bc096e4eb85c503058b2a66607ba3f0181948bd8b9326ed0c83eb3e9befdba65；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/llm/intent.py=7f46f4bc4872d362799016d3d1d9cb71ab7927f257dcd3bebe5ff80bbf74a2e5；tests/service/llm/test_intent.py=92369ad2ea292d7c69845fbde814f468495ff12a87e1cadee72280f7d09d617e；tests/service/llm/test_intent_negation.py=bc096e4eb85c503058b2a66607ba3f0181948bd8b9326ed0c83eb3e9befdba65；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-050：R5 摘要与离线质检 Runnable 收敛
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4813,7 +4829,7 @@ ______________________________________________________________________
 - retention_note: 仅使用本地 synthetic 离线测试；Runnable 边界覆盖敏感输入脱敏；未访问生产、真实客户数据或密钥。
 - summary: `76 passed`；六条文本能力已统一到 LangChain Runnable，剩余 service 层旧兼容调用仅为顾客画像 memory。
 - storage_scope: repository
-- sha256: app/service/conversation_summary_service.py=7a81b0d0c23245078563d17512ea505c73316cc4ded67ddc61282cf561472fd1；app/service/offline/agent_knowledge_gap.py=cdd8adb4e34c1a420b2313fcb0c3ee07306358fbbd4897031dbd34dd16062eb5；app/service/offline/agent_qa_review.py=d148e83abeaafa1ca3528e6020361efcc1862f670e11345936b26fcb95c639aa；tests/service/test_conversation_summary_service.py=1a946ecd737fef87a5843b731d19fcd0e436ffd90d77461c64ccf247473c51cf；tests/service/test_offline_review.py=36cad1b7c6144dab37020a3a958f291d85ca308a89259cd88ec1a1f6f7bf1b2b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/conversation_summary_service.py=7a81b0d0c23245078563d17512ea505c73316cc4ded67ddc61282cf561472fd1；app/service/offline/agent_knowledge_gap.py=cdd8adb4e34c1a420b2313fcb0c3ee07306358fbbd4897031dbd34dd16062eb5；app/service/offline/agent_qa_review.py=d148e83abeaafa1ca3528e6020361efcc1862f670e11345936b26fcb95c639aa；tests/service/test_conversation_summary_service.py=1a946ecd737fef87a5843b731d19fcd0e436ffd90d77461c64ccf247473c51cf；tests/service/test_offline_review.py=36cad1b7c6144dab37020a3a958f291d85ca308a89259cd88ec1a1f6f7bf1b2b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-051：R5 文本 chat facade 删除与单路径收口
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4828,7 +4844,7 @@ ______________________________________________________________________
 - retention_note: 仅使用本地 synthetic 测试；扫描和 Runnable 测试均未访问生产、真实客户数据或密钥。
 - summary: `80 passed`；旧文本 facade 和调用点归零，`client.py` 仅保留 ASR SDK adapter；app/tests 与本轮正式脚本 Ruff 通过。工作树既有未跟踪 `scripts/_*.py` 历史探针仍有 25 个 Ruff 存量问题，未批量修改或删除；生产 trace sink 与发布门禁仍独立未验证。
 - storage_scope: repository
-- sha256: app/service/llm/client.py=99671484a1058e56df1892b8d92d60ef30f000b1a7ca26bc05c682caf3961a94；app/service/conversation_summary_service.py=7a81b0d0c23245078563d17512ea505c73316cc4ded67ddc61282cf561472fd1；app/service/offline/agent_knowledge_gap.py=cdd8adb4e34c1a420b2313fcb0c3ee07306358fbbd4897031dbd34dd16062eb5；app/service/offline/agent_qa_review.py=d148e83abeaafa1ca3528e6020361efcc1862f670e11345936b26fcb95c639aa；app/service/offline/agent_memory.py=86b3e405f6601ca4b91075a0f7c796e2362afcd7ecad9ae95c10d9667cd7f719；tests/service/test_offline_review.py=36cad1b7c6144dab37020a3a958f291d85ca308a89259cd88ec1a1f6f7bf1b2b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/llm/client.py=99671484a1058e56df1892b8d92d60ef30f000b1a7ca26bc05c682caf3961a94；app/service/conversation_summary_service.py=7a81b0d0c23245078563d17512ea505c73316cc4ded67ddc61282cf561472fd1；app/service/offline/agent_knowledge_gap.py=cdd8adb4e34c1a420b2313fcb0c3ee07306358fbbd4897031dbd34dd16062eb5；app/service/offline/agent_qa_review.py=d148e83abeaafa1ca3528e6020361efcc1862f670e11345936b26fcb95c639aa；app/service/offline/agent_memory.py=86b3e405f6601ca4b91075a0f7c796e2362afcd7ecad9ae95c10d9667cd7f719；tests/service/test_offline_review.py=36cad1b7c6144dab37020a3a958f291d85ca308a89259cd88ec1a1f6f7bf1b2b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-052：R5 文本单路径全量门禁收口
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4844,7 +4860,7 @@ ______________________________________________________________________
 - summary: 全量 Pytest、项目红线/业务合约、文件体量、证据、完整 Ruff 和 diff 门禁通过；R5 本地文本单路径完成。生产/Docker 外部项仍独立未验证。
 
 - storage_scope: repository
-- sha256: app/service/llm/client.py=99671484a1058e56df1892b8d92d60ef30f000b1a7ca26bc05c682caf3961a94；scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
+- sha256: app/service/llm/client.py=99671484a1058e56df1892b8d92d60ef30f000b1a7ca26bc05c682caf3961a94；scripts/check_file_sizes.py=1644f73e4ad178c350fd6d655ef4212f512eb6398d7478889bcf50d4ae83ee54；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
 ## E-20260712-053：R6 历史脚本 Ruff 存量清理
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4859,7 +4875,7 @@ ______________________________________________________________________
 - retention_note: 仅修改既有本地探针的导入/语法格式和等价输出结构；未删除文件、未访问生产、未访问真实客户数据或密钥。
 - summary: 历史探针 Ruff `26` 个问题全部清零；脚本测试 `480 passed`，全路径 Ruff 恢复通过。
 - storage_scope: repository
-- sha256: scripts/_check_test_results.py=35af7fd6f418677988496c7c63c9b1769df5e6f2366a65034574e490c4ef67c9；scripts/_corpus_profile.py=0a7d2b90161be974241024180d6e6f4fdaaba4534bf1855a25977bfd83928312；scripts/_debug_items.py=f0ddf0558eb5af2cdb0476c119b99f6b70d7531a123213f503f47f986778f0aa；scripts/_dup_probe.py=c5a375ae93c0c2cc029b86fed49823f20b046cc154f229001fec4940f04dab22；scripts/_dup_probe2.py=26779dbbea592176d9c22b7e8f87e761196a649efcae712e03c71b40d4586cda；scripts/_dup_probe3.py=7a4ff0fe74eb9403894b0e352f3376cff48a84128861d733fd4100b18e87c79b；scripts/_nogold_probe.py=e2d112af9f0037c0ae9a40e2c7123fff4834bc562c40839c105f3d64f0cfcb0c；scripts/_perf_check.py=49ec0187a6662c45a7fb3c712cf041e4655000dc9ccccd31038e4d1ef92473b9；scripts/_query_daily_orders.py=ae62b00728f6becabaff25889a06c1b180e9b6015e851fbe93d92c9db7c1a76e；scripts/_query_latency.py=80e15478c635339e79355b6f23ef60ad7b35a324822a7b00f98f5c21a5ec450c；scripts/_query_latency_refined.py=86877a1654fe08c0b2d0d3dab19ce353c9390a31dc6b341234cffdb2877ba20e；scripts/_test_item_info_webhook.py=50c48f542c04f346ddc378ede127c0a756679ef7135f1aa7813c848a7b8a8d6f；scripts/_test_product_api.py=3a7c8b04157f75ebd2da52a30ab48c38296b3e77cdc0bbaff944d5c31b26c228；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/_check_test_results.py=35af7fd6f418677988496c7c63c9b1769df5e6f2366a65034574e490c4ef67c9；scripts/_corpus_profile.py=0a7d2b90161be974241024180d6e6f4fdaaba4534bf1855a25977bfd83928312；scripts/_debug_items.py=f0ddf0558eb5af2cdb0476c119b99f6b70d7531a123213f503f47f986778f0aa；scripts/_dup_probe.py=c5a375ae93c0c2cc029b86fed49823f20b046cc154f229001fec4940f04dab22；scripts/_dup_probe2.py=26779dbbea592176d9c22b7e8f87e761196a649efcae712e03c71b40d4586cda；scripts/_dup_probe3.py=7a4ff0fe74eb9403894b0e352f3376cff48a84128861d733fd4100b18e87c79b；scripts/_nogold_probe.py=e2d112af9f0037c0ae9a40e2c7123fff4834bc562c40839c105f3d64f0cfcb0c；scripts/_perf_check.py=49ec0187a6662c45a7fb3c712cf041e4655000dc9ccccd31038e4d1ef92473b9；scripts/_query_daily_orders.py=ae62b00728f6becabaff25889a06c1b180e9b6015e851fbe93d92c9db7c1a76e；scripts/_query_latency.py=80e15478c635339e79355b6f23ef60ad7b35a324822a7b00f98f5c21a5ec450c；scripts/_query_latency_refined.py=86877a1654fe08c0b2d0d3dab19ce353c9390a31dc6b341234cffdb2877ba20e；scripts/_test_item_info_webhook.py=50c48f542c04f346ddc378ede127c0a756679ef7135f1aa7813c848a7b8a8d6f；scripts/_test_product_api.py=3a7c8b04157f75ebd2da52a30ab48c38296b3e77cdc0bbaff944d5c31b26c228；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-054：R4 生产预检与发布 manifest 边界
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4874,7 +4890,7 @@ ______________________________________________________________________
 - retention_note: 预检 JSON 仅保存布尔 readiness 状态、版本和本地路径；未记录密钥/客户原文；未访问生产或 Docker daemon。
 - summary: 预检业务合同和 31 项定向测试通过；3 项 readiness 配置缺口及 dirty worktree 删除路径已明确暴露。真实生产应用、Docker build/smoke 和精确 manifest 仍待发布窗口。
 - storage_scope: repository
-- sha256: deploy/nginx/yunxibakebot.conf.example=f19bf393e692e6600b55fe385ecfd43c2e12ee37e5badaf94de7545ea3d67a8c；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/build_release_manifest.py=f1e6b38056729fc3c4347c4748b5918440d7f70cdc42c34aca61891e0d904ad5；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: deploy/nginx/yunxibakebot.conf.example=f19bf393e692e6600b55fe385ecfd43c2e12ee37e5badaf94de7545ea3d67a8c；scripts/preflight_production.py=7a4bb274acd24bd5d90366b253da1a4dd47600062ed147e224569f9cdc3ee95d；scripts/build_release_manifest.py=f1e6b38056729fc3c4347c4748b5918440d7f70cdc42c34aca61891e0d904ad5；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-055：生产只读版本与 readiness 审计
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4890,7 +4906,7 @@ ______________________________________________________________________
 - summary: 服务 active/ready 且反向代理可达，但仓库 `VERSION=0.105.19` 与运行 `/health`、`/ready`、公网版本 `0.105.17` 不一致；修复需发布窗口和明确重启/部署授权。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
 ## E-20260712-056：生产版本与运行态刷新复验
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4906,7 +4922,7 @@ ______________________________________________________________________
 - summary: 生产仓库仍为 `0.105.19` 且服务 active/enabled，公网 health/ready 仍运行 `0.105.17`；readiness checks 全部为 true；本机 Docker CLI 不可用。未执行生产写操作。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
 ## E-20260712-066：最小员工授权与 callback 生产复验
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4922,7 +4938,7 @@ ______________________________________________________________________
 - summary: 最小员工授权已启用，生产 `0.107.3` health/ready 通过；callback 仍 `22/61` semantic mismatch，授权/HTTP/隐私路径已排除为失败原因。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
 ## E-20260712-065：callback 诊断链路本地回归
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4938,7 +4954,7 @@ ______________________________________________________________________
 - summary: 本地 callback/授权/诊断/观测合同共 `45 passed`，Ruff 通过；生产 `22/61` semantic mismatch 仍需真实业务规则和数据校准。
 
 - storage_scope: repository
-- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/report_langchain_production_callback_failures.py=3e7c3f8e646085fd3bfada6e3f4e6472f35f130bce3336d8f9a170a2d56beef3；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/report_langchain_production_callback_failures.py=3e7c3f8e646085fd3bfada6e3f4e6472f35f130bce3336d8f9a170a2d56beef3；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-064：安全配置预检防线生产验证
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4954,7 +4970,7 @@ ______________________________________________________________________
 - summary: 部署安全配置预检已上线；生产 `0.107.2` 重启后 systemd active，双域 health/ready 均 200，版本一致。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e；tests/scripts/test_deploy_server_contract.py=f5c195dfed7cfbb0bcf55f63ab1e06dc9e3757d69ee345e9f09f331371fff6c6；docs/harness-engineering/core/mistake-ledger.md=c78e7d4a38a868b45c2d775d12632f4f65bc9c3c9fbe258d452900acc55d41f3
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e；tests/scripts/test_deploy_server_contract.py=f5c195dfed7cfbb0bcf55f63ab1e06dc9e3757d69ee345e9f09f331371fff6c6；docs/harness-engineering/core/mistake-ledger.md=c78e7d4a38a868b45c2d775d12632f4f65bc9c3c9fbe258d452900acc55d41f3
 ## E-20260712-063：生产迁移 dry-run 与运行态复核
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4970,7 +4986,7 @@ ______________________________________________________________________
 - summary: 生产迁移 dry-run 通过，`schema_ready=true`、未 apply；服务 active，health/ready 版本 `0.107.0`。生产 apply/rollback 仍受异盘备份门禁约束。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b
 ## E-20260712-062：生产 callback 失败类别细分
 
 - trace_id: `20260711-global-risk-remediation`
@@ -4986,7 +5002,7 @@ ______________________________________________________________________
 - summary: `61` 个 callback 用例中 `22` 个失败，全部为 semantic mismatch；HTTP、流式格式和隐私检查均通过。失败需业务规则/真实数据校准，不能放宽断言。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；scripts/wecom_employee_agent_probe_cases.py=da539397f6a41a3f098c95bc084ea23293bab0627d7e1b4a47e52c0de4776dcd；scripts/wecom_employee_agent_callback_semantics.py=9dae85c151aaa47a10d5aebe1cf9d441a1e7368aa60949053294b79a5e43f09e
 ## E-20260712-061：生产备份密钥与保留策略审计
 
 - trace_id: `20260711-global-risk-remediation`
@@ -5002,7 +5018,7 @@ ______________________________________________________________________
 - summary: 生产未配置可验证的仓外备份密钥路径或受控备份目录，生产 AES-GCM backup/restore 与 30 天保留策略仍未执行。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/privacy-data-retention-policy.md=7ee8cf4401229d26961b6f0cee12ba2d6ddcccc784824d3996be7f7e25087fae；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；scripts/verify_backup_restore.py=66b6607312dab9f91bc49e92b305d5daa4bf0d29017d3a482c29d35ac064d8ee
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/privacy-data-retention-policy.md=7ee8cf4401229d26961b6f0cee12ba2d6ddcccc784824d3996be7f7e25087fae；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；scripts/verify_backup_restore.py=66b6607312dab9f91bc49e92b305d5daa4bf0d29017d3a482c29d35ac064d8ee
 ## E-20260712-060：生产授权与 callback 探针审计
 
 - trace_id: `20260711-global-risk-remediation`
@@ -5018,7 +5034,7 @@ ______________________________________________________________________
 - summary: LangSmith 外发关闭且生产 trace path 未配置；员工 allowlist 未配置；生产 callback 探针 `61` 个用例中 `22` 个失败，R3-B/R5 生产 callback 与 trace 收口仍未完成。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b
 ## E-20260712-059：全局整改版本最终发布复验
 
 - trace_id: `20260711-global-risk-remediation`
@@ -5034,7 +5050,7 @@ ______________________________________________________________________
 - summary: 行为发布 commit `371ff08` 已成功运行，双域 health/ready 均 200、版本 `0.107.0`，systemd active/running；发布前缺失的 `ADMIN_SESSION_SECRET` 已在受控 `.env` 中补齐，值未回显或入仓。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e
 ## E-20260712-058：全局整改发布失败与自动回滚
 
 - trace_id: `20260711-global-risk-remediation`
@@ -5050,7 +5066,7 @@ ______________________________________________________________________
 - summary: 目标 commit `371ff08` 已提交并双远端推送，manifest 通过；生产因缺少 `ADMIN_SESSION_SECRET` 启动安全检查失败，已回滚到 `7e666218`，内外 health/ready 均恢复 HTTP 200、版本 `0.105.19`。新版本未上线。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/deploy_server.sh=a988b938e57b9fa871053d5c38c395d025958740b63c277602bca51d3ea6e24e
 ## E-20260712-057：R3/R4 整改域级合同回归
 
 - trace_id: `20260711-global-risk-remediation`
@@ -5065,7 +5081,7 @@ ______________________________________________________________________
 - retention_note: 仅记录本地测试结果和代码路径；未记录真实客户数据、密钥、生产日志或备份内容。
 - summary: R3/R4 域级合同测试共 `28 passed`，全仓 Ruff 通过；真实 Docker build/smoke、生产配置审计、异盘密钥托管和版本发布仍未验证。
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；scripts/export_safe_snapshot.py=7657bdeb985c17697a6124cfcb2f100aa9b99fa1d06d2a95128892b7057768ba
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；scripts/export_safe_snapshot.py=7657bdeb985c17697a6124cfcb2f100aa9b99fa1d06d2a95128892b7057768ba
 ## E-20260712-067：不确定业务事实转人工合同
 
 - trace_id: 20260711-global-risk-remediation
@@ -5110,7 +5126,7 @@ ______________________________________________________________________
 - retention_note: 报告仅保留版本、状态、用例汇总和脱敏边界；不包含客户原文、订单明细、员工 ID、callback token、AES key 或服务器密码。JSON 位于 gitignored reports 目录。
 - summary: 生产 `0.107.8` callback 探针 `61/61` 通过，失败 `0`；无法可靠确认的业务事实和 callback 异常均转人工，正常订单查询仍保持自动回复。生产 `/health`、`/ready` 和 systemd 门禁通过。
 - storage_scope: production
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-084：生产同构隔离整改 Harness
 
 - trace_id: 20260711-global-risk-remediation
@@ -5126,7 +5142,7 @@ ______________________________________________________________________
 - summary: 真实 Bearer JWT/FastAPI/service/repository/完整 SQLite schema 的主体导出删除链，以及独立子进程 claim/kill、lease 重领和终态幂等链共 `8/8` 通过；脚本合同测试 `4 passed`。该证据证明生产同构隔离行为，不冒充真实生产数据专项。
 
 - storage_scope: repository
-- sha256: scripts/run_isolated_remediation_harness.py=310242a6fd60119d6130b0be1c2219c82ff72abb5b321d38d34ed0af2bd563ad；tests/scripts/test_run_isolated_remediation_harness.py=7fcb93f008de759aa9e2f8664a69c54d609979c1cca4b04fb404b8b19ae89059；docs/harness-engineering/specs/2026-07-12-isolated-remediation-harness-design.md=ec3411904fe2fdc177d0f47fecae034d06b2180e770d3ff7070e3004bc65c0e3；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/run_isolated_remediation_harness.py=310242a6fd60119d6130b0be1c2219c82ff72abb5b321d38d34ed0af2bd563ad；tests/scripts/test_run_isolated_remediation_harness.py=7fcb93f008de759aa9e2f8664a69c54d609979c1cca4b04fb404b8b19ae89059；docs/harness-engineering/specs/2026-07-12-isolated-remediation-harness-design.md=ec3411904fe2fdc177d0f47fecae034d06b2180e770d3ff7070e3004bc65c0e3；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-083：生产真实进程崩溃恢复
 
 - trace_id: 20260711-global-risk-remediation
@@ -5142,7 +5158,7 @@ ______________________________________________________________________
 - summary: 崩溃前 inbox 无处理中/失败/死信；SIGKILL 后 systemd 自动拉起新 PID，约 8 秒内 health/ready 恢复，schema 和 integrity check 通过，恢复后无异常状态。该证据证明进程恢复，不替代有处理中消息时的丢失/重复专项。
 
 - storage_scope: production
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-082：生产 migration apply/rollback 独立设备 staging 演练
 
 - trace_id: 20260711-global-risk-remediation
@@ -5158,7 +5174,7 @@ ______________________________________________________________________
 - summary: 生产数据库 integrity check 通过；独立设备 `/dev/shm` 上的 migration apply 和 rollback 均返回 `schema_ready=true`，rollback 返回 `rolled_back=true`；tmpfs 文件已清理。该证据不等于生产持久化备份挂载和定时保留已配置。
 
 - storage_scope: production
-- sha256: scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-081：真实生产快照本地迁移回滚演练
 
 - trace_id: 20260711-global-risk-remediation
@@ -5175,7 +5191,7 @@ ______________________________________________________________________
 - summary: 真实生产 SQLite 快照的本地 dry-run、apply、rollback 和 integrity check 均通过；生产数据库未写入，生产服务器在线 migration rollback 路径仍未完成。
 
 - storage_scope: repository
-- sha256: scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-080：生产数据库加密备份拉取到本地 D 盘
 
 - trace_id: 20260711-global-risk-remediation
@@ -5192,7 +5208,7 @@ ______________________________________________________________________
 - summary: 生产 SQLite `.backup` 一致性快照已通过 SSH 拉取到本地 D 盘并用 AES-256-GCM 加密；解密完整性校验返回 `ok`，本地和生产明文临时文件均已清理。该本地资产不等于生产服务器上的在线 rollback 路径，生产 migration apply/rollback 仍未执行。
 
 - storage_scope: production
-- sha256: scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/encrypted_backup.py=5a09eeddb9ecc27d77be4fec603f8c3346956133036f1e84146a8e2ed1abb160；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-079：生产隐私权利接口未认证拒绝
 
 - trace_id: 20260711-global-risk-remediation
@@ -5208,7 +5224,7 @@ ______________________________________________________________________
 - summary: 生产主体导出和删除接口在缺少认证时均返回 `401`；本次只验证授权边界，不宣称真实主体导出/删除专项完成。
 
 - storage_scope: repository
-- sha256: app/api/channels/storefront/privacy.py=3ece9dd6259ba50f5bbfc3e265e7703905bceb88fd7f8b2e9579df70e21ad012；docs/architecture/privacy-data-retention-policy.md=7ee8cf4401229d26961b6f0cee12ba2d6ddcccc784824d3996be7f7e25087fae；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/api/channels/storefront/privacy.py=3ece9dd6259ba50f5bbfc3e265e7703905bceb88fd7f8b2e9579df70e21ad012；docs/architecture/privacy-data-retention-policy.md=7ee8cf4401229d26961b6f0cee12ba2d6ddcccc784824d3996be7f7e25087fae；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-078：生产 callback 与 inbox 聚合复验
 
 - trace_id: 20260711-global-risk-remediation
@@ -5224,7 +5240,7 @@ ______________________________________________________________________
 - summary: 生产 `0.107.13` callback `61/61` 通过、失败 `0`；inbox 只读聚合为 `youzan_webhook/processed=58`，无处理中、失败或死信状态。该证据不替代真实崩溃注入、消息重复专项或主体删除专项。
 
 - storage_scope: production
-- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-077：发布迁移异盘门禁并复验生产 fail-closed
 
 - trace_id: 20260711-global-risk-remediation
@@ -5240,7 +5256,7 @@ ______________________________________________________________________
 - summary: 提交 `a0109ef` 已同步双远端并运行于生产 `0.107.13`；health/ready 和迁移 dry-run 通过。备份脚本因独立目录未挂载而拒绝执行，未生成同盘备份，生产 apply/rollback 未执行。
 
 - storage_scope: production
-- sha256: scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；scripts/backup_db.sh=ebf5048884543542b51f74c475ee867f50b54417653261c377d1ef44a7a11c9d；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/migration_job.py=895446a7df273792288356d1abe70d121a71cf32c1688291b14de436875b801a；scripts/backup_db.sh=ebf5048884543542b51f74c475ee867f50b54417653261c377d1ef44a7a11c9d；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-076：迁移 job 默认异盘设备门禁
 
 - trace_id: 20260711-global-risk-remediation
@@ -5301,7 +5317,7 @@ ______________________________________________________________________
 - retention_note: 仅保留版本、状态、数量、权限、字段键扫描和错误计数；不包含 trace 内容、客户原文、订单明细、员工 ID、密钥或 callback 回复。
 - summary: 生产 `0.107.10` trace sink 写入 120 条、权限 `600`、禁止敏感字段键为空；callback `61/61` 通过；最近 200 条服务日志无 `parse_item_id` 导入错误。LangSmith 未启用，生产外发仍关闭。
 - storage_scope: production
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-073：异盘加密备份脚本安全门禁
 
 - trace_id: 20260711-global-risk-remediation
@@ -5331,7 +5347,7 @@ ______________________________________________________________________
 - retention_note: 只记录门禁失败原因和运行状态；不包含密钥内容、备份内容、客户数据或订单数据。
 - summary: 生产脚本实际拒绝同盘备份，因为 `/mnt/backup/yunxibakebot` 未挂载；服务版本和 health/ready 正常。异盘存储就绪前不执行迁移。
 - storage_scope: production
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-075：生产 inbox 与隐私关闭态复验
 
 - trace_id: 20260711-global-risk-remediation
@@ -5346,7 +5362,7 @@ ______________________________________________________________________
 - retention_note: 只记录配置布尔态、队列状态汇总、版本和 callback 汇总；不包含客户内容、订单明细、员工 ID、密钥、原始 query 或 trace 正文。
 - summary: 生产重启后 inbox 全部为 `processed=50`，无处理中或死信；readiness 的 offline review/QA/memory 均关闭，LangSmith 未配置；callback `61/61` 通过。该证据不替代真实崩溃注入和主体删除专项。
 - storage_scope: production
-- sha256: 863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: 327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-085：本地 D 盘生产加密备份计划任务
 
 - trace_id: 20260711-global-risk-remediation
@@ -5360,7 +5376,7 @@ ______________________________________________________________________
 - retention_note: 仓库只记录脚本、任务状态和脱敏结果；不记录备份密钥、客户数据、数据库内容或 SSH 私钥。加密备份保留在仓库外 D 盘，默认 30 天且至少 3 份，每次作业最多逐个清理一份过期文件。
 - summary: 直接运行和 Windows 计划任务实跑均成功；任务每天 03:30 执行，首次 `LastTaskResult=0`。D 盘现有 3 份 AES-256-GCM 备份，本地和生产 `/dev/shm` 无明文临时快照残留；生产持久挂载仍未配置。
 - storage_scope: repository
-- sha256: scripts/local_production_backup.py=5e1b6a74a1ac6cac07d06b362fa675584b7e97aa77dd4d7df2046878509fbe52；scripts/install_local_backup_task.ps1=d1c8ef32957d36dc855704d31da2f6050a1c3ee057f4e33cdb7bb9a21616cfbf；tests/scripts/test_local_production_backup.py=e3e07ee126add8fe281247a3efdbb95101ff40098c372bb31f24bbb51ae84285；docs/harness-engineering/specs/2026-07-12-local-production-backup-job-design.md=90a3b05f89d24bb655bd0659a8ac0f422d4fd8cca22b787bf7f83668a4a1f276；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/local_production_backup.py=5e1b6a74a1ac6cac07d06b362fa675584b7e97aa77dd4d7df2046878509fbe52；scripts/install_local_backup_task.ps1=d1c8ef32957d36dc855704d31da2f6050a1c3ee057f4e33cdb7bb9a21616cfbf；tests/scripts/test_local_production_backup.py=e3e07ee126add8fe281247a3efdbb95101ff40098c372bb31f24bbb51ae84285；docs/harness-engineering/specs/2026-07-12-local-production-backup-job-design.md=90a3b05f89d24bb655bd0659a8ac0f422d4fd8cca22b787bf7f83668a4a1f276；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-086：生产隐私出站聚合审计
 
 - trace_id: 20260711-global-risk-remediation
@@ -5374,7 +5390,7 @@ ______________________________________________________________________
 - retention_note: 只保留模块路径、布尔开关和合成敏感标记结果；不包含客户内容、订单明细、员工 ID、数据库数据、API key 或 SSH key。
 - summary: 生产专项 `8/8` 通过；自动发现 9 个模型调用模块并全部经过统一脱敏，ChatOpenAI 仅有一个共享工厂，OpenAI SDK 仅保留 ASR 窄适配；结构化 payload 和 trace 元数据零合成敏感标记；生产离线 QA/知识缺口/memory、LangSmith tracing 和 key 配置 7 个布尔值全部为 false。真实生产主体删除仍单列未完成。
 - storage_scope: repository
-- sha256: app/service/privacy_redaction.py=c4c7f8efc4c8431d2a81b941c69b47cad93eebd3b277b259686fc6861fca1c1a；scripts/check_privacy_outbound_contract.py=2faf5d058aac16d759fb71901e33bb5c75fce7434496001d7437a3e3feeaac27；tests/service/test_privacy_redaction.py=f92223e8d62e666ca94fe5154136f1a79eae897c1ca77d3768ccbd5abcd2f34a；tests/scripts/test_check_privacy_outbound_contract.py=15f275dc3e4a34db53a9d823787d54f6fe03cd185d7cc28a591076900856d611；docs/harness-engineering/specs/2026-07-12-production-privacy-outbound-audit-design.md=9cb683b33b0dac1cab5ce619d57a10c2c4939252af136f27d36d9dda7cfb1db2；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/privacy_redaction.py=c4c7f8efc4c8431d2a81b941c69b47cad93eebd3b277b259686fc6861fca1c1a；scripts/check_privacy_outbound_contract.py=2faf5d058aac16d759fb71901e33bb5c75fce7434496001d7437a3e3feeaac27；tests/service/test_privacy_redaction.py=f92223e8d62e666ca94fe5154136f1a79eae897c1ca77d3768ccbd5abcd2f34a；tests/scripts/test_check_privacy_outbound_contract.py=15f275dc3e4a34db53a9d823787d54f6fe03cd185d7cc28a591076900856d611；docs/harness-engineering/specs/2026-07-12-production-privacy-outbound-audit-design.md=9cb683b33b0dac1cab5ce619d57a10c2c4939252af136f27d36d9dda7cfb1db2；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-087：R3-B 远程下载与员工授权聚合审计
 
 - trace_id: 20260711-global-risk-remediation
@@ -5388,7 +5404,7 @@ ______________________________________________________________________
 - retention_note: 只保留安全合同、测试汇总和生产匿名布尔/计数；不记录员工、群、企业、域名 allowlist、callback token、AES key 或业务数据。
 - summary: 下载/授权/Agent/预检定向套件 `108 passed`；商品目录和客服卡片统一走真实流式、逐跳复验、MIME 与大小策略；运营权限由服务端 ops 用户白名单决定，Agent 未授权工具在执行前阻断。生产既有唯一员工白名单已原子迁移为唯一 ops 用户，不新增授权主体；重启后匿名聚合门禁纳入发布验证。
 - storage_scope: repository
-- sha256: app/service/security/url_policy.py=64e85ba513cd09f8d0bf03fb7eff6707e7150ef64dacaceb637a9b6df1122502；app/service/wecom/kf_card_sender.py=120ae91455598737e0b7cfcae8a2c768ce02af5cc2aa49aed6a04c9197318e6e；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b；app/service/agents/employee/nodes.py=cd4b0c979371ec1c316c25925b87027890ca4308ef11854a731352aa1cdaea89；scripts/check_security_outbound_contract.py=a27b42f6eebab599ee92842ac2e931e4e87295e13331533f75ab783cfc52772b；tests/service/test_url_policy.py=f41cc4b839cab03ac957b0f5227b796a93e6b5bb1dc0220f30057ef313e96d84；tests/service/wecom/test_employee_authorization.py=44623f21f8d3f977c578a0b3c94ee945962467aab8c44cafaf4f562ffc5a89b4；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: app/service/security/url_policy.py=64e85ba513cd09f8d0bf03fb7eff6707e7150ef64dacaceb637a9b6df1122502；app/service/wecom/kf_card_sender.py=120ae91455598737e0b7cfcae8a2c768ce02af5cc2aa49aed6a04c9197318e6e；app/service/wecom/employee_authorization.py=550d2dad3f0f305679fc950c511834d260e7e1a508c11b7c8f1e4795dca7e68b；app/service/agents/employee/nodes.py=cd4b0c979371ec1c316c25925b87027890ca4308ef11854a731352aa1cdaea89；scripts/check_security_outbound_contract.py=a27b42f6eebab599ee92842ac2e931e4e87295e13331533f75ab783cfc52772b；tests/service/test_url_policy.py=f41cc4b839cab03ac957b0f5227b796a93e6b5bb1dc0220f30057ef313e96d84；tests/service/wecom/test_employee_authorization.py=44623f21f8d3f977c578a0b3c94ee945962467aab8c44cafaf4f562ffc5a89b4；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-088：员工 callback 探针 actor 语义修正
 
 - trace_id: 20260711-global-risk-remediation
@@ -5402,7 +5418,7 @@ ______________________________________________________________________
 - retention_note: 报告不记录员工、群、企业 ID、callback token、AES key 或密文；只保留测试状态和脱敏回复摘要。
 - summary: 修复探针硬编码无 chatid group 和错误 actor 来源导致的全转人工假绿；新探针优先选择员工 allowlist，有群白名单才构造 group，否则使用 single。探针合同 `31 passed`；部署后以生产本地 `61/61` 验证授权 actor 自动回复路径。
 - storage_scope: repository
-- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/check_wecom_employee_agent_callback.py=0ae0b4705d69a876f4d6b17764da718e3b437cc65da1d43fedec6c0f4a86fa9a；tests/scripts/test_check_wecom_employee_agent_callback.py=d4d8fea0445cfe94c74903adc8dd51b6aa704efd5fe839bf5f9bbaf3962c7e84；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-089：生产合成主体真实删除专项
 
 - trace_id: 20260711-global-risk-remediation
@@ -5417,7 +5433,7 @@ ______________________________________________________________________
 - retention_note: 只保留检查名称、通过状态和安全边界布尔值；不记录 JWT、合成主体 ID、导出正文、客户内容、订单明细或数据库内容。
 - summary: 本地脚本合同 `3 passed`，Ruff 和 mypy 通过；首次生产执行发现并阻断未配置前台会话密钥，失败路径完成清理。服务器本地生成并托管随机会话密钥、重启后，生产真实 JWT/loopback API 专项 `8/8` 通过，synthetic residue false，health/ready/systemd 正常；不触碰真实客户。
 - storage_scope: repository
-- sha256: scripts/verify_production_subject_deletion.py=a67333b76138c73be3c2132d0b11d07f121efb03dfd17c0c5aaa66729094d131；tests/scripts/test_verify_production_subject_deletion.py=e10d56163f3eaa55df10c809f35e7b8d82eba3dcad6c5219ff85a475ab9e4fad；docs/harness-engineering/specs/2026-07-12-production-synthetic-subject-deletion-design.md=f73087effbc89e9dcd89eac3690387e1b8ca331fb4823c02ee84aec7b9f06b53；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/verify_production_subject_deletion.py=a67333b76138c73be3c2132d0b11d07f121efb03dfd17c0c5aaa66729094d131；tests/scripts/test_verify_production_subject_deletion.py=e10d56163f3eaa55df10c809f35e7b8d82eba3dcad6c5219ff85a475ab9e4fad；docs/harness-engineering/specs/2026-07-12-production-synthetic-subject-deletion-design.md=f73087effbc89e9dcd89eac3690387e1b8ca331fb4823c02ee84aec7b9f06b53；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-090：生产合成 inbox 崩溃恢复专项
 
 - trace_id: 20260711-global-risk-remediation
@@ -5432,7 +5448,7 @@ ______________________________________________________________________
 - retention_note: 只记录检查名称、计数和安全边界布尔值；不记录 message key、payload、客户内容、订单明细、员工或群身份、数据库内容。
 - summary: 本地真实子进程 claim/kill/reclaim 合同 `4 passed`；生产真实 SQLite/InboxRepo 专项 `8/8` 通过。第一子进程进入 processing 后被 kill，第二子进程在 lease 到期后重领，attempt_count=2、单一 processed、重复 enqueue 拒绝且 synthetic residue false；专用队列未被业务 worker 消费，未触发外部渠道发送。生产 `0.109.4` 的 systemd、health、ready 正常。
 - storage_scope: repository
-- sha256: scripts/verify_production_synthetic_inbox_crash.py=d38092a4c14f1721af3a820e0eaeae14ebea786c55e5ef6d6794c640f2b89b15；tests/scripts/test_verify_production_synthetic_inbox_crash.py=52fedf38e523cb0096fd9044fb72bbe5f2f422015f2d7ad01735bb0aa844ff63；docs/harness-engineering/specs/2026-07-12-production-synthetic-inbox-crash-design.md=9eff1a39a1c7c6171056726ddc099902951d69b32309647cc80f4a27e437fdf1；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: scripts/verify_production_synthetic_inbox_crash.py=d38092a4c14f1721af3a820e0eaeae14ebea786c55e5ef6d6794c640f2b89b15；tests/scripts/test_verify_production_synthetic_inbox_crash.py=52fedf38e523cb0096fd9044fb72bbe5f2f422015f2d7ad01735bb0aa844ff63；docs/harness-engineering/specs/2026-07-12-production-synthetic-inbox-crash-design.md=9eff1a39a1c7c6171056726ddc099902951d69b32309647cc80f4a27e437fdf1；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260712-091：全局风险整改当前列车完成审计
 
 - trace_id: 20260711-global-risk-remediation
@@ -5447,7 +5463,7 @@ ______________________________________________________________________
 - retention_note: 只记录版本、测试/门禁计数、布尔状态和后置项；不保存 callback 回复、客户内容、订单明细、员工/群/企业 ID、密钥或数据库内容。
 - summary: 当前 HEAD 全量 `1303/1303` 通过；生产 `0.109.5` 的 systemd、health/ready、隐私 `8/8`、安全 `10/10`、LangChain版本/容量和 callback `61/61` 均通过；备份任务最近结果 0。当前 systemd 生产列车完成，Docker真实 build/漏洞扫描/smoke 按用户决定后置，因此长期目标保持 active。
 - storage_scope: repository
-- sha256: docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260713-001：Docker 真实验证解除后置并启动最终构建
 
 - trace_id: 20260711-global-risk-remediation
@@ -5462,7 +5478,7 @@ ______________________________________________________________________
 - retention_note: 只记录 Docker 合同、目标版本和可达性结果；不包含生产环境变量、客户/订单内容、日志正文、镜像凭据或密钥。远端 build/smoke/Trivy/systemd 结果待 SSH 恢复后补齐。
 - summary: 用户解除 Docker 后置后，最终 `cad759f / 0.109.12` 容器验证进入执行态；本地静态合同通过，但生产构建机 SSH banner 和公网 HTTPS 请求超时，故未把启动命令或静态合同伪装成真实容器完成证据。
 - storage_scope: repository
-- sha256: Dockerfile=ec551581702e1d1c8f24a0378e0b0ff2db94efc6191475014fb08790c7a36f53；docker-compose.yml=57ffb931514caeb7f3acce88f60d72ae44b372e8b1ae34c13e26e7c672f7935e；tests/scripts/test_container_contract.py=f71860ef39c4857f908d27ce24e20c8526876a60c3d19c05321b3d7f0a927df9；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4
+- sha256: Dockerfile=ec551581702e1d1c8f24a0378e0b0ff2db94efc6191475014fb08790c7a36f53；docker-compose.yml=57ffb931514caeb7f3acce88f60d72ae44b372e8b1ae34c13e26e7c672f7935e；tests/scripts/test_container_contract.py=f71860ef39c4857f908d27ce24e20c8526876a60c3d19c05321b3d7f0a927df9；docs/architecture/global-risk-remediation-and-framework-convergence-plan.md=da6e37372e73d2cde89b25aa44234a1c77ed2cf9ce4b7478271ea807d45f298b；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc
 ## E-20260713-002：Docker 与部署脚本删除红线收口
 
 - trace_id: 20260711-global-risk-remediation
@@ -5477,7 +5493,7 @@ ______________________________________________________________________
 - retention_note: 只记录删除边界和本地合同结果；未读取生产环境变量、客户/订单内容、日志正文或密钥。真实 Docker build/smoke/Trivy 仍需使用本轮新提交的精确 SHA。
 - summary: Dockerfile 不再把 wheelhouse 复制到最终 runtime 层后递归删除，deploy.sh 不再对工作区做批量清理；本地合同和 shell 语法通过，形成可重复的机械防线。
 - storage_scope: repository
-- sha256: Dockerfile=ec551581702e1d1c8f24a0378e0b0ff2db94efc6191475014fb08790c7a36f53；scripts/deploy.sh=afb4973e3b5f06453196a36498dad204ae3175551a8d16ebe1b64295d8fc04c3；tests/scripts/test_container_contract.py=f71860ef39c4857f908d27ce24e20c8526876a60c3d19c05321b3d7f0a927df9；tests/scripts/test_deployment_safety_contract.py=e2f4c3d211c05b6ef7bfb0d946bc7db4a9485eb9385aa5f4c49575746db6cb99；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: Dockerfile=ec551581702e1d1c8f24a0378e0b0ff2db94efc6191475014fb08790c7a36f53；scripts/deploy.sh=afb4973e3b5f06453196a36498dad204ae3175551a8d16ebe1b64295d8fc04c3；tests/scripts/test_container_contract.py=f71860ef39c4857f908d27ce24e20c8526876a60c3d19c05321b3d7f0a927df9；tests/scripts/test_deployment_safety_contract.py=e2f4c3d211c05b6ef7bfb0d946bc7db4a9485eb9385aa5f4c49575746db6cb99；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260805-001：Storefront MiniApp Bearer 鉴权闭环本地收口
 
 - trace_id: 20260805-storefront-auth-contract
@@ -5492,7 +5508,7 @@ ______________________________________________________________________
 - retention_note: 仅记录本地测试、静态合同、提交 SHA 和运行时条件；不包含 access token、openid、userId、订单内容、地址、聊天原文、API key 或生产凭证。DevTools service smoke 未执行，不以静态证据替代运行时证据。
 - summary: Bot 安全默认鉴权合同和 MiniApp Bearer 客户端已分别提交并通过本地门禁；关联提交为 `85764a7`、`33fdd92`、`a482f66`。运行时统一使用 `Authorization: Bearer`，legacy 身份头仅保留为显式迁移开关。真实微信 DevTools smoke、生产部署和支付链路不在本次证据范围内。
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；docs/architecture/platform-miniapp-api-contract-v1.md=84ff2a358ce802b23905cca09634c054eac0d3e819d9b7ba33cf076a5b434559
 ## E-20260807-004：历史 UI 证据退役治理
 - trace_id: 20260807-evidence-retirement
 - generated_at: 2026-08-07
@@ -5536,7 +5552,7 @@ ______________________________________________________________________
 - retention_note: 仅记录身份范围合同、测试统计、静态门禁和边界状态；不包含客户原文、金额、地址、物流号、令牌、密钥或支付凭证。
 - summary: 客户订单与物流工具只能通过可信会话身份调用带范围查询；同买家可读、不同买家和缺失身份安全拒绝；实时有赞身份不匹配时不返回、不缓存。员工侧既有订单查询合同未改为客户身份模式；真实生产和外部运行时证据仍未执行。
 - storage_scope: repository
-- sha256: app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；app/service/agents/tools/customer.py=81986864b2867529b2dd2d933005c1124806201bc3a4b8f02e50cd78f18bf52c；app/service/llm/function_tool_order.py=c56f2c30026739ddeb83bb0b1ddeaa3f6353ba1854070aa7d971297ad14bb3d1；scripts/check_customer_order_access_contract.py=ef69bc109f9b9e31568488db0d42f69a8a2c36de4648a0df8237a2f319783c19；tests/repository/test_youzan_order_repo_buyer_id.py=30d4ca9a431e4431b1d11d4605ceaa21141b9505bc8a6ff62932f3a8f8448a97；tests/service/agents/test_customer_order_access.py=7e00c89c951499a7ed40cf0d7f646c969acedfdbf09c685b284192f8aabaf29e；tests/scripts/test_check_customer_order_access_contract.py=98716110fe2f922ff15ea19180f4dd8d8e6d8c54f819a85d2112ea9c48a5c44f；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/repository/youzan_order_repo.py=fdc83b7257ced4b586ab71beec044741a5c72f0cc81b9f981f0ce5cc6b9684b0；app/service/agents/tools/customer.py=81986864b2867529b2dd2d933005c1124806201bc3a4b8f02e50cd78f18bf52c；app/service/llm/function_tool_order.py=c56f2c30026739ddeb83bb0b1ddeaa3f6353ba1854070aa7d971297ad14bb3d1；scripts/check_customer_order_access_contract.py=ef69bc109f9b9e31568488db0d42f69a8a2c36de4648a0df8237a2f319783c19；tests/repository/test_youzan_order_repo_buyer_id.py=30d4ca9a431e4431b1d11d4605ceaa21141b9505bc8a6ff62932f3a8f8448a97；tests/service/agents/test_customer_order_access.py=7e00c89c951499a7ed40cf0d7f646c969acedfdbf09c685b284192f8aabaf29e；tests/scripts/test_check_customer_order_access_contract.py=98716110fe2f922ff15ea19180f4dd8d8e6d8c54f819a85d2112ea9c48a5c44f；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260807-006：商品知识向量状态机与对账重试本地收口
 
 - trace_id: 20260807-post-p0-production-closure
@@ -5551,7 +5567,7 @@ ______________________________________________________________________
 - retention_note: 仅记录商品向量状态机代码、自动化合同、测试命令和当前外部门禁边界；不包含客户原文、订单明细、向量正文、令牌、密钥、支付凭证或生产数据库内容。
 - summary: 商品知识写入从 pending 开始，向量任务通过 revision 条件 claim；只有向量写入成功后才标记 success，失败原子递增 retry_count 并进入 failed；过期 syncing 租约由商品对账服务有界重试，旧 revision 不能覆盖新内容，商品 Webhook 向量失败会进入失败审计并向上抛出。全量后端测试通过，但 R4-C、MiniApp、支付/退款、生产部署和独立备份仍无真实外部证据，不能生成 completed handoff。
 - storage_scope: repository
-- sha256: app/repository/knowledge_product_repo.py=f77082835380184c257d53649769eb9ba68b9e3680a1389fe0eedd21743b8a6b；app/repository/knowledge_repo.py=c053aff45ddb7bb67034c817b3cd6c320641ada6b8eaba6d1f1b18c3563fe477；app/service/youzan/product_sync.py=0b0fe760c426e54d534c8f88e0179e34006e33cad317b010f84720cc115cade4；app/service/youzan/product_reconciler.py=228a5c37337370ddcdeaa1d0584e250c2e98393b8b69cff898c08da1a46e1592；app/service/youzan/event_item.py=4dc70953da1bc44b1d5896e195727baf27b92f3b9e65a80ee50364a56e7841d0；scripts/check_product_vector_sync_contract.py=d7ccdb854c19d3e9e97e8c6b51bfe32ac329a4b258d11389aa5a2de84baf764b；tests/repository/test_knowledge_product_sync_state.py=2ab71da0ca6018ff4b9bff13fa7a26b87742bd631f540672eff20a58eac72935；tests/service/youzan/test_product_vector_sync.py=6bf413a53f382c4be9d56ce262d9af1327bacc26523f515c5e4cf63f6ba40b0f；tests/service/youzan/test_product_reconciler.py=b6d6653448de623aa7e2592e044febe5f848db185168bf437295da0cefef1247；tests/scripts/test_check_product_vector_sync_contract.py=9f15e2b97486ad1fbf4417f50d569f5246947588f0c28907f279289d75f959d7；LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: app/repository/knowledge_product_repo.py=f77082835380184c257d53649769eb9ba68b9e3680a1389fe0eedd21743b8a6b；app/repository/knowledge_repo.py=c053aff45ddb7bb67034c817b3cd6c320641ada6b8eaba6d1f1b18c3563fe477；app/service/youzan/product_sync.py=0b0fe760c426e54d534c8f88e0179e34006e33cad317b010f84720cc115cade4；app/service/youzan/product_reconciler.py=228a5c37337370ddcdeaa1d0584e250c2e98393b8b69cff898c08da1a46e1592；app/service/youzan/event_item.py=4dc70953da1bc44b1d5896e195727baf27b92f3b9e65a80ee50364a56e7841d0；scripts/check_product_vector_sync_contract.py=d7ccdb854c19d3e9e97e8c6b51bfe32ac329a4b258d11389aa5a2de84baf764b；tests/repository/test_knowledge_product_sync_state.py=2ab71da0ca6018ff4b9bff13fa7a26b87742bd631f540672eff20a58eac72935；tests/service/youzan/test_product_vector_sync.py=6bf413a53f382c4be9d56ce262d9af1327bacc26523f515c5e4cf63f6ba40b0f；tests/service/youzan/test_product_reconciler.py=b6d6653448de623aa7e2592e044febe5f848db185168bf437295da0cefef1247；tests/scripts/test_check_product_vector_sync_contract.py=9f15e2b97486ad1fbf4417f50d569f5246947588f0c28907f279289d75f959d7；LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260807-007：生产收口外部条件阻断记录
 
 - trace_id: 20260807-post-p0-production-closure
@@ -5567,7 +5583,7 @@ ______________________________________________________________________
 - summary: 本机未发现 Docker、Docker Compose 或 Trivy，不能完成 R4-C 精确镜像 build、隔离 health/ready smoke 和漏洞扫描；MiniApp 代码仓库存在但微信开发者工具不可用；真实支付/退款需要商户测试环境；生产发布与独立备份需要服务器访问、独立持久化挂载和恢复 round-trip。工作包 3-5 保持 blocked，未安装工具、未访问生产、未生成伪造通过报告。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；docs/release/server-layout.md=333905bd040387e33add9b1471f6ec2b4ed7040aefa33223a08a6007d98bb306；.agents/skills/yunxibakebot-production-release/SKILL.md=ce22371741db06177141dc4b64caf1e13f7b6ac738fba97ff5b40a149b505b6a；scripts/backup_db.sh=ebf5048884543542b51f74c475ee867f50b54417653261c377d1ef44a7a11c9d
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；docs/release/server-layout.md=333905bd040387e33add9b1471f6ec2b4ed7040aefa33223a08a6007d98bb306；.agents/skills/yunxibakebot-production-release/SKILL.md=ce22371741db06177141dc4b64caf1e13f7b6ac738fba97ff5b40a149b505b6a；scripts/backup_db.sh=ebf5048884543542b51f74c475ee867f50b54417653261c377d1ef44a7a11c9d
 ## E-20260810-001：MiniApp Windows release 脚本收口与真实剩余门禁
 
 - trace_id: 20260807-post-p0-production-closure
@@ -5583,7 +5599,7 @@ ______________________________________________________________________
 - summary: release-readiness 与生产后台浏览器 smoke 在 Windows 下改用 Node npm-cli.js，消除 `npm.cmd` EINVAL；secret-hygiene 修正占位符、shell 配置校验、动态生成和测试脱敏值误报后通过，原始密钥/私钥/tracked `.env` 检查未放宽；release readiness 为 `23/27`，剩余微信 DevTools CLI/触达扫描、生产后台浏览器登录和截图证据；生产后台浏览器 smoke 真实执行并记录登录页失败，不伪装通过。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0
 ## E-20260810-002：生产只读拓扑与 WP3/WP5 外部门禁现状
 
 - trace_id: 20260807-post-p0-production-closure
@@ -5599,7 +5615,7 @@ ______________________________________________________________________
 - summary: 生产只读检查确认 `yunxibakebot=active`，版本 `0.109.16`、commit `51d315748b`，公网 `/health`、`/ready` 均为 200。服务器有 Docker 29.3.1/overlayfs 和 docker-compose，但无 trivy；根盘 `/dev/vda3` 40G 已用 83%、余 6.5G。`/mnt/backup/yunxibakebot`、`/etc/yunxibakebot/backup.key` 和 backup cron 均不存在，无独立持久化备份目标。结论：WP3 仍 blocked（缺 trivy 且磁盘余量不足以承载完整 build/scan），WP5 仍 blocked（无独立挂载和恢复 round-trip），WP4 生产发布未执行；本轮未 push、未部署、未修改生产。
 
 - storage_scope: repository
-- sha256: LOGBOOK.md=863b502ea8b1a0938f4df1c2f6f5d77862af7511e30e982d25cd253ab74d6fa4；项目进度与配置清单.md=37719b6eb3c57a7ab3b9e3c590d1ac34b9fb03d3a3fa6fb0b93cc9fb078f81c7；scripts/backup_db.sh=ebf5048884543542b51f74c475ee867f50b54417653261c377d1ef44a7a11c9d；docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md=e033b9a414c4bb95869455de49ef763a992e8c89948be39baf1477b1956536c0
+- sha256: LOGBOOK.md=327eb91b9f0763453991cd04fea619d5925498fdf3fe04916d6a09b9f095cedc；项目进度与配置清单.md=eca8df507bb49be6806cd8eaf6965e4d3ce2f2efabaf6d4011dfa80f039129f0；scripts/backup_db.sh=ebf5048884543542b51f74c475ee867f50b54417653261c377d1ef44a7a11c9d；docs/harness-engineering/specs/2026-07-13-production-container-verification-design.md=e033b9a414c4bb95869455de49ef763a992e8c89948be39baf1477b1956536c0
 ## E-20260810-003：R4-C CI 精确构建、隔离 smoke 与 Trivy 基线
 
 - trace_id: 20260807-post-p0-production-closure
