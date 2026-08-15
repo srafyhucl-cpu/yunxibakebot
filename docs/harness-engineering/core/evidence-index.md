@@ -1,3 +1,21 @@
+## E-20260815-006：B3.2 账务核心合同收敛治理校验
+
+- trace_id: 20260815-member-loyalty-accounting-contract-b32
+- generated_at: 2026-08-15
+- evidence_type: governance/accounting-contract-b32
+- file: `git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/harness-engineering/adr/0008-accounting-core-consistency.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/harness-engineering/adr/README.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/specs/2026-08-12-member-loyalty-followup-data-import.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/specs/2026-08-12-member-loyalty-followup-local-authority.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:LOGBOOK.md`；`git:3312afe5634ba90887d4c5c12f80ba79bb869c92:项目进度与配置清单.md`；`local:reports/harness/handoff-b32-accounting-contract-20260815-b32.md`
+- commit_sha: 3312afe5634ba90887d4c5c12f80ba79bb869c92
+- command: `git push origin/server HEAD:codex/r4c-ci-evidence` + `git ls-remote` 复核（审阅分支双远端均 `8b5b322` 之上叠加 B3.2 提交，master 双远端保持 `344b66a`）；`python scripts/check_evidence_index.py --summary`（356 条 / failed=0 / verified_files=86，批处理 1.9s）；`python -m pytest tests/scripts/test_check_evidence_index.py --no-cov --basetemp=reports/harness/.pytest-tmp-b32`（26 通过，规避默认临时目录 WinError 5）；`git diff --check`；`python -m ruff check`；`python scripts/check_file_sizes.py`（402 文件 OK）；`python scripts/check_project.py --skip-tests`（质量门禁通过）；`python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov`（29 通过）；pre-commit 12 项全过（docs-only，VERSION 保持 0.132.6）
+- result: pass
+- related_logbook: 2026-08-15 - docs(governance): 账务核心合同收敛 B3.2（B3.1 最终评审 7 项一次性收口）
+- related_adr: 0008-accounting-core-consistency
+- contains_sensitive_data: no
+- retention_note: 只记录验证命令、条目数与守卫结论；不含密钥、客户数据或订单明细。
+- summary: B3.2 合同一次性收敛治理校验（B3.1 最终复核 Go/No-Go=暂不通过，方案 B，7 项收口）：回调校验以不可变快照微信腿为本地对照（金额/币种/商户单号必须一致）+ 删除独立策略列（策略固化唯一存快照 JSON 内）+ 支付/退款/查询三类通知分别定义稳定 event_key；支付/退款查询 operation_key 统一含 query_generation 受控 rearm（代次递增/调度/回写同 UoW/CAS）+ 支付状态命令表（旧尝试确认终态前不得新建、prepay_* 仅关单后释放、仅 succeeded 创建退款聚合）；refund_shortfall_debt 绑定 member_balance_id 与原始/已收回/剩余金额 + version（每次入账按 min(入账额, remaining) 确定顺序原子部分收回、入账先偿债后可用）；券摄取/裁决命令同一 UoW 关案（摄取成功不得残留 open 案件）、FP-1 统一"观察只建案件、本地命令才改当前态"；epoch 仅入队端读 authority_epoch_current 指针（消费端按事件自身 epoch 路由）+ queue_control 增 enqueue fence（切换窗口禁止新入队、fence 前事件完成或 quarantine、fence 后事件只进新 epoch）+ 删除 identity_mode（身份非切换裁决）；CT-1A 最小 fail-closed 围栏前置 FP-4A 前（唯一主体 wx:<openid> 单一口径、累计额度按批次×主体×币种×时间窗原子预占）；FP-3 退款政策直接引用 ADR 0008 D1-C 定稿（仅时限/审批阈值参数裁决）、B3.1 handoff 重生成记录实际远端 SHA 与已提交 E-005。ADR 0008 仍为 proposed；B3.2 完成后由项目负责人做一次最终全范围复核再决定 master fast-forward 与 D1 放行。
+
+- storage_scope: repository
+- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=8fcd42bc9073b2a6ceed6202f8fcd76a08c9dd8ee9cbcdcb09f8990b0d281b86；docs/harness-engineering/adr/README.md=e83c5f2c1241b9c9277b6b6e85aefaf20d6d30300a38418acccf08fc3723b21b；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md=f622a74a08d545e731cffb87eb46d20b834db2091a0f97d897f5287541e07f59；docs/specs/2026-08-12-member-loyalty-followup-data-import.md=bfa06e23688e80a09ea26de264d095a32faeb90882694cd362dbae95c559c645；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md=3ae9a19c9f92960d5573c3d5d30198a331fcb2bc457d81debdfe25ccbf44112d；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md=1acb81dd1b12807891e3405d9a05edd11f8ebcdc5c046edca413e777258310d6；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md=60c9b883a723e37771ca2b23117641f4cb78535d821a66d9f0598d363727bb50；LOGBOOK.md=e02a9c89628bd2d75c642f1f0ebfa782de0278cc75af61c5ea1fe138fe5b52bf；项目进度与配置清单.md=65b4af12f6d8e7f17a0153821efc021a23a3d691e3c13248f81edd91183f256d
+
 ## E-20260815-005：B3.1 账务核心合同收口治理校验
 
 - trace_id: 20260815-member-loyalty-accounting-contract-b31
