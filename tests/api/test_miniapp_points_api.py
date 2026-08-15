@@ -96,7 +96,7 @@ async def test_points_preview_and_apply_paths(
     db: aiosqlite.Connection,
     app: FastAPI,
 ) -> None:
-    """???????????? Spec ?????"""
+    """积分试算可用；应用抵扣入口被 B3.4 围栏拒绝（等待 D1 预占模型）。"""
     from app.repository.config_repo import ConfigRepo
     from app.repository.order_event_repo import OrderEventRepo
     from app.repository.session_repo import SessionRepo
@@ -118,15 +118,15 @@ async def test_points_preview_and_apply_paths(
             "items": [
                 {
                     "productId": "p_m3_api_001",
-                    "title": "M3 API ????",
+                    "title": "M3 API 商品",
                     "priceFen": 10_000,
                     "quantity": 1,
                 }
             ],
-            "receiverName": "??API??",
+            "receiverName": "API 测试",
             "receiverPhone": MOBILE,
             "deliveryType": "delivery",
-            "deliveryAddress": "??API????",
+            "deliveryAddress": "API 测试地址",
             "expectTime": "2026-08-20 19:00",
         },
         user_id=USER_ID,
@@ -146,5 +146,6 @@ async def test_points_preview_and_apply_paths(
 
     assert preview.status_code == 200
     assert preview.json()["data"]["pointsUsed"] == 5000
-    assert applied.status_code == 200
-    assert applied.json()["data"]["paymentStatus"] == "partial"
+    # B3.4 围栏：应用抵扣写入口关闭，试算（只读）不受影响
+    assert applied.status_code == 400
+    assert "积分抵扣已临时关闭" in applied.json()["detail"]

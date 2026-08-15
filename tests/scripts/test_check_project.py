@@ -105,3 +105,63 @@ def test_doc_guard_flags_stale_terms(tmp_path) -> None:
 def test_doc_guard_passes_on_active_contract_docs() -> None:
     result = check_project.check_contract_doc_legacy_terms()
     assert result.passed, result.details
+
+
+def test_migration_guard_flags_unlisted_direct_writer(tmp_path) -> None:
+    """D1-0 迁移守卫：矩阵外模块直接写支付状态即失败（B3.4，评审问题 4）。"""
+    module = tmp_path / "rogue_writer.py"
+    module.write_text(
+        "# 未列入迁移矩阵的直写模块\n"
+        "await order_repo.update_payment(order_id, payment, now)\n"
+        "INSERT INTO member_balance (mobile, points) VALUES ('1', 0)\n",
+        encoding="utf-8",
+    )
+    result = check_project.check_d1_migration_guard((tmp_path,))
+    assert not result.passed
+    assert any("绕过统一支付应用服务直接写状态" in detail for detail in result.details)
+
+
+def test_migration_guard_flags_direct_sql_write(tmp_path) -> None:
+    """D1-0 迁移守卫：矩阵外模块直接 SQL 写券状态即失败。"""
+    module = tmp_path / "rogue_coupon.py"
+    module.write_text(
+        "# 未列入迁移矩阵的直写模块\n"
+        "UPDATE coupon_inventory SET status = 'CONSUME' WHERE id = ?\n",
+        encoding="utf-8",
+    )
+    result = check_project.check_d1_migration_guard((tmp_path,))
+    assert not result.passed
+
+
+def test_migration_guard_passes_clean_module(tmp_path) -> None:
+    """D1-0 迁移守卫：只读模块不误报。"""
+    module = tmp_path / "clean_reader.py"
+    module.write_text(
+        "# 只读模块\n"
+        "payment = loads_payment(order.payment)\n"
+        "balance = await balance_repo.get_points(mobile)\n",
+        encoding="utf-8",
+    )
+    result = check_project.check_d1_migration_guard((tmp_path,))
+    assert result.passed
+
+
+def test_migration_guard_passes_real_repo() -> None:
+    """D1-0 迁移守卫：当前仓库全部直接写路径均在矩阵白名单内。"""
+    result = check_project.check_d1_migration_guard()
+    assert result.passed, result.details
+
+
+def test_payment_notify_migration_chain_present() -> None:
+    """D1-0 迁移表支付通知行按真实调用链命名（B3.4，评审问题 4）。"""
+    import app.api.channels.storefront.payments as api_mod
+    import app.service.order.application as app_mod
+    import app.service.order.payment_notification as notif_mod
+    import app.service.order.payment_runtime as runtime_mod
+
+    assert hasattr(api_mod, "create_storefront_payments_router")
+    assert hasattr(app_mod.OrderApplicationService, "handle_wechat_payment_notify")
+    assert hasattr(
+        runtime_mod.OrderPaymentRuntimeService, "handle_wechat_payment_notify"
+    )
+    assert hasattr(notif_mod.WechatPaymentNotificationService, "mark_paid")

@@ -424,9 +424,14 @@ async def test_balance_pay_remainder_after_coupon(
 
 @pytest.mark.asyncio
 async def test_apply_coupon_then_points_keeps_both(
-    db, coupon_service, order_service
+    db, coupon_service, order_service, monkeypatch
 ) -> None:
-    """先券后积分：积分快照合并保留券字段，remain 正确（顺序不敏感）。"""
+    """先券后积分：积分快照合并保留券字段，remain 正确（顺序不敏感）。
+
+    B3.4 围栏下积分抵扣写入口默认关闭，本测试放开围栏验证 D1 放开后的
+    快照合并语义（围栏本身由 test_points_payment.py 覆盖）。
+    """
+    monkeypatch.setattr("app.service.points.payment.POINTS_DEDUCTION_FENCE", False)
     await _seed_member(db)
     await _seed_template(db)
     await _seed_coupon(db)

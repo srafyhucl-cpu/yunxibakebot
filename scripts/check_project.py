@@ -415,6 +415,78 @@ def _rel_doc_path(file_path: Path) -> Path:
         return Path(str(file_path))
 
 
+# ── D1-0 直接写状态守卫（B3.4，评审问题 4）─────────────────────────────────
+# 与 ADR 0008 D1-0 迁移矩阵逐行封闭对应：仅矩阵列明的旧写路径模块允许
+# 直接写账务状态（写 order.payment / 余额 / 积分 / 券等）；矩阵外的
+# service / api 模块直接写即检查失败。矩阵新增写路径必须同步本白名单。
+D1_MATRIX_LEGACY_WRITE_MODULES: tuple[str, ...] = (
+    "app/api/channels/storefront/payments.py",
+    "app/api/channels/storefront/recharges.py",
+    "app/service/coupon/admin.py",
+    "app/service/coupon/payment.py",
+    "app/service/member_loyalty.py",
+    "app/service/order/application.py",
+    "app/service/order/cancellation.py",
+    "app/service/order/expiration.py",
+    "app/service/order/payment_notification.py",
+    "app/service/order/payment_runtime.py",
+    "app/service/order/status_flow.py",
+    "app/service/points/ledger.py",
+    "app/service/points/payment.py",
+    "app/service/stored_value/member.py",
+    "app/service/stored_value/payment.py",
+    "app/service/stored_value/recharge.py",
+    "app/service/youzan/event_member.py",
+)
+
+DIRECT_WRITE_SQL_RE = re.compile(
+    r"(INSERT INTO|UPDATE|DELETE FROM)\s+"
+    r"(orders|member_balance|points_ledger|coupon_inventory|coupon_events|"
+    r"coupon_observation|coupon_current_state|stored_value|recharges|"
+    r"payment_attempt|account_hold|ledger_operation|accounting_outbox|"
+    r"payment_provider_event|refund_aggregate|coupon_reconcile_case|"
+    r"points_refund_reconcile)\b",
+    re.IGNORECASE,
+)
+
+REPO_WRITE_CALL_RE = re.compile(
+    r"(?:[a-z_]*repo|_service|_inventory_service|_notification_service|"
+    r"_member_service)\.(update_payment|update_payment_to_|close_unpaid_order|"
+    r"cancel_unpaid_order|credit_points|deduct_points_if_sufficient|"
+    r"credit_stored_value|deduct_stored_value|consume_once|back_once|"
+    r"mark_paid|insert|grant)\("
+)
+
+
+def check_d1_migration_guard(
+    scan_dirs: tuple[Path, ...] | None = None,
+) -> CheckResult:
+    """D1-0 直接写状态守卫（B3.4，评审问题 4）。
+
+    扫描 service / api 层直接写账务状态（直接 SQL 写或仓储写方法调用：
+    order.payment、member_balance、points_ledger、coupon_inventory、
+    stored_value、recharges 及 D1 账务表），凡未在 ADR 0008 D1-0 迁移矩阵
+    逐行列明（白名单 D1_MATRIX_LEGACY_WRITE_MODULES）的模块一律检查失败；
+    仓储层（app/repository）为受权存储层，不在此扫描范围。
+    """
+    violations: list[str] = []
+    targets = scan_dirs or (APP_DIR / "service", APP_DIR / "api")
+    for file_path in iter_python_files(targets):
+        rel = str(_rel_doc_path(file_path)).replace("\\", "/")
+        if rel in D1_MATRIX_LEGACY_WRITE_MODULES:
+            continue
+        try:
+            text = file_path.read_text(encoding=TEXT_ENCODING)
+        except OSError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if DIRECT_WRITE_SQL_RE.search(line) or REPO_WRITE_CALL_RE.search(line):
+                violations.append(
+                    f"{rel}:{line_no}: 绕过统一支付应用服务直接写状态: {line.strip()}"
+                )
+    return CheckResult("D1-0 直接写状态守卫", not violations, violations)
+
+
 def scan_rule(rule: ScanRule) -> CheckResult:
     regex = re.compile(rule.pattern)
     matches: list[str] = []
@@ -469,6 +541,11 @@ def run_doc_guard_checks() -> list[CheckResult]:
     return [check_contract_doc_legacy_terms()]
 
 
+def run_migration_guard_checks() -> list[CheckResult]:
+    """运行 D1-0 直接写状态守卫（B3.4，评审问题 4）。"""
+    return [check_d1_migration_guard()]
+
+
 def run_tests() -> list[CheckResult]:
     return [run_command(command) for command in TEST_COMMANDS]
 
@@ -505,6 +582,9 @@ def main() -> int:
     doc_guard_results = run_doc_guard_checks()
     print_results("合同文档守卫", doc_guard_results)
 
+    migration_guard_results = run_migration_guard_checks()
+    print_results("D1-0 迁移守卫", migration_guard_results)
+
     contract_results = run_contract_checks()
     print_results("业务合约检查", contract_results)
 
@@ -526,6 +606,7 @@ def main() -> int:
         red_line_results
         + clean_code_results
         + doc_guard_results
+        + migration_guard_results
         + contract_results
         + test_results
     )

@@ -39,5 +39,19 @@ class PointsRefundReconcileRepo(BaseRepository):
             (limit,),
         )
 
+    async def close_open(self, *, order_id: str, reason: str) -> bool:
+        """人工核对后关闭指定原因的对账案件（open→closed，幂等）。
+
+        B3.4（评审问题 2）：案件必须可关闭、可审计——事实字段只追加不修改，
+        仅 status 允许 open→closed 生命周期流转。
+        """
+        cursor = await self._db.execute(
+            "UPDATE points_refund_reconcile SET status = 'closed', updated_at = ? "
+            "WHERE order_id = ? AND reason = ? AND status = 'open'",
+            (now_str(), order_id, reason),
+        )
+        rowcount = int(cursor.rowcount or 0)
+        return rowcount > 0
+
 
 __all__ = ["PointsRefundReconcileRepo"]

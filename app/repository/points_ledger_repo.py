@@ -9,12 +9,12 @@ class PointsLedgerRepo(BaseRepository):
     """积分变动流水仓储（unique_id 幂等去重）。"""
 
     async def get_by_unique_id(self, unique_id: str) -> dict | None:
-        """按 unique_id 读取积分流水。"""
+        """按 unique_id 读取积分流水（含 biz_type / biz_id，供退款核验业务归属）。"""
         if not unique_id:
             return None
         rows = await self._db.execute_fetchall(
             "SELECT id, unique_id, customer_id, mobile, yz_open_id, amount, total, "
-            "event_type, source, occurred_at, created_at "
+            "event_type, source, biz_type, biz_id, occurred_at, created_at "
             "FROM points_ledger WHERE unique_id = ? LIMIT 1",
             (unique_id,),
         )
