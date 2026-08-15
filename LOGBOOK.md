@@ -1,3 +1,23 @@
+## [2026-08-15] - docs(governance): 账务核心合同收敛 B3.3（B3.2 最终评审 9 项一次性收口 + 当前积分 P0 修复）
+
+- 操作者: AI (Codex)
+- trace_id: `20260815-member-loyalty-accounting-contract-b33`
+- parent_trace_id: `20260815-member-loyalty-accounting-contract-b32`
+- 来源: 对 `379eb12`（B3.2）的只读最终复核（评审 B3.3）；结论：**Go/No-Go = 暂不通过**，9 项缺口（8 高 1 低）按方案 B 一次性收口（审阅分支双远端均 `379eb12`，master 双远端仍 `344b66a`，工作区干净）；用户确认：方案 B + **本轮包含积分 P0 代码修复** + 授权删除复核临时目录 `reports/harness/.pytest-tmp-b32-review`
+- 积分两命令与 P0 修复（评审问题 1，含代码）: 合同定稿「**未结算预占释放**」（无 `points:redeem:<order_id>` 流水只清快照 / 释放预占、禁止 credit）与「**已结算退款**」（按流水存在性退回）两命令；代码修复 `refund_points`（`app/service/points/payment.py`）：无 redeem / award 流水时不 credit / 不扣回，改写入只追加的**对账修正清单**（新表 `points_refund_reconcile`，v025 迁移，`UNIQUE(order_id, reason)` 幂等）；四类取消入口（用户取消 / 后台取消 / 单笔超时 / 批量超时）全部经修复后的 `refund_points`，新增 7 项测试覆盖
+- 封闭迁移矩阵与静态守卫（评审问题 2）: D1-0 删除「其他绕过统一入口的写路径」兜底行，替换为**封闭迁移矩阵**（积分 / 券应用快照、用户取消、后台取消、单笔 / 批量超时关闭、余额退款、充值创建 / 取消 / 过期 7 条旧路径逐行定目标统一命令 / 状态前置 / UoW / 关单要求 / 迁移动作 / 回归测试）；新增「**绕过统一支付应用服务即失败**」静态守卫合同（D1 实施进 pre-commit 门禁）
+- 历史单据分类矩阵（评审问题 3）: 定稿分类处置——可重建回填 `payment_attempt`（`snapshot_hash` 校验 + 迁移标识）、不可重建 `legacy_payment_case` 冻结 / 对账 / 人工清零、已支付可退款回填额度行、**退款资格必须有可追溯归属，禁止裸 `manual_review`**
+- prepay 租约与崩溃恢复（评审问题 4）: `payment_attempt` 增 `active_command_type / lease_token / lease_until / state_version / prepay_started_at`；`prepay_requested` 请求发出即写租约，租约到期 CAS 转 `prepay_unknown` 后才允许查询 / 关单（`active_command_type` 互斥）；故障注入测试：请求前崩溃 / 微信已受理后崩溃 / 查询与关单并发 / 迟到响应
+- 通知归一化矩阵与币种统一（评审问题 5）: 支付通知 / 退款通知 / 订单查询 / 退款查询四类 `ProviderEventNormalizer` 矩阵定稿（标准字段 / 事件键 / 快照比对 / 状态 CAS / ACK 与 5xx / 负向测试）；**币种字段统一为微信 v3 `amount.currency`、校验值 `CNY`**（活动文档与代码口径一致，代码 `payment_notification.py:40` 已用 `currency`）；交易号缺失时 ciphertext 前缀键（32 hex）稳定性与碰撞合同——碰撞进对账、上游身份不可复现**不声称强幂等**
+- 券协议唯一源收敛（评审问题 6）: ADR 0008 D1-B 为唯一协议源（FP-1/FP-2/FP-3 仅引用）；`coupon_reconcile_case` 增 **`case_key UNIQUE`**（重复 / 迟到观察幂等建案）；`RECONCILE_HOLD / RECONCILE_VERDICT` 事件 `business_ref = reconcile:<case_id>:<verdict_version>`（无案件引用拒绝）；删除「外部事件入 `coupon_events`」漂移表述（外部事件只建观察与案件）
+- inbox_holding 唯一模型（评审问题 7）: 删除 `inbox_events.status='holding'` 与独立 holding 记录的双实现，定稿独立 **`inbox_holding`**（`holding_key UNIQUE` 稳定 message key、先持久化才 ACK、同键幂等、fence 解除同一事务读新 epoch 转入 `received` 并标记 `transferred`）；断电 / 重复 webhook / 切换并发测试
+- 支付事实 hash 约束与归档（评审问题 8）: `refund_aggregate` 只引用 `payment_attempt.payment_snapshot_json`，存 **`source_snapshot_hash`**（与 `snapshot_hash` 校验一致）+ **`refund_plan_json`**；M4 设计标为**归档资料、禁止执行**（修正旧 `(occurred_at, id)` 因果排序与部分退款旧口径）；主计划「冻结额度」旧术语改持久短缺债务；新增**文档守卫**（`scripts/check_project.py`「合同文档旧口径守卫」+ 4 项单测）拦截旧因果排序 / 旧退款短缺口径 / 旧币种字段口径 / 迁移兜底行
+- 证据格式修正（评审问题 9）: E-006 命令行改记 **hook_id=status 清单与准确计数**（13 项：11 通过 + ruff 两项因无 .py 跳过）；E-007 采用同一格式
+- 验证: `python scripts/check_evidence_index.py --summary` ok（357 条 / failed=0 / verified_files=87，B3.3 复验）；`python -m pytest tests/scripts/test_check_evidence_index.py tests/scripts/test_check_project.py --no-cov`（显式可写 `--basetemp=reports/harness/.pytest-tmp-b33`，规避默认临时目录 WinError 5）；`python -m pytest tests/service/test_points_payment.py --no-cov`（12 通过，含新增 7 项积分两命令 / 四类取消入口 / 对账清单测试）；`git diff --check`（仅 LF→CRLF 提示）；`python -m ruff check` 通过；`python scripts/check_file_sizes.py` OK（402 文件，存量评审提示）；`python scripts/check_project.py --skip-tests` 质量门禁通过（含合同文档守卫）；`python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov`（29 通过）；pre-commit 13 项（含 ruff-check / ruff-format-check 对 .py 文件生效）全部通过
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md；docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md；docs/superpowers/specs/2026-08-13-coupon-m4-design.md（归档标注）；app/migrations/v025_points_refund_reconcile.sql（新）；app/repository/points_refund_reconcile_repo.py（新）；app/service/points/payment.py（refund_points 两命令修复）；app/service/points/ledger.py（ledger_repo 访问器）；scripts/check_project.py（合同文档守卫）；tests/service/test_points_payment.py（+7 项）；tests/scripts/test_check_project.py（+4 项）；docs/harness-engineering/core/evidence-index.md（E-006 修正 + E-007）；项目进度与配置清单.md；LOGBOOK.md；VERSION（0.132.7）；reports/harness/handoff-b33-accounting-contract-20260815-b33.md（新，gitignored）
+- residual_risks: ADR 0008 仍为 proposed；B3.3 收口后由项目负责人做**一次最终全范围复核**再决定 master fast-forward 与 D1 放行；支付 / 退款 / epoch / 券对账 / 围栏 / 静态守卫均为实施阶段落地；历史异常 `points:refund` 流水修正依赖对账修正清单核对；截至 2027-05-31 仅开发测试边界不变，不部署、不开放资产写操作
+- 版本: 0.132.7（B3.3 含代码变更——积分 P0 修复 + v025 迁移 + 文档守卫，sync-version 自动递增 patch）
+
 ## [2026-08-15] - docs(governance): 账务核心合同收敛 B3.2（B3.1 最终评审 7 项一次性收口）
 
 - 操作者: AI (Codex)

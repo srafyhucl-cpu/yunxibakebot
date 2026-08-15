@@ -1,6 +1,6 @@
 # M4 优惠券模块设计
 
-- 状态：**第一阶段历史实现（已交付，2026-08-14 B1.6 复核标注）**；后续券数据模型以 [ADR 0008](../../harness-engineering/adr/0008-accounting-core-consistency.md) 的 `coupon_events.transition_key` + `origin_event_id` + `coupon_current_state` 投影（`RESERVED` 预占 / 投影 CAS）为唯一来源，本设计中的 `(coupon_id, status, mobile)` 唯一键与来源权重规则**禁止用于新实现**。
+- 状态：**归档资料，禁止执行（2026-08-15 B3.3 标注）**——本设计与实施计划不再作为任何券实现 / 退款实现的依据，仅保留作历史追溯；**第一阶段历史实现（已交付，2026-08-14 B1.6 复核标注）**；后续券数据模型以 [ADR 0008](../../harness-engineering/adr/0008-accounting-core-consistency.md) 的 `coupon_events.transition_key` + `origin_event_id` + `coupon_current_state` 投影（`RESERVED` 预占 / 投影 CAS）为唯一来源（**B3.3：券写入语义唯一源 = ADR 0008 D1-B；退款口径唯一源 = ADR 0008 D1-C（全额 + 部分净额退款、差分分摊、`refund_shortfall_debt` 持久短缺债务）**），本设计中的 `(coupon_id, status, mobile)` 唯一键与来源权重规则**禁止用于新实现**。
 - trace_id：`20260813-coupon-m4`
 - 来源：计划书 `docs/specs/2026-08-12-member-loyalty-storedvalue-plan.md`（M4 优惠券模块）；brainstorming 与用户确认；v2 按用户 5 点修订 + 2 项补充修订
 - 前置：M1 数据底座（`coupon_inventory` 生命周期记录 + 全量导入 + COUPON 事件增量）、M2 储值闭环、M3 积分闭环
@@ -24,7 +24,7 @@
 - 商家扫码/到店核销（用户已确认无此场景）。
 - 商品维度可用性校验：券模板保留适用商品/分类字段（`scope_json`），有赞同步时填充，但 M4 结算校验只做金额维度。
 - 定向发券、数据看板（向 C 演进，本期只预留字段与扩展位）。
-- 部分退款（沿用全单退款语义，与 M3 一致）。
+- 部分退款（沿用全单退款语义，与 M3 一致）。**（B3.3 归档标注：此为本阶段历史范围；退款政策以 ADR 0008 D1-C 定稿为准——支持全额与部分退款、净额口径、差分分摊，本行不构成对 D1-C 的修改）**
 
 ## 业务规则
 
@@ -32,7 +32,7 @@
 
 `coupon_inventory` 保持 M1 的**生命周期多行**模型（唯一索引 `coupon_id + status + mobile`，状态流转写多行，符合生命周期记录语义）。**禁止** `UPDATE ... SET status='CONSUME'` 单行当前态写法。
 
-> **B1.6 + B1.7 复核标注**：以上是第一阶段历史实现。第二阶段券数据模型以 ADR 0008 为唯一来源：事件表 `coupon_events`（`transition_key` 不含来源的逻辑键 + `origin_event_id` 外部事件幂等 + `ingest_source` 摄取来源）+ 当前态投影 `coupon_current_state`（`RESERVED` 预占 + 投影版本 CAS，防止双订单并发预占同一券）；旧唯一键 `(coupon_id, status, mobile)` 标为"第一阶段现状，禁止用于新实现"。来源权重排序（`SOURCE_PRIORITY`）随旧模型一并停用，新模型按 `(occurred_at, id)` 单调排序。
+> **B1.6 + B1.7 复核标注（B3.3 归档修正）**：以上是第一阶段历史实现。第二阶段券数据模型以 ADR 0008 为唯一来源：事件表 `coupon_events`（`transition_key` 不含来源的逻辑键 + `origin_event_id` 外部事件幂等 + `ingest_source` 摄取来源）+ 当前态投影 `coupon_current_state`（`RESERVED` 预占 + 投影版本 CAS，防止双订单并发预占同一券）；旧唯一键 `(coupon_id, status, mobile)` 标为"第一阶段现状，禁止用于新实现"。来源权重排序（`SOURCE_PRIORITY`）随旧模型一并停用；新模型事件新旧判定按事件版本合同（`event_version` / `ordering_kind` / `payload_hash`），**禁止以 `(occurred_at, id)` 承担因果**（仅作同源展示序；原"新模型按 `(occurred_at, id)` 单调排序"表述已删除，B3.3）。
 
 - 核销 = 在**事务内**先读取该券最新状态行，校验最新态为 `TAKE` 且未过期，再**插入**一条 `source='order'` 的 `CONSUME` 行。
 - 最新态判定（v3 修订：来源优先级 + 时间）：`get_latest_state` 先按**来源权重**排序，再按时间排序：

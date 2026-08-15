@@ -250,6 +250,26 @@ KNOWN_MAGIC_INTEGERS: frozenset[int] = frozenset(
     }
 )
 
+# ── 合同文档守卫常量（B3.3）───────────────────────────────────────────────
+# 活动合同文档目录（M4 归档资料位于 docs/superpowers/specs，不在扫描范围）
+CONTRACT_DOC_DIRS: tuple[Path, ...] = (
+    ROOT_DIR / "docs" / "specs",
+    ROOT_DIR / "docs" / "harness-engineering" / "adr",
+)
+
+# 已被 ADR 0008 定稿废弃的旧因果排序表述（禁止性语句不判违规）
+CAUSAL_ORDERING_PATTERNS: tuple[str, ...] = (
+    r"`?\(occurred_at,\s*id\)`?\s*(单调)?排序",
+    r"`?\(occurred_at,\s*id\)`?\s*承担因果",
+)
+
+# 已被 ADR 0008 定稿废弃的旧口径术语（出现即判违规，不允许任何残留）
+LEGACY_TERM_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("旧退款短缺口径", r"冻结额度"),
+    ("旧币种字段口径", r"fee_type"),
+    ("D1-0 迁移兜底行", r"其他绕过统一入口的写路径"),
+)
+
 
 def _parse_ast(file_path: Path) -> ast.Module | None:
     """安全解析 Python 文件为 AST，语法错误时返回 None。"""
@@ -341,6 +361,60 @@ def iter_python_files(paths: tuple[Path, ...]) -> list[Path]:
     return files
 
 
+def iter_markdown_files(paths: tuple[Path, ...]) -> list[Path]:
+    """按目录收集 Markdown 文件（单文件路径直接返回）。"""
+    files: list[Path] = []
+    for path in paths:
+        if path.is_file() and path.suffix == ".md":
+            files.append(path)
+            continue
+        if path.exists():
+            files.extend(sorted(path.rglob("*.md")))
+    return files
+
+
+def check_contract_doc_legacy_terms(
+    dirs: tuple[Path, ...] | None = None,
+) -> CheckResult:
+    """合同文档守卫：拦截已被 ADR 0008 废弃的旧口径表述（B3.3）。
+
+    扫描 docs/specs 与 docs/harness-engineering/adr 下的活动合同文档：
+    - 旧因果排序（按 `(occurred_at, id)` 单调排序 / 承担因果）——禁止性语句不判违规；
+    - 旧退款短缺口径（冻结额度）、旧币种字段口径（fee_type）、
+      D1-0 迁移兜底行（其他绕过统一入口的写路径）——出现即失败。
+    M4 归档资料（docs/superpowers/specs）不在扫描范围。
+    """
+    targets = dirs or CONTRACT_DOC_DIRS
+    violations: list[str] = []
+    for file_path in iter_markdown_files(targets):
+        try:
+            text = file_path.read_text(encoding=TEXT_ENCODING)
+        except OSError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if "禁止" not in line:
+                for pattern in CAUSAL_ORDERING_PATTERNS:
+                    if re.search(pattern, line):
+                        violations.append(
+                            f"{_rel_doc_path(file_path)}:{line_no}: "
+                            f"旧因果排序口径: {line.strip()}"
+                        )
+            for name, pattern in LEGACY_TERM_PATTERNS:
+                if re.search(pattern, line):
+                    violations.append(
+                        f"{_rel_doc_path(file_path)}:{line_no}: {name}: {line.strip()}"
+                    )
+    return CheckResult("合同文档旧口径守卫", not violations, violations)
+
+
+def _rel_doc_path(file_path: Path) -> Path:
+    """返回相对项目根的路径；越界（如测试临时目录）时回退为绝对路径。"""
+    try:
+        return file_path.relative_to(ROOT_DIR)
+    except ValueError:
+        return Path(str(file_path))
+
+
 def scan_rule(rule: ScanRule) -> CheckResult:
     regex = re.compile(rule.pattern)
     matches: list[str] = []
@@ -390,6 +464,11 @@ def run_clean_code_checks() -> list[CheckResult]:
     ]
 
 
+def run_doc_guard_checks() -> list[CheckResult]:
+    """运行合同文档旧口径守卫（B3.3）。"""
+    return [check_contract_doc_legacy_terms()]
+
+
 def run_tests() -> list[CheckResult]:
     return [run_command(command) for command in TEST_COMMANDS]
 
@@ -423,6 +502,9 @@ def main() -> int:
     clean_code_results = run_clean_code_checks()
     print_results("洁净代码检查", clean_code_results)
 
+    doc_guard_results = run_doc_guard_checks()
+    print_results("合同文档守卫", doc_guard_results)
+
     contract_results = run_contract_checks()
     print_results("业务合约检查", contract_results)
 
@@ -441,7 +523,11 @@ def main() -> int:
         print_results("测试验证", test_results)
 
     all_results = (
-        red_line_results + clean_code_results + contract_results + test_results
+        red_line_results
+        + clean_code_results
+        + doc_guard_results
+        + contract_results
+        + test_results
     )
     failed_results = [result for result in all_results if not result.passed]
     if failed_results:

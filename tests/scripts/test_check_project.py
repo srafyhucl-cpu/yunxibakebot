@@ -68,3 +68,40 @@ def test_contract_checks_cache_read_only_results(monkeypatch) -> None:
     assert first == second
     assert calls == len(check_project.CONTRACT_COMMANDS)
     check_project.run_contract_checks.cache_clear()
+
+
+def test_doc_guard_flags_stale_causal_ordering(tmp_path) -> None:
+    doc = tmp_path / "spec.md"
+    doc.write_text(
+        "# 测试\n\n新模型按 `(occurred_at, id)` 单调排序。\n", encoding="utf-8"
+    )
+    result = check_project.check_contract_doc_legacy_terms((tmp_path,))
+    assert not result.passed
+    assert "旧因果排序口径" in result.details[0]
+
+
+def test_doc_guard_allows_prohibition_statements(tmp_path) -> None:
+    doc = tmp_path / "spec.md"
+    doc.write_text(
+        "# 测试\n\n禁止以 `(occurred_at, id)` 承担因果语义。\n", encoding="utf-8"
+    )
+    result = check_project.check_contract_doc_legacy_terms((tmp_path,))
+    assert result.passed
+
+
+def test_doc_guard_flags_stale_terms(tmp_path) -> None:
+    doc = tmp_path / "spec.md"
+    doc.write_text(
+        "# 测试\n\n收回不足为 manual_review + 冻结额度。\n"
+        "币种 fee_type=CNY。\n"
+        "| 其他绕过统一入口的写路径 | — |\n",
+        encoding="utf-8",
+    )
+    result = check_project.check_contract_doc_legacy_terms((tmp_path,))
+    assert not result.passed
+    assert len(result.details) == 3
+
+
+def test_doc_guard_passes_on_active_contract_docs() -> None:
+    result = check_project.check_contract_doc_legacy_terms()
+    assert result.passed, result.details

@@ -80,7 +80,7 @@
 - 发放时点：支付成功即发分；`apply-points` 只写快照，支付成功时才真正扣减抵扣积分。
 - 叠加：`remain_fen = total_fen - coupon_fen - balance_fen - points_fen`（统一 `compute_remain_fen(total, coupon, balance, points)`）。
 - 有效期：长期有效。
-- 退款：支持**全额与部分退款**（B1.6 项目负责人裁决），基准为**净额退款**（B1.7 裁决：券折扣只影响可退商品金额、不生成货币退款操作）。全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`；部分退款按 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md) D1-C 分摊规则——`refund_fen` 在（微信款 / 余额 / 积分）间按实付占比分摊（最大余数法），积分按比例退回 `pointsUsed` / 收回 `pointsAwarded`，收回不足为 manual_review + 冻结额度；跨微信退款采用 Saga 最终一致，微信已退本地未补偿进入人工复核。
+- 退款：支持**全额与部分退款**（B1.6 项目负责人裁决），基准为**净额退款**（B1.7 裁决：券折扣只影响可退商品金额、不生成货币退款操作）。全单退款退回全部 `pointsUsed`、收回全部 `pointsAwarded`；部分退款按 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md) D1-C 分摊规则——`refund_fen` 在（微信款 / 余额 / 积分）间按实付占比分摊（最大余数法），积分按比例退回 `pointsUsed` / 收回 `pointsAwarded`，收回不足为 manual_review + **持久短缺债务（`refund_shortfall_debt`，债务化模型见 ADR 0008 D1-C，B3.3）**；跨微信退款采用 Saga 最终一致，微信已退本地未补偿进入人工复核。
 - 数据主从：配置开关 `points_authority`（默认 `youzan`）两步切换——第一阶段 M3 上线保持 `youzan`（有赞 `total` 继续维护余额）；第二阶段切 `local`（本地 `member_balance.points` 权威，有赞 `POINTS` 事件只写流水/审计）由 FP-2 执行，须满足 2027-06 候选窗口、项目负责人批准、唯一键阻断解除与独立切换窗口门禁，禁止仅修改进程级配置触发。
 
 **M3.1 数据/仓储**

@@ -6,6 +6,7 @@ from app.repository.customer_master_repo import CustomerMasterRepo
 from app.repository.member_balance_repo import MemberBalanceRepo
 from app.repository.order_repo import OrderRepo
 from app.repository.points_ledger_repo import PointsLedgerRepo
+from app.repository.points_refund_reconcile_repo import PointsRefundReconcileRepo
 from app.service.order.payment_state import (
     PAYMENT_METHOD_COMBINED,
     PAYMENT_STATUS_PAID,
@@ -48,6 +49,7 @@ class PointsPaymentService:
                 balance_repo=MemberBalanceRepo(db),
                 ledger_repo=PointsLedgerRepo(db),
             )
+        self._reconcile_repo = PointsRefundReconcileRepo(self._order_repo._db)
 
     async def apply_points_snapshot(
         self,
@@ -143,7 +145,13 @@ class PointsPaymentService:
         await self._record_awarded(order, points_used, award)
 
     async def refund_points(self, order: Order) -> None:
-        """按支付快照退回抵扣积分并收回已发积分（幂等）。"""
+        """按支付快照退回抵扣积分并收回已发积分（幂等）。
+
+        B3.3 两命令语义：仅当存在 `points:redeem:<order_id>` 流水（积分确已在
+        支付时扣减）才执行「已结算退款」退回 pointsUsed；未结算订单取消 / 超时
+        走「未结算预占释放」——只清快照、禁止凭空 credit。异常情况写入只追加的
+        积分退款对账修正清单（points_refund_reconcile），供对账与人工修正。
+        """
         payment = loads_payment(order.payment)
         points_used = int(payment.get("pointsUsed", 0) or 0)
         points_awarded = int(payment.get("pointsAwarded", 0) or 0)
@@ -152,25 +160,53 @@ class PointsPaymentService:
         mobile = await self._try_resolve_mobile(order.user_id)
         if mobile is None:
             return
+        redeem_entry = await self._ledger_service.ledger_repo.get_by_unique_id(
+            f"points:redeem:{order.id}"
+        )
+        award_entry = await self._ledger_service.ledger_repo.get_by_unique_id(
+            f"points:award:{order.id}"
+        )
         return_points, clawback_points = refund_reversal(points_used, points_awarded)
         if return_points > 0:
-            await self._ledger_service.credit(
-                mobile=mobile,
-                amount=return_points,
-                biz_type=POINTS_REFUND_EVENT,
-                biz_id=order.id,
-                unique_id=f"points:refund:{order.id}",
-                event_type=POINTS_REFUND_EVENT,
-            )
+            if redeem_entry is None:
+                # 未结算预占释放：积分从未扣减，禁止 credit，只记对账修正清单
+                await self._reconcile_repo.append(
+                    order_id=order.id,
+                    mobile=mobile,
+                    unique_id=f"points:refund:{order.id}",
+                    reason="redeem_missing",
+                    amount=return_points,
+                    note="未发现 points:redeem 流水，未结算预占释放，禁止 credit",
+                )
+            else:
+                await self._ledger_service.credit(
+                    mobile=mobile,
+                    amount=return_points,
+                    biz_type=POINTS_REFUND_EVENT,
+                    biz_id=order.id,
+                    unique_id=f"points:refund:{order.id}",
+                    event_type=POINTS_REFUND_EVENT,
+                )
         if clawback_points > 0:
-            await self._ledger_service.deduct(
-                mobile=mobile,
-                amount=clawback_points,
-                biz_type=POINTS_REFUND_EVENT,
-                biz_id=order.id,
-                unique_id=f"points:refund:{order.id}:clawback",
-                event_type=POINTS_REFUND_EVENT,
-            )
+            if award_entry is None:
+                # 未发现已发积分流水，跳过收回并记录对账修正清单
+                await self._reconcile_repo.append(
+                    order_id=order.id,
+                    mobile=mobile,
+                    unique_id=f"points:refund:{order.id}:clawback",
+                    reason="award_missing",
+                    amount=clawback_points,
+                    note="未发现 points:award 流水，跳过已发积分收回",
+                )
+            else:
+                await self._ledger_service.deduct(
+                    mobile=mobile,
+                    amount=clawback_points,
+                    biz_type=POINTS_REFUND_EVENT,
+                    biz_id=order.id,
+                    unique_id=f"points:refund:{order.id}:clawback",
+                    event_type=POINTS_REFUND_EVENT,
+                )
         await self._clear_awarded(order)
 
     async def _record_awarded(self, order: Order, points_used: int, award: int) -> None:

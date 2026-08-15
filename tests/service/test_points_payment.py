@@ -3,6 +3,8 @@
 import aiosqlite
 import pytest
 
+from datetime import datetime, timedelta
+
 from app.repository.config_repo import ConfigRepo
 from app.repository.customer_master_repo import CustomerMasterRepo
 from app.repository.member_balance_repo import MemberBalanceRepo
@@ -13,6 +15,12 @@ from app.repository.session_repo import SessionRepo
 from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.order import OrderApplicationService
+from app.service.order.payment_state import (
+    PAYMENT_TIMEOUT_MINUTES,
+    dumps_payment,
+    loads_payment,
+    now_text,
+)
 from app.service.points import PointsService
 
 MOBILE = "13800000003"
@@ -218,3 +226,152 @@ async def test_award_points_subtracts_coupon(
     )
     # 实付 7000 分 -> 70 分
     assert rows and rows[0]["amount"] == 70
+
+
+async def _reconcile_rows(db: aiosqlite.Connection, order_id: str) -> list[dict]:
+    return await db.execute_fetchall(
+        "SELECT order_id, reason, status, amount FROM points_refund_reconcile "
+        "WHERE order_id = ? ORDER BY id ASC",
+        (order_id,),
+    )
+
+
+@pytest.mark.asyncio
+async def test_user_cancel_unsettled_releases_without_credit(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """未结算（从未支付）订单用户取消：只释放预占，不凭空退回积分。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    await order_service.cancel_user_order(order_id, user_id=USER_ID)
+    assert await _points(db) == 100_000
+    credit_rows = await db.execute_fetchall(
+        "SELECT COUNT(*) AS c FROM points_ledger WHERE mobile = ? AND amount > 0",
+        (MOBILE,),
+    )
+    assert int(credit_rows[0]["c"]) == 0
+    order = await OrderRepo(db).get_order(order_id)
+    payment = loads_payment(order.payment)
+    assert int(payment.get("pointsUsed", 0) or 0) == 0
+    reconcile = await _reconcile_rows(db, order_id)
+    assert reconcile and reconcile[0]["reason"] == "redeem_missing"
+    assert reconcile[0]["status"] == "open"
+
+
+@pytest.mark.asyncio
+async def test_admin_cancel_unsettled_releases_without_credit(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """后台取消未结算订单：只释放预占，不凭空退回积分。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    await order_service.update_admin_order_status(order_id, "cancelled")
+    assert await _points(db) == 100_000
+    reconcile = await _reconcile_rows(db, order_id)
+    assert reconcile and reconcile[0]["reason"] == "redeem_missing"
+
+
+@pytest.mark.asyncio
+async def test_expire_unpaid_unsettled_releases_without_credit(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """单笔超时关闭未结算订单：只释放预占，不凭空退回积分。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    await order_service.expire_unpaid_order(order_id)
+    assert await _points(db) == 100_000
+    reconcile = await _reconcile_rows(db, order_id)
+    assert reconcile and reconcile[0]["reason"] == "redeem_missing"
+
+
+@pytest.mark.asyncio
+async def test_batch_timeout_unsettled_releases_without_credit(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """批量超时扫描关闭未结算订单：只释放预占，不凭空退回积分。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    payment = loads_payment(order.payment)
+    old_created_at = (
+        datetime.now() - timedelta(minutes=PAYMENT_TIMEOUT_MINUTES + 1)
+    ).strftime("%Y-%m-%d %H:%M:%S")
+    payment["createdAt"] = old_created_at
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.commit()
+    result = await order_service.expire_timeout_unpaid_orders()
+    assert result["expiredCount"] == 1
+    assert await _points(db) == 100_000
+    reconcile = await _reconcile_rows(db, order_id)
+    assert reconcile and reconcile[0]["reason"] == "redeem_missing"
+
+
+@pytest.mark.asyncio
+async def test_unsettled_refund_reconcile_log_is_idempotent(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """未结算退款对账修正清单只追加一次（同订单同原因幂等）。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    await points_service.refund_points(order)
+    await points_service.refund_points(order)
+    reconcile = await _reconcile_rows(db, order_id)
+    assert len(reconcile) == 1
+    assert reconcile[0]["reason"] == "redeem_missing"
+    assert reconcile[0]["amount"] == 5000
+
+
+@pytest.mark.asyncio
+async def test_refund_points_skips_clawback_without_award_entry(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """已发积分流水缺失时跳过收回并记录对账修正清单（不凭空扣分）。"""
+    await _seed_member(db, points=1000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    order = await OrderRepo(db).get_order(order_id)
+    payment = loads_payment(order.payment)
+    payment["pointsUsed"] = 0
+    payment["pointsFen"] = 0
+    payment["pointsAwarded"] = 100
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.commit()
+    await points_service.refund_points(await OrderRepo(db).get_order(order_id))
+    assert await _points(db) == 1000
+    reconcile = await _reconcile_rows(db, order_id)
+    assert reconcile and reconcile[0]["reason"] == "award_missing"
+
+
+@pytest.mark.asyncio
+async def test_settled_refund_credits_and_does_not_log_reconcile(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    order_service: OrderApplicationService,
+) -> None:
+    """已结算退款正常退回积分并收回已发积分，不产生对账修正记录。"""
+    await _seed_member(db, points=100_000)
+    order_id = await _create_order(order_service, price_fen=10_000)
+    await points_service.apply_points(order_id, user_id=USER_ID)
+    await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    order = await OrderRepo(db).get_order(order_id)
+    await points_service.refund_points(order)
+    assert await _points(db) == 100_000
+    reconcile = await _reconcile_rows(db, order_id)
+    assert reconcile == []

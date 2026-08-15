@@ -25,7 +25,7 @@
 ## 阶段一：支付 / 退款工程实现
 
 1. 储值充值支付状态机：`unpaid → paying → paid / cancelled / expired`，新增真实支付回调落地（现仅 mock 确认）；充值尝试纳入 `payment_attempt`（`subject_type=recharge`，`provider=wechat` 时 `merchant_order_no` 唯一），回调按主体 + 商户单号归属，避免真实回调无归属。
-2. 交易号 / 退款号持久化：微信 `transaction_id`、商户单号（`out_trade_no`）、退款单号落库，幂等键覆盖重复通知 / 重复退款请求；`payment_attempt.payment_snapshot_json` 持久化不可变快照（各资产分摊 / 券周期 / 币种 / 策略版本 / 金额）。
+2. 交易号 / 退款号持久化：微信 `transaction_id`、商户单号（`out_trade_no`）、退款单号落库，幂等键覆盖重复通知 / 重复退款请求；`payment_attempt.payment_snapshot_json` 持久化不可变快照（各资产分摊 / 券周期 / 币种 / 策略版本 / 金额）。**（B3.3：币种字段统一为微信 v3 通知 resource `amount.currency`、校验值固定 `CNY`（v2 旧称币种字段不再使用）；支付 / 退款通知与订单 / 退款查询四类 ProviderEventNormalizer 契约、事件键、快照比对与负向测试以 ADR 0008 D1-A 为唯一源；交易号缺失时事件键稳定性与碰撞合同见 ADR 0008）**。
 3. 微信关单：超时未支付调用微信关单，状态收敛，防重复支付。
 4. 微信退款与退款查询 + 持久退款聚合：退款聚合状态集 `requested / processing / succeeded / failed / manual_review`；退款单号幂等（`refund:<refund_no>`）；异步退款结果通知落状态；查询补偿（对账任务拉取微信退款结果）；进程重启后从未完成状态恢复；每日对账状态报告。第一次真实支付前必须落地（阶段一第 10 条门禁）。
 5. 余额全额支付退款：按 **ADR 0008 D1-C 既定政策**（支持全额与部分退款、净额口径、`payment_refund_quota` 逐腿额度、差分分摊）落地退款能力，解除"余额全额支付订单不可退款"约束；**不再保留"或按产品决策保留"待选项**（政策已定稿，见 ADR 0008）。

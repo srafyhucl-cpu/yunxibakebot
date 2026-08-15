@@ -17,6 +17,11 @@ class PointsLedgerService:
         self._balance_repo = balance_repo or MemberBalanceRepo(None)
         self._ledger_repo = ledger_repo or PointsLedgerRepo(None)
 
+    @property
+    def ledger_repo(self) -> PointsLedgerRepo:
+        """积分流水仓储访问器（供退款对账判定流水存在性）。"""
+        return self._ledger_repo
+
     async def credit(
         self,
         *,
