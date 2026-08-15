@@ -1,3 +1,20 @@
+## E-20260815-003：B2.0 账务核心合同收口治理校验
+
+- trace_id: 20260815-member-loyalty-accounting-contract-b20
+- generated_at: 2026-08-15
+- evidence_type: governance/accounting-contract-b20
+- file: `git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:docs/harness-engineering/adr/0008-accounting-core-consistency.md`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:docs/specs/2026-08-12-member-loyalty-followup-data-import.md`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:docs/specs/2026-08-12-member-loyalty-followup-local-authority.md`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:scripts/check_evidence_index.py`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:scripts/migrate_evidence_index_scope.py`；`git:d4ca6783f232b1e5f80839a1acd621d4e061aa65:LOGBOOK.md`；`local:reports/harness/handoff-b20-accounting-contract-20260815-b20.md`
+- commit_sha: d4ca6783f232b1e5f80839a1acd621d4e061aa65
+- command: `python scripts/check_evidence_index.py --summary`（353 条 / failed=0 / verified_files=83）；`python -m pytest tests/scripts/test_verify_secrets_baseline.py tests/scripts/test_check_evidence_index.py tests/scripts/test_migrate_evidence_index_scope.py --no-cov`（38 通过）；`python scripts/verify_secrets_baseline.py`（exit 0）；`python -m ruff check/format`；`python scripts/check_file_sizes.py`；`python scripts/check_project.py --skip-tests`；`git diff --check`
+- result: pass
+- related_logbook: 2026-08-15 - docs(governance): 账务核心合同收口 B2.0（支付状态机/资金腿/退款主体泛化/CT-1 门禁/epoch 围栏/证据守卫强化）
+- related_adr: 0008-accounting-core-consistency
+- contains_sensitive_data: no
+- retention_note: 只记录验证命令、条目数与守卫结论；不含密钥、客户数据或订单明细。
+- summary: B2.0 合同收口治理校验：支付尝试完整状态机（draft→prepay_requested→prepay_unknown/prepay_ready→settling→succeeded/failed/expired，仅 succeeded 同交易 ACK、settling 可恢复）、快照写入后不可修改与规范化 snapshot_hash、回调只校验微信实际字段、UNIQUE(provider, provider_transaction_id)、ledger_operation 资金腿原子合同；退款主体与额度表泛化 payment_refund_quota（subject_type+subject_id+payment_attempt_id）与充值退款政策（余额被消费=manual_review+冻结）、退款查询独立于 outbox 投递；CT-1 受控测试围栏硬门禁（FP-4A→CT-1→FP-3阶段二，fail-closed、openid/JWT sub 唯一主体、legacy header 关闭或同过白名单、受控测试验收含退款/对账/恢复/清理）；authority epoch + 队列围栏协议（暂停 claim→排空/接管→持久化 epoch→恢复，消费按事件 epoch 路由）与券事件三类分离（取消 TAKE→CONSUME 直核、legacy 统一公式）；证据守卫只接受完整 40 位 commit SHA（拒 HEAD/分支/短 SHA）+ commit_sha 强制一致 + 工件级 commit_map；口径统一（双措施券门禁、半开区间、不可逆前中止/后 roll-forward）。ADR 0008 仍为 proposed；B2.0 完成后做一次全范围复核再决定 master fast-forward 与 D1 放行。
+
+- storage_scope: repository
+- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=2d5040406813168e7c9f89e6dd7863a228d2affdeef6bc95757b24a26f01df31；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md=a5b7fd249ff741abf2087ecf8c8caeef5356dfe4fdff89cef7e373051c26a8ca；docs/specs/2026-08-12-member-loyalty-followup-data-import.md=631dc58b5814478249c5673ea285eb72634154a67d3788da51c3688781983813；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md=fa34f32fb3cbaa30b81a50aeb26852078385d18ad857664ec3d4e1a8680033e5；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md=a19038b2455f946078d774a9eaef7c23db553764030ac886d1cc5c363b9f49f7；scripts/check_evidence_index.py=ea25d878f539466417eb38a584f5a3b02d6ab5a860ae569b3da495018c1a1de2；scripts/migrate_evidence_index_scope.py=42f8d68312157ae4b14469fef7f0ed91632d68be0c3db316e8d46c567428586c；LOGBOOK.md=c2d87cd21bacce9f7b47bc7d489043750b3950d2c997e409786fec9f2a12f1e6
 ## E-20260815-002：B1.9 账务核心合同收口治理校验
 
 - trace_id: 20260815-member-loyalty-accounting-contract-b19
