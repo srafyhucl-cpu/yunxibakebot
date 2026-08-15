@@ -68,7 +68,7 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
   | 资产 | 快照版本来源 / 上游版本 | 重建规则 |
   |---|---|---|
   | 积分余额 `member_balance.points` | `points_snapshot_version`（导入时固化）/ 事件 `event_version`（monotonic） | 按事件版本合同：`event_version` 更新则覆盖投影；`unique_id` 仅作标识去重不判新旧；无法比较进对账队列；积分流水由 Webhook 增量维护，重建不写流水 |
-  | 优惠券 `coupon_events` / `coupon_current_state` | `coupon_snapshot_version` / `event_version` + `origin_event_id` + `transition_key` | 迁移行 `legacy:<coupon_inventory.id>` 后，按 `transition_key` 追加窗口内事件并重算投影；新旧判定走事件版本合同，禁止 `(occurred_at, id)` 因果 |
+  | 优惠券 `coupon_events` / `coupon_current_state` / `coupon_observation` | `coupon_snapshot_version` / `event_version` + `origin_event_id` + `transition_key` | 迁移行 `business_ref=legacy:<coupon_inventory.id>`（统一 transition_key 公式）后，按 `transition_key` 追加窗口内事件并重算投影；外部 `CONSUME/BACK` 只写 `coupon_observation`，无法精确匹配本地命令时投影置 `reconcile_hold`（B3）；新旧判定走事件版本合同，禁止 `(occurred_at, id)` 因果 |
   | 会员身份 `customer_identity_links` | `identity_snapshot_version` / `event_version` | `event_version` 更新才覆盖归属，冲突进对账队列 |
   | 会员卡 `member_balance` 卡字段 | `card_snapshot_version` / `event_version` | `event_version` 更新才覆盖卡状态，冲突进对账队列 |
 
@@ -90,14 +90,14 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
   | 进程重启恢复 | 从 `import_batch.projection_checkpoint` 继续；投影 / 物化 / checkpoint 同 UoW，无重复应用 |
 
 - **入站 envelope 与 epoch（B2.0）**：回放与导入均按 FP-2 D2 协议携带 `authority_epoch`；切换围栏（暂停 claim → 排空 / 接管水位前事件 → 持久化 epoch → 恢复）期间到达的事件按记录 epoch 处理，禁止按进程级环境变量路由。
-- **四类有赞事件映射 / 聚合键 / 对账闭环（B2.0）**：
+- **四类有赞事件映射 / 聚合键 / 版本来源 / 对账闭环（B2.0 + B3 逐类补全）**：**B3 强制逐类列明 provider 字段路径、是否单调、快照版本来源；缺少可靠版本时禁止自动覆盖，只能进入对账和保守重放**。**起止双水位（`inbox_events.id`）只界定回放窗口，不承担因果版本**——事件新旧一律按本表版本合同判定，双水位不能替代因果版本。
 
-  | 事件 | 字段映射（必需） | 聚合键 | 无单调版本时的对账闭环 |
-  |---|---|---|---|
-  | `POINTS` | `amount / total / event_type / unique_id / mobile` | `mobile + unique_id` | 冲突进 `import_reconcile_queue`，核对有赞 `total` 与本地投影 |
-  | `COUPON_CUSTOMER_PROMOTION` | `id / status / mobile / coupon_group_id / order_no` | `coupon_id + mobile + origin_event_id` | 外部 `CONSUME/BACK` 只投影或进对账（券三类分离，见 ADR 0008 D1-B） |
-  | `SCRM_CUSTOMER_CARD` | `card_alias / card_no / mobile / status` | `mobile + card_no` | 冲突进对账队列，核对会员卡状态 |
-  | `SCRM_CUSTOMER_EVENT` | `mobile / name / is_member / status` | `mobile + 事件主键` | 冲突进对账队列，核对身份归属 |
+  | 事件 | provider 字段路径（必需） | 单调性 / 版本字段来源 | 聚合键 | 无单调版本时的对账闭环 |
+  |---|---|---|---|---|
+  | `POINTS` | `amount / total / event_type / unique_id / mobile`（`amount.total` 或 `total` 依真实响应核验） | `ordering_kind=monotonic`：版本来源 = 有赞事件 `update_time` / 业务单号序列（实施联调时以真实响应字段固化；**不可比则视为 unordered**） | `mobile + unique_id` | 冲突进 `import_reconcile_queue`，核对有赞 `total` 与本地投影；无可靠版本禁止覆盖 |
+  | `COUPON_CUSTOMER_PROMOTION` | `id / status / mobile / coupon_group_id / order_no`（`coupon_group_id` 映射 `coupon_templates`） | `ordering_kind=unordered`（有赞券事件无单调版本保证）：版本来源 = `event_id + payload_hash` 消歧，**无单调版本时禁止自动覆盖** | `coupon_id + mobile + origin_event_id` | 外部 `CONSUME/BACK` **只写 `coupon_observation` 与对账，不改变 `coupon_current_state`**；无法精确匹配本地命令时置 `reconcile_hold`（券观察合同，见 ADR 0008 D1-B） |
+  | `SCRM_CUSTOMER_CARD` | `card_alias / card_no / mobile / status` | `ordering_kind=monotonic`：版本来源 = 事件 `update_time`（联调固化；不可比则 unordered） | `mobile + card_no` | 冲突进对账队列，核对会员卡状态；无可靠版本禁止覆盖 |
+  | `SCRM_CUSTOMER_EVENT` | `mobile / name / is_member / status`（身份归属字段路径） | `ordering_kind=unordered`：以 `event_id + payload_hash` 消歧，冲突进对账队列 | `mobile + 事件主键` | 冲突进对账队列，核对身份归属；无可靠版本禁止覆盖 |
 
 - 导入批次与水位关联：记录导入起止事件游标，`(start, end]` 窗口内事件必须重建核对；批次失败明细持久化，`failed > 0` 以非 0 退出。
 

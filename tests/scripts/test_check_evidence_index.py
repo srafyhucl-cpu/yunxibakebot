@@ -525,3 +525,70 @@ def test_git_blob_missing_fails(tmp_path: Path, monkeypatch) -> None:
     )
     assert result.passed is False
     assert any("git 工件缺失" in issue for issue in result.issues)
+
+
+def test_git_blob_binary_content_hash_passes(tmp_path: Path, monkeypatch) -> None:
+    """批处理读取器对含非 UTF-8 字节的 blob 按原始字节计算 sha256。"""
+    repo, _, _ = _git_fixture(tmp_path)
+    raw = b"\x00\xff\xfe artifact \x00\n\x80"
+    (repo / "bin.dat").write_bytes(raw)
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "bin"], cwd=repo, capture_output=True, check=True
+    )
+    bin_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+    digest = hashlib.sha256(raw).hexdigest()
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(
+        repo,
+        _git_entry(bin_sha, digest, f"git:{bin_sha}:bin.dat", entry_commit=bin_sha),
+    )
+    assert result.passed is True
+
+
+def test_git_batch_single_process_for_all_refs(tmp_path, monkeypatch) -> None:
+    """多 commit / 多 blob 引用只启动一个 `git cat-file --batch` 进程（批处理合同）。
+
+    断言以进程启动次数为准，不引入脆弱的耗时阈值；重复检查命中模块级缓存，
+    不额外启动进程。
+    """
+    repo, sha, artifact_digest = _git_fixture(tmp_path)
+    (repo / "b.json").write_text("bbb", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "second"], cwd=repo, capture_output=True, check=True
+    )
+    second = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+    b_digest = hashlib.sha256(b"bbb").hexdigest()
+
+    spawns: list[tuple] = []
+    real_popen = subprocess.Popen
+
+    def counting_popen(*args, **kwargs):
+        spawns.append(args)
+        return real_popen(*args, **kwargs)
+
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    monkeypatch.setattr(evidence_check.subprocess, "Popen", counting_popen)
+
+    entry_artifact = _git_entry(
+        sha, artifact_digest, f"git:{sha}:artifact.json", entry_commit=sha
+    )
+    entry_b = _git_entry(
+        second,
+        b_digest,
+        f"git:{second}:b.json",
+        entry_commit=second,
+    ).replace("E-20260815-003", "E-20260815-004")
+
+    result = _run_git_index(repo, entry_artifact + entry_b)
+    assert result.passed is True
+    assert len(spawns) == 1
+
+    result_again = _run_git_index(repo, entry_artifact + entry_b)
+    assert result_again.passed is True
+    assert len(spawns) == 1

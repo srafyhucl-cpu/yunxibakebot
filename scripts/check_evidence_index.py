@@ -255,23 +255,134 @@ _GIT_BLOB_CACHE: dict[str, str] = {}
 _COMMIT_CACHE: dict[str, bool] = {}
 
 
+class _GitCatFileBatch:
+    """`git cat-file --batch` 单进程批量读取器（B3：替代逐条启动 git 子进程）。
+
+    全部查询经同一个子进程的 stdin/stdout 管道往返，进程只启动一次：
+    - blob 查询：输入 `<commit>:<path>`，读取 `<sha> blob <size>` 头与内容，返回内容 sha256；
+    - commit 校验：输入完整 40 位 `<sha>`，读取 `<sha> commit <size>` 头即视为合法 commit；
+    - 对象缺失时 git 输出 `<输入> missing`，返回 None。
+    结果按表达式缓存，避免重复往返。
+    """
+
+    def __init__(self) -> None:
+        self._proc: subprocess.Popen[bytes] | None = None
+        self._blob_cache: dict[str, str] = {}
+        self._commit_cache: dict[str, bool] = {}
+
+    def _ensure_proc(self) -> subprocess.Popen[bytes] | None:
+        if self._proc is not None:
+            return self._proc
+        try:
+            self._proc = subprocess.Popen(
+                ["git", "cat-file", "--batch"],
+                cwd=ROOT_DIR,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+        except (FileNotFoundError, OSError):
+            self._proc = None
+        return self._proc
+
+    def close(self) -> None:
+        """关闭批处理子进程；未启动或无进程时为空操作。"""
+        proc = self._proc
+        self._proc = None
+        if proc is None:
+            return
+        try:
+            if proc.stdin is not None:
+                proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+
+    def _query(self, expr: str) -> tuple[str, bytes | None]:
+        """发送一行查询，返回（头部行，内容字节）；内容为 None 表示缺失或不可用。"""
+        proc = self._ensure_proc()
+        if proc is None or proc.stdin is None or proc.stdout is None:
+            return "", None
+        try:
+            proc.stdin.write(expr.encode("utf-8", "surrogateescape") + b"\n")
+            proc.stdin.flush()
+            header_line = proc.stdout.readline()
+        except (BrokenPipeError, OSError):
+            self.close()
+            return "", None
+        if not header_line:
+            self.close()
+            return "", None
+        header = header_line.decode("utf-8", "replace").rstrip("\n")
+        parts = header.split(" ")
+        if len(parts) == 2 and parts[1] == "missing":
+            return header, None
+        if len(parts) != 3:
+            return header, None
+        try:
+            size = int(parts[2])
+        except ValueError:
+            return header, None
+        try:
+            content = proc.stdout.read(size)
+            trailing = proc.stdout.read(1)
+        except OSError:
+            self.close()
+            return header, None
+        if len(content) != size or trailing != b"\n":
+            self.close()
+            return header, None
+        return header, content
+
+    def blob_sha256(self, commit_path: str) -> str | None:
+        """按 `git:<commit>:<path>` 的 commit:path 计算 git blob 内容的 sha256。"""
+        if commit_path in self._blob_cache:
+            return self._blob_cache[commit_path] or None
+        header, content = self._query(commit_path)
+        if content is None or " blob " not in header:
+            self._blob_cache[commit_path] = ""
+            return None
+        digest = hashlib.sha256(content).hexdigest()
+        self._blob_cache[commit_path] = digest
+        return digest
+
+    def is_commit(self, commit: str) -> bool:
+        """校验完整 40 位 commit SHA 的对象类型必须是 commit（拒绝可变引用）。"""
+        if commit in self._commit_cache:
+            return self._commit_cache[commit]
+        header, content = self._query(commit)
+        ok = content is not None and " commit " in header
+        self._commit_cache[commit] = ok
+        return ok
+
+
+_GIT_BATCH: _GitCatFileBatch | None = None
+
+
+def _git_batch() -> _GitCatFileBatch:
+    """获取进程级批处理单例（懒加载，首次使用时才启动子进程）。"""
+    global _GIT_BATCH
+    if _GIT_BATCH is None:
+        _GIT_BATCH = _GitCatFileBatch()
+    return _GIT_BATCH
+
+
+def _close_git_batch() -> None:
+    """关闭批处理单例，保证下次检查重新启动干净进程（测试可统计启动次数）。"""
+    global _GIT_BATCH
+    if _GIT_BATCH is not None:
+        _GIT_BATCH.close()
+        _GIT_BATCH = None
+
+
 def _git_blob_sha256(commit_path: str) -> str | None:
-    """按 `git:<commit>:<path>` 的 commit:path 计算 git blob 内容的 sha256。"""
+    """按 `git:<commit>:<path>` 的 commit:path 计算 git blob 内容的 sha256（批处理）。"""
     if commit_path in _GIT_BLOB_CACHE:
         return _GIT_BLOB_CACHE[commit_path] or None
-    try:
-        proc = subprocess.run(
-            ["git", "cat-file", "blob", commit_path],
-            cwd=ROOT_DIR,
-            capture_output=True,
-        )
-    except FileNotFoundError:
-        proc = None
-    if proc is None or proc.returncode != 0:
-        _GIT_BLOB_CACHE[commit_path] = ""
-        return None
-    digest = hashlib.sha256(proc.stdout).hexdigest()
-    _GIT_BLOB_CACHE[commit_path] = digest
+    digest = _git_batch().blob_sha256(commit_path)
+    _GIT_BLOB_CACHE[commit_path] = digest or ""
     return digest
 
 
@@ -284,15 +395,7 @@ def _is_commit_sha(commit: str) -> bool:
         return False
     if commit in _COMMIT_CACHE:
         return _COMMIT_CACHE[commit]
-    try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", f"{commit}^{{commit}}"],
-            cwd=ROOT_DIR,
-            capture_output=True,
-        )
-    except FileNotFoundError:
-        proc = None
-    ok = proc is not None and proc.returncode == 0
+    ok = _git_batch().is_commit(commit)
     _COMMIT_CACHE[commit] = ok
     return ok
 
@@ -471,10 +574,14 @@ def check_evidence_index(path: Path = DEFAULT_EVIDENCE_INDEX) -> EvidenceCheckRe
     base_dir = (
         ROOT_DIR if path.resolve() == DEFAULT_EVIDENCE_INDEX.resolve() else path.parent
     )
-    file_integrity, file_issues = _collect_file_integrity(entries, base_dir)
-    issues = validate_entries(entries)
-    issues.extend(file_issues)
-    return EvidenceCheckResult(not issues, entries, tuple(issues), file_integrity)
+    try:
+        file_integrity, file_issues = _collect_file_integrity(entries, base_dir)
+        issues = validate_entries(entries)
+        issues.extend(file_issues)
+        return EvidenceCheckResult(not issues, entries, tuple(issues), file_integrity)
+    finally:
+        # 批处理子进程用完即关，避免句柄泄漏并保证测试可统计进程启动次数
+        _close_git_batch()
 
 
 def build_json_report(result: EvidenceCheckResult, path: Path) -> dict[str, object]:

@@ -1,3 +1,31 @@
+## [2026-08-15] - docs(governance): 账务核心合同收口 B3（B2.0 评审 9 项一次性收口）
+
+- 操作者: AI (Codex)
+- trace_id: `20260815-member-loyalty-accounting-contract-b21`
+- parent_trace_id: `20260815-member-loyalty-accounting-contract-b20`
+- 来源: 对 `4065e1d`（B2.0）的只读全范围复核（评审 B3）；结论：**Go/No-Go = 暂不通过**，9 项缺口按方案 B 一次性收口（master 与双远端仍 `344b66a`，审阅分支 HEAD `4065e1d`，工作区干净，VERSION=0.132.5）
+- 资金腿与预占持久化（评审问题 1）:
+  - 新增 `payment_attempt_leg`（每腿金额与 `payment_snapshot_json` 分摊一致，`UNIQUE(payment_attempt_id, asset_type)`）与 `account_hold`（余额 / 积分持久预占，`hold_key UNIQUE`，`active/consumed/released/expired`）
+  - **可用余额公式唯一口径**：`available = ledger - SUM(active holds)`；首次不可逆承诺点必须先持久化预占再进入微信等待 / 结算；微信等待期间余额 / 积分不得被其他尝试重复预占；仅 `failed/expired/cancelled` 终态允许释放，`settling` 与等待期禁止释放
+  - **`order.payment` 降级为引用 / 展示缓存**：`payment_attempt.payment_snapshot_json` 为唯一账务事实，不一致以快照为准并提示对账；**订单 / 充值 / 余额 / mock 必须经统一支付应用服务**进入 `payment_attempt → payment_attempt_leg + account_hold → ledger_operation → accounting_outbox`
+- 支付提供方事件 inbox 与回调协议（评审问题 2）:
+  - 新增 `payment_provider_event`（`event_key UNIQUE`，如 `wechat:notify:<transaction_id>:<merchant_order_no>`）；**先持久化再 ACK**（处理成功才 200，失败 5xx 由微信重试，`settling` 不得提前 ACK）
+  - 回调固定校验清单：验签上下文（RSA-SHA256 + 证书序列号取平台证书）+ `mchid` + `appid` + `trade_state=SUCCESS` + 金额 + 币种 + 商户单号 + 交易号
+  - outbox 补 **`wechat_order_query`**（`operation_key = wechat:order_query:<merchant_order_no>:<payment_attempt_id>`）；`prepay_unknown` 独立调度任务经 outbox 查询并状态 CAS（与关单互斥、lease_token 防陈旧回写、至上限转 manual_review）
+- 逐腿退款额度与充值余额不足边界（评审问题 3）:
+  - 新增 **`payment_refund_leg_quota`**（`UNIQUE(subject_type, subject_id, payment_attempt_id, asset_type)`）逐腿条件更新预占，每腿累计退款（refunded+reserved）不得超过该腿 `refundable_fen`——多笔部分退款不可能累计多退某一资金腿
+  - 充值余额不足**默认 `manual_review`，禁止先向微信自动外部退款**；余额足够先 `account_hold` 冻结（`refund:<refund_no>:balance`）再分派外部退款
+- 退款三状态拆分（评审问题 4）: `refund_operation` 拆分 `dispatch_status`（not_dispatched/dispatching/dispatch_unknown/accepted）、`provider_refund_status`（unknown/confirmed_refunded/confirmed_not_refunded）、`accounting_outbox.status`；**确认态枚举统一为 `confirmed_refunded / confirmed_not_refunded`，删除 `confirmed` 单值表述**；`dispatch_unknown` 独立调度退款查询（`wechat:refund_query:<refund_no>:<payment_attempt_id>`），不设投递成功依赖，回写一律 version + lease_token 条件更新
+- CT-1 主体唯一化（评审问题 5）: 唯一 `principal_id = wx:<openid>`（JWT `sub` 同格式），登录前与每次受保护请求按同一主体校验；白名单持久化 `controlled_test_whitelist`（`principal_id/approved_by/valid_from/valid_until/revoked_at/revoke_reason`）；**legacy header 永久关闭**（`STOREFRONT_AUTH_ALLOW_LEGACY_HEADER` 废弃恒 false）；受保护 API 覆盖表；单笔 `CONTROLLED_TEST_MAX_SINGLE_FEN` 与累计 `CONTROLLED_TEST_MAX_ACCUMULATED_FEN` 上限
+- authority epoch 与队列围栏（评审问题 6）: `authority_epoch` 升级为**不可变资产权威矩阵**（`points_mode/coupon_mode/identity_mode`，一条 epoch 表达"积分已切、券未切"混合态）；`InboxRepo.enqueue` **同事务读 active epoch 并写事件**（`inbox_events.authority_epoch_id`）；新增 `queue_control`（暂停 claim 控制）与 **`claim_token` 条件完成**（陈旧 worker/dead-letter/重启接管均 token 校验）；演练覆盖切换中入队、陈旧 worker、dead-letter、重启与混合 epoch
+- 券观察与当前态拆分（评审问题 7）: 新增 `coupon_observation`（外部观察事实），外部 `CONSUME/BACK/TAKE` **只写观察与对账不改变当前态**，无法精确匹配本地命令时 `coupon_current_state` 置 **`reconcile_hold`**（不可用、不可核销）；FP-1 四类有赞事件逐类列明 provider 字段路径 / 单调性 / 版本来源，**缺少可靠版本禁止自动覆盖**；起止双水位不替代因果版本
+- 证据检查器批处理（评审问题 8）: `scripts/check_evidence_index.py` 改 **`git cat-file --batch` 单进程批量读取**（blob 哈希 + commit 类型校验同一管道），实测摘要检查 **124s+ → 1.9s**；测试断言**批处理进程启动次数**（多 commit / 多 blob 仅 1 次 Popen，重复检查命中缓存不重启）与二进制 blob 哈希，不引入脆弱耗时阈值
+- 口径统一（评审问题 9）: 删除 `legacy:<id>` 直接作为 transition_key 的旧公式残留（统一 SHA-256 公式）；"回滚条件"统一为"不可逆前中止条件 / 不可逆后补偿条件"；进度清单 B2.0 条目"VERSION 0.132.5 待提交"更正为已提交审阅分支 `4065e1d`、双远端 `344b66a`
+- 验证: `python scripts/check_evidence_index.py --summary` ok（354 条 / failed=0 / verified_files=84，批处理后 1.9s）；pytest tests/scripts/test_check_evidence_index.py 26 项通过（含批处理调用次数与二进制 blob 断言）；`git diff --check`；ruff / check_file_sizes / check_project --skip-tests / 红线自检
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md；scripts/check_evidence_index.py；tests/scripts/test_check_evidence_index.py；项目进度与配置清单.md；LOGBOOK.md；reports/harness/handoff-b21-accounting-contract-20260815-b21.md（新）
+- residual_risks: ADR 0008 仍为 proposed；B3 收口后由项目负责人做**一次最终全范围复核**再决定 master fast-forward 与 D1 放行（评审方案 B：一次完整提交、一次最终复核，完成前不再拆分批准）；支付 / 退款 / epoch / 券观察均为实施阶段落地；截至 2027-05-31 仅开发测试边界不变，不部署、不开放资产写操作
+- 版本: 0.132.6（纯治理与设计 + 治理脚本，不触发部署）
+
 ## [2026-08-15] - docs(governance): 账务核心合同收口 B2.0（支付状态机/资金腿/退款主体泛化/CT-1 门禁/epoch 围栏/证据守卫强化）
 
 - 操作者: AI (Codex)
