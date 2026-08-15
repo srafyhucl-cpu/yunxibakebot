@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
+import subprocess
 
 from scripts import check_evidence_index as evidence_check
 
@@ -399,3 +400,128 @@ def test_sha256_map_format_checks_each_file(tmp_path: Path) -> None:
     result = evidence_check.check_evidence_index(evidence_file)
     assert result.passed is False
     assert any("sha256 mismatch" in issue for issue in result.issues)
+
+
+def _git_fixture(tmp_path: Path) -> tuple[Path, str, str]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@example.com"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"], cwd=repo, capture_output=True, check=True
+    )
+    _write_referenced_files(repo)
+    (repo / "artifact.json").write_text("artifact", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "fixture"], cwd=repo, capture_output=True, check=True
+    )
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+    return repo, sha, hashlib.sha256(b"artifact").hexdigest()
+
+
+def _git_entry(
+    commit: str,
+    sha256: str | None,
+    file_ref: str,
+    *,
+    entry_commit: str | None = None,
+) -> str:
+    sha_line = f"- sha256: {sha256}\n" if sha256 else ""
+    commit_line = f"- commit_sha: {entry_commit}\n" if entry_commit is not None else ""
+    return (
+        "\n## E-20260815-003：git 工件测试\n\n"
+        "- trace_id: test\n"
+        "- generated_at: 2026-08-15\n"
+        "- evidence_type: governance/git-ref-test\n"
+        f"- file: `{file_ref}`\n"
+        "- command: x\n"
+        "- result: pass\n"
+        "- related_logbook: x\n"
+        "- related_adr: none\n"
+        "- contains_sensitive_data: no\n"
+        "- retention_note: x\n"
+        "- storage_scope: repository\n"
+        f"{commit_line}"
+        f"{sha_line}"
+        "- summary: x\n"
+    )
+
+
+def _run_git_index(repo: Path, entry: str) -> evidence_check.EvidenceCheckResult:
+    evidence_file = repo / "evidence-index.md"
+    evidence_file.write_text(
+        "# Evidence Index\n\n" + _valid_entry() + entry, encoding="utf-8"
+    )
+    return evidence_check.check_evidence_index(evidence_file)
+
+
+def test_git_ref_valid_passes(tmp_path: Path, monkeypatch) -> None:
+    repo, sha, digest = _git_fixture(tmp_path)
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(
+        repo, _git_entry(sha, digest, f"git:{sha}:artifact.json", entry_commit=sha)
+    )
+    assert result.passed is True
+
+
+def test_git_ref_head_rejected(tmp_path: Path, monkeypatch) -> None:
+    repo, _, _ = _git_fixture(tmp_path)
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(repo, _git_entry("0" * 40, None, "git:HEAD:artifact.json"))
+    assert result.passed is False
+    assert any("完整 40 位 commit SHA" in issue for issue in result.issues)
+
+
+def test_git_ref_short_sha_rejected(tmp_path: Path, monkeypatch) -> None:
+    repo, sha, _ = _git_fixture(tmp_path)
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(
+        repo, _git_entry("0" * 40, None, f"git:{sha[:8]}:artifact.json")
+    )
+    assert result.passed is False
+    assert any("完整 40 位 commit SHA" in issue for issue in result.issues)
+
+
+def test_git_ref_missing_commit_sha_fails(tmp_path: Path, monkeypatch) -> None:
+    repo, sha, digest = _git_fixture(tmp_path)
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(repo, _git_entry(sha, digest, f"git:{sha}:artifact.json"))
+    assert result.passed is False
+    assert any("commit_sha" in issue for issue in result.issues)
+
+
+def test_git_ref_commit_mismatch_fails(tmp_path: Path, monkeypatch) -> None:
+    repo, sha, digest = _git_fixture(tmp_path)
+    (repo / "artifact.json").write_text("artifact2", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "second"], cwd=repo, capture_output=True, check=True
+    )
+    second = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(
+        repo,
+        _git_entry(sha, digest, f"git:{sha}:artifact.json", entry_commit=second),
+    )
+    assert result.passed is False
+    assert any("不一致" in issue for issue in result.issues)
+
+
+def test_git_blob_missing_fails(tmp_path: Path, monkeypatch) -> None:
+    repo, sha, _ = _git_fixture(tmp_path)
+    monkeypatch.setattr(evidence_check, "ROOT_DIR", repo)
+    result = _run_git_index(
+        repo, _git_entry(sha, "0" * 64, f"git:{sha}:not-exists.json", entry_commit=sha)
+    )
+    assert result.passed is False
+    assert any("git 工件缺失" in issue for issue in result.issues)

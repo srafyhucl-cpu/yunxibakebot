@@ -2350,6 +2350,7 @@
 - storage_scope: production
 - sha256: LOGBOOK.md=d571b6b2e235d7a7599cad8591c6237ba6496a1e1d1dd1aa5527d1554486c12f；docs/architecture/wecom-intelligent-bot-tools.md=51432aa2d06990fbb20f82b41510e6fc70ab12bbe4dd6a840e34715bd748fec8；scripts/check_wecom_employee_agent_plans.py=09b16221e26375edba1106e1c4d2595469615e6b608fdb8ff4bf25a6e037c535
 - commit_sha: 62597fe7504aa585960b3b0e7fd36be0af90e35c
+- commit_map: scripts/check_wecom_employee_agent_plans.py=d4058b3e60cd390739a74b1d9c10def2a390231b
 ## E-20260703-002：企微智能机器人 API 模式 URL 回调本地验收
 
 - trace_id: 20260703-wecom-aibot-url-callback
@@ -2610,6 +2611,7 @@ ______________________________________________________________________
 - storage_scope: repository
 - sha256: app/api/integrations/youzan_audit.py=441c2643cb8eb5b35aa3a36fbca3039869ae0cc544a125249f7aa264192de626；scripts/check_project.py=957c2633c3984637f56673f34cf6eda80a6cde15db5aa291bc5d2c15adaa05c8；tests/test_red_line_rules.py=5715cea099a7d3f73ea74719cc2fe2ca9dcf89561a35a7b37f99bee495160f68
 - commit_sha: 1cc17614111504f3bbdc1f71d7f6c515106f44fd
+- commit_map: app/api/integrations/youzan_audit.py=3e141b5e325fa52c879163142d9131d0e3e45e93
 ## E-20260617-046：生产后台浏览器只读导航 smoke
 
 - trace_id: 20260617-production-admin-browser-smoke

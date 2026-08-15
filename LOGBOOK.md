@@ -1,3 +1,23 @@
+## [2026-08-15] - docs(governance): 账务核心合同收口 B2.0（支付状态机/资金腿/退款主体泛化/CT-1 门禁/epoch 围栏/证据守卫强化）
+
+- 操作者: AI (Codex)
+- trace_id: `20260815-member-loyalty-accounting-contract-b20`
+- parent_trace_id: `20260815-member-loyalty-accounting-contract-b19`
+- 来源: 对 `17eba06`（B1.9）的只读全范围复核（评审 B2.0）；结论：暂不建议 fast-forward 双 master，也不建议批准 ADR 0008 整体进入 D1，6 项高风险合同缺口须一次性收口
+- 支付状态机与资金腿（评审问题 1）:
+  - `payment_attempt` 完整状态机 `draft → prepay_requested → prepay_unknown/prepay_ready → settling → succeeded/failed/expired`；**仅 `succeeded` 对同一交易号回调幂等 ACK**，`settling` 必须可恢复且不能提前确认
+  - 规范化 `snapshot_hash`（`payment_snapshot_json` 规范化序列化后 sha256）+ **快照写入后不可修改**；回调**只校验微信实际提供的字段**（金额 / 币种 / 商户单号 / 交易号），不依赖内部快照比较；`UNIQUE(provider, provider_transaction_id)` 防串单
+  - 新增 **`ledger_operation`（`operation_key UNIQUE`）**：同一 UoW 内幂等占位 → 余额 / 积分变更 → 流水 → outbox，禁止"先改余额后写流水"/"先查后改"；`LedgerOperationRepo` 入零 commit 契约
+- 退款主体泛化与充值退款（评审问题 2）: `refund_aggregate` / 额度表泛化为 `subject_type + subject_id + payment_attempt_id`（`order_refund_quota` 更名 **`payment_refund_quota`**）；**充值退款政策裁决 = 余额已被消费 → manual_review + 冻结额度**（与 B1.7 积分规则同构，项目负责人 B2.0 裁决）；退款分派状态与 outbox 投递状态分离，**`dispatch_unknown` 独立调度退款查询**（不等待"退款投递成功"）
+- CT-1 受控测试门禁（评审问题 3）: 独立硬门禁固定 `FP-4A → CT-1 → FP-3 阶段二 → FP-4B1/FP-4B2 → FP-2`；`controlled_test` **fail-closed**，以 `openid` / JWT `sub` 为唯一授权主体，登录 + 每次受保护请求校验有效期 / 撤销；**legacy header 关闭或同过白名单**；受控测试验收补齐退款、账务前后对账、业务状态恢复、测试数据清理记录
+- authority epoch 与券三类分离（评审问题 4）: FP-2 D2 协议——入站事件 envelope 携带 `authority_epoch`；切换前暂停 claim → 排空 / 接管水位前 `received/processing/failed` 事件 → 持久化 epoch → 恢复消费；**消费按事件记录 epoch 路由，不读进程级环境变量**；券事件三类分离（本地订单命令 / 外部观察 / 迁移），**取消 `TAKE → CONSUME` 直核**，外部 `CONSUME/BACK` 只投影或进对账；`legacy` 走统一 transition_key 公式（不再有独立例外）；FP-1 补四类有赞事件字段映射 / 聚合键 / 无单调版本对账闭环
+- 证据守卫强化（评审问题 5）: `git:` 工件**只接受完整 40 位 commit SHA 且对象类型为 commit**（拒绝 `HEAD` / 分支名 / 短 SHA）；含 `git:` 工件的活动条目必须存在合法 `commit_sha` 且与工件一致；跨提交工件以 **`commit_map`（path=commit）** 工件级声明；补 6 项阻断测试（HEAD / 短 SHA / 缺 commit_sha / 不一致 / blob 缺失 / 合法通过）
+- 口径统一（评审问题 6）: 券门禁残留"三选一"→ 既定双措施；FP-2 灰度残留 → 观察 / epoch 路由；`[start,end]` → `(start,end]` 统一半开区间；roll-forward 口径全仓统一
+- 验证: `python scripts/check_evidence_index.py --summary` ok（353 条 / failed=0）；pytest tests/scripts 相关 38 项通过；`python scripts/verify_secrets_baseline.py` exit 0；ruff / check_file_sizes / check_project --skip-tests / `git diff --check`
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md；项目进度与配置清单.md；docs/harness-engineering/core/evidence-index.md；scripts/check_evidence_index.py；scripts/migrate_evidence_index_scope.py；tests/scripts/test_check_evidence_index.py；LOGBOOK.md；reports/harness/handoff-b20-accounting-contract-20260815-b20.md（新）
+- residual_risks: ADR 0008 仍为 proposed；B2.0 完成后做一次全范围复核再决定 master fast-forward 与 D1 放行；支付状态机 / ledger_operation / CT-1 / epoch 围栏均为实施阶段落地；截至 2027-05-31 仅开发测试边界不变，不部署、不开放资产写操作
+- 版本: 0.132.5（纯治理与设计，不触发部署）
+
 ## [2026-08-15] - docs(governance): 账务核心合同收口 B1.9（支付主体/不可变快照/分派状态机/因果版本/受控测试门禁/不可变证据模型）
 
 - 操作者: AI (Codex)

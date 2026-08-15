@@ -18,7 +18,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 
 ## 当前实现事实（复核修正）
 
-- `POINTS_AUTHORITY` / `COUPON_AUTHORITY` 均为**进程级配置**（`app/config.py`），不支持"受控范围灰度"到单客户 / 单店铺。
+- `POINTS_AUTHORITY` / `COUPON_AUTHORITY` 均为**进程级配置**（`app/config.py`），不支持"受控范围灰度"到单客户 / 单店铺（B2.0 起由 authority epoch 持久化协议取代，见下）。
 - 积分 `local`：`event_member.py` 在 `POINTS_AUTHORITY != "local"` 时用有赞 `total` 覆盖 `member_balance.points`；`local` 时只写流水 / 审计镜像（已实现）。
 - 优惠券 `local`：`coupon_inventory_repo` 在 `authority=local` 时**只识别 `source IN ('order','local')` 的券行**，现有 `import` / `webhook` 来源的有效券行会被过滤，导致已有有效有赞券从可用列表消失。
 - 本地写入后不能仅靠改回环境变量实现无损回滚（已落库数据不会自动回退）。
@@ -29,11 +29,11 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 | 聚合 | 当前权威 | 目标权威 | 切换前置条件 |
 |---|---|---|---|
 | 储值余额（`member_balance.stored_value_fen`） | Platform 本地账本 | Platform 本地账本（`local → local`，**无需切换**） | 与有赞侧（若存在）一致性核对 + 审计 |
-| 积分余额（`member_balance.points`） | youzan | local | 积分数据对账通过；事件审计语义确认；灰度观察 |
+| 积分余额（`member_balance.points`） | youzan | local | 积分数据对账通过；事件审计语义确认；观察窗口 |
 | 优惠券（`coupon_inventory`） | youzan | local | **有效券基线迁移**；切换水位线；写入围栏；影子读对账；观察期 |
 | 会员身份（`member_balance` / `customer_identity_links`） | Platform 本地投影 | Platform 本地投影（**一致性核对，非切换**） | 与有赞身份归属核对一致 |
 
-积分与优惠券**拆为两个独立切换窗口**（先积分窗口、后优惠券窗口，各自完成部署 / 观察 / 回滚后再进入下一个），禁止同窗口同时部署两个 authority 开关；进程级配置全量切换不等同灰度，实例级灰度方案在临近 2027-06 时再评审确定。
+积分与优惠券**拆为两个独立切换窗口**（先积分窗口、后优惠券窗口，各自完成部署 / 观察 / 不可逆前中止演练后再进入下一个），禁止同窗口同时部署两个 authority 开关；进程级配置全量切换不等同灰度——**事件按 authority epoch 路由（B2.0 协议，见 D 节），消费端不得读取进程级环境变量判定权威**。
 
 ### 裁决记录（每个工作包执行前必填）
 
@@ -45,24 +45,24 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 
 1. 数据对账：本地 `member_balance.points` 与有赞 `total` 逐客户核对一致，差异清零或豁免。
 2. 事件语义确认：`local` 下有赞 `POINTS` 事件只写 `points_ledger` 审计镜像，不覆盖余额（已实现，需生产复验）。
-3. 灰度观察：以进程级开关在低峰窗口切换，观察期天数在执行前裁决记录中固定（项目负责人批准），比对本地余额与有赞变化。
+3. 观察窗口：以进程级开关在低峰窗口切换，观察期天数在执行前裁决记录中固定（项目负责人批准），比对本地余额与有赞变化；事件按 authority epoch 路由（B2.0 协议）。
 
 ### B. 优惠券切换（新增迁移与围栏）
 
 > **券数据模型以 [ADR 0008](../harness-engineering/adr/0008-accounting-core-consistency.md) 为唯一来源**（B1.6 + B1.7 定稿）：事件表 `coupon_events`（`transition_key` + `ingest_source` + `origin_event_id`）+ 当前态投影 `coupon_current_state`（`RESERVED` 预占 + 投影 CAS）。以下 B.1–B.7 均在该模型下执行；旧 `idx_coupon_inventory_dedup (coupon_id, status, mobile)` 标为**"第一阶段现状，禁止用于新实现"**。
 
-1. **有效券基线迁移**：切换前把现有 `source IN ('import','webhook')` 的有效券行按 ADR 0008 迁移为 `coupon_events` 事件行（`transition_key = legacy:<coupon_inventory.id>`，不伪造外部事件 ID；`ingest_source=legacy`），投影到 `coupon_current_state`；迁移期保留旧表以兼容读取，确保已有有效有赞券不会消失。
-2. **兼容读取合同（迁移期）**：旧 `coupon_inventory` 只读、禁写；可用券列表 / 核销判定 / local 权威读取统一走 `coupon_current_state` 投影；旧表仅作迁移核对与回滚底稿。
+1. **有效券基线迁移**：切换前把现有 `source IN ('import','webhook')` 的有效券行按 ADR 0008 迁移为 `coupon_events` 事件行（`transition_type=TAKE`、`business_ref=legacy:<coupon_inventory.id>`、`cycle_no=0`、`transition_key` 走统一 sha256 公式，不伪造外部事件 ID；`ingest_source=legacy`），投影到 `coupon_current_state`；迁移期保留旧表以兼容读取，确保已有有效有赞券不会消失。
+2. **兼容读取合同（迁移期）**：旧 `coupon_inventory` 只读、禁写；可用券列表 / 核销判定 / local 权威读取统一走 `coupon_current_state` 投影；旧表仅作迁移核对与 roll-forward 底稿。
 3. **切换水位线（B1.7 唯一水位）**：以 **`inbox_events.id`** 为唯一切换水位（AUTOINCREMENT 不可变），**不用时间戳、不引入事件派生游标**；水位线之后到达的 `webhook` 券事件按 `local` 语义写入 `coupon_events`，杜绝双写。
 4. **写入围栏**：切换后本地写入期间，对有赞券管理端写入做围栏 / 停写确认，避免本地与有赞同时改券导致分裂。
 5. **影子读对账**：`local` 权威下继续影子读有赞券，定期对账差异（新增 / 核销 / 退回）。
 6. **稳定观察期**：观察期内每日对账，券核销 / 退回 / 到期行为一致，方可推进。
-7. **切换 / 回滚合同（固定，不再三选一）**：
-   - `transition_key` 精确定义（B1.8）：`sha256(coupon_id + ":" + mobile + ":" + transition_type + ":" + business_ref + ":" + cycle_no + ":" + payment_attempt_id)`（不含来源；`transition_type ∈ {TAKE, RESERVE, RELEASE, CONSUME, BACK, EXPIRE}`，`payment_attempt_id` 仅订单路径携带，`RESERVE` 分配周期、`CONSUME` 复用）；`business_ref` 为 `order:<order_no>` / `refund:<refund_no>` / `take:<外部事件 ID>` / `import:<导入批次 ID>` / `legacy:<coupon_inventory.id>`；`origin_event_id` 须为可跨 import/webhook 对齐的上游稳定 ID，导入批次行 ID 不默认等同 webhook `msg_id`，缺失隔离待对账。
-   - 状态迁移表：`初始 → TAKE → RESERVE → RESERVED → RELEASE/TAKE → CONSUME → BACK → TAKE`（多周期）与 `TAKE/RESERVED/CONSUME → EXPIRE`，禁止跳转。
+7. **切换 / roll-forward 合同（固定，不再三选一）**：
+   - `transition_key` 精确定义（B1.8 + B2.0）：`sha256(coupon_id + ":" + mobile + ":" + transition_type + ":" + business_ref + ":" + cycle_no + ":" + payment_attempt_id)`（不含来源；`transition_type ∈ {TAKE, RESERVE, RELEASE, CONSUME, BACK, EXPIRE}`，`payment_attempt_id` 仅订单路径携带，`RESERVE` 分配周期、`CONSUME` 复用）；`business_ref` 为 `order:<order_no>` / `refund:<refund_no>` / `take:<外部事件 ID>` / `import:<导入批次 ID>` / `legacy:<coupon_inventory.id>`（**legacy 同样走统一公式**，无独立例外）；`origin_event_id` 须为可跨 import/webhook 对齐的上游稳定 ID，导入批次行 ID 不默认等同 webhook `msg_id`，缺失隔离待对账。
+   - 状态迁移表：`初始 → TAKE → RESERVE → RESERVED → RELEASE/TAKE → CONSUME → BACK → TAKE`（多周期）与 `TAKE/RESERVED/CONSUME → EXPIRE`，禁止跳转；**无 `TAKE → CONSUME` 直核**（仅本地订单命令可迁移状态，外部观察只投影或进对账，见 ADR 0008 D1-B）。
    - 迟到 / 乱序事件：按事件版本合同（`event_version` / `ordering_kind` / `payload_hash`）判定新旧，**禁止以 `(occurred_at, id)` 承担因果语义**（仅作同源展示序）；不可比冲突进入对账队列。
    - 跨来源重复事件：`transition_key` 含来源无关逻辑键（含类型与支付尝试），同一 `transition_key` / 同一可证实对齐的 `origin_event_id` 幂等拒绝，不同来源不再互相占用唯一键位。
-   - 切换执行前先产出设计文档（表结构变更、投影查询、迁移批次与停写窗口、roll-forward 补偿规则与回滚条件），未通过该设计评审不得执行切换。
+   - 切换执行前先产出设计文档（表结构变更、投影查询、迁移批次与停写窗口、roll-forward 补偿规则与不可逆前中止条件），未通过该设计评审不得执行切换。
 
 ### C. 回滚与补偿
 
@@ -75,12 +75,22 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 2. **有赞小程序下线**：仅在本工作包及 FP-4 正式发布完成后执行；下线前与有赞运营协调，确认无在途用户。
 3. LOGBOOK / 证据索引收口，使用独立 trace_id；M3 / M4 生产部署证据条目一并补齐。
 
+### D2. 入站事件 envelope + authority epoch + 队列围栏协议（B2.0 定稿）
+
+> 背景：`inbox_events.id` 只是到达水位，事件可能在切换前入队、切换后才被消费；当前 consumer 又读取进程级 authority（`POINTS_AUTHORITY` / `COUPON_AUTHORITY`）。B2.0 一次性定义围栏与路由协议。
+
+1. **入站事件 envelope**：入站消息除业务字段外统一携带 `authority_epoch`（入队时写入当时的权威纪元；纪元由 `authority_epoch` 表持久化，切换时递增）。
+2. **切换前队列围栏（fence）**：切换执行时——① 暂停 `youzan_webhook` 队列 claim；② 排空 / 接管水位前所有 `received / processing / failed` 事件（处理完或标记接管）；③ 持久化新 `authority_epoch`；④ 恢复消费。水位前事件按旧 epoch 处理，水位后事件按新 epoch 处理，杜绝"切换前入队、切换后按新语义消费"。
+3. **消费按事件记录的 epoch 路由**：消费者**不得读取进程级环境变量**判定权威；一律按事件 envelope 中的 `authority_epoch` 路由到对应处理语义（`youzan` / `local`）。进程级开关仅作为部署时的默认值，不作为运行时路由依据。
+4. **验收**：围栏演练（暂停 → 排空 → 切纪元 → 恢复）在隔离环境验证；水位前 / 后事件语义正确路由；混入企微队列事件被过滤；`authority_epoch` 持久化且可审计。
+
 ## 验收标准
 
 - 积分与优惠券分别切换，各自对账通过、roll-forward 补偿演练通过。
 - 有效券基线迁移后，已有有效券在 `local` 下仍可查询、可核销。
 - 切换水位线（唯一 `inbox_events.id`）、写入围栏、影子读对账均有运行记录，观察期无差异漂移。
 - 唯一键冲突解除设计（ADR 0008 `coupon_events.transition_key` 唯一模型）在隔离环境验证通过，local 状态可正常写入。
+- **队列围栏与 epoch 路由（B2.0）**：切换前暂停 claim、排空 / 接管水位前事件、持久化 `authority_epoch` 后恢复消费；消费按事件 epoch 路由，不读进程级环境变量；围栏演练通过。
 - RPO / RTO 达成并演练；不可逆（仅 roll-forward）风险已列为正式放行显式审批项。
 - 有赞小程序下线后，Platform 本地账务域成为唯一数据权威，小程序作为唯一用户入口，无业务中断。
 

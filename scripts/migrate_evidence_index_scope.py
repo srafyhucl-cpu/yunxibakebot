@@ -248,6 +248,35 @@ def _process_entry(
         changes += 1
 
     if commit:
+        commit_map: dict[str, str] = {}
+        for ref in prefixed_refs:
+            if not ref.startswith("git:"):
+                continue
+            rest = ref.split(":", 1)[1]
+            ref_commit, sep2, rel = rest.partition(":")
+            if sep2 and ref_commit != commit and rel != REGISTRY_REL:
+                commit_map[rel] = ref_commit
+        map_line = None
+        if commit_map:
+            map_line = "- commit_map: " + "；".join(
+                f"{rel}={c}" for rel, c in commit_map.items()
+            )
+        map_idx = next(
+            (i for i, line in enumerate(lines) if line.startswith("- commit_map:")),
+            None,
+        )
+        if map_line is None:
+            if map_idx is not None:
+                del lines[map_idx]
+                changes += 1
+        elif map_idx is None:
+            lines.append(map_line)
+            changes += 1
+        elif lines[map_idx] != map_line:
+            lines[map_idx] = map_line
+            changes += 1
+
+    if commit:
         hashed = _hash_git_refs(prefixed_refs, commit)
         sha_index = next(
             (i for i, line in enumerate(lines) if line.startswith("- sha256:")),

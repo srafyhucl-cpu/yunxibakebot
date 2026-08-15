@@ -38,7 +38,7 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
 1. 全量执行：`python scripts/import_member_loyalty.py --apply --json --output "reports/import/member-loyalty-{timestamp}.json"`。
 2. eligible population 界定：以 `customer_master` 中具备 `primary_phone` 的主档为导入范围（含授权测试账号），报告中明确 `total_eligible / 已导入 / 无手机号跳过 / 豁免`，作为验收基线。
 3. 核对：导入数量与 eligible population 一致、幂等无重复、余额快照正确、`failed=0` 且退出码为 0。
-4. Webhook 起止双水位：导入开始前记录 `start_watermark`，结束后记录 `end_watermark`；`[start, end]` 窗口内到达的真实 `POINTS` / `COUPON_CUSTOMER_PROMOTION` / `SCRM_CUSTOMER_CARD` / `SCRM_CUSTOMER_EVENT` 事件必须回放或补拉核对，防止旧快照覆盖新事件。
+4. Webhook 起止双水位：导入开始前记录 `start_watermark`，结束后记录 `end_watermark`；`(start, end]` 窗口内到达的真实 `POINTS` / `COUPON_CUSTOMER_PROMOTION` / `SCRM_CUSTOMER_CARD` / `SCRM_CUSTOMER_EVENT` 事件必须回放或补拉核对，防止旧快照覆盖新事件。
 5. 导入期间若增量处理暂停，恢复时必须先回放水位线窗口内事件再继续（禁止无回放的直接续跑）。
 6. 四类事件验收：`POINTS`（余额/流水一致）、`COUPON_CUSTOMER_PROMOTION`（券库存/状态一致）、`SCRM_CUSTOMER_CARD`（会员卡状态）、`SCRM_CUSTOMER_EVENT`（身份归属）各自核对通过。
 
@@ -88,6 +88,16 @@ M1 已完成 v021 三表迁移与 Webhook 会员路由部署（生产 v0.111.0�
   | 旧快照（`snapshot_version` 早于事件）被回放 | 不覆盖新事件 / 新快照 |
   | 重建处理中抛异常 | 记录 `failed_detail`，`failed > 0` 以非 0 退出 |
   | 进程重启恢复 | 从 `import_batch.projection_checkpoint` 继续；投影 / 物化 / checkpoint 同 UoW，无重复应用 |
+
+- **入站 envelope 与 epoch（B2.0）**：回放与导入均按 FP-2 D2 协议携带 `authority_epoch`；切换围栏（暂停 claim → 排空 / 接管水位前事件 → 持久化 epoch → 恢复）期间到达的事件按记录 epoch 处理，禁止按进程级环境变量路由。
+- **四类有赞事件映射 / 聚合键 / 对账闭环（B2.0）**：
+
+  | 事件 | 字段映射（必需） | 聚合键 | 无单调版本时的对账闭环 |
+  |---|---|---|---|
+  | `POINTS` | `amount / total / event_type / unique_id / mobile` | `mobile + unique_id` | 冲突进 `import_reconcile_queue`，核对有赞 `total` 与本地投影 |
+  | `COUPON_CUSTOMER_PROMOTION` | `id / status / mobile / coupon_group_id / order_no` | `coupon_id + mobile + origin_event_id` | 外部 `CONSUME/BACK` 只投影或进对账（券三类分离，见 ADR 0008 D1-B） |
+  | `SCRM_CUSTOMER_CARD` | `card_alias / card_no / mobile / status` | `mobile + card_no` | 冲突进对账队列，核对会员卡状态 |
+  | `SCRM_CUSTOMER_EVENT` | `mobile / name / is_member / status` | `mobile + 事件主键` | 冲突进对账队列，核对身份归属 |
 
 - 导入批次与水位关联：记录导入起止事件游标，`(start, end]` 窗口内事件必须重建核对；批次失败明细持久化，`failed > 0` 以非 0 退出。
 

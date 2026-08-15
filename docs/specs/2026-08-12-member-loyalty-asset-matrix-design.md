@@ -37,11 +37,13 @@
   | 退款 / 对账补偿 | `asset_policy_snapshot` | 不禁用，按快照原路补偿 |
 
 - 资产策略**写入订单支付快照**（`payment.json` 内 `payment_attempt_id + policy_version + asset_policy_snapshot`），区分三态：`拒绝新业务` / `完成在途结算` / `退款对账补偿`。**不能用单一布尔开关阻断退款与对账补偿**。
-- **持久 `payment_attempt` 表（B1.8 + B1.9）**：`payment.json` 可被覆盖，不能承载不可变支付尝试事实。新增 `payment_attempt` 表（v025+ 迁移），每行一次支付尝试，字段：`payment_attempt_id`（主键）、**`subject_type + subject_id`（B1.9：`order` / `recharge` 等聚合类型与实例 ID，替代单一 `order_id`）**、`provider`（`wechat` / `balance` / `mock`）、**`merchant_order_no`（微信 `out_trade_no`；仅 `provider=wechat` 强制 `UNIQUE NOT NULL` 且不可复用；`balance` / `mock` 无商户单号，置空）**、`amount_fen`、**`payment_snapshot_json`（B1.9：完整不可变支付快照——各资产分摊 / 券周期 / 币种 / 策略版本与快照 / 金额，替代 `snapshot_hash`）**、`status`（`created / processing / succeeded / failed / expired`）、`provider_transaction_id`（微信 transaction_id，异步回填）、`policy_version`、`asset_policy_snapshot`（JSON）、`created_at / updated_at`。
+- **持久 `payment_attempt` 表（B1.8 + B1.9 + B2.0）**：`payment.json` 可被覆盖，不能承载不可变支付尝试事实。新增 `payment_attempt` 表（v025+ 迁移），每行一次支付尝试，字段：`payment_attempt_id`（主键）、**`subject_type + subject_id`（`order` / `recharge` 等聚合类型与实例 ID）**、`provider`（`wechat` / `balance` / `mock`）、**`merchant_order_no`（微信 `out_trade_no`；仅 `provider=wechat` 强制 `UNIQUE NOT NULL` 且不可复用）**、`amount_fen`、**`payment_snapshot_json`（完整不可变支付快照——各资产分摊 / 券周期 / 币种 / 策略版本与快照 / 金额；**B2.0：写入后不可修改，任何变更只能新增新尝试**）**、**`snapshot_hash`（B2.0：规范化快照哈希——对 `payment_snapshot_json` 做规范化序列化后取 sha256，供一致性核验）**、`status`、**`provider_transaction_id`（微信 transaction_id，异步回填；B2.0：`UNIQUE(provider, provider_transaction_id)` 防跨尝试串单）**、`policy_version`、`asset_policy_snapshot`（JSON）、`created_at / updated_at`。
+- **支付尝试状态机（B2.0 完整定义）**：`draft → prepay_requested → prepay_unknown / prepay_ready → settling → succeeded / failed / expired`——创建为 `draft`；发起微信预下单写 `prepay_requested`；预下单响应未知 `prepay_unknown`（可重试查询 / 关单）、就绪 `prepay_ready`；回调 / 余额扣款开始结算置 `settling`；**仅 `succeeded` 对同一交易号回调幂等 ACK；`settling` 必须可恢复（进程重启后按快照继续）且不能提前确认成功**；`failed / expired` 为终态永久失效。
 - **结算分派（B1.9）**：订单（微信差额 / 余额 / mock）、充值（微信 / mock 确认）按 `subject_type` 分派到对应结算路径，均以 `payment_attempt` 状态机推进并**与账务写入同一 UoW** 结算；充值真实回调按 `subject_type=recharge + merchant_order_no` 归属，避免真实回调无归属。
-- **唯一活跃尝试（B1.9）**：每个 `(subject_type, subject_id)` 至多一个活跃尝试——新尝试以条件更新创建（`WHERE 不存在 status ∈ {created, processing} 的同主体尝试`），冲突即拒绝；**重复通知仅幂等 ACK**（同单号已 `succeeded` / `processing` 直接 ACK，不重复结算）；**冲突或过期尝试进入对账**，不静默覆盖。
-- **回调结算校验（B1.8 + B1.9）**：微信支付通知回调**先按 `out_trade_no`（= `merchant_order_no`）查 `payment_attempt`**，再校验该尝试仍可结算（`status ∈ {created, processing}` 且金额一致、`payment_snapshot_json` 一致），通过后才按该尝试的 `asset_policy_snapshot` 结算；尝试不存在、状态已终态或金额 / 快照不匹配 → 拒绝结算并进入对账。
-- **尝试失效（B1.8）**：超时或替代尝试发起后，原尝试置 `expired / failed` 终态**永久失效**；**禁止复用 `merchant_order_no`（`out_trade_no`）**——新尝试必须生成新的商户单号，杜绝迟到支付通知按新快照结算旧尝试。
+- **唯一活跃尝试（B1.9）**：每个 `(subject_type, subject_id)` 至多一个活跃尝试——新尝试以条件更新创建（`WHERE 不存在 status ∈ {draft, prepay_requested, prepay_unknown, prepay_ready, settling} 的同主体尝试`），冲突即拒绝；**重复通知仅对 `succeeded` 同交易号幂等 ACK**（不重复结算）；**冲突或过期尝试进入对账**，不静默覆盖。
+- **回调结算校验（B1.8 + B2.0）**：微信支付通知回调**先按 `out_trade_no`（= `merchant_order_no`）查 `payment_attempt`**；**只校验微信实际提供的字段**（金额 `amount_fen`、币种 `fee_type=CNY`、商户单号、交易号 `transaction_id`），**不依赖本地内部快照比较**；校验通过后置 `settling` 并按该尝试的 `asset_policy_snapshot` 结算；尝试不存在、已终态、交易号已绑定其他尝试（`UNIQUE(provider, provider_transaction_id)` 冲突）或金额 / 币种不匹配 → 拒绝结算并进入对账。
+- **尝试失效（B1.8）**：超时或替代尝试发起后，原尝试置 `failed / expired` 终态**永久失效**；**禁止复用 `merchant_order_no`（`out_trade_no`）**——新尝试必须生成新的商户单号，杜绝迟到支付通知按新快照结算旧尝试。
+- **资金腿原子合同（B2.0）**：余额扣减、积分扣减 / 发放、券核销、流水写入与 `accounting_outbox` 投递占位在同一 UoW 内，以 **`ledger_operation`（`operation_key UNIQUE` 幂等占位）** 先行落位，随后执行余额 / 积分变更与流水，全部成功才提交；`operation_key` 覆盖重复通知 / 重试，禁止"先改余额后写流水"或"先查后改"的非原子模式（见 ADR 0008 D1-A）。
 - 开发 / 测试 / mock 阶段保持 `enabled`；进入受控真实测试或正式上线前，由项目负责人裁决逐项切换并留证。
 
 ## 积分门禁（B1.6 已裁决：关闭 Platform 积分写操作）
@@ -61,7 +63,7 @@
 
 - 服务端资产开关生效：每个受控写操作在 `disabled` 时被拒绝（含直接 API 调用绕过测试）；支付快照三态（拒绝新业务 / 完成在途结算 / 退款对账补偿）测试通过，退款与补偿不被开关阻断。
 - **承诺点固化测试（B1.7）**：余额预占 / 券 `RESERVE` / 微信支付会话任一创建后开关关闭，`payment_attempt_id` 按快照完成结算；同一 `payment_attempt_id` 重试沿用快照；超时重新发起生成新 `payment_attempt_id` 且按实时策略重新授权。
-- **payment_attempt 校验（B1.8 + B1.9）**：`subject_type + subject_id` 主体模型，`provider=wechat` 时 `out_trade_no` 一对一不可复用（复用被唯一键拒绝）；每主体至多一个活跃尝试（条件更新）；重复通知幂等 ACK；回调按 `out_trade_no` 查尝试并校验状态 / 金额 / `payment_snapshot_json`；超时尝试置终态后迟到通知按新快照结算被拒绝（进入对账）；充值 / 订单 / 余额 / mock 结算分派与同一 UoW 行为有测试。
+- **payment_attempt 校验（B1.8 + B2.0）**：`subject_type + subject_id` 主体模型，`provider=wechat` 时 `out_trade_no` 一对一不可复用（复用被唯一键拒绝）；完整状态机 `draft → prepay_requested → prepay_unknown/prepay_ready → settling → succeeded/failed/expired` 测试通过（含 `settling` 重启恢复、仅 `succeeded` 同交易号幂等 ACK）；`UNIQUE(provider, provider_transaction_id)` 防串单；回调只校验微信实际字段（金额 / 币种 / 商户单号 / 交易号）；快照写入后不可修改；`ledger_operation` 幂等占位 + 余额变更 + 流水 + outbox 同一 UoW（无"先改后写"非原子模式）；充值 / 订单 / 余额 / mock 结算分派与同一 UoW 行为有测试。
 - 支付成功联动点统一读取开关 / 快照：**新业务禁写不产生资产副作用；在途结算与退款补偿按 `asset_policy_snapshot` 完成，不因实时开关关闭而中断**（覆盖"支付通知到达前关闭开关"场景）。
 - **FP-4B2 门禁（B1.6 补强，不能以"矩阵文档存在"代替验收）**：正式开放前必须归档——
   1. 已选积分策略证据：`ASSET_POINTS_WRITE=disabled` 的配置与 `disabled` 时写操作拒绝的运行证据；

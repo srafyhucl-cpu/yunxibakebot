@@ -143,6 +143,20 @@ def _parse_sha256_map(text: str) -> dict[str, str]:
     return result
 
 
+def _parse_commit_map(text: str) -> dict[str, str]:
+    """解析工件级 commit 映射 `path=commit；path=commit`（40 位 hex）。"""
+    result: dict[str, str] = {}
+    for part in text.split("；"):
+        part = part.strip()
+        if "=" in part:
+            key, value = part.split("=", 1)
+            key = key.strip().replace("\\", "/")
+            value = value.strip()
+            if re.fullmatch(r"[0-9a-f]{40}", value):
+                result[key] = value
+    return result
+
+
 def validate_entry(entry: EvidenceEntry) -> list[str]:
     issues: list[str] = []
     for field_name in REQUIRED_FIELDS:
@@ -178,6 +192,23 @@ def validate_entry(entry: EvidenceEntry) -> list[str]:
             f"{entry.entry_id}: file 引用禁止裸路径，"
             f"须使用 repo:/local:/production:/external: 前缀：`{norm}`"
         )
+    evidence_status = entry.fields.get("evidence_status", "active")
+    has_git_refs = any(
+        ref.strip().replace("\\", "/").startswith("git:")
+        for ref in FILE_REFERENCE_RE.findall(entry.fields.get("file", ""))
+    )
+    if has_git_refs and evidence_status != "retired":
+        commit_sha = entry.fields.get("commit_sha", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
+            issues.append(
+                f"{entry.entry_id}: 含 git: 工件的活动条目必须有合法 "
+                f"commit_sha（完整 40 位 hex）"
+            )
+        elif not _is_commit_sha(commit_sha):
+            issues.append(
+                f"{entry.entry_id}: commit_sha `{commit_sha[:12]}..` 不是有效 "
+                f"commit 对象（可变引用或不存在）"
+            )
     return issues
 
 
@@ -221,6 +252,7 @@ def _parse_reference(reference: str) -> tuple[str, str]:
 
 
 _GIT_BLOB_CACHE: dict[str, str] = {}
+_COMMIT_CACHE: dict[str, bool] = {}
 
 
 def _git_blob_sha256(commit_path: str) -> str | None:
@@ -241,6 +273,28 @@ def _git_blob_sha256(commit_path: str) -> str | None:
     digest = hashlib.sha256(proc.stdout).hexdigest()
     _GIT_BLOB_CACHE[commit_path] = digest
     return digest
+
+
+def _is_commit_sha(commit: str) -> bool:
+    """git: 工件引用只接受完整 40 位 commit SHA，且对象类型必须是 commit。
+
+    拒绝 `HEAD` / 分支名 / 短 SHA 等可变引用，保证不可变绑定。
+    """
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        return False
+    if commit in _COMMIT_CACHE:
+        return _COMMIT_CACHE[commit]
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{commit}^{{commit}}"],
+            cwd=ROOT_DIR,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        proc = None
+    ok = proc is not None and proc.returncode == 0
+    _COMMIT_CACHE[commit] = ok
+    return ok
 
 
 def _collect_file_integrity(
@@ -266,6 +320,21 @@ def _collect_file_integrity(
                 if not sep or not commit or not git_path:
                     issues.append(f"{entry.entry_id}: git 引用格式错误 `{reference}`")
                     continue
+                if not _is_commit_sha(commit):
+                    issues.append(
+                        f"{entry.entry_id}: git 工件引用必须使用完整 40 位 commit SHA"
+                        f"（拒绝 HEAD/分支名/短 SHA）：`{reference}`"
+                    )
+                    continue
+                entry_commit = entry.fields.get("commit_sha", "")
+                commit_map = _parse_commit_map(entry.fields.get("commit_map", ""))
+                if entry_commit and commit != entry_commit:
+                    if commit_map.get(git_path) != commit:
+                        issues.append(
+                            f"{entry.entry_id}: git 工件提交 {commit[:12]}.. 与条目 "
+                            f"commit_sha {entry_commit[:12]}.. 不一致"
+                            f"（跨提交工件须在 commit_map 声明 `{git_path}={commit}`）"
+                        )
                 commit_path = f"{commit}:{git_path}"
                 digest = _git_blob_sha256(commit_path)
                 if digest is None:
