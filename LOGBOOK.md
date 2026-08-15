@@ -1,3 +1,24 @@
+## [2026-08-15] - docs(governance): 账务核心合同收口 B3.1（B3 最终评审 9 项一次性收口）
+
+- 操作者: AI (Codex)
+- trace_id: `20260815-member-loyalty-accounting-contract-b31`
+- parent_trace_id: `20260815-member-loyalty-accounting-contract-b21`
+- 来源: 对 `8ec3b64`（B3）的只读最终复核（评审 B3.1）；结论：**Go/No-Go = 暂不通过**，9 项缺口按方案 B 一次性收口（先固定 B3 双远端审阅基线，master 与双远端 master 仍 `344b66a`，审阅分支双远端均推送 `8ec3b64`，工作区干净）
+- 远端基线固定（评审问题 1）:
+  - `git push origin 8ec3b64:codex/r4c-ci-evidence`（4065e1d → 8ec3b648f9d5f6ab4cd3abc99b3f7e9f8e321bb9）与 `git push server 8ec3b64:codex/r4c-ci-evidence`（344b66a → 8ec3b648f9d5f6ab4cd3abc99b3f7e9f8e321bb9）；`git ls-remote` 复核双远端审阅分支完整 SHA 一致；master 双远端保持 `344b66a` 未动
+- 账户绑定与状态机补全（评审问题 2）: `account_hold` 绑定不可变账户主键 `member_balance_id`（`hold_key` 含账户维度 `hold:<payment_attempt_id>:<asset_type>:<member_balance_id>`，可用余额公式按账户行计算，跨账户不串占）；支付状态机补 `cancelled`（关单成功终态，允许释放）与 `manual_review`（处置态——未解除前禁止同主体新支付尝试、holds 保持占用）
+- 事件租约与 ACK 语义定稿（评审问题 3）: `payment_provider_event` 增租约字段（`lease_token / lease_until / next_retry_at / max_attempts / dead_lettered_at`）与租约 CAS 协议（`received→processing` 写 token、lease 过期重领、`failed` 按 `next_retry_at` 重试、达上限转 `dead_letter`）；**ACK 语义定稿：仅事件 `processed` 后同 `event_key` 重复通知返回 200，`received / processing` 重复 / 并发不 ACK（等待、租约重领或返回 5xx），绝不在未 processed 时 200**——落库后崩溃可重领重处理不丢不重；冲突 payload 拒绝结算进对账
+- `prepay_unknown` 固定映射（评审问题 4）: 查询只能得知支付状态、不能恢复丢失的 JSAPI `prepay_id`——`SUCCESS` → `settling`（按快照结算）；`NOTPAY` → **先关单确认再置终态释放**（关单前保持占用）；`CLOSED/REVOKED/PAYERROR` → 终态释放；未知 → 保持占用退避查询至上限转 `manual_review`；**仅已持久化可用会话进 `prepay_ready`，`prepay_unknown` 不产生 `prepay_ready`**；支付会话（`prepay_id`）禁止写回不可变 `payment_snapshot_json`
+- 退款差分分摊与债务化（评审问题 5）: 多笔部分退款改**确定性差分分摊**（`allocation(累计后) − allocation(累计前)`，腿排序固定 `wechat → balance → points`），逐腿预占不误拒不超退；`refund_operation` 增 `next_query_at / query_generation` 持续查询（`accepted` / `dispatch_unknown` 后通知丢失可查，陈旧结果拒绝回写）；积分幂等键按动作拆分（`refund:<refund_no>:points_used` / `:points_awarded` 分别维护额度）；余额 / 积分短缺改持久债务表 **`refund_shortfall_debt`**（`debt_key / asset_type / amount_fen / status / version`，入账同 UoW 原子优先扣回，替代 `*_shortfall_frozen` 标志位）
+- 券对账案件与裁决命令（评审问题 6）: 新增 **`coupon_reconcile_case`**（`case_id / case_type / status(open/verdict_applied/closed) / trace_id`，未决案件使券不可用、不可核销）；外部观察只追加 `coupon_observation` 事实与案件，**绝不直接写当前态**；仅本地裁决命令（`RECONCILE_HOLD / RECONCILE_VERDICT`，含 `case_id` / `event_version` 校验 / `trace_id` 审计）CAS 改 `coupon_current_state`（`reconcile_hold` 由裁决命令写入，状态迁移表补两行）；受控外部 TAKE 摄取命令使切换窗口内新券可用（过渡 epoch / 幂等键 / 审计）
+- epoch 单指针与原子发布（评审问题 7）: 新增 **`authority_epoch_current`** 单行指针（`epoch_id / activated_at / updated_at / trace_id`）；插入 `authority_epoch` 行 + 更新指针**同一事务原子发布**（无中间态）；旧 epoch 事件必须完成或进入 **quarantine**（`quarantine_status`，不可执行业务写入，仅记录 / 审计）后才可切换；readiness 一致性检查（部署配置默认值与持久指针不一致即 `/ready=false`）；**删除环境变量作为切换动作的表述**（FP-2 观察窗口 / 二次部署改写为持久化 epoch 指针切换）
+- 唯一事实与 D1-0 迁移（评审问题 8）: 唯一事实统一为 `payment_attempt.payment_snapshot_json`（资产矩阵「策略固化时点」「策略快照落点」修正为随 `payment_attempt` 固化，`order.payment` 仅展示缓存）；FP-3 删除 `payment.balanceFen` 旧退款口径；新增 **D1-0 逐端点迁移表**（`prepare_payment` / `confirm_mock_payment` / 支付通知 / `stored_value` 两条路径 / `recharges` / legacy header 等禁用或转发）+ 历史未完成订单 / 充值单回填（`snapshot_hash` 校验）或 `manual_review`；**"历史待处理为 0"**（无未归属回调 / 未处置 `prepay_unknown` / 未查询退款 / 未决 `manual_review`）作为切换证据
+- FP DAG 与 CT-1 拆门（评审问题 9）: 唯一 DAG 定稿 **`FP-1 + FP-3a → FP-4A → CT-1 → FP-4B1 → FP-3b → FP-4B2 → FP-2`**（图示与文字前置一致；FP-3a=阶段一 工程实现、FP-3b=阶段二 真实支付验收）；CT-1 拆 **CT-1A 受控测试白名单门** / **CT-1B 正式开放控制面**（开放切换由项目负责人批准并登记证据，白名单降级为审计告警）；FP-1 积分事件身份改 **`(provider, unique_id)`**（仅事件去重，不再是账户聚合键），余额投影使用稳定会员账户键（`member_balance_id`）与**账户级版本**
+- 验证: `python scripts/check_evidence_index.py --summary` ok（355 条 / failed=0 / verified_files=85，批处理后 1.9s）；`python -m pytest tests/scripts/test_check_evidence_index.py --no-cov`（26 通过，**显式可写 `--basetemp=reports/harness/.pytest-tmp-b31`，规避默认临时目录 WinError 5**）；`git diff --check`（仅 LF→CRLF 提示）；ruff check 通过；`python scripts/check_file_sizes.py` OK（402 文件）；`python scripts/check_project.py --skip-tests` 质量门禁通过（仅存量警告）；`python -m pytest tests/test_red_line_rules.py -q --tb=short --no-cov`（29 通过）
+- changed_files: docs/harness-engineering/adr/0008-accounting-core-consistency.md；docs/harness-engineering/adr/README.md；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md；docs/specs/2026-08-12-member-loyalty-followup-data-import.md；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md；项目进度与配置清单.md；LOGBOOK.md；reports/harness/handoff-b31-accounting-contract-20260815-b31.md（新，gitignored）
+- residual_risks: ADR 0008 仍为 proposed；B3.1 收口后由项目负责人做**一次最终全范围复核**再决定 master fast-forward 与 D1 放行；支付 / 退款 / epoch / 券对账均为实施阶段落地；截至 2027-05-31 仅开发测试边界不变，不部署、不开放资产写操作
+- 版本: 0.132.6（B3.1 为 docs-only 纯治理/设计文档，无代码文件变更，sync-version 不递增）
+
 ## [2026-08-15] - docs(governance): 账务核心合同收口 B3（B2.0 评审 9 项一次性收口）
 
 - 操作者: AI (Codex)

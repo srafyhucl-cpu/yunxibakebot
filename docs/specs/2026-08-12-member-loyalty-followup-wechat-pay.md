@@ -40,9 +40,10 @@
 1. 真实 JSAPI 支付：充值 / 组合支付差额走微信 JSAPI，验证统一下单、调起支付、支付成功回调。
 2. 支付通知回调幂等：重复通知不重复入账、不重复发分 / 核销。
 3. 金额校验：微信通知金额与 `remain_fen`（= `compute_remain_fen(total, coupon, balance, points)`，含券/余额/积分抵扣）严格一致，防篡改。
-4. 取消与退款：取消 / 超时 / 后台取消按 `payment.balanceFen` 原路退款；余额全额支付退款走余额原路退回。
+4. 取消与退款：取消 / 超时 / 后台取消按 **`payment_attempt.payment_snapshot_json` 资产分摊**原路退款（**B3.1：`order.payment` 仅展示缓存，余额腿按快照 `balance_fen` 原路退回——删除 `payment.balanceFen` 旧退款口径**）；余额全额支付退款走余额原路退回。
 5. 边界值验证：`amountFen=50000` 恰好等于上限的边界行为（60000 超限 400 已有证据）。
 6. 生产端到端证据归档：微信登录 → 下单 → 支付 → 回调 → 账务入账 → 退款 / 关单，证据索引 / LOGBOOK 收口（独立 trace_id）。
+7. **唯一事实与迁移（B3.1）**：真实支付验收前按 [ADR 0008 D1-0](../harness-engineering/adr/0008-accounting-core-consistency.md) 完成**逐端点迁移核对**（旧写路径禁用 / 转发）与**历史未完成处置**（未完成订单 / 充值单回填 `payment_attempt` 或 `manual_review`），**"历史待处理为 0"**（无未归属回调 / 未处置 `prepay_unknown` / 未查询退款 / 未决 `manual_review`）作为阶段二放行证据之一。
 
 ## 验收标准
 

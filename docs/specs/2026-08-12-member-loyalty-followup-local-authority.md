@@ -33,7 +33,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 | 优惠券（`coupon_inventory`） | youzan | local | **有效券基线迁移**；切换水位线；写入围栏；影子读对账；观察期 |
 | 会员身份（`member_balance` / `customer_identity_links`） | Platform 本地投影 | Platform 本地投影（**一致性核对，非切换**） | 与有赞身份归属核对一致 |
 
-积分与优惠券**拆为两个独立切换窗口**（先积分窗口、后优惠券窗口，各自完成部署 / 观察 / 不可逆前中止演练后再进入下一个），禁止同窗口同时部署两个 authority 开关；进程级配置全量切换不等同灰度——**事件按 authority epoch 路由（B2.0 协议，见 D 节），消费端不得读取进程级环境变量判定权威**。
+积分与优惠券**拆为两个独立切换窗口**（先积分窗口、后优惠券窗口，各自完成部署 / 观察 / 不可逆前中止演练后再进入下一个），禁止同窗口同时部署两个 authority 开关；进程级配置全量切换不等同灰度——**事件按 authority epoch 路由（B2.0 协议，见 D 节），消费端不得读取进程级环境变量判定权威**；**（B3.1）切换动作 = 持久化 `authority_epoch_current` 单指针原子发布（插入 `authority_epoch` 行 + 更新指针同一事务），进程级配置仅作部署默认值，不作为切换动作**。
 
 ### 裁决记录（每个工作包执行前必填）
 
@@ -45,7 +45,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 
 1. 数据对账：本地 `member_balance.points` 与有赞 `total` 逐客户核对一致，差异清零或豁免。
 2. 事件语义确认：`local` 下有赞 `POINTS` 事件只写 `points_ledger` 审计镜像，不覆盖余额（已实现，需生产复验）。
-3. 观察窗口：以进程级开关在低峰窗口切换，观察期天数在执行前裁决记录中固定（项目负责人批准），比对本地余额与有赞变化；事件按 authority epoch 路由（B2.0 协议）。
+3. 观察窗口：**按 D2 协议以持久化 epoch 切换（B3.1：`authority_epoch_current` 单指针原子发布，不以进程级开关作为切换动作；配置默认值与持久指针不一致即 `/ready=false`）**，在低峰窗口切换，观察期天数在执行前裁决记录中固定（项目负责人批准），比对本地余额与有赞变化；事件按 authority epoch 路由（B2.0 + B3.1 协议）。
 
 ### B. 优惠券切换（新增迁移与围栏）
 
@@ -56,8 +56,9 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 3. **切换水位线（B1.7 唯一水位）**：以 **`inbox_events.id`** 为唯一切换水位（AUTOINCREMENT 不可变），**不用时间戳、不引入事件派生游标**；水位线之后到达的 `webhook` 券事件按 `local` 语义写入 `coupon_events`，杜绝双写。
 4. **写入围栏**：切换后本地写入期间，对有赞券管理端写入做围栏 / 停写确认，避免本地与有赞同时改券导致分裂。
 5. **影子读对账**：`local` 权威下继续影子读有赞券，定期对账差异（新增 / 核销 / 退回）。
-6. **稳定观察期**：观察期内每日对账，券核销 / 退回 / 到期行为一致，方可推进。
-7. **切换 / roll-forward 合同（固定，不再三选一）**：
+6. **受控外部 TAKE 摄取（B3.1，切换窗口内新券合法路径）**：切换窗口内外部新券（有赞新发券 `TAKE` 观察）**经受控摄取命令进入本地可用当前态**——观察只追加 `coupon_observation` 事实与 `coupon_reconcile_case` 案件（`external_take`），未决案件使券不可用；由本地摄取命令（携带过渡 epoch、`event_version` 版本校验、幂等键 `origin_event_id` / `transition_key`、审计关联）CAS 写入 `coupon_current_state=TAKE`——避免切换窗口内新券从本地可用列表消失（合同详见 ADR 0008 D1-B）。
+7. **稳定观察期**：观察期内每日对账，券核销 / 退回 / 到期行为一致，方可推进。
+8. **切换 / roll-forward 合同（固定，不再三选一）**：
    - `transition_key` 精确定义（B1.8 + B2.0）：`sha256(coupon_id + ":" + mobile + ":" + transition_type + ":" + business_ref + ":" + cycle_no + ":" + payment_attempt_id)`（不含来源；`transition_type ∈ {TAKE, RESERVE, RELEASE, CONSUME, BACK, EXPIRE}`，`payment_attempt_id` 仅订单路径携带，`RESERVE` 分配周期、`CONSUME` 复用）；`business_ref` 为 `order:<order_no>` / `refund:<refund_no>` / `take:<外部事件 ID>` / `import:<导入批次 ID>` / `legacy:<coupon_inventory.id>`（**legacy 同样走统一公式**，无独立例外）；`origin_event_id` 须为可跨 import/webhook 对齐的上游稳定 ID，导入批次行 ID 不默认等同 webhook `msg_id`，缺失隔离待对账。
    - 状态迁移表：`初始 → TAKE → RESERVE → RESERVED → RELEASE/TAKE → CONSUME → BACK → TAKE`（多周期）与 `TAKE/RESERVED/CONSUME → EXPIRE`，禁止跳转；**无 `TAKE → CONSUME` 直核**（仅本地订单命令可迁移状态，外部观察只投影或进对账，见 ADR 0008 D1-B）。
    - 迟到 / 乱序事件：按事件版本合同（`event_version` / `ordering_kind` / `payload_hash`）判定新旧，**禁止以 `(occurred_at, id)` 承担因果语义**（仅作同源展示序）；不可比冲突进入对账队列。
@@ -71,7 +72,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 
 ### D. 收口
 
-1. 二次部署：按两个独立切换窗口分别部署——先 `POINTS_AUTHORITY=local` 窗口（观察通过后再开下一窗口），再 `COUPON_AUTHORITY=local` 窗口；每窗口各自 `/health` `/ready` 与核心 API 回验。
+1. 二次部署：按两个独立切换窗口分别部署——先**积分窗口**（`authority_epoch_current` 指针更新为 `points_mode=local`，观察通过后再开下一窗口），再**券窗口**（`coupon_mode=local`）；每窗口各自 `/health` `/ready`（**B3.1：部署配置默认值与持久 epoch 指针不一致即 `ready=false`，禁止以配置覆盖持久 epoch 作为切换动作**）与核心 API 回验。
 2. **有赞小程序下线**：仅在本工作包及 FP-4 正式发布完成后执行；下线前与有赞运营协调，确认无在途用户。
 3. LOGBOOK / 证据索引收口，使用独立 trace_id；M3 / M4 生产部署证据条目一并补齐。
 
@@ -80,11 +81,11 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 > 背景：`inbox_events.id` 只是到达水位，事件可能在切换前入队、切换后才被消费；当前 consumer 又读取进程级 authority（`POINTS_AUTHORITY` / `COUPON_AUTHORITY`）。B2.0 一次性定义围栏与路由协议；**B3 增补不可变资产权威矩阵、同事务入队与 claim token（合同详见 [ADR 0008 D1-D](../harness-engineering/adr/0008-accounting-core-consistency.md)，本节为工作包视角的执行协议）**。
 
 1. **入站事件 envelope**：入站消息除业务字段外统一携带 `authority_epoch_id`（入队时写入当时的权威纪元；纪元由 `authority_epoch` 表持久化，切换时新增一行）。
-2. **`authority_epoch` 不可变资产权威矩阵（B3，评审问题 6）**：单个纪元不再只记录一个值，而是记录 `points_mode / coupon_mode / identity_mode` 的**不可变矩阵**（`epoch_id`、`activated_at`、`trace_id` 对应裁决记录）；切换只新增行、禁止更新已激活行——可表达"积分已切、券未切"的混合权威态，消费端按事件携带的矩阵逐资产路由。
-3. **入队同事务围栏（B3）**：`InboxRepo.enqueue` 在同一事务内读取 active `authority_epoch` 并写入事件（`inbox_events.authority_epoch_id`），禁止入队后补读；`claim` 写入 `claim_token`，`mark_processed / mark_failed` 以 token 条件更新，陈旧 worker / dead-letter / 重启接管均以 token 校验（见 ADR 0008 D1-D）。
-4. **切换前队列围栏（fence）**：切换执行时——① 置 `queue_control.paused`（暂停 `youzan_webhook` 队列 claim）；② 排空 / 接管水位前所有 `received / processing / failed` 事件（处理完或标记接管）；③ 插入新 `authority_epoch`；④ 解除 `paused` 恢复消费。水位前事件按旧 epoch 处理，水位后事件按新 epoch 处理，杜绝"切换前入队、切换后按新语义消费"。
-5. **消费按事件记录的 epoch 路由**：消费者**不得读取进程级环境变量**判定权威；一律按事件 envelope 中的 `authority_epoch_id` 路由到对应处理语义（`youzan` / `local`）。进程级开关仅作为部署时的默认值，不作为运行时路由依据。
-6. **验收（B3 演练矩阵，隔离环境）**：切换中入队（水位前 / 后事件分别携带旧 / 新 epoch）；陈旧 worker 完成被拒（claim token 不匹配）；dead-letter 后接管；进程重启恢复（lease 过期重领后 token 校验通过）；混合 epoch（积分已切、券未切）逐资产路由正确；混入企微队列事件被过滤；`authority_epoch` 持久化且可审计。
+2. **`authority_epoch` 不可变资产权威矩阵（B3，评审问题 6）+ 单指针（B3.1）**：单个纪元不再只记录一个值，而是记录 `points_mode / coupon_mode / identity_mode` 的**不可变矩阵**（`epoch_id`、`activated_at`、`trace_id` 对应裁决记录）；切换只新增行、禁止更新已激活行——可表达"积分已切、券未切"的混合权威态，消费端按事件携带的矩阵逐资产路由。**（B3.1）新增单行指针表 `authority_epoch_current`**（`epoch_id` / `activated_at` / `updated_at` / `trace_id`，单行或等价单调 epoch 编号）——入队端与消费端只读当前指针判定当前权威；**入队与读取当前 epoch 必须在同一写事务**。
+3. **入队同事务围栏（B3）**：`InboxRepo.enqueue` 在同一事务内读取 active `authority_epoch`（B3.1：读 `authority_epoch_current` 指针）并写入事件（`inbox_events.authority_epoch_id`），禁止入队后补读；`claim` 写入 `claim_token`，`mark_processed / mark_failed` 以 token 条件更新，陈旧 worker / dead-letter / 重启接管均以 token 校验（见 ADR 0008 D1-D）。
+4. **切换前队列围栏（fence + B3.1 原子发布 / quarantine）**：切换执行时——① 置 `queue_control.paused`（暂停 `youzan_webhook` 队列 claim）；② 排空 / 接管水位前所有 `received / processing / failed` 事件（处理完或标记接管；**B3.1：未完成且未 quarantine 的事件禁止切换——被接管事件标记 `quarantined`，不可执行业务写入，仅记录 / 审计由人工或对账处置**）；③ 插入新 `authority_epoch` 并**同一事务**更新 `authority_epoch_current` 指针（**B3.1 原子发布，无中间态**）；④ 解除 `paused` 恢复消费。水位前事件按旧 epoch 处理，水位后事件按新 epoch 处理，杜绝"切换前入队、切换后按新语义消费"。
+5. **消费按事件记录的 epoch 路由 + readiness（B3.1）**：消费者**不得读取进程级环境变量**判定权威；一律按事件 envelope 中的 `authority_epoch_id` 路由到对应处理语义（`youzan` / `local`）。进程级开关仅作为部署时的默认值，不作为运行时路由依据。**（B3.1）进程启动时校验部署配置默认值与持久化 `authority_epoch_current` 指针——不一致即 `/ready=false`（fail-closed），禁止以配置覆盖持久 epoch 作为切换动作**。
+6. **验收（B3 + B3.1 演练矩阵，隔离环境）**：切换中入队（水位前 / 后事件分别携带旧 / 新 epoch）；陈旧 worker 完成被拒（claim token 不匹配）；dead-letter 后接管；进程重启恢复（lease 过期重领后 token 校验通过）；混合 epoch（积分已切、券未切）逐资产路由正确；混入企微队列事件被过滤；`authority_epoch` 持久化且可审计。**（B3.1）切换指针原子发布（发布前后无中间态）；旧 epoch 事件 quarantine 后切换；配置默认值与持久 epoch 不一致 → readiness 失败；`query_generation` 陈旧查询回写拒绝。**
 
 ## 验收标准
 
@@ -92,7 +93,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 - 有效券基线迁移后，已有有效券在 `local` 下仍可查询、可核销。
 - 切换水位线（唯一 `inbox_events.id`）、写入围栏、影子读对账均有运行记录，观察期无差异漂移。
 - 唯一键冲突解除设计（ADR 0008 `coupon_events.transition_key` 唯一模型）在隔离环境验证通过，local 状态可正常写入。
-- **队列围栏与 epoch 路由（B2.0 + B3）**：切换前暂停 claim、排空 / 接管水位前事件、插入新 `authority_epoch` 后恢复消费；消费按事件 epoch 路由，不读进程级环境变量；**`authority_epoch` 为不可变资产权威矩阵（points/coupon/identity 各模式，可表达混合权威态）**；**enqueue 同事务写 active epoch、claim token 条件完成（陈旧 worker 拒绝）**；围栏演练覆盖切换中入队、陈旧 worker、dead-letter、重启与混合 epoch。
+- **队列围栏与 epoch 路由（B2.0 + B3 + B3.1）**：切换前暂停 claim、排空 / 接管水位前事件、插入新 `authority_epoch` 后恢复消费；消费按事件 epoch 路由，不读进程级环境变量；**`authority_epoch` 为不可变资产权威矩阵（points/coupon/identity 各模式，可表达混合权威态）**；**enqueue 同事务写 active epoch、claim token 条件完成（陈旧 worker 拒绝）**；围栏演练覆盖切换中入队、陈旧 worker、dead-letter、重启与混合 epoch；**（B3.1）`authority_epoch_current` 单指针 + 原子发布（插入 epoch 行与更新指针同一事务）、quarantine（旧 epoch 事件完成或隔离后才可切换）、readiness 一致性检查（配置默认值与持久指针不一致即 `ready=false`）**；受控外部 TAKE 摄取命令在切换窗口内使新券可用（观察只追加事实与案件，未决案件使券不可用）。
 - RPO / RTO 达成并演练；不可逆（仅 roll-forward）风险已列为正式放行显式审批项。
 - 有赞小程序下线后，Platform 本地账务域成为唯一数据权威，小程序作为唯一用户入口，无业务中断。
 
