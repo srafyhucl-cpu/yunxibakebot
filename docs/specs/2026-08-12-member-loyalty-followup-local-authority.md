@@ -60,7 +60,7 @@ M3 与 M4 第一阶段已上线 `POINTS_AUTHORITY=youzan`、`COUPON_AUTHORITY=yo
 7. **切换 / 回滚合同（固定，不再三选一）**：
    - `transition_key` 精确定义（B1.8）：`sha256(coupon_id + ":" + mobile + ":" + transition_type + ":" + business_ref + ":" + cycle_no + ":" + payment_attempt_id)`（不含来源；`transition_type ∈ {TAKE, RESERVE, RELEASE, CONSUME, BACK, EXPIRE}`，`payment_attempt_id` 仅订单路径携带，`RESERVE` 分配周期、`CONSUME` 复用）；`business_ref` 为 `order:<order_no>` / `refund:<refund_no>` / `take:<外部事件 ID>` / `import:<导入批次 ID>` / `legacy:<coupon_inventory.id>`；`origin_event_id` 须为可跨 import/webhook 对齐的上游稳定 ID，导入批次行 ID 不默认等同 webhook `msg_id`，缺失隔离待对账。
    - 状态迁移表：`初始 → TAKE → RESERVE → RESERVED → RELEASE/TAKE → CONSUME → BACK → TAKE`（多周期）与 `TAKE/RESERVED/CONSUME → EXPIRE`，禁止跳转。
-   - 迟到 / 乱序事件：按 `occurred_at` 追加事件行后重算投影，不改写既有事件；投影按 `(occurred_at, id)` 单调聚合。
+   - 迟到 / 乱序事件：按事件版本合同（`event_version` / `ordering_kind` / `payload_hash`）判定新旧，**禁止以 `(occurred_at, id)` 承担因果语义**（仅作同源展示序）；不可比冲突进入对账队列。
    - 跨来源重复事件：`transition_key` 含来源无关逻辑键（含类型与支付尝试），同一 `transition_key` / 同一可证实对齐的 `origin_event_id` 幂等拒绝，不同来源不再互相占用唯一键位。
    - 切换执行前先产出设计文档（表结构变更、投影查询、迁移批次与停写窗口、roll-forward 补偿规则与回滚条件），未通过该设计评审不得执行切换。
 

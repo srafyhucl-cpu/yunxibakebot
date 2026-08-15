@@ -1,16 +1,19 @@
 """检查 Harness evidence index 结构是否可机器读取。
 
-工件级引用与完整性合同（B1.7 口径）：
-- `file` 中每个引用必须是工件级前缀 `repo:/local:/production:/external:` 或
-  http(s) URL，禁止裸路径（绝对或相对）。
+工件级引用与完整性合同（B1.9 口径）：
+- `file` 中每个引用必须是工件级前缀 `git:/repo:/local:/production:/external:`
+  或 http(s) URL，禁止裸路径（绝对或相对）。
+- `git:<commit>:<path>`（B1.9 起）：仓库工件绑定**不可变提交**，按该提交的
+  git blob 校验哈希；blob 缺失或 sha256 缺项/不匹配阻断。历史条目绑定其
+  引入提交，禁止以当前工作树重写。
 - 每个条目必须含 `storage_scope`（repository / local / production / external），
   作为**摘要字段**描述证据主要存放域；工件级 scope 以每个 `file` 引用的前缀为准，
-  多存储域条目（如 repo + production）允许单一摘要值。
-- `sha256`：对 `repo:` **文件**工件必填并校验匹配（缺失或漂移阻断）；`local:`
-  工件为 gitignore 生成物，哈希可选、仅校验格式，不强制匹配；`production:` /
-  `external:` 不本地核验；`docs/harness-engineering/core/evidence-index.md`
-  自身按 registry 处理（自引用哈希必然漂移）。
-- 仓内（repo:）工件缺失或哈希缺项必须阻断；本地留存工件缺失仅登记不阻断。
+  多存储域条目允许单一摘要值。`commit_sha`（B1.9 起）记录条目绑定提交。
+- `sha256`：`git:` / `repo:` 文件工件必填并校验匹配；`local:` 工件为 gitignore
+  生成物，哈希可选、仅校验格式，不强制匹配；`production:` / `external:` 不本地
+  核验；`docs/harness-engineering/core/evidence-index.md` 自身按 registry 处理
+  （自引用哈希必然漂移）。
+- 仓内工件缺失或哈希缺项必须阻断；本地留存工件缺失仅登记不阻断。
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,7 +67,7 @@ ALLOWED_RESULTS = frozenset({"pass", "fail", "partial", "partial-pass"})
 ALLOWED_SENSITIVE_FLAGS = frozenset({"yes", "no"})
 ALLOWED_EVIDENCE_STATUSES = frozenset({"active", "retired"})
 ALLOWED_STORAGE_SCOPES = frozenset({"repository", "local", "production", "external"})
-REFERENCE_PREFIXES = ("repo:", "local:", "production:", "external:")
+REFERENCE_PREFIXES = ("repo:", "local:", "production:", "external:", "git:")
 PREFLIGHT_CONTRACT_EVIDENCE_ID = "E-20260706-001"
 PREFLIGHT_CONTRACT_REQUIRED_SNIPPETS = (
     "check_preflight_business_contracts.py",
@@ -206,7 +210,7 @@ def validate_entries(entries: tuple[EvidenceEntry, ...]) -> list[str]:
 
 
 def _parse_reference(reference: str) -> tuple[str, str]:
-    """拆解工件级引用，返回 (scope, 去前缀引用)。scope ∈ repo/local/production/external/url/裸路径。"""
+    """拆解工件级引用，返回 (scope, 去前缀引用)。scope ∈ git/repo/local/production/external/url/裸路径。"""
     norm = reference.strip().replace("\\", "/")
     if norm.startswith(("http://", "https://")):
         return "url", norm
@@ -214,6 +218,29 @@ def _parse_reference(reference: str) -> tuple[str, str]:
         if norm.startswith(prefix):
             return prefix[:-1], norm.split(":", 1)[1].lstrip("/")
     return "", norm
+
+
+_GIT_BLOB_CACHE: dict[str, str] = {}
+
+
+def _git_blob_sha256(commit_path: str) -> str | None:
+    """按 `git:<commit>:<path>` 的 commit:path 计算 git blob 内容的 sha256。"""
+    if commit_path in _GIT_BLOB_CACHE:
+        return _GIT_BLOB_CACHE[commit_path] or None
+    try:
+        proc = subprocess.run(
+            ["git", "cat-file", "blob", commit_path],
+            cwd=ROOT_DIR,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        proc = None
+    if proc is None or proc.returncode != 0:
+        _GIT_BLOB_CACHE[commit_path] = ""
+        return None
+    digest = hashlib.sha256(proc.stdout).hexdigest()
+    _GIT_BLOB_CACHE[commit_path] = digest
+    return digest
 
 
 def _collect_file_integrity(
@@ -230,10 +257,55 @@ def _collect_file_integrity(
         file_like_refs = {
             _parse_reference(ref)[1]
             for ref in FILE_REFERENCE_RE.findall(entry.fields.get("file", ""))
-            if _parse_reference(ref)[0] in ("repo", "local")
+            if _parse_reference(ref)[0] in ("repo", "local", "git")
         }
         for reference in FILE_REFERENCE_RE.findall(entry.fields.get("file", "")):
             scope, rel = _parse_reference(reference)
+            if scope == "git":
+                commit, sep, git_path = rel.partition(":")
+                if not sep or not commit or not git_path:
+                    issues.append(f"{entry.entry_id}: git 引用格式错误 `{reference}`")
+                    continue
+                commit_path = f"{commit}:{git_path}"
+                digest = _git_blob_sha256(commit_path)
+                if digest is None:
+                    issues.append(f"{entry.entry_id}: git 工件缺失 `{reference}`")
+                    integrity.append(
+                        {
+                            "path": commit_path,
+                            "exists": False,
+                            "sha256": "",
+                            "kind": "git-blob-missing",
+                        }
+                    )
+                    continue
+                base_name = Path(git_path).name
+                if re.fullmatch(r"[0-9a-f]{64}", recorded_sha):
+                    expected = recorded_sha if digest == recorded_sha else None
+                else:
+                    expected = (
+                        sha_map.get(git_path)
+                        or sha_map.get(reference.strip().replace("\\", "/"))
+                        or sha_map.get(base_name)
+                    )
+                if expected is None:
+                    issues.append(
+                        f"{entry.entry_id}: git 工件缺少 sha256 `{reference}`"
+                    )
+                elif expected != digest:
+                    issues.append(
+                        f"{entry.entry_id}: sha256 mismatch for `{reference}` "
+                        f"(recorded {expected[:12]}.., actual {digest[:12]}..)"
+                    )
+                integrity.append(
+                    {
+                        "path": commit_path,
+                        "exists": True,
+                        "sha256": digest,
+                        "kind": "git-blob",
+                    }
+                )
+                continue
             if scope in ("production", "external", "url"):
                 continue
             if scope not in ("repo", "local"):

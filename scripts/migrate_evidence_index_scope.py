@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""把 evidence-index.md 迁移到工件级引用与完整性 schema（B1.6）。
+"""把 evidence-index.md 迁移到不可变 git blob 证据模型（B1.6 → B1.9）。
 
-对每个证据条目做机械迁移：
-1. `file` 字段中的引用统一为工件级前缀：
-   - D:/Project/YunxiBakeBot/<rel>（或反斜杠变体）→ `repo:<rel>`（reports/harness 下为 `local:<rel>`）
-   - /opt/... → `production:<abs>`
-   - 其他绝对路径 → `external:<abs>`
-   - 裸相对路径 → `repo:<rel>`
-   - 已是前缀 / http(s) → 保留
-2. 补充 `storage_scope`（repository / local / production / external，按 file 引用优先级判定）。
-3. 为 repo: 文件引用补充 `sha256`（目录引用不哈希）；已有 sha256 的条目保留。
+对每个证据条目做一次性机械迁移：
+1. `file` 引用统一为工件级前缀（repo:/local:/production:/external:/git:）。
+2. 补充 `storage_scope`（条目级摘要字段）与 `commit_sha`（条目绑定提交）。
+3. **`repo:<path>` 转换为 `git:<commit>:<path>`**：commit 为该条目引入提交
+   （已有 `commit_sha` 字段则沿用），sha256 取该提交下 git blob 内容的
+   sha256——绑定不可变提交，之后**禁止以当前工作树刷新历史哈希**。
 
-幂等：已带前缀的引用、已有 storage_scope / sha256 的条目不重复处理。
+幂等：已有 commit_sha 且引用已全部为 git:/local:/production:/external: 且
+sha256 已存在的条目不重复处理（不会覆盖既有哈希）。
 运行：python scripts/migrate_evidence_index_scope.py [--dry-run]
 """
 
@@ -21,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,10 +31,11 @@ except Exception:
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_INDEX = ROOT_DIR / "docs" / "harness-engineering" / "core" / "evidence-index.md"
+INDEX_REL = "docs/harness-engineering/core/evidence-index.md"
 ENTRY_HEADING_RE = re.compile(r"^##\s+(E-\d{8}-\d{3})：(.+)$")
 FILE_REFERENCE_RE = re.compile(r"`([^`]+)`")
-REFERENCE_PREFIXES = ("repo:", "local:", "production:", "external:")
-REGISTRY_REL = "docs/harness-engineering/core/evidence-index.md"
+REFERENCE_PREFIXES = ("repo:", "local:", "production:", "external:", "git:")
+REGISTRY_REL = INDEX_REL
 LEGACY_FILE_ALIASES = {
     "app/service/wecom/employee_agent_reply_guard.py": "app/service/wecom/employee_agent_mixed_reply.py",
     "app/service/wecom/employee_agent_order_list_guard.py": "app/service/wecom/intelligent_bot_order_lookup.py",
@@ -45,6 +45,62 @@ LEGACY_FILE_ALIASES = {
     "tests/service/llm": "tests/service/test_llm_provider.py",
     "tests/service/agents": "tests/service/agents/test_llm_factory.py",
 }
+
+_GIT_BLOB_CACHE: dict[str, str] = {}
+
+
+def _git(args: list[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=ROOT_DIR,
+        capture_output=True,
+    )
+
+
+def _find_entry_commit(entry_id: str, index_rel: str) -> str | None:
+    """查找引入该条目（entry id）的提交：git log -S 限定索引文件，取最早一条。"""
+    proc = _git(
+        [
+            "log",
+            "--reverse",
+            "--format=%H",
+            "-S",
+            entry_id,
+            "--",
+            index_rel,
+        ]
+    )
+    if proc.returncode != 0:
+        return None
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if line.strip():
+            return line.strip()
+    return None
+
+
+def _git_blob_sha256(commit: str, rel: str) -> str | None:
+    """按 `commit:rel` 读取 git blob 内容并计算 sha256。"""
+    commit_path = f"{commit}:{rel}"
+    if commit_path in _GIT_BLOB_CACHE:
+        return _GIT_BLOB_CACHE[commit_path] or None
+    proc = _git(["cat-file", "blob", commit_path])
+    if proc.returncode != 0:
+        _GIT_BLOB_CACHE[commit_path] = ""
+        return None
+    digest = hashlib.sha256(proc.stdout).hexdigest()
+    _GIT_BLOB_CACHE[commit_path] = digest
+    return digest
+
+
+def _last_commit_for_path(rel: str) -> str | None:
+    """最后一次修改该路径的提交（回退绑定用）。"""
+    proc = _git(["log", "--format=%H", "-1", "--", rel])
+    if proc.returncode != 0:
+        return None
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if line.strip():
+            return line.strip()
+    return None
 
 
 def _prefix_reference(reference: str) -> str:
@@ -79,6 +135,7 @@ def _prefix_reference(reference: str) -> str:
 def _scope_for_references(references: list[str]) -> str:
     for prefix, scope in (
         ("production:", "production"),
+        ("git:", "repository"),
         ("repo:", "repository"),
         ("local:", "local"),
         ("external:", "external"),
@@ -88,21 +145,55 @@ def _scope_for_references(references: list[str]) -> str:
     return "external"
 
 
-def _hash_repo_files(references: list[str]) -> list[tuple[str, str]]:
-    """为存在且为文件的 repo: 引用计算 sha256，返回 (rel, digest) 列表。"""
+def _bind_repo_ref_to_commit(reference: str, commit: str) -> str:
+    """把 `repo:<rel>` 绑定到 `git:<commit>:<rel>`。
+
+    文件在条目引入提交中不存在时按别名 / 最后修改提交回退；仍不存在（未跟踪
+    的本地调试文件）降级为 `local:<rel>`（gitignore 语义，哈希可选）。
+    """
+    rel = reference.split(":", 1)[1].lstrip("/").replace("\\", "/")
+    if rel == REGISTRY_REL:
+        return reference
+    candidates = [rel, LEGACY_FILE_ALIASES.get(rel, rel)]
+    for candidate in dict.fromkeys(candidates):
+        if _git_blob_sha256(commit, candidate) is not None:
+            return f"git:{commit}:{candidate}"
+    fallback = _last_commit_for_path(rel)
+    if fallback:
+        for candidate in dict.fromkeys(candidates):
+            if _git_blob_sha256(fallback, candidate) is not None:
+                return f"git:{fallback}:{candidate}"
+    return f"local:{rel}"
+
+
+def _transform_file_field(value: str, commit: str) -> tuple[str, list[str]]:
+    refs = FILE_REFERENCE_RE.findall(value)
+    replaced: dict[str, str] = {}
+    for ref in refs:
+        if ref in replaced:
+            continue
+        prefixed = _prefix_reference(ref)
+        if prefixed.startswith("repo:") and commit:
+            prefixed = _bind_repo_ref_to_commit(prefixed, commit)
+        replaced[ref] = prefixed
+    for old, new in replaced.items():
+        value = value.replace(f"`{old}`", f"`{new}`")
+    return value, list(replaced.values())
+
+
+def _hash_git_refs(references: list[str], commit: str) -> list[tuple[str, str]]:
+    """为绑定到给定提交的 git: 文件引用计算 blob sha256，返回 (rel, digest)。"""
     hashed: list[tuple[str, str]] = []
     for reference in references:
-        if not reference.startswith("repo:"):
+        if not reference.startswith("git:"):
             continue
-        rel = reference.split(":", 1)[1].lstrip("/").replace("\\", "/")
-        if rel == REGISTRY_REL:
+        rest = reference.split(":", 1)[1]
+        ref_commit, sep, rel = rest.partition(":")
+        if not sep or not ref_commit or not rel or rel == REGISTRY_REL:
             continue
-        actual_rel = LEGACY_FILE_ALIASES.get(rel, rel)
-        path = ROOT_DIR / actual_rel
-        if not path.exists() or path.is_dir():
-            continue
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        hashed.append((rel, digest))
+        digest = _git_blob_sha256(ref_commit, rel)
+        if digest is not None:
+            hashed.append((rel, digest))
     return hashed
 
 
@@ -114,62 +205,18 @@ def _format_hashes(hashed: list[tuple[str, str]]) -> str | None:
     return "；".join(f"{rel}={digest}" for rel, digest in hashed)
 
 
-def _merge_sha256(
-    existing: str,
-    hashed: list[tuple[str, str]],
-    refs: list[str],
-) -> str | None:
-    """合并既有 sha256 与最新 repo 哈希。
-
-    只保留指向 repo: 文件引用的哈希（local: 为可选/仅格式校验，生成物每次
-    运行会漂移）；纯 hex（单文件语义）先归属到恰好匹配该哈希的 repo 文件，
-    再被最新 repo 哈希覆盖。
-    """
-    repo_rels = {
-        ref.split(":", 1)[1].lstrip("/").replace("\\", "/")
-        for ref in refs
-        if ref.startswith("repo:")
-    }
-    repo_rels.discard(REGISTRY_REL)
-    merged: dict[str, str] = {}
-    if "=" in existing:
-        for part in existing.split("；"):
-            if "=" in part:
-                key, value = part.split("=", 1)
-                key = key.strip()
-                if key in repo_rels:
-                    merged[key] = value.strip()
-    elif re.fullmatch(r"[0-9a-f]{64}", existing.strip()):
-        for ref in refs:
-            if not ref.startswith("repo:"):
-                continue
-            rel = ref.split(":", 1)[1].lstrip("/").replace("\\", "/")
-            if rel == REGISTRY_REL:
-                continue
-            actual_rel = LEGACY_FILE_ALIASES.get(rel, rel)
-            path = ROOT_DIR / actual_rel
-            if not path.exists() or path.is_dir():
-                continue
-            if hashlib.sha256(path.read_bytes()).hexdigest() == existing.strip():
-                merged[rel] = existing.strip()
-                break
-    for rel, digest in hashed:
-        merged[rel] = digest
-    return _format_hashes(list(merged.items()))
+def _entry_commit(lines: list[str], entry_id: str, index_rel: str) -> str | None:
+    """条目绑定提交：已有 commit_sha 字段沿用，否则查引入提交。"""
+    for line in lines:
+        m = re.match(r"^-\s+commit_sha:\s*([0-9a-f]{40,64})\s*$", line)
+        if m:
+            return m.group(1)
+    return _find_entry_commit(entry_id, index_rel)
 
 
-def _transform_file_field(value: str) -> tuple[str, list[str]]:
-    refs = FILE_REFERENCE_RE.findall(value)
-    replaced: dict[str, str] = {}
-    for ref in refs:
-        if ref not in replaced:
-            replaced[ref] = _prefix_reference(ref)
-    for old, new in replaced.items():
-        value = value.replace(f"`{old}`", f"`{new}`")
-    return value, list(replaced.values())
-
-
-def _process_entry(lines: list[str]) -> tuple[list[str], int]:
+def _process_entry(
+    lines: list[str], entry_id: str, index_rel: str
+) -> tuple[list[str], int]:
     """迁移单个条目行块，返回 (新行, 修改计数)。"""
     changes = 0
     file_field_idx = next(
@@ -177,8 +224,10 @@ def _process_entry(lines: list[str]) -> tuple[list[str], int]:
     )
     if file_field_idx is None:
         return lines, changes
+
+    commit = _entry_commit(lines, entry_id, index_rel)
     raw_value = re.sub(r"^-\s+file:\s*", "", lines[file_field_idx])
-    new_value, refs = _transform_file_field(raw_value)
+    new_value, refs = _transform_file_field(raw_value, commit or "")
     if new_value != raw_value:
         lines[file_field_idx] = f"- file: {new_value}"
         changes += 1
@@ -188,26 +237,32 @@ def _process_entry(lines: list[str]) -> tuple[list[str], int]:
         for ref in refs
         if not ref.strip().startswith(("http://", "https://"))
     ]
+
     if not any(line.startswith("- storage_scope:") for line in lines):
         scope = _scope_for_references(prefixed_refs)
         lines.append(f"- storage_scope: {scope}")
         changes += 1
 
-    hashed = _hash_repo_files([ref for ref in prefixed_refs if ref.startswith("repo:")])
-    sha_index = next(
-        (i for i, line in enumerate(lines) if line.startswith("- sha256:")),
-        None,
-    )
-    if sha_index is None:
-        if hashed:
-            lines.append(f"- sha256: {_format_hashes(hashed)}")
-            changes += 1
-    else:
-        existing = re.sub(r"^-\s+sha256:\s*", "", lines[sha_index])
-        merged = _merge_sha256(existing, hashed, prefixed_refs)
-        if merged and merged != existing:
-            lines[sha_index] = f"- sha256: {merged}"
-            changes += 1
+    if commit and not any(line.startswith("- commit_sha:") for line in lines):
+        lines.append(f"- commit_sha: {commit}")
+        changes += 1
+
+    if commit:
+        hashed = _hash_git_refs(prefixed_refs, commit)
+        sha_index = next(
+            (i for i, line in enumerate(lines) if line.startswith("- sha256:")),
+            None,
+        )
+        if sha_index is None:
+            if hashed:
+                lines.append(f"- sha256: {_format_hashes(hashed)}")
+                changes += 1
+        else:
+            existing = re.sub(r"^-\s+sha256:\s*", "", lines[sha_index])
+            merged = _format_hashes(hashed)
+            if merged and merged != existing:
+                lines[sha_index] = f"- sha256: {merged}"
+                changes += 1
     return lines, changes
 
 
@@ -216,6 +271,7 @@ def migrate(path: Path = DEFAULT_INDEX, *, dry_run: bool = False) -> int:
     if not path.exists():
         print(f"[migrate-evidence] FAIL：找不到索引 {path}", file=sys.stderr)
         return 1
+    index_rel = path.resolve().relative_to(ROOT_DIR.resolve()).as_posix()
     text = path.read_text(encoding="utf-8-sig")
     out_lines: list[str] = []
     current: list[str] = []
@@ -227,14 +283,18 @@ def migrate(path: Path = DEFAULT_INDEX, *, dry_run: bool = False) -> int:
         if ENTRY_HEADING_RE.match(raw_line):
             if current:
                 entry_count += 1
-                new_lines, changes = _process_entry(current)
+                new_lines, changes = _process_entry(
+                    current, ENTRY_HEADING_RE.match(current[0]).group(1), index_rel
+                )
                 total_changes += changes
                 out_lines.extend(new_lines)
             current = [raw_line]
         elif re.match(r"^##\s+", raw_line):
             if current:
                 entry_count += 1
-                new_lines, changes = _process_entry(current)
+                new_lines, changes = _process_entry(
+                    current, ENTRY_HEADING_RE.match(current[0]).group(1), index_rel
+                )
                 total_changes += changes
                 out_lines.extend(new_lines)
             current = []
@@ -245,7 +305,9 @@ def migrate(path: Path = DEFAULT_INDEX, *, dry_run: bool = False) -> int:
             out_lines.append(raw_line)
     if current:
         entry_count += 1
-        new_lines, changes = _process_entry(current)
+        new_lines, changes = _process_entry(
+            current, ENTRY_HEADING_RE.match(current[0]).group(1), index_rel
+        )
         total_changes += changes
         out_lines.extend(new_lines)
 
@@ -260,7 +322,9 @@ def migrate(path: Path = DEFAULT_INDEX, *, dry_run: bool = False) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="迁移 evidence index 到工件级引用")
+    parser = argparse.ArgumentParser(
+        description="迁移 evidence index 到不可变 git blob 模型"
+    )
     parser.add_argument("--path", default=str(DEFAULT_INDEX), help="索引路径")
     parser.add_argument("--dry-run", action="store_true", help="只统计不写回")
     return parser
