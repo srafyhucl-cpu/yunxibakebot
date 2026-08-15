@@ -1,3 +1,20 @@
+## E-20260815-002：B1.9 账务核心合同收口治理校验
+
+- trace_id: 20260815-member-loyalty-accounting-contract-b19
+- generated_at: 2026-08-15
+- evidence_type: governance/accounting-contract-b19
+- file: `git:65198ec82711021672a8b515147d3d788124ebe5:docs/harness-engineering/adr/0008-accounting-core-consistency.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:docs/harness-engineering/adr/0007-local-authority-cutover.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:docs/specs/2026-08-12-member-loyalty-followup-data-import.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:docs/specs/2026-08-12-member-loyalty-followup-local-authority.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md`；`git:65198ec82711021672a8b515147d3d788124ebe5:scripts/check_evidence_index.py`；`git:65198ec82711021672a8b515147d3d788124ebe5:scripts/migrate_evidence_index_scope.py`；`git:65198ec82711021672a8b515147d3d788124ebe5:LOGBOOK.md`；`local:reports/harness/handoff-b18-accounting-contract-20260815-b18.md`
+- commit_sha: 65198ec82711021672a8b515147d3d788124ebe5
+- command: `python scripts/check_evidence_index.py --summary`（352 条 / failed=0 / verified_files=83）；`python -m pytest tests/scripts/test_verify_secrets_baseline.py tests/scripts/test_check_evidence_index.py tests/scripts/test_migrate_evidence_index_scope.py --no-cov`（32 通过）；`python scripts/verify_secrets_baseline.py`（exit 0）；`python -m ruff check/format`；`python scripts/check_file_sizes.py`；`python scripts/check_project.py --skip-tests`；`git diff --check`
+- result: pass
+- related_logbook: 2026-08-15 - docs(governance): 账务核心合同收口 B1.9（支付主体/不可变快照/分派状态机/因果版本/受控测试门禁/不可变证据模型）
+- related_adr: 0008-accounting-core-consistency
+- contains_sensitive_data: no
+- retention_note: 只记录验证命令、条目数与守卫结论；不含密钥、客户数据或订单明细。
+- summary: B1.9 合同收口治理校验：支付主体 `subject_type + subject_id + provider`（仅 wechat 强制商户单号唯一）与完整不可变 `payment_snapshot_json`、每主体唯一活跃尝试 / 重复通知幂等 ACK / 冲突过期进对账、`refund_aggregate.payment_attempt_id NOT NULL` 且额度行结算同 UoW 初始化；微信退款分派状态机（仅 `confirmed_not_refunded` 释放预占）；事件版本合同（provider/event_id/event_version/ordering_kind/payload_hash，删除 `(occurred_at,id)` 因果语义，cycle_no CAS 分配）；FP-4B1 受控测试账号 `controlled_test/open` 后端门禁；唯一 DAG 与券门禁执行既定裁决、ADR 0007/FP-3 术语统一；不可变证据模型（commit_sha + git blob 校验，历史哈希不再被工作树刷新）。ADR 0008 仍为 proposed；B1.9 完成后重跑完整 checklist，再决定 fast-forward 双 master 与批准 D1。
+
+- storage_scope: repository
+- sha256: docs/harness-engineering/adr/0008-accounting-core-consistency.md=8e90ef2b8e07118d833083327f9f5ddf85050e04b6d7a4b4f021edb9e24e337d；docs/harness-engineering/adr/0007-local-authority-cutover.md=4d6b06bc0e052807a6c48315f67a7aea9f8b1ca9dad3bc8c80e107e69711bee6；docs/specs/2026-08-12-member-loyalty-followup-data-import.md=5fe376d6b6f10a2ecfb4a3b60d47f9d7cabe65ea9bd5c78f25451925c9a917e8；docs/specs/2026-08-12-member-loyalty-followup-local-authority.md=49c23265d876e901011ba277f19a58c3e642419b2543428201d8f16cec70ff86；docs/specs/2026-08-12-member-loyalty-followup-wechat-pay.md=f45fc232186f7d5445cc9b36c41dc4b9d6e6f17e29a59ad06de440eab8f4e055；docs/specs/2026-08-12-member-loyalty-followup-miniapp-release.md=d68fa708fa309acb80939613586eb9a124565629e4c5649906dd2e16db2ea7ee；docs/specs/2026-08-12-member-loyalty-asset-matrix-design.md=16c4323466a71f0fbcdc08a6e46ebad0dcc47d1ea7adbcd3356b1689c522755a；scripts/check_evidence_index.py=36ed25259392fc5d461fabb7aef57a72078cc6112dbb45aaea669571ffbc4f81；scripts/migrate_evidence_index_scope.py=56e3feab6591ccb7d5c5b0d0389dd1ddb29c299b43b694749c0ab10752df71f1；LOGBOOK.md=8bf1bc57dc011ae667d5b37c16327dfdfda725281b5fdd19b52941cdedc71a64
 ## E-20260815-001：B1.8 账务核心合同修正治理校验
 
 - trace_id: 20260815-member-loyalty-accounting-contract-b18
