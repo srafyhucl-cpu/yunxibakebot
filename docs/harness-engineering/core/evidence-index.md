@@ -1,4 +1,21 @@
-## E-20260816-012：D1-A.1 复核代码整改包治理校验（复核 R1–R6，方案 B，验收固定五项）
+## E-20260816-013：D1-A.2 复核有界整改治理校验（复核 P1–P3，方案 B，只复核两项高风险验收）
+
+- trace_id: 20260816-accounting-d1a2-bounded-remediation
+- generated_at: 2026-08-16
+- evidence_type: governance/accounting-contract-d1a2-bounded-remediation
+- file: git:25669af:LOGBOOK.md；git:25669af:VERSION；git:25669af:项目进度与配置清单.md；git:25669af:docs/harness-engineering/adr/0008-accounting-core-consistency.md；git:25669af:docs/specs/2026-08-16-accounting-d1a-runtime-remediation.md；git:25669af:app/service/payment/unified.py；git:25669af:app/service/points/payment.py；git:25669af:scripts/check_file_sizes.py；git:25669af:tests/service/test_payment_attempt_d1a.py；local:reports/harness/handoff-d1a2-bounded-20260816.md
+- commit_sha: 25669af
+- command: `git push origin/server HEAD:codex/r4c-ci-evidence` + `git ls-remote` 复核（审阅分支双远端均本归档提交，master 双远端保持 `b30b2066`）；**pre-commit 13 项 hook_id=status 清单（内容提交 25669af）**：detect-secrets=Passed；verify-secrets-baseline=Passed；sync-version=Passed（代码变更 patch 递增 0.132.13→0.132.14，进度清单表头注入）；check-logbook=Passed；check-file-sizes=Passed（unified / points 职责评审注记更新至 D1-A.2）；check-project=Passed（含「合同文档旧口径守卫」+「D1-0 直接写状态守卫」）；check-redline-selftest=Passed；check-mistake-ledger=Passed；check-evidence-index=Passed（本条目加入前）；check-text-encoding=Passed；ruff-check=Passed；ruff-format-check=Passed；mypy=Passed——**13 项全部 Passed**；`python scripts/check_evidence_index.py --summary`（E-013 加入后实测，sha256 映射与 `git cat-file` blob 一致）；`python -m pytest -q --no-cov -p no:cacheprovider --basetemp=D:\Temp\pytest-outside-repo-d1a`（**全量 exit=0**）；`python scripts/check_project.py --skip-tests`（质量门禁通过）；定向套件（全绿）：test_payment_attempt_d1a（31 项：原 24 + P1 故障注入 2 项（hold reserve 抛异常 / upsert_leg 抛异常 → held_*=0、无 active hold、无活跃 attempt、故障解除后重试并取消 held 归零）+ P2 参数化复发 5 项（redeem_missing / redeem_mismatch / account_missing / award_missing / award_mismatch：开案→人工关闭→同一异常再次退款→open 且版本递增））、test_stored_value（prepare 嵌套事务场景）、test_points_payment、test_coupon_payment、test_order；`git diff --check`（仅 LF→CRLF 提示）；ruff check/format、mypy（改动文件作用域无新增错误，剩余 186 项为未触碰文件基线）；`python scripts/check_file_sizes.py`（412 文件 OK）；环境性失败排除：tests/scripts/test_local_production_backup.py（备份目录必须位于 C 盘）与 test_run_isolated_remediation_harness.py 在默认 pytest tmp（非 C 盘）下失败，协议 `--basetemp` 下全部通过——与本次改动无关
+- result: pass
+- related_logbook: 2026-08-16 - docs(governance): D1-A.2 复核有界整改（P1 预占自有事务 + P2 退款案件统一重开 + P3 文档键统一，方案 B）
+- related_adr: 0008-accounting-core-consistency
+- contains_sensitive_data: no
+- retention_note: 只记录验证命令、hook 状态清单、条目数与守卫结论；不含密钥、客户数据或订单明细。
+- storage_scope: repository
+- sha256: LOGBOOK.md=1503c435f9fece7b9b10f946c3bc634b47481a3b72d6df217dd900a940b50509；VERSION=375ffe3126b15ec49467cc7f680399fb5642a9d3c927dce08249e0f129db52da；项目进度与配置清单.md=831b073266ac6b15750dfe92e56f6c3160688c8b44ac796ba20e28810d79ef0e；docs/harness-engineering/adr/0008-accounting-core-consistency.md=41fd57405160443fe471880ba9234879c65c0f82e682aa2d3da9743397e2938a；docs/specs/2026-08-16-accounting-d1a-runtime-remediation.md=79cd0806e65db24fced1b4036245f937f306f48088994cabc21338a992b752e0；app/service/payment/unified.py=a25d3733b13f23ebc542fca67551c7805c12e7269fc707b44433876836738169；app/service/points/payment.py=a5e2b80c4690e37a10ee36271e711670da1cede98cb9dbc03fc9cfe2800a4a66；scripts/check_file_sizes.py=e3416c2b5f6714e09e4be58fb9d8c6440b988fbd846fbf3ff8f9620877ee4765；tests/service/test_payment_attempt_d1a.py=6ea729f86c015503ffc902f3e5dcd4894cf3016924cd46bc99c989a8d76d8d7e
+- summary: D1-A.2 复核有界整改（项目负责人对 4596d7e/ab4b11b 复核 Go/No-Go=暂不通过、方案 B，整改后只复核两项高风险验收）：P1 预占自有事务（ensure_mock_attempt 预占整体包入 async with transaction()——写锁、attempt 创建、账户行预占、hold 审计、leg 写入任一数据库异常整体回滚，不留活跃 attempt/hold/账户预占；余额不足/账户缺失等业务失败在事务内完成 failed/manual_review 终态与释放后正常提交再于事务外抛出；预占事务内直接调 mark_* 原语，CAS 落空显式抛冲突，不经 _commit_attempt_state 内部 commit 以免 prepare_combined_payment 嵌套事务提前提交）；P2 退款案件统一重开（退款运行时全部案件写入 7 处统一走 ensure_open_case——account_missing / redeem_missing / redeem_mismatch / award_missing / award_mismatch，仅确认 open 后置案件标记）；P3 文档键统一（规格残留 hold:order:<id>:<asset> 统一为 hold:{payment_attempt_id}:<asset>）。R6 组合支付微信通知仍直接 mark_paid 绕过统一服务——D1-C 硬门槛，本轮不改代码，与 P8 outbox fencing 并列 D1-C 必须项。master 双远端保持 b30b2066 直至项目负责人按两项高风险验收复核放行；order.payment 仍为展示缓存（降级为引用是 D1-B 范围）；POINTS_DEDUCTION_FENCE 保持 True；2027-05-31 开发测试边界不变。
+
+
 
 - trace_id: 20260816-accounting-d1a1-runtime-remediation
 - generated_at: 2026-08-16
