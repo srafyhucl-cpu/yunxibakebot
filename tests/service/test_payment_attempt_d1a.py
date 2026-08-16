@@ -1620,4 +1620,252 @@ async def test_r5_cas_conflict_on_attempt_state_visible(
     assert attempt_final["status"] == "failed"
 
 
+# ==================== D1-A.2 复核 P1：预占自有事务（故障注入） ====================
+
+
+async def _assert_no_preclaim_residue(
+    db: aiosqlite.Connection, order_id: str, account_id: int
+) -> None:
+    """P1 断言：账户行 held 归零、无任何 attempt / hold 残留。"""
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points, held_stored_value_fen FROM member_balance "
+            "WHERE id = ?",
+            (account_id,),
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+    assert int(row["held_stored_value_fen"]) == 0
+    attempts = await db.execute_fetchall(
+        "SELECT COUNT(*) AS n FROM payment_attempt "
+        "WHERE subject_type = 'order' AND subject_id = ?",
+        (order_id,),
+    )
+    assert int(attempts[0]["n"]) == 0  # 无活跃（也无任何）attempt
+    holds = await db.execute_fetchall(
+        "SELECT COUNT(*) AS n FROM account_hold WHERE subject_id = ?", (order_id,)
+    )
+    assert int(holds[0]["n"]) == 0  # 无任何 hold 行（含 active）
+
+
+@pytest.mark.asyncio
+async def test_p1_fault_inject_hold_reserve_raises_no_residue(
+    db: aiosqlite.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1：预占整体包入自有事务——account_hold.reserve 抛异常 → 整体回滚。
+
+    账户行预占已写入后 hold 审计插入异常：held_* = 0、无 hold 行、无活跃
+    attempt（故障解除后可重试预占并取消，held 归零）。
+    """
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    real_reserve = AccountHoldRepo.reserve
+    boom = {"active": True}
+
+    async def _faulty_reserve(self, *args: object, **kwargs: object) -> bool:
+        if boom["active"]:
+            raise RuntimeError("故障注入：account_hold 写入异常")
+        return await real_reserve(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(AccountHoldRepo, "reserve", _faulty_reserve)
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    with pytest.raises(RuntimeError, match="故障注入"):
+        await unified.settle_mock_order(order)
+    await db.commit()
+    await _assert_no_preclaim_residue(db, order_id, account_id)
+    # 故障解除后同订单重试：新尝试预占成功 → 取消后 held 归零
+    boom["active"] = False
+    order_2 = await OrderRepo(db).get_order(order_id)
+    assert order_2 is not None
+    attempt = await unified.ensure_mock_attempt(order_2)
+    await db.commit()
+    assert attempt["status"] == "prepay_ready"
+    await unified.release_order_holds(
+        order_2, to_status="cancelled", reason="P1 故障注入重试取消"
+    )
+    await db.commit()
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points, held_stored_value_fen FROM member_balance "
+            "WHERE id = ?",
+            (account_id,),
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+    assert int(row["held_stored_value_fen"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_p1_fault_inject_leg_upsert_raises_no_residue(
+    db: aiosqlite.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1：预占整体包入自有事务——upsert_leg 抛异常 → 整体回滚。
+
+    账户行预占与 hold 审计已写入后 leg 写入异常：held_* = 0、无 hold 行、
+    无活跃 attempt（故障解除后可重试预占并取消，held 归零）。
+    """
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    real_upsert = PaymentAttemptRepo.upsert_leg
+    boom = {"active": True}
+
+    async def _faulty_upsert(self, *args: object, **kwargs: object) -> None:
+        if boom["active"]:
+            raise RuntimeError("故障注入：leg 写入异常")
+        await real_upsert(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(PaymentAttemptRepo, "upsert_leg", _faulty_upsert)
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    with pytest.raises(RuntimeError, match="故障注入"):
+        await unified.settle_mock_order(order)
+    await db.commit()
+    await _assert_no_preclaim_residue(db, order_id, account_id)
+    # 故障解除后同订单重试：新尝试预占成功 → 取消后 held 归零
+    boom["active"] = False
+    order_2 = await OrderRepo(db).get_order(order_id)
+    assert order_2 is not None
+    attempt = await unified.ensure_mock_attempt(order_2)
+    await db.commit()
+    assert attempt["status"] == "prepay_ready"
+    await unified.release_order_holds(
+        order_2, to_status="cancelled", reason="P1 故障注入重试取消"
+    )
+    await db.commit()
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points, held_stored_value_fen FROM member_balance "
+            "WHERE id = ?",
+            (account_id,),
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+    assert int(row["held_stored_value_fen"]) == 0
+
+
+# ============== D1-A.2 复核 P2：退款案件统一重开（参数化复发） ==============
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "redeem_missing",
+        "redeem_mismatch",
+        "account_missing",
+        "award_missing",
+        "award_mismatch",
+    ],
+)
+async def test_p2_refund_case_reopens_on_recurrence(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+    reason: str,
+) -> None:
+    """P2：退款运行时全部案件写入走 ensure_open_case——每种原因执行
+    「开案→人工关闭→同一异常再次退款」，断言案件为 open 且版本递增
+    （关闭后复发必为 open，杜绝 INSERT OR IGNORE 静默失败保持 closed）。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    await db.commit()
+    unique_id = (
+        f"points:refund:{order_id}:clawback"
+        if reason in ("award_missing", "award_mismatch")
+        else f"points:refund:{order_id}"
+    )
+    # 构造触发条件：同一异常在两次退款间持续存在
+    if reason == "redeem_missing":
+        await db.execute(
+            "DELETE FROM points_ledger WHERE unique_id = ?",
+            (f"points:redeem:{order_id}",),
+        )
+    elif reason == "redeem_mismatch":
+        await db.execute(
+            "UPDATE points_ledger SET amount = -9999 WHERE unique_id = ?",
+            (f"points:redeem:{order_id}",),
+        )
+    elif reason == "account_missing":
+        await db.execute("DELETE FROM member_balance WHERE id = ?", (account_id,))
+    elif reason == "award_missing":
+        await db.execute(
+            "DELETE FROM points_ledger WHERE unique_id = ?",
+            (f"points:award:{order_id}",),
+        )
+        await db.execute(
+            "DELETE FROM ledger_operation WHERE operation_type = 'settle_award' "
+            "AND subject_id = ?",
+            (order_id,),
+        )
+    else:  # award_mismatch
+        await db.execute(
+            "UPDATE ledger_operation SET amount = -9999 "
+            "WHERE operation_type = 'settle_award' AND subject_id = ?",
+            (order_id,),
+        )
+    await db.commit()
+    # 第一次退款 → 案件 open（对应原因）
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    await points_service.refund_points(order)
+    await db.commit()
+    case_rows = await db.execute_fetchall(
+        "SELECT id, status, version, reason FROM points_refund_reconcile "
+        "WHERE unique_id = ? ORDER BY id DESC",
+        (unique_id,),
+    )
+    assert case_rows, reason
+    case_id = int(case_rows[0]["id"])
+    assert case_rows[0]["status"] == "open"
+    assert case_rows[0]["reason"] == reason
+    first_version = int(case_rows[0]["version"])
+    # 人工关闭
+    await db.execute(
+        "UPDATE points_refund_reconcile SET status = 'closed', resolved_at = ?, "
+        "resolution = '人工核对结案', evidence_ref = 'manual-close' WHERE id = ?",
+        (now_text(), case_id),
+    )
+    await db.commit()
+    # 同一异常再次退款 → 复发必为 open 且版本递增
+    order_2 = await OrderRepo(db).get_order(order_id)
+    assert order_2 is not None
+    await points_service.refund_points(order_2)
+    await db.commit()
+    case_after = (
+        await db.execute_fetchall(
+            "SELECT status, version FROM points_refund_reconcile WHERE id = ?",
+            (case_id,),
+        )
+    )[0]
+    assert case_after["status"] == "open"
+    assert int(case_after["version"]) == first_version + 1
+
+
 __all__: list[str] = []

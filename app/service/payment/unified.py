@@ -87,104 +87,137 @@ class UnifiedPaymentApplicationService:
         腿金额：显式 leg_amounts 优先（余额路径结算前已知支付额），否则从
         支付快照推导（balanceFen / pointsFen / couponFen）。
         预占 = account_hold 审计行 + 账户行 held_* 原子占用（P3）。
+        D1-A.2（复核 P1）：预占整体包入自有事务——写锁、attempt 创建、账户行
+        预占、hold 审计、leg 写入任一数据库异常整体回滚，不得留下活跃 attempt
+        / hold / 账户预占的残缺状态；余额不足 / 账户缺失等业务失败在事务内
+        完成 failed / manual_review 终态与释放（正常提交），再于事务外抛出。
         """
         payment = loads_payment(order.payment)
         snapshot_mid = payment.get("memberBalanceId")
         member_balance_id = int(snapshot_mid) if snapshot_mid else None
-        # 预占串行化（D1-A 复核 P4）：先对订单行做无副作用条件写抢占写锁——
-        # WAL 下 SQLite 唯一索引只在语句级检查、提交不复查，两个并发
-        # INSERT OR IGNORE 可能都成功（双活跃尝试）。先到者持有写锁，
-        # 后者阻塞至其提交后重读，保证并发预占恰一个创建尝试。
-        await self._order_repo._db.execute(
-            "UPDATE orders SET updated_at = updated_at WHERE id = ?", (order.id,)
-        )
-        active = await self._attempt_repo.get_active("order", order.id)
-        if active is not None:
-            # 复用既有活跃尝试（重放 / 并发重复）：先校验支付计划一致性（P4）
-            await self._validate_attempt_consistency(order, active)
-            return active
-        # 已结算过的终态尝试（succeeded）：直接返回，settle 幂等判定不再新建尝试
-        latest = await self._attempt_repo.get_latest("order", order.id)
-        if latest is not None and latest["status"] == "succeeded":
-            return latest
-        snapshot_json = dumps_payment(payment)
-        snapshot_hash = sha256(snapshot_json.encode("utf-8")).hexdigest()
-        attempt = await self._attempt_repo.create_active(
-            subject_type="order",
-            subject_id=order.id,
-            provider=str(payment.get("method", "mock") or "mock"),
-            merchant_order_no=order.id,
-            snapshot_json=snapshot_json,
-            snapshot_hash=snapshot_hash,
-            member_balance_id=member_balance_id,
-        )
-        if attempt is None:
-            # 并发创建冲突（另一连接已建）：重读活跃尝试
-            attempt = await self._attempt_repo.get_active("order", order.id)
-            if attempt is None:
-                raise ValueError("支付尝试创建冲突且重读失败")
-            await self._validate_attempt_consistency(order, attempt)
-            return attempt
-        # 预占：先账户行原子占用（可用性校验），成功后才写审计 hold 行；
-        # 任一腿失败 → 余额不足转 failed（前置失败，B3.5 合同），账户缺失
-        # 直接抛账户型错误（settle 阶段一分流转 manual_review）；同时回滚
-        # 本尝试已占用的账户行预占与审计行（不泄漏 held）。
-        amounts = leg_amounts or self._leg_amounts_from_snapshot(payment)
-        for asset_type, amount_fen in amounts.items():
-            if amount_fen <= 0:
-                continue
-            if asset_type not in ("balance", "points"):
-                continue
-            if member_balance_id is None:
-                continue
-            if not await self._reserve_on_account(
-                asset_type, member_balance_id, amount_fen
-            ):
-                account_row = await self._balance_repo.get_by_id(member_balance_id)
-                if account_row is None:
-                    label = "储值账户" if asset_type == "balance" else "积分账户"
-                    raise PaymentAccountError(
-                        "account_missing",
-                        f"{label}不存在（已删除？），订单 {order.id} 不得发起支付",
-                    )
-                await self._rollback_partial_reserve(attempt)
-                await self._attempt_repo.mark_failed_preclaim(
-                    attempt["id"],
-                    attempt["state_version"],
-                    self._insufficient_message(asset_type, order.id),
-                )
-                await self._hold_repo.release_by_attempt(attempt["id"])
-                await self._attempt_repo.mark_legs_released(attempt["id"])
-                raise ValueError(self._insufficient_message(asset_type, order.id))
-            # R1：hold_key 按尝试维度（attempt-scoped）——同订单失败后重试的新尝试
-            # 必须能写入自己的活跃 hold；INSERT OR IGNORE 未新增（同键已存在）属
-            # 异常态，回滚本腿账户行预占并整体阻断（预占/审计/leg 同一事务，
-            # 任一失败或未新增都不允许留下 held 无 hold 行的泄漏态）
-            reserved = await self._hold_repo.reserve(
-                hold_key=f"hold:{attempt['id']}:{asset_type}",
+        failure_exc: BaseException | None = None
+        async with self._order_repo.transaction():
+            # 预占串行化（D1-A 复核 P4）：先对订单行做无副作用条件写抢占写锁——
+            # WAL 下 SQLite 唯一索引只在语句级检查、提交不复查，两个并发
+            # INSERT OR IGNORE 可能都成功（双活跃尝试）。先到者持有写锁，
+            # 后者阻塞至其提交后重读，保证并发预占恰一个创建尝试。
+            await self._order_repo._db.execute(
+                "UPDATE orders SET updated_at = updated_at WHERE id = ?", (order.id,)
+            )
+            active = await self._attempt_repo.get_active("order", order.id)
+            if active is not None:
+                # 复用既有活跃尝试（重放 / 并发重复）：先校验支付计划一致性（P4）
+                await self._validate_attempt_consistency(order, active)
+                return active
+            # 已结算过的终态尝试（succeeded）：直接返回，settle 幂等判定不再新建尝试
+            latest = await self._attempt_repo.get_latest("order", order.id)
+            if latest is not None and latest["status"] == "succeeded":
+                return latest
+            snapshot_json = dumps_payment(payment)
+            snapshot_hash = sha256(snapshot_json.encode("utf-8")).hexdigest()
+            attempt = await self._attempt_repo.create_active(
                 subject_type="order",
                 subject_id=order.id,
-                payment_attempt_id=attempt["id"],
-                asset_type=asset_type,
-                amount_fen=amount_fen,
+                provider=str(payment.get("method", "mock") or "mock"),
+                merchant_order_no=order.id,
+                snapshot_json=snapshot_json,
+                snapshot_hash=snapshot_hash,
                 member_balance_id=member_balance_id,
             )
-            if not reserved:
-                await self._clear_hold_on_account(
+            if attempt is None:
+                # 并发创建冲突（另一连接已建）：重读活跃尝试
+                attempt = await self._attempt_repo.get_active("order", order.id)
+                if attempt is None:
+                    raise ValueError("支付尝试创建冲突且重读失败")
+                await self._validate_attempt_consistency(order, attempt)
+                return attempt
+            # 预占：先账户行原子占用（可用性校验），成功后才写审计 hold 行；
+            # 任一腿失败 → 余额不足转 failed（前置失败，B3.5 合同），账户缺失
+            # 转 manual_review；终态与释放与预占同事务（D1-A.2 复核 P1）——
+            # 业务失败正常提交后于事务外抛出；数据库异常整体回滚，不留残缺。
+            amounts = leg_amounts or self._leg_amounts_from_snapshot(payment)
+            for asset_type, amount_fen in amounts.items():
+                if amount_fen <= 0:
+                    continue
+                if asset_type not in ("balance", "points"):
+                    continue
+                if member_balance_id is None:
+                    continue
+                if not await self._reserve_on_account(
                     asset_type, member_balance_id, amount_fen
+                ):
+                    account_row = await self._balance_repo.get_by_id(member_balance_id)
+                    if account_row is None:
+                        label = "储值账户" if asset_type == "balance" else "积分账户"
+                        message = (
+                            f"{label}不存在（已删除？），订单 {order.id} 不得发起支付"
+                        )
+                        moved = await self._attempt_repo.mark_manual_review(
+                            attempt["id"], attempt["state_version"], message
+                        )
+                        if not moved:
+                            raise ValueError(
+                                f"支付尝试状态并发冲突（attempt {attempt['id']}），"
+                                "请刷新后重试"
+                            )
+                        failure_exc = PaymentAccountError("account_missing", message)
+                    else:
+                        await self._rollback_partial_reserve(attempt)
+                        moved = await self._attempt_repo.mark_failed_preclaim(
+                            attempt["id"],
+                            attempt["state_version"],
+                            self._insufficient_message(asset_type, order.id),
+                        )
+                        if not moved:
+                            raise ValueError(
+                                f"支付尝试状态并发冲突（attempt {attempt['id']}），"
+                                "请刷新后重试"
+                            )
+                        await self._hold_repo.release_by_attempt(attempt["id"])
+                        await self._attempt_repo.mark_legs_released(attempt["id"])
+                        failure_exc = ValueError(
+                            self._insufficient_message(asset_type, order.id)
+                        )
+                    break
+                # R1：hold_key 按尝试维度（attempt-scoped）——同订单失败后重试的新尝试
+                # 必须能写入自己的活跃 hold；INSERT OR IGNORE 未新增（同键已存在）属
+                # 异常态，回滚本腿账户行预占并整体阻断（预占/审计/leg 同一事务，
+                # 任一失败或未新增都不允许留下 held 无 hold 行的泄漏态）
+                reserved = await self._hold_repo.reserve(
+                    hold_key=f"hold:{attempt['id']}:{asset_type}",
+                    subject_type="order",
+                    subject_id=order.id,
+                    payment_attempt_id=attempt["id"],
+                    asset_type=asset_type,
+                    amount_fen=amount_fen,
+                    member_balance_id=member_balance_id,
                 )
-                await self._rollback_partial_reserve(attempt)
-                await self._attempt_repo.mark_failed_preclaim(
-                    attempt["id"],
-                    attempt["state_version"],
-                    f"预占审计行写入冲突（订单 {order.id}，资产 {asset_type}）",
+                if not reserved:
+                    await self._clear_hold_on_account(
+                        asset_type, member_balance_id, amount_fen
+                    )
+                    await self._rollback_partial_reserve(attempt)
+                    moved = await self._attempt_repo.mark_failed_preclaim(
+                        attempt["id"],
+                        attempt["state_version"],
+                        f"预占审计行写入冲突（订单 {order.id}，资产 {asset_type}）",
+                    )
+                    if not moved:
+                        raise ValueError(
+                            f"支付尝试状态并发冲突（attempt {attempt['id']}），"
+                            "请刷新后重试"
+                        )
+                    await self._hold_repo.release_by_attempt(attempt["id"])
+                    await self._attempt_repo.mark_legs_released(attempt["id"])
+                    failure_exc = ValueError(
+                        f"预占审计行写入冲突（订单 {order.id}，资产 {asset_type}）"
+                    )
+                    break
+                await self._attempt_repo.upsert_leg(
+                    attempt["id"], asset_type, amount_fen
                 )
-                await self._hold_repo.release_by_attempt(attempt["id"])
-                await self._attempt_repo.mark_legs_released(attempt["id"])
-                raise ValueError(
-                    f"预占审计行写入冲突（订单 {order.id}，资产 {asset_type}）"
-                )
-            await self._attempt_repo.upsert_leg(attempt["id"], asset_type, amount_fen)
+        if failure_exc is not None:
+            raise failure_exc
         return attempt
 
     async def _rollback_partial_reserve(self, attempt: dict) -> None:
@@ -422,7 +455,7 @@ class UnifiedPaymentApplicationService:
     async def _ensure_committed(
         self, order: Order, leg_amounts: dict[str, int] | None
     ) -> dict:
-        """阶段一：预占独立 UoW（ensure + 显式 commit）。"""
+        """阶段一：预占（ensure 自持事务，D1-A.2 复核 P1；此处 commit 为兜底）。"""
         attempt = await self.ensure_mock_attempt(order, leg_amounts=leg_amounts)
         await self._order_repo._db.commit()
         return attempt

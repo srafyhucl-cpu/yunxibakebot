@@ -99,18 +99,19 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
         "本轮职责评审（D1-A）：会员余额仓储保持单一聚合根内聚——查询族（get_by_mobile / get_by_id / get_by_openid）与 by-id 原子读写族（积分 / 储值各 credit / deduct 四方法）共享同一行主键语义（None 不更新约定）与幂等键约定；拆分会把单行原子语义与行级协调分散到多文件，保留当前内聚边界。"
     ),
     "app/service/points/payment.py": (
-        "本轮职责评审（B3.4）：积分支付联动保持单一事实域内聚——围栏与快照写入、结算发分/扣减（含扣减失败阻断）、退款两命令分流（未结算释放 / 已结算核验原流水并按原账户入账）共享同一 ledger/reconcile 仓储与快照生命周期（pointsSettledAt 标记、_clear_awarded）；拆分会把核验-入账原子性分散到多文件并复制幂等键与对账胶水，保留当前内聚边界，后续按 D1 统一支付应用服务职责拆分。"
+        "本轮职责评审（B3.4 + D1-A.2 复核 P2）：积分支付联动保持单一事实域内聚——围栏与快照写入、结算发分/扣减（含扣减失败阻断）、退款两命令分流（未结算释放 / 已结算核验原流水并按原账户入账）共享同一 ledger/reconcile 仓储与快照生命周期（pointsSettledAt 标记、_clear_awarded）；D1-A.2 起退款运行时全部案件写入统一走 ensure_open_case（仅确认 open 后置案件标记）；拆分会把核验-入账原子性分散到多文件并复制幂等键与对账胶水，保留当前内聚边界，后续按 D1 统一支付应用服务职责拆分。"
     ),
     "app/main.py": (
         "存量职责评审：应用入口集中管理 lifespan、repository/service 装配和运行时路由，"
         "本轮仅增加 readiness Response 注入，不新增独立业务职责；禁止为单行超线机械拆分。"
     ),
     "app/service/payment/unified.py": (
-        "本轮职责评审（D1-A 运行时整改包 + D1-A.1 复核 R1/R4/R5）：统一支付应用服务保持账务写唯一入口内聚——"
+        "本轮职责评审（D1-A 运行时整改包 + D1-A.1 复核 R1/R4/R5 + D1-A.2 复核 P1）：统一支付应用服务保持账务写唯一入口内聚——"
         "两阶段结算（预占自有 UoW + 结算独立事务）、账户行真实预占/消费/释放、attempt 快照校验与"
         "open_case、manual_review 处置矩阵、outbox attempt 快照载荷与储值腿 by-id 扣减共享同一套"
         "attempt/hold/outbox/balance 仓储与 CAS 状态机；D1-A.1 增 hold_key attempt 维度（R1）、"
         "ensure_open_case 接入（R4）与 PaymentAccountError isinstance 分流 + CAS 落空显式冲突（R5）；"
+        "D1-A.2 起预占整体包入自有事务（写锁/create/账户预占/hold/leg 同事务，数据库异常整体回滚）；"
         "拆分会把两阶段事务边界与失败处置（回滚后重读 state_version 持久化失败态）分散到多文件并"
         "复制 UoW 胶水，保留当前内聚边界，后续按 subject 类型（order/recharge/balance）扩展时再评估拆分。"
     ),

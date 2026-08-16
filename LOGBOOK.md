@@ -1,3 +1,15 @@
+## [2026-08-16] - docs(governance): D1-A.2 复核有界整改（P1 预占自有事务 + P2 退款案件统一重开 + P3 文档键统一，方案 B）
+
+- 操作者: AI (Codex)
+- trace_id: `20260816-accounting-d1a2-bounded-remediation`
+- parent_trace_id: `20260816-accounting-d1a1-runtime-remediation`
+- 来源: 项目负责人对 `4596d7e`（内容）/ `ab4b11b`（归档头）复核（2026-08-16，Go/No-Go=暂不通过）——R2/R3/R5 主验收基本成立；**R1 的异常事务原子性和 R4 的退款案件复发仍未完整修复**；推荐方案 B（D1-A.2 有界整改）：一次代码整改提交 + 一次证据归档提交，**整改后只复核两项高风险验收**，不扩展审查范围
+- 范围: P1 预占自有事务 + P2 退款案件统一重开 + P3 文档键统一；R6 微信通知绕过统一服务仍为 D1-C 硬门槛（本轮不改代码）；master 双远端保持 b30b2066 直至项目负责人复核放行；`POINTS_DEDUCTION_FENCE=True` 保持
+- 实现: **P1 预占自有事务**（`ensure_mock_attempt` 预占整体包入 `async with self._order_repo.transaction()`——写锁、create_active、账户行预占、hold 审计、leg 写入任一数据库异常整体回滚，不留活跃 attempt/hold/账户预占的残缺状态；余额不足/账户缺失等业务失败在事务内完成 failed/manual_review 终态与释放（正常提交）后于事务外抛出；预占事务内直接调 mark_* 原语，CAS 落空显式抛并发冲突，不经 `_commit_attempt_state` 内部 commit 以免 prepare_combined_payment 嵌套事务提前提交）；**P2 退款案件统一重开**（points/payment.py 退款运行时全部案件写入 7 处统一改走 `ensure_open_case()`——含上轮遗漏的 383/520/534/596/607 五行 append，覆盖 account_missing / redeem_missing / redeem_mismatch / award_missing / award_mismatch；**仅确认案件为 open 后**设置案件标记 case_appended）；**P3 文档键统一**（整改规格第 28 行残留 `hold:order:<id>:<asset>` 统一为 `hold:{payment_attempt_id}:<asset>`）
+- 验证: test_payment_attempt_d1a 31 项（原 24 + P1 故障注入 2 项（hold 插入抛异常 / leg 写入抛异常：held=0、无 active hold、无活跃 attempt、重试后取消）+ P2 参数化复发 5 项（每种原因开案→人工关闭→同一异常再次退款→open 且版本递增））；test_stored_value（prepare 嵌套事务场景）/ test_points_payment / test_coupon_payment / test_order 全绿；D1-0 守卫 passed=True（`--skip-tests` = pre-commit 同参）；ruff check/format、mypy 改动文件作用域无新增错误；全量回归提交前须 exit=0
+- 变更: VERSION 0.132.13 → 0.132.14（sync-version 自动递增，含 .py/.sql）；ADR 0008 追加 D1-A.2 复核注记；docs/specs/2026-08-16-accounting-d1a-runtime-remediation.md 追加十二~十三章（P1–P3 映射 + 验证）
+- residual_risks: **R6 组合支付微信通知仍直接 mark_paid 绕过统一服务——D1-C 硬门槛**，与 P8 outbox fencing 并列 D1-C 必须项；order.payment 仍为展示缓存（降级为引用是 D1-B 范围）；master 双远端保持 b30b2066 直至项目负责人按两项高风险验收复核放行；POINTS_DEDUCTION_FENCE 保持 True；2027-05-31 开发测试边界不变；时钟偏差留档（G0）继续适用，不 amend 已归档提交
+
 ## [2026-08-16] - docs(governance): D1-A.1 复核代码整改包（R1–R6 六项高优运行时缺口，方案 B，验收固定五项）
 
 - 操作者: AI (Codex)

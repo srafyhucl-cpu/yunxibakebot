@@ -329,9 +329,8 @@ class PointsPaymentService:
                     credit_target_id, credit_amount
                 )
                 if balance_after is None:
-                    case_appended = True
                     unfinished = True
-                    await self._reconcile_repo.ensure_open_case(
+                    case_open = await self._reconcile_repo.ensure_open_case(
                         order_id=order.id,
                         mobile=mobile or "",
                         unique_id=f"points:refund:{order.id}",
@@ -343,13 +342,14 @@ class PointsPaymentService:
                             "待人工核对后关闭"
                         ),
                     )
+                    if case_open:
+                        case_appended = True
                     return case_appended, unfinished
             else:
                 balance_row = await self._balance_repo.get_by_id(credit_target_id)
                 if balance_row is None:
-                    case_appended = True
                     unfinished = True
-                    await self._reconcile_repo.ensure_open_case(
+                    case_open = await self._reconcile_repo.ensure_open_case(
                         order_id=order.id,
                         mobile=mobile or "",
                         unique_id=f"points:refund:{order.id}",
@@ -361,6 +361,8 @@ class PointsPaymentService:
                             "待人工核对后关闭"
                         ),
                     )
+                    if case_open:
+                        case_appended = True
                     return case_appended, unfinished
                 balance_after = int(balance_row["points"])
             await self._ledger_service.ledger_repo.insert(
@@ -378,9 +380,8 @@ class PointsPaymentService:
             )
             return case_appended, unfinished
         # 无账户绑定且手机号查无（账户已删除）：禁止新建替代账户
-        case_appended = True
         unfinished = True
-        await self._reconcile_repo.append(
+        case_open = await self._reconcile_repo.ensure_open_case(
             order_id=order.id,
             mobile=mobile or "",
             unique_id=f"points:refund:{order.id}",
@@ -391,6 +392,7 @@ class PointsPaymentService:
                 "禁止按手机号新建替代账户，待人工核对后关闭"
             ),
         )
+        case_appended = True if case_open else case_appended
         return case_appended, unfinished
 
     async def _repay_open_debts(self, member_balance_id: int, amount: int) -> int:
@@ -516,8 +518,7 @@ class PointsPaymentService:
         if return_points > 0:
             if redeem_entry is None:
                 unfinished = True
-                case_appended = True
-                await self._reconcile_repo.append(
+                case_open = await self._reconcile_repo.ensure_open_case(
                     order_id=order.id,
                     mobile=mobile or "",
                     unique_id=f"points:refund:{order.id}",
@@ -525,13 +526,14 @@ class PointsPaymentService:
                     amount=return_points,
                     note="已结算订单未发现 points:redeem 流水，禁止自动 credit，待人工核对后关闭",
                 )
+                if case_open:
+                    case_appended = True
             elif (
                 int(redeem_entry["amount"] or 0) != -return_points
                 or str(redeem_entry["biz_id"] or "") != order.id
             ):
                 unfinished = True
-                case_appended = True
-                await self._reconcile_repo.append(
+                case_open = await self._reconcile_repo.ensure_open_case(
                     order_id=order.id,
                     mobile=mobile or "",
                     unique_id=f"points:refund:{order.id}",
@@ -542,6 +544,8 @@ class PointsPaymentService:
                         f"{redeem_entry['amount']}），禁止自动 credit，待人工核对后关闭"
                     ),
                 )
+                if case_open:
+                    case_appended = True
             else:
                 # 退款按原流水账户入账（原扣减发生的账户，member_balance_id），
                 # 不使用当前解析手机号；先偿债后入账（D1-A，评审问题 3 闭环）。
@@ -592,8 +596,7 @@ class PointsPaymentService:
                 award_biz_id = ""
             if award_entry is None and settle_award_op is None:
                 unfinished = True
-                case_appended = True
-                await self._reconcile_repo.append(
+                case_open = await self._reconcile_repo.ensure_open_case(
                     order_id=order.id,
                     mobile=mobile or "",
                     unique_id=f"points:refund:{order.id}:clawback",
@@ -601,10 +604,11 @@ class PointsPaymentService:
                     amount=clawback_points,
                     note="已结算订单未发现 points:award 流水，跳过已发积分收回，待人工核对后关闭",
                 )
+                if case_open:
+                    case_appended = True
             elif award_amount != clawback_points or award_biz_id != order.id:
                 unfinished = True
-                case_appended = True
-                await self._reconcile_repo.append(
+                case_open = await self._reconcile_repo.ensure_open_case(
                     order_id=order.id,
                     mobile=mobile or "",
                     unique_id=f"points:refund:{order.id}:clawback",
@@ -616,6 +620,8 @@ class PointsPaymentService:
                         "待人工核对后关闭"
                     ),
                 )
+                if case_open:
+                    case_appended = True
             else:
                 # D1-A（验收 A5）：扣回一律按不可变账户 ID——原账户已删除（重建后
                 # 新 id）不命中新账户；无快照绑定则解析原发分手机号账户，查无即
