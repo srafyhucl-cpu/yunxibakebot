@@ -26,6 +26,7 @@ from app.repository.youzan_inventory_repo import YouzanInventoryRepo
 from app.repository.youzan_repo import YouzanProductRepo
 from app.service.order import OrderApplicationService
 from app.service.order.payment_state import dumps_payment, loads_payment, now_text
+from app.service.payment.errors import PaymentAccountError
 from app.service.payment.unified import UnifiedPaymentApplicationService
 from app.service.points import PointsService
 from app.service.points.payment import PointsPaymentService
@@ -600,7 +601,11 @@ async def test_a5_settle_blocks_when_account_deleted(
     await db.commit()
 
     async def _account_error() -> None:
-        raise ValueError("积分账户不存在（已删除？），订单不得视为已支付")
+        # D1-A.1（R5）：账户型错误以结构化 PaymentAccountError 抛出，分流按
+        # isinstance 判定 → manual_review（不再依赖中文字符串子串）
+        raise PaymentAccountError(
+            "account_missing", "积分账户不存在（已删除？），订单不得视为已支付"
+        )
 
     with pytest.raises(ValueError, match="积分账户不存在"):
         await unified.settle_mock_order(order_b, settle_actions=_account_error)
@@ -1170,6 +1175,449 @@ async def test_v027_migration_text_backfill_guarded() -> None:
     )
     assert "status = 'open'" in backfill_line
     assert "WHERE remaining = 0" in backfill_line
+
+
+# ==================== D1-A.1 复核：五项验收（R1–R5） ====================
+
+
+@pytest.mark.asyncio
+async def test_r1_retry_after_failed_preclaim_no_hold_leak(
+    db: aiosqlite.Connection,
+) -> None:
+    """R1：同订单失败→重试→取消无预占泄漏（hold_key 按 payment_attempt_id 维度）。
+
+    第一尝试多腿预占部分成功（points 腿已占 + 审计行已写）后因 balance 腿
+    不足整体 failed（held 归零、审计行 released）；同订单重试的新尝试必须能
+    写入自己的活跃 hold——旧的 order-scoped key 会被 released 行占据而
+    INSERT OR IGNORE 静默失败（held 永久残留且取消无法定位）；取消后 held 归零。
+    """
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    # 订单快照：points 9500 + balance 1000（储值余额 0 → balance 腿预占失败）
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment.update(
+        {
+            "status": "partial",
+            "method": "combined",
+            "pointsUsed": 9500,
+            "pointsFen": 9500,
+            "balanceFen": 1000,
+            "memberBalanceId": str(account_id),
+            "remainFen": 0,
+        }
+    )
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.commit()
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    # 第一尝试：points 腿预占成功 → balance 腿不足 → 整体 failed + 释放
+    order_1 = await OrderRepo(db).get_order(order_id)
+    with pytest.raises(ValueError, match="储值余额不足"):
+        await unified.settle_mock_order(order_1)
+    await db.commit()
+    attempt_1 = await PaymentAttemptRepo(db).get_latest("order", order_id)
+    assert attempt_1["status"] == "failed"
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points, held_stored_value_fen FROM member_balance "
+            "WHERE id = ?",
+            (account_id,),
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+    assert int(row["held_stored_value_fen"]) == 0
+    # 补足储值余额后同订单重试：新尝试必须写入自己的活跃 hold（attempt-scoped key）
+    await db.execute(
+        "UPDATE member_balance SET stored_value_fen = 100000 WHERE id = ?",
+        (account_id,),
+    )
+    await db.commit()
+    order_2 = await OrderRepo(db).get_order(order_id)
+    attempt_2 = await unified.ensure_mock_attempt(order_2)
+    await db.commit()
+    assert attempt_2["status"] == "prepay_ready"
+    holds_2 = await AccountHoldRepo(db).list_active_by_attempt(attempt_2["id"])
+    assert (
+        len(holds_2) == 2
+    )  # points + balance 两条活跃审计行（旧 key 下 points 行缺失）
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points, held_stored_value_fen FROM member_balance "
+            "WHERE id = ?",
+            (account_id,),
+        )
+    )[0]
+    assert int(row["held_points"]) == 9500
+    assert int(row["held_stored_value_fen"]) == 1000
+    # 取消：释放全部预占，held 归零（旧 key 下 points held 无法定位 → 永久泄漏）
+    await unified.release_order_holds(
+        order_2, to_status="cancelled", reason="R1 验收取消"
+    )
+    await db.commit()
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points, held_stored_value_fen FROM member_balance "
+            "WHERE id = ?",
+            (account_id,),
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+    assert int(row["held_stored_value_fen"]) == 0
+    assert await AccountHoldRepo(db).list_active_by_attempt(attempt_2["id"]) == []
+    attempt_2_after = await PaymentAttemptRepo(db).get_by_id(attempt_2["id"])
+    assert attempt_2_after["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_r2_full_balance_payment_attempt_outbox_consistent(
+    db: aiosqlite.Connection,
+) -> None:
+    """R2：全额储值支付 attempt/outbox 可还原完整规范支付计划。
+
+    创建 attempt 前已把规范支付计划落库（method=balance、balanceFen、总额、
+    币种、账户 ID、计划版本）——attempt 冻结快照与 order.settled outbox 载荷
+    均引用该计划，provider 不再退化为 mock。
+    """
+    import json as _json
+
+    from app.repository.balance_ledger_repo import BalanceLedgerRepo
+    from app.service.stored_value.member import MemberBalanceService
+    from app.service.stored_value.payment import StoredValueOrderPaymentService
+
+    await db.execute(
+        "INSERT INTO customer_master (id, tenant_id, status, primary_phone, "
+        "phone_verified, display_name, identity_confidence, has_miniapp_identity) "
+        "VALUES ('cm_r2', 'yunxi', 'active', ?, 1, 'R2 测试', 'high', 1)",
+        (MOBILE,),
+    )
+    await db.execute(
+        "INSERT INTO customer_identity_links (id, tenant_id, customer_id, "
+        "identity_type, identity_value, identity_value_normalized, source_system, "
+        "link_status, verification_status, confidence_score) "
+        "VALUES ('cil_r2', 'yunxi', 'cm_r2', 'miniapp_openid', ?, ?, "
+        "'miniapp', 'active', 'verified', 100)",
+        (OPENID, OPENID),
+    )
+    await db.execute(
+        "INSERT INTO member_balance (mobile, stored_value_fen) VALUES (?, 100000)",
+        (MOBILE,),
+    )
+    await db.commit()
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    member_service = MemberBalanceService(
+        balance_repo=MemberBalanceRepo(db),
+        ledger_repo=BalanceLedgerRepo(db),
+        customer_repo=CustomerMasterRepo(db),
+    )
+    payment_service = StoredValueOrderPaymentService(
+        order_repo=OrderRepo(db),
+        member_service=member_service,
+    )
+    paid = await payment_service.pay_order_with_balance(order_id, user_id=USER_ID)
+    assert paid["paymentStatus"] == "paid"
+    attempt = await PaymentAttemptRepo(db).get_latest("order", order_id)
+    assert attempt["status"] == "succeeded"
+    assert attempt["provider"] == "balance"  # 不再退化为 mock
+    snapshot = loads_payment(attempt["payment_snapshot_json"])
+    assert int(snapshot["balanceFen"]) == 10_000
+    assert snapshot["method"] == "balance"
+    assert int(snapshot["totalFen"]) == 10_000
+    assert snapshot["currency"] == "CNY"
+    assert int(snapshot["planVersion"]) == 1
+    assert snapshot["memberBalanceId"]
+    # outbox 载荷引用同一规范计划（可还原完整计划）
+    rows = await db.execute_fetchall(
+        "SELECT payload_json FROM accounting_outbox WHERE operation_key = ?",
+        (f"order:settled:{order_id}",),
+    )
+    assert rows
+    payload = _json.loads(str(rows[0]["payload_json"]))
+    assert payload["attempt_id"] == attempt["id"]
+    assert payload["result"] == "settled"
+    payload_snapshot = payload["snapshot"]
+    assert int(payload_snapshot["balanceFen"]) == 10_000
+    assert payload_snapshot["method"] == "balance"
+    assert payload_snapshot["memberBalanceId"] == snapshot["memberBalanceId"]
+
+
+@pytest.mark.asyncio
+async def test_r3_legacy_unbound_settle_never_writes_new_account(
+    db: aiosqlite.Connection,
+) -> None:
+    """R3（结算侧）：历史快照无账户 ID + 原账户删除重建 → 禁止按手机号补绑
+    结算（不写新账户），尝试转 manual_review，新账户与积分账分文未动。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    # 抹掉快照账户绑定，模拟 B3.5 前历史订单
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment.pop("memberBalanceId", None)
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    # 删除原账户，同手机号重建（新 id）
+    await db.execute("DELETE FROM member_balance WHERE id = ?", (account_id,))
+    await db.execute(
+        "INSERT INTO member_balance (mobile, points) VALUES (?, 100000)", (MOBILE,)
+    )
+    await db.commit()
+    with pytest.raises(ValueError, match="禁止按手机号补绑"):
+        await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    await db.commit()
+    attempt = await PaymentAttemptRepo(db).get_active("order", order_id)
+    assert attempt["status"] == "manual_review"
+    new_rows = await db.execute_fetchall(
+        "SELECT points FROM member_balance WHERE mobile = ?", (MOBILE,)
+    )
+    assert new_rows and int(new_rows[0]["points"]) == 100_000  # 新账户未被动
+    ledger = await db.execute_fetchall(
+        "SELECT COUNT(*) AS c FROM points_ledger WHERE biz_id = ?", (order_id,)
+    )
+    assert int(ledger[0]["c"]) == 0  # 无任何积分流水（未扣减未发分）
+
+
+@pytest.mark.asyncio
+async def test_r3_legacy_unbound_refund_never_writes_new_account(
+    db: aiosqlite.Connection,
+    points_service: PointsService,
+) -> None:
+    """R3（退款侧）：历史快照无账户 ID 且无结算事实 → 退款不按手机号替代
+    （同手机号重建的新账户分文未动），进 account_missing 可关闭案件。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    await db.commit()
+    # 抹掉快照绑定 + 删除 settle_redeem 事实（模拟 B3.5 前：无快照绑定亦无
+    # 可证明原账户 ID 的结算事实）
+    order = await OrderRepo(db).get_order(order_id)
+    assert order is not None
+    payment = loads_payment(order.payment)
+    payment.pop("memberBalanceId", None)
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.execute(
+        "DELETE FROM ledger_operation WHERE operation_type = 'settle_redeem' "
+        "AND subject_id = ?",
+        (order_id,),
+    )
+    # 删除原账户，同手机号重建（新 id）
+    await db.execute("DELETE FROM member_balance WHERE id = ?", (account_id,))
+    await db.execute(
+        "INSERT INTO member_balance (mobile, points) VALUES (?, 100000)", (MOBILE,)
+    )
+    await db.commit()
+    new_rows = await db.execute_fetchall(
+        "SELECT id FROM member_balance WHERE mobile = ?", (MOBILE,)
+    )
+    new_account_id = int(new_rows[0]["id"])
+    assert new_account_id != account_id
+    order_latest = await OrderRepo(db).get_order(order_id)
+    assert order_latest is not None
+    await points_service.refund_points(order_latest)
+    await db.commit()
+    new_points = (
+        await db.execute_fetchall(
+            "SELECT points FROM member_balance WHERE id = ?", (new_account_id,)
+        )
+    )[0]["points"]
+    assert int(new_points) == 100_000  # 新账户分文未动（无退回也无扣回）
+    cases = await db.execute_fetchall(
+        "SELECT reason FROM points_refund_reconcile WHERE unique_id = ?",
+        (f"points:refund:{order_id}",),
+    )
+    assert cases and cases[0]["reason"] == "account_missing"
+
+
+@pytest.mark.asyncio
+async def test_r4_closed_case_reopens_on_recurrence(
+    db: aiosqlite.Connection,
+) -> None:
+    """R4：案件关闭后同一冲突复发 → ensure_open_case 重新打开（版本递增），
+    案件必为 open（杜绝 INSERT OR IGNORE 静默失败导致案件保持 closed）。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    order = await OrderRepo(db).get_order(order_id)
+    attempt = await unified.ensure_mock_attempt(order)
+    await db.commit()
+    assert attempt["status"] == "prepay_ready"
+    # 第一次：计划变更 → 开案 + manual_review
+    payment = loads_payment(order.payment)
+    payment["pointsFen"] = 6000
+    payment["remainFen"] = 4000
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.commit()
+    order_changed = await OrderRepo(db).get_order(order_id)
+    with pytest.raises(ValueError, match="支付计划已变更"):
+        await unified.settle_mock_order(order_changed)
+    await db.commit()
+    case_row = (
+        await db.execute_fetchall(
+            "SELECT id, status, version FROM points_refund_reconcile "
+            "WHERE unique_id = ?",
+            (f"points:settle:{order_id}",),
+        )
+    )[0]
+    assert case_row["status"] == "open"
+    case_id = int(case_row["id"])
+    first_version = int(case_row["version"])
+    # 人工结案关闭
+    await db.execute(
+        "UPDATE points_refund_reconcile SET status = 'closed', resolved_at = ?, "
+        "resolution = '人工核对结案', evidence_ref = 'manual-close' "
+        "WHERE id = ?",
+        (now_text(), case_id),
+    )
+    await db.commit()
+    # 复发：释放 manual_review 尝试后同订单重放（预占成功 → 计划再变）
+    await unified.release_order_holds(
+        order_changed, to_status="cancelled", reason="结案释放"
+    )
+    await db.commit()
+    order_recur = await OrderRepo(db).get_order(order_id)
+    attempt_2 = await unified.ensure_mock_attempt(order_recur)
+    await db.commit()
+    assert attempt_2["status"] == "prepay_ready"
+    payment_2 = loads_payment(order_recur.payment)
+    payment_2["pointsFen"] = 7000
+    payment_2["remainFen"] = 3000
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment_2), now_text())
+    await db.commit()
+    order_recur_2 = await OrderRepo(db).get_order(order_id)
+    with pytest.raises(ValueError, match="支付计划已变更"):
+        await unified.settle_mock_order(order_recur_2)
+    await db.commit()
+    case_after = (
+        await db.execute_fetchall(
+            "SELECT status, version FROM points_refund_reconcile WHERE id = ?",
+            (case_id,),
+        )
+    )[0]
+    assert case_after["status"] == "open"  # 关闭后复发必为 open
+    assert int(case_after["version"]) == first_version + 1  # 版本递增，保留结案审计
+    attempt_2_after = await PaymentAttemptRepo(db).get_by_id(attempt_2["id"])
+    assert attempt_2_after["status"] == "manual_review"
+
+
+@pytest.mark.asyncio
+async def test_r5_points_insufficient_routes_to_manual_review(
+    db: aiosqlite.Connection,
+) -> None:
+    """R5：结算时「积分余额不足」→ manual_review（结构化错误码分流，
+    不再误入 settling_retry）。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    order = await OrderRepo(db).get_order(order_id)
+    attempt = await unified.ensure_mock_attempt(order)
+    await db.commit()
+    assert attempt["status"] == "prepay_ready"
+    assert (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]["held_points"]
+    # 预占成功后账户被外部挤占（余额降到不足）
+    await db.execute(
+        "UPDATE member_balance SET points = 1000 WHERE id = ?", (account_id,)
+    )
+    await db.commit()
+
+    async def _perform() -> None:
+        payment = loads_payment(order.payment)
+        payment["status"] = "paid"
+        payment["paidAt"] = now_text()
+        updated = await OrderRepo(
+            db
+        ).update_payment_to_paid_if_unpaid_or_partial_active(
+            order_id, dumps_payment(payment), now_text()
+        )
+        assert updated is not None
+        await PointsPaymentService(order_repo=OrderRepo(db)).award_on_payment(updated)
+
+    with pytest.raises(ValueError, match="积分余额不足"):
+        await unified.settle_mock_order(order, settle_actions=_perform)
+    await db.commit()
+    attempt_after = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_after["status"] == "manual_review"  # 非 settling_retry
+    assert "积分余额不足" in attempt_after["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_r5_cas_conflict_on_attempt_state_visible(
+    db: aiosqlite.Connection,
+) -> None:
+    """R5：终态写入 CAS 落空 → 失败可见且可处理——非幂等活跃状态抛显式
+    并发冲突；已推进到幂等终态则接受（不重复写状态）。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    order = await OrderRepo(db).get_order(order_id)
+    attempt = await unified.ensure_mock_attempt(order)
+    await db.commit()
+    assert attempt["status"] == "prepay_ready"
+
+    async def _cas_miss() -> bool:
+        return False
+
+    # 非幂等活跃状态（prepay_ready 未被并发推进到终态）：CAS 落空 → 显式冲突
+    with pytest.raises(ValueError, match="支付尝试状态并发冲突"):
+        await unified._commit_attempt_state(attempt["id"], _cas_miss())
+    await db.commit()
+    attempt_still = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_still["status"] == "prepay_ready"  # 未被半持久化覆盖
+
+    # 幂等终态（并发已推进到 failed）：CAS 落空但接受，不重复写状态
+    await db.execute(
+        "UPDATE payment_attempt SET status = 'failed', "
+        "state_version = state_version + 1, updated_at = ? WHERE id = ?",
+        (now_text(), attempt["id"]),
+    )
+    await db.commit()
+    await unified._commit_attempt_state(attempt["id"], _cas_miss())
+    attempt_final = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_final["status"] == "failed"
 
 
 __all__: list[str] = []

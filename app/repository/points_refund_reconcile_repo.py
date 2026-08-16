@@ -113,5 +113,56 @@ class PointsRefundReconcileRepo(BaseRepository):
         rowcount = int(cursor.rowcount or 0)
         return rowcount > 0
 
+    async def ensure_open_case(
+        self,
+        *,
+        order_id: str,
+        mobile: str,
+        unique_id: str,
+        reason: str,
+        amount: int,
+        note: str,
+        resolved_by: str = "",
+    ) -> bool:
+        """案件必须为 open 的原子保障（D1-A.1 复核 R4）。
+
+        顺序：① closed→open reopen（先按订单+原因，未命中再按 unique_id——
+        unique_id 即同一冲突的身份，覆盖同冲突复发）；② 新建（同 unique_id
+        幂等）；③ 已存在则确认确为 open。任何路径结束时案件 status 必为 open
+        ——「关闭后复发必为 open」，杜绝唯一键 INSERT OR IGNORE 静默失败导致
+        案件保持 closed 而调用方误以为存在 open 对账案件。
+        """
+        reopened = await self.open_case(
+            order_id=order_id, reason=reason, note=note, resolved_by=resolved_by
+        )
+        if not reopened:
+            cursor = await self._db.execute(
+                "UPDATE points_refund_reconcile SET status = 'open', "
+                "note = ?, resolved_by = ?, resolved_at = NULL, resolution = '', "
+                "evidence_ref = '', version = version + 1, updated_at = ? "
+                "WHERE unique_id = ? AND status = 'closed'",
+                (note, resolved_by, now_str(), unique_id),
+            )
+            reopened = int(cursor.rowcount or 0) > 0
+        if reopened:
+            return True
+        created = await self.append(
+            order_id=order_id,
+            mobile=mobile,
+            unique_id=unique_id,
+            reason=reason,
+            amount=amount,
+            note=note,
+            operation_key=unique_id,
+        )
+        if created:
+            return True
+        rows = await self._db.execute_fetchall(
+            "SELECT status FROM points_refund_reconcile "
+            "WHERE unique_id = ? ORDER BY id DESC LIMIT 1",
+            (unique_id,),
+        )
+        return bool(rows and rows[0]["status"] == "open")
+
 
 __all__ = ["PointsRefundReconcileRepo"]

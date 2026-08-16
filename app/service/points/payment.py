@@ -33,6 +33,7 @@ from app.service.order.payment_state import (
     now_text,
     status_value,
 )
+from app.service.payment.errors import PaymentAccountError
 from app.service.points.ledger import PointsLedgerService
 from app.service.points.rules import (
     award_points,
@@ -171,30 +172,47 @@ class PointsPaymentService:
         if int(payment.get("pointsAwarded", 0) or 0) > 0:
             return
         points_used = int(payment.get("pointsUsed", 0) or 0)
-        mobile = await self._try_resolve_mobile(order.user_id)
-        if mobile is None:
-            if points_used > 0:
-                raise ValueError(f"积分账户无法解析，订单 {order.id} 不得视为已支付")
-            return
-        balance_row = await self._balance_repo.get_by_mobile(mobile)
-        if balance_row is None:
-            raise ValueError(f"积分账户不存在，订单 {order.id} 不得视为已支付")
-        member_balance_id = int(balance_row["id"])
-        snapshot_mid = payment.get("memberBalanceId")
-        if snapshot_mid and int(snapshot_mid) != member_balance_id:
-            raise ValueError(f"积分账户已变更，订单 {order.id} 不得结算")
-        if not snapshot_mid:
-            # 旧快照（B3.5 前）未绑定账户：结算时补绑当前解析账户
-            payment["memberBalanceId"] = str(member_balance_id)
-            await self._order_repo.update_payment(
-                order.id, dumps_payment(payment), now_text()
-            )
         total_fen = self._total_fen(order)
         balance_fen = int(payment.get("balanceFen", 0) or 0)
         coupon_fen = int(payment.get("couponFen", 0) or 0)
         points_fen = int(payment.get("pointsFen", 0) or 0)
         cash_fen = max(0, total_fen - coupon_fen - balance_fen - points_fen)
         award = award_points(cash_fen)
+        if points_used <= 0 and award <= 0:
+            # 无抵扣无发分：不涉及积分账户身份，直接跳过（券全额抵扣 / 余额全额
+            # 支付的订单快照可无 memberBalanceId，禁止因此误判历史未绑定）
+            return
+        mobile = await self._try_resolve_mobile(order.user_id)
+        if mobile is None:
+            if points_used > 0:
+                raise PaymentAccountError(
+                    "account_unresolved",
+                    f"积分账户无法解析，订单 {order.id} 不得视为已支付",
+                )
+            # 无抵扣仅发分且会员无法解析：跳过发分（无账户可入账，B3.4 语义）
+            return
+        balance_row = await self._balance_repo.get_by_mobile(mobile)
+        if balance_row is None:
+            raise PaymentAccountError(
+                "account_missing",
+                f"积分账户不存在，订单 {order.id} 不得视为已支付",
+            )
+        member_balance_id = int(balance_row["id"])
+        snapshot_mid = payment.get("memberBalanceId")
+        if snapshot_mid and int(snapshot_mid) != member_balance_id:
+            raise PaymentAccountError(
+                "account_changed",
+                f"积分账户已变更，订单 {order.id} 不得结算",
+            )
+        if not snapshot_mid:
+            # R3：历史快照（B3.5 前）未绑定账户 ID——禁止按手机号补绑当前解析账户
+            # （旧账户删除后同手机号重建会把扣减写到新账户，违反 A5 不可变账户
+            # 身份）；转 manual_review / 可追溯案件，仅允许能证明原账户 ID 的
+            # 单独迁移回填
+            raise PaymentAccountError(
+                "legacy_unbound",
+                f"历史快照未绑定积分账户（订单 {order.id}），禁止按手机号补绑结算，需人工复核",
+            )
         if points_used > 0:
             # D1-A（验收 A5）：扣减一律按快照绑定不可变账户 ID——账户行被删除后
             # 重建（新 id）时旧 id 查无 → 阻断结算进 manual_review，禁止按手机号
@@ -210,11 +228,13 @@ class PointsPaymentService:
             if balance_after is None:
                 account_row = await self._balance_repo.get_by_id(member_balance_id)
                 if account_row is None:
-                    raise ValueError(
-                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付"
+                    raise PaymentAccountError(
+                        "account_missing",
+                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付",
                     )
-                raise ValueError(
-                    f"积分余额不足，抵扣扣减失败（订单 {order.id}），订单不得视为已支付"
+                raise PaymentAccountError(
+                    "points_insufficient",
+                    f"积分余额不足，抵扣扣减失败（订单 {order.id}），订单不得视为已支付",
                 )
             # B3.5（评审问题 2）：结算事实与流水、pointsSettledAt 同一 UoW 原子写
             await self._ledger_operation_repo.append(
@@ -242,8 +262,9 @@ class PointsPaymentService:
                 )
                 if balance_after is None:
                     # D1-A（验收 A5）：账户已删除 → 禁止按手机号新建替代账户
-                    raise ValueError(
-                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付"
+                    raise PaymentAccountError(
+                        "account_missing",
+                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付",
                     )
             else:
                 balance_row = await self._balance_repo.get_by_id(member_balance_id)
@@ -297,12 +318,9 @@ class PointsPaymentService:
         case_appended = False
         unfinished = False
         credit_target_id = member_balance_id
-        if credit_target_id is None:
-            legacy_row = await self._balance_repo.get_by_mobile(
-                str(redeem_entry["mobile"])
-            )
-            if legacy_row is not None:
-                credit_target_id = int(legacy_row["id"])
+        # R3：无账户绑定（历史快照无 ID 且无 settle_redeem 事实）不回退到按
+        # 手机号查当前账户——旧账户删除后同手机号重建会把退款写到新账户；
+        # 直接走下方「无账户绑定」可关闭人工对账案件，禁止自动 credit
         if credit_target_id is not None:
             repaid = await self._repay_open_debts(credit_target_id, return_points)
             credit_amount = return_points - repaid
@@ -313,7 +331,7 @@ class PointsPaymentService:
                 if balance_after is None:
                     case_appended = True
                     unfinished = True
-                    await self._reconcile_repo.append(
+                    await self._reconcile_repo.ensure_open_case(
                         order_id=order.id,
                         mobile=mobile or "",
                         unique_id=f"points:refund:{order.id}",
@@ -331,7 +349,7 @@ class PointsPaymentService:
                 if balance_row is None:
                     case_appended = True
                     unfinished = True
-                    await self._reconcile_repo.append(
+                    await self._reconcile_repo.ensure_open_case(
                         order_id=order.id,
                         mobile=mobile or "",
                         unique_id=f"points:refund:{order.id}",
@@ -474,10 +492,19 @@ class PointsPaymentService:
         payment = loads_payment(order.payment)
         snapshot_mid = payment.get("memberBalanceId")
         member_balance_id = int(snapshot_mid) if snapshot_mid else None
-        if member_balance_id is None and mobile:
-            balance_row = await self._balance_repo.get_by_mobile(mobile)
-            if balance_row is not None:
-                member_balance_id = int(balance_row["id"])
+        if member_balance_id is None:
+            # R3：历史快照缺账户 ID 时**禁止按手机号替代**（旧账户删除后同手机号
+            # 重建会把退款写到新账户，违反 A5）；仅回退到不可变结算事实
+            # ledger:settle_redeem 的账户绑定（可证明原账户 ID 的记录）
+            settle_redeem_op = await self._ledger_operation_repo.get_by_unique_id(
+                f"ledger:settle_redeem:{order.id}"
+            )
+            redeem_fact_mid = (
+                settle_redeem_op["member_balance_id"]
+                if settle_redeem_op is not None
+                else None
+            )
+            member_balance_id = int(redeem_fact_mid) if redeem_fact_mid else None
         redeem_entry = await ledger_repo.get_by_unique_id(f"points:redeem:{order.id}")
         award_entry = await ledger_repo.get_by_unique_id(f"points:award:{order.id}")
         return_points, clawback_points = refund_reversal(points_used, points_awarded)
@@ -601,10 +628,8 @@ class PointsPaymentService:
                     )
                 )
                 clawback_target_id = member_balance_id
-                if clawback_target_id is None:
-                    legacy_row = await self._balance_repo.get_by_mobile(award_mobile)
-                    if legacy_row is not None:
-                        clawback_target_id = int(legacy_row["id"])
+                # R3：无账户绑定不回退到按手机号查当前账户（防止扣到重建后的
+                # 新账户）；保持 None → 欠账待人工结清（见下 balance_after None 分支）
                 if clawback_target_id is not None:
                     balance_after = await self._ledger_service.deduct_by_id(
                         member_balance_id=clawback_target_id,

@@ -45,15 +45,13 @@ from app.service.order.payment_state import (
     dumps_payment,
     loads_payment,
 )
+from app.service.payment.errors import PaymentAccountError
 from app.utils import now_str
 
 SettleAction = Callable[[], Awaitable[None]]
 
 SETTLE_RETURN_SETTLED = "settled"
 SETTLE_RETURN_IDEMPOTENT = "idempotent"
-
-# 账户型错误 → manual_review；其余 → settling_retry（P1 两阶段终态分流）
-_ACCOUNT_ERROR_HINTS = ("积分账户", "储值账户", "账户已变更")
 
 
 class UnifiedPaymentApplicationService:
@@ -145,8 +143,9 @@ class UnifiedPaymentApplicationService:
                 account_row = await self._balance_repo.get_by_id(member_balance_id)
                 if account_row is None:
                     label = "储值账户" if asset_type == "balance" else "积分账户"
-                    raise ValueError(
-                        f"{label}不存在（已删除？），订单 {order.id} 不得发起支付"
+                    raise PaymentAccountError(
+                        "account_missing",
+                        f"{label}不存在（已删除？），订单 {order.id} 不得发起支付",
                     )
                 await self._rollback_partial_reserve(attempt)
                 await self._attempt_repo.mark_failed_preclaim(
@@ -157,8 +156,12 @@ class UnifiedPaymentApplicationService:
                 await self._hold_repo.release_by_attempt(attempt["id"])
                 await self._attempt_repo.mark_legs_released(attempt["id"])
                 raise ValueError(self._insufficient_message(asset_type, order.id))
-            await self._hold_repo.reserve(
-                hold_key=f"hold:order:{order.id}:{asset_type}",
+            # R1：hold_key 按尝试维度（attempt-scoped）——同订单失败后重试的新尝试
+            # 必须能写入自己的活跃 hold；INSERT OR IGNORE 未新增（同键已存在）属
+            # 异常态，回滚本腿账户行预占并整体阻断（预占/审计/leg 同一事务，
+            # 任一失败或未新增都不允许留下 held 无 hold 行的泄漏态）
+            reserved = await self._hold_repo.reserve(
+                hold_key=f"hold:{attempt['id']}:{asset_type}",
                 subject_type="order",
                 subject_id=order.id,
                 payment_attempt_id=attempt["id"],
@@ -166,6 +169,21 @@ class UnifiedPaymentApplicationService:
                 amount_fen=amount_fen,
                 member_balance_id=member_balance_id,
             )
+            if not reserved:
+                await self._clear_hold_on_account(
+                    asset_type, member_balance_id, amount_fen
+                )
+                await self._rollback_partial_reserve(attempt)
+                await self._attempt_repo.mark_failed_preclaim(
+                    attempt["id"],
+                    attempt["state_version"],
+                    f"预占审计行写入冲突（订单 {order.id}，资产 {asset_type}）",
+                )
+                await self._hold_repo.release_by_attempt(attempt["id"])
+                await self._attempt_repo.mark_legs_released(attempt["id"])
+                raise ValueError(
+                    f"预占审计行写入冲突（订单 {order.id}，资产 {asset_type}）"
+                )
             await self._attempt_repo.upsert_leg(attempt["id"], asset_type, amount_fen)
         return attempt
 
@@ -262,12 +280,17 @@ class UnifiedPaymentApplicationService:
         note: str,
         message: str,
     ) -> None:
-        """案件 + manual_review（独立 UoW 持久化，P6 open_case 接入点）。"""
+        """案件 + manual_review（同一专用 UoW 持久化，R4：ensure_open_case）。
+
+        ensure_open_case 原子完成「新建 / 已打开 / closed→open（版本递增）」——
+        案件关闭后同一异常复发必须重新打开，杜绝 INSERT OR IGNORE 静默失败
+        导致案件保持 closed 而退款操作却记录「存在 open 对账案件」的矛盾。
+        """
         from app.repository.points_refund_reconcile_repo import (
             PointsRefundReconcileRepo,
         )
 
-        await PointsRefundReconcileRepo(self._order_repo._db).append(
+        await PointsRefundReconcileRepo(self._order_repo._db).ensure_open_case(
             order_id=order_id,
             mobile="",
             unique_id=f"points:settle:{order_id}",
@@ -276,9 +299,10 @@ class UnifiedPaymentApplicationService:
             note=note,
         )
         await self._commit_attempt_state(
+            attempt["id"],
             self._attempt_repo.mark_manual_review(
                 attempt["id"], attempt["state_version"], message
-            )
+            ),
         )
         raise ValueError(message)
 
@@ -302,16 +326,17 @@ class UnifiedPaymentApplicationService:
         except Exception as exc:
             error_text = str(exc)
             latest = await self._attempt_repo.get_latest("order", order.id)
-            if any(hint in error_text for hint in _ACCOUNT_ERROR_HINTS):
+            if isinstance(exc, PaymentAccountError):
                 # 预占阶段账户型失败：attempt 保持 prepay_ready → manual_review
                 if latest is not None and latest["status"] in (
                     "prepay_ready",
                     "settling_retry",
                 ):
                     await self._commit_attempt_state(
+                        latest["id"],
                         self._attempt_repo.mark_manual_review(
                             latest["id"], latest["state_version"], error_text
-                        )
+                        ),
                     )
             else:
                 # 预占不足等前置失败：attempt 已标 failed，补齐独立 UoW 提交
@@ -363,21 +388,25 @@ class UnifiedPaymentApplicationService:
                     f"支付尝试 {attempt['id']} 结算失败后重读不到，订单 {order.id} 需人工排查"
                 ) from exc
             current_version = int(latest_attempt["state_version"])
-            if any(hint in error_text for hint in _ACCOUNT_ERROR_HINTS):
+            if isinstance(exc, PaymentAccountError):
+                # 账户状态型错误（缺失 / 余额不足 / 历史未绑定等）→ manual_review：
+                # 重试无益，需人工（R5 结构化错误码分流，不再依赖中文字符串）
                 await self._commit_attempt_state(
+                    attempt["id"],
                     self._attempt_repo.mark_manual_review(
                         attempt["id"],
                         current_version,
                         error_text,
-                    )
+                    ),
                 )
             else:
                 await self._commit_attempt_state(
+                    attempt["id"],
                     self._attempt_repo.mark_retry(
                         attempt["id"],
                         current_version,
                         error_text,
-                    )
+                    ),
                 )
             raise
 
@@ -398,10 +427,35 @@ class UnifiedPaymentApplicationService:
         await self._order_repo._db.commit()
         return attempt
 
-    async def _commit_attempt_state(self, coro: Awaitable[bool]) -> None:
-        """用新 UoW 持久化尝试终态（先执行写，再显式 commit）。"""
-        await coro
-        await self._order_repo._db.commit()
+    async def _commit_attempt_state(
+        self, attempt_id: int, coro: Awaitable[bool]
+    ) -> None:
+        """用新 UoW 持久化尝试终态（先执行写，再显式 commit）。
+
+        R5：强制检查 CAS 返回值——落空（并发取消 / 重放抢先推进）时重读当前
+        状态：仅接受已知幂等终态（succeeded / cancelled / expired / failed /
+        manual_review），否则抛明确并发冲突（失败可见、可处理），杜绝
+        「案件已开但 attempt 未进入预期状态」的半持久化。
+        """
+        moved = await coro
+        if moved:
+            await self._order_repo._db.commit()
+            return
+        latest = await self._attempt_repo.get_by_id(attempt_id)
+        status = str(latest["status"]) if latest is not None else "missing"
+        if status in (
+            "succeeded",
+            "cancelled",
+            "expired",
+            "failed",
+            "manual_review",
+        ):
+            # 并发已推进到已知幂等终态：接受（案件按终态结案，不重复写状态）
+            await self._order_repo._db.commit()
+            return
+        raise ValueError(
+            f"支付尝试状态并发冲突（attempt {attempt_id} 当前 {status}），请刷新后重试"
+        )
 
     async def _settle_balance_legs(self, order: Order, attempt: dict) -> None:
         """结算余额腿：按不可变账户 ID 原子扣减 + 流水记账（P2）。
@@ -426,11 +480,13 @@ class UnifiedPaymentApplicationService:
             ):
                 account_row = await self._balance_repo.get_by_id(member_balance_id)
                 if account_row is None:
-                    raise ValueError(
-                        f"储值账户不存在（已删除？），订单 {order.id} 不得结算"
+                    raise PaymentAccountError(
+                        "account_missing",
+                        f"储值账户不存在（已删除？），订单 {order.id} 不得结算",
                     )
-                raise ValueError(
-                    f"储值账户余额不足（含预占），订单 {order.id} 需人工复核"
+                raise PaymentAccountError(
+                    "balance_insufficient",
+                    f"储值账户余额不足（含预占），订单 {order.id} 需人工复核",
                 )
             balance_after = await self._balance_repo.get_stored_value_fen_by_id(
                 member_balance_id

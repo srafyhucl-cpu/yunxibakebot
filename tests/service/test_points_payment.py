@@ -120,8 +120,16 @@ async def _seed_points_partial(
     points_fen: int,
     points_awarded: int | None = None,
     settled: bool = False,
+    unbound: bool = False,
+    bind_id: int | None = None,
 ) -> None:
-    """直写积分抵扣 partial 快照（绕过 B3.4 围栏，测试两命令与结算路径）。"""
+    """直写积分抵扣 partial 快照（绕过 B3.4 围栏，测试两命令与结算路径）。
+
+    D1-A.1（R3）：默认绑定不可变账户 ID（与真实 apply_points 流程一致，
+    B3.5 起快照必有 memberBalanceId）；unbound=True 用于模拟 B3.5 前历史
+    订单（无账户绑定），断言禁止按手机号补绑；bind_id 用于快照绑定一个
+    不存在 / 已删除的账户（模拟账户缺失阻断）。
+    """
     order = await OrderRepo(db).get_order(order_id)
     assert order is not None
     payment = loads_payment(order.payment)
@@ -134,6 +142,15 @@ async def _seed_points_partial(
             "remainFen": max(0, 10_000 - points_fen),
         }
     )
+    if not unbound:
+        if bind_id is not None:
+            payment["memberBalanceId"] = str(bind_id)
+        else:
+            rows = await db.execute_fetchall(
+                "SELECT id FROM member_balance WHERE mobile = ? LIMIT 1", (MOBILE,)
+            )
+            assert rows, "未预置会员积分账户"
+            payment["memberBalanceId"] = str(rows[0]["id"])
     if points_awarded is not None:
         payment["pointsAwarded"] = points_awarded
     if settled:
@@ -202,8 +219,9 @@ async def test_two_orders_competing_points_balance_second_blocked(
     # 第一单结算成功：扣减 5000 分、发分 50（余额 5000 - 5000 + 50 = 50）
     await order_service.confirm_mock_payment(order_a, user_id=USER_ID)
     assert await _points(db) == 50
-    # 第二单余额不足：扣减失败必须阻止进入已支付，不得静默放行形成免费抵扣
-    with pytest.raises(ValueError, match="积分余额不足"):
+    # 第二单余额不足：D1-A 语义下预占阶段即前置失败（attempt failed），
+    # 不得进入已支付，不得静默放行形成免费抵扣
+    with pytest.raises(ValueError, match="积分不足（含预占）"):
         await order_service.confirm_mock_payment(order_b, user_id=USER_ID)
     order_b_latest = await OrderRepo(db).get_order(order_b)
     payment_b = loads_payment(order_b_latest.payment)
@@ -299,6 +317,12 @@ async def test_award_points_subtracts_coupon(
     payment["couponFen"] = 3000
     payment["couponId"] = "c1"
     payment["status"] = "paid"
+    # D1-A.1（R3）：已支付快照绑定不可变账户 ID（与真实流程一致）
+    rows = await db.execute_fetchall(
+        "SELECT id FROM member_balance WHERE mobile = ? LIMIT 1", (MOBILE,)
+    )
+    assert rows
+    payment["memberBalanceId"] = str(rows[0]["id"])
     await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
     await OrderRepo(db)._db.commit()
     updated = await OrderRepo(db).get_order(order_id)
@@ -664,7 +688,10 @@ async def test_award_blocks_when_points_account_missing(
     )
     await db.commit()
     order_id = await _create_order(order_service, price_fen=10_000)
-    await _seed_points_partial(db, order_id, points_used=5000, points_fen=5000)
+    # 快照绑定一个不存在的账户 ID（模拟账户缺失阻断，D1-A 不可变账户身份）
+    await _seed_points_partial(
+        db, order_id, points_used=5000, points_fen=5000, bind_id=999_999
+    )
     with pytest.raises(ValueError, match="积分账户不存在"):
         await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
     order = await OrderRepo(db).get_order(order_id)
@@ -889,6 +916,19 @@ async def test_dual_connection_concurrent_settle_single_winner(
         )
         await conn_a.execute(
             "INSERT INTO member_balance (mobile, points) VALUES ('18800000099', 100000)"
+        )
+        await conn_a.commit()
+        # D1-A.1（R3）：快照绑定不可变账户 ID（与真实 apply_points 流程一致）
+        mid_rows = await conn_a.execute_fetchall(
+            "SELECT id FROM member_balance WHERE mobile = '18800000099'"
+        )
+        assert mid_rows
+        order_bound = await OrderRepo(conn_a).get_order(order_id)
+        assert order_bound is not None
+        payment_bound = loads_payment(order_bound.payment)
+        payment_bound["memberBalanceId"] = str(mid_rows[0]["id"])
+        await OrderRepo(conn_a).update_payment(
+            order_id, dumps_payment(payment_bound), now_text()
         )
         await conn_a.commit()
 

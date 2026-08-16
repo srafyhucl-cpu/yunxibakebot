@@ -608,6 +608,8 @@ _D1_EXPLICIT_WRITE_ATTRS: frozenset[str] = frozenset(
         "reserve_stored_value_fen",
         "clear_points_hold",
         "clear_stored_value_fen_hold",
+        # D1-A.1 复核 R4：案件 open 原子保障（新建 / 已打开 / closed→open）
+        "ensure_open_case",
     }
 )
 

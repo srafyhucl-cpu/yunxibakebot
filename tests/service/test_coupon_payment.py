@@ -527,12 +527,13 @@ async def test_coupon_consumed_then_points_fail_rolls_back_all(
     复现评审描述：修复前仓储自提交导致「券已 CONSUME、订单已 paid、积分流水为空」；
     修复后统一支付应用服务独占事务，券与积分任一失败全部资产回滚。
     """
-    await _seed_member(db)  # points = 0，积分扣减必然失败
+    await _seed_member(db)  # points = 0，预占/扣减必然失败
     await _seed_template(db)
     await _seed_coupon(db)
     order_id = await _create_order(order_service, price_fen=10_000)
     await coupon_service.apply_coupon(order_id, user_id=USER_ID, coupon_id="c1")
-    # 直写积分抵扣 partial（绕过 B3.4 围栏，聚焦结算链路整体回滚）
+    # 直写积分抵扣 partial（绕过 B3.4 围栏，聚焦结算链路整体回滚）；
+    # D1-A.1（R3）：绑定不可变账户 ID（与真实 apply_points 流程一致）
     order = await OrderRepo(db).get_order(order_id)
     assert order is not None
     payment = loads_payment(order.payment)
@@ -541,9 +542,16 @@ async def test_coupon_consumed_then_points_fail_rolls_back_all(
     payment["pointsUsed"] = 5000
     payment["pointsFen"] = 5000
     payment["remainFen"] = 4500
+    rows = await db.execute_fetchall(
+        "SELECT id FROM member_balance WHERE mobile = ? LIMIT 1", (MOBILE,)
+    )
+    assert rows, "未预置会员积分账户"
+    payment["memberBalanceId"] = str(rows[0]["id"])
     await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
     await OrderRepo(db)._db.commit()
-    with pytest.raises(ValueError, match="积分余额不足"):
+    # 账户余额 0 < 抵扣 5000：预占失败 → 前置失败（attempt failed），
+    # 券核销从未执行 → 外层事务无任何资产副作用
+    with pytest.raises(ValueError, match="积分不足（含预占）"):
         await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
     # 整体回滚：订单未支付、券未核销、无积分流水
     order_latest = await OrderRepo(db).get_order(order_id)

@@ -1,3 +1,15 @@
+## [2026-08-16] - docs(governance): D1-A.1 复核代码整改包（R1–R6 六项高优运行时缺口，方案 B，验收固定五项）
+
+- 操作者: AI (Codex)
+- trace_id: `20260816-accounting-d1a1-runtime-remediation`
+- parent_trace_id: `20260816-accounting-d1a-runtime-remediation`
+- 来源: 项目负责人对 `d438bc0`（D1-A 归档）的复核结论（2026-08-16，Go/No-Go=暂不通过）——「现有绿色测试证明了主路径，但未覆盖几条会造成预占泄漏、账务事实不完整或账户漂移的运行时路径」；6 项问题 R1–R6 全高，方案 B（只开一轮代码整改包，不再开文档整改轮），验收固定 5 项：①同订单重试无预占泄漏 ②余额支付 outbox 可还原完整计划 ③历史无账户 ID 不写新账户 ④案件关闭后复发必为 open ⑤CAS 落空可见且可处理
+- 范围: R1–R5 代码整改 + R6 登记为 D1-C 硬门槛（真实支付 No-Go 不变，不改代码）；master 双远端保持 b30b2066 直至项目负责人按固定五项验收复核放行；`POINTS_DEDUCTION_FENCE=True` 保持
+- 实现: **R1 hold 泄漏**（hold_key 改 attempt 维度 `hold:{payment_attempt_id}:{asset}`；`reserve()` 落空回滚本腿账户行预占 + 整体阻断，预占/审计/leg 同一事务）；**R2 规范支付计划**（pay_order_with_balance 创建 attempt 前落库规范计划：method=balance、balanceFen、totalFen、currency=CNY、memberBalanceId、planVersion=1；attempt 冻结快照/hash/outbox 只引用该计划，provider 不再退化 mock；组合支付中间态同构）；**R3 禁止按手机号补绑**（结算遇未绑定快照 → `PaymentAccountError(code="legacy_unbound")` → manual_review，仅可证明原账户 ID 的单独迁移可回填；退款账户解析仅回退不可变结算事实 `ledger:settle_redeem`，再无则 account_missing 案件/欠账；award_on_payment 无抵扣无发分提前返回、不误判未绑定）；**R4 ensure_open_case**（PointsRefundReconcileRepo：closed→open 版本递增 reopen（先订单+原因再 unique_id）→ 新建幂等 → 确认为 open；`_open_case_and_review` 与全部退款案件写点接入；案件+attempt 状态同一专用 UoW）；**R5 结构化错误与 CAS 检查**（新增 `app/service/payment/errors.py::PaymentAccountError(code,message)`：account_missing/balance_insufficient/points_insufficient/account_changed/account_unresolved/legacy_unbound；结算/预占分流改 isinstance（账户型→manual_review，预占不足→failed 契约不变）；`_commit_attempt_state(attempt_id,coro)` 检查 CAS 结果，落空重读仅接受已知幂等终态否则显式并发冲突）；check_project 守卫登记（显式写方法补 `ensure_open_case`）
+- 验证: test_payment_attempt_d1a 24 项（原 16 + R1–R5 验收 7 项）全绿；test_points_payment（种子绑定不可变账户 ID 与真实流程对齐 + unbound/bind_id 逃生口）、test_coupon_payment（预占失败语义）、test_stored_value 全绿；D1-0 守卫 passed=True；ruff check/format、mypy 改动文件作用域无新增错误；全量回归提交前须 exit=0
+- 变更: VERSION 0.132.12 → 0.132.13（sync-version 自动递增，含 .py/.sql）；ADR 0008 追加 D1-A.1 复核注记；docs/specs/2026-08-16-accounting-d1a-runtime-remediation.md 追加九~十一章（R1–R6 映射 + 验证 + D1-C 硬门槛清单）
+- residual_risks: **R6 组合支付微信通知仍直接 mark_paid 绕过统一服务（余额 hold 不消费/释放、无结算 outbox）——D1-C 硬门槛**，与 P8 outbox fencing 并列 D1-C 必须项；order.payment 仍为展示缓存（降级为引用是 D1-B 范围）；master 双远端保持 b30b2066 直至项目负责人固定五项验收复核放行；POINTS_DEDUCTION_FENCE 保持 True；2027-05-31 开发测试边界不变；时钟偏差留档（G0）继续适用，不 amend 已归档提交
+
 ## [2026-08-16] - docs(governance): D1-A 运行时整改包（复核 P1–P7 聚焦整改，方案 B，不改写已归档提交）
 
 - 操作者: AI (Codex)

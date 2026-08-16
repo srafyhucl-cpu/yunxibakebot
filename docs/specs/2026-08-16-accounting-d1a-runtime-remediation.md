@@ -66,8 +66,34 @@
 - `python scripts/check_project.py` D1-0 守卫 passed=True（unified.py 方法级 allowlist 增补内部写点、member.py {credit_by_id, deduct_by_id}、显式写方法补 `mark_failed_preclaim / reserve_* / clear_*_hold`）
 - ruff check/format、mypy（改动文件作用域无新增错误）、`git diff --check` 通过
 
-## 八、不进范围 / 移交
+## 九、D1-A.1 复核（R1–R6 代码整改，方案 B，2026-08-16）
 
-- P8 outbox fencing（claim 租约/依赖 fail-closed 运行时 worker）：**D1-C 前必须实现**（本包仅保持 enqueue 同事务 + 幂等键）
+> 复核结论：**暂不通过 D1-A 合入 master，也不放行 D1-B**。绿色测试证明主路径，
+> 未覆盖会造成预占泄漏、账务事实不完整或账户漂移的运行时路径。本轮只做
+> **代码整改包**（不再开文档整改轮），验收固定 5 项：①同订单重试无预占泄漏
+> ②余额支付 outbox 可还原完整计划 ③历史无账户 ID 不写新账户 ④案件关闭后复发
+> 必为 open ⑤CAS 落空可见且可处理。
+
+| 问题 | 整改 |
+|------|------|
+| R1 同订单失败→重试→取消 held 永久残留 | hold_key 由 `hold:order:{order_id}:{asset}` 改为 **attempt 维度** `hold:{payment_attempt_id}:{asset}`；`reserve()` 返回 False（同键已存在）→ 回滚本腿账户行预占 + 整体阻断（预占/审计/leg 同一事务，任一失败或未新增都不留 held 无 hold 行泄漏态）；验证：`test_r1_retry_after_failed_preclaim_no_hold_leak`（失败→重试→取消 held 归零） |
+| R2 全额储值支付 attempt 快照/outbox 缺 balanceFen、provider 退化 mock | 创建 attempt 前生成并**落库规范支付计划**（method=balance、balanceFen、totalFen、currency=CNY、memberBalanceId、planVersion=1）；attempt 冻结快照/hash/outbox 均只引用该计划；paid 载荷延续同构计划；验证：`test_r2_full_balance_payment_attempt_outbox_consistent` |
+| R3 历史积分订单缺 memberBalanceId 仍按手机号补绑（结算+退款） | **禁止一切按手机号替代**：结算遇未绑定快照 → `PaymentAccountError(code="legacy_unbound")` → manual_review（仅可证明原账户 ID 的单独迁移可回填）；退款账户解析仅回退到不可变结算事实 `ledger:settle_redeem`，再无则 account_missing 案件/欠账，不写重建新账户；验证：`test_r3_legacy_unbound_settle/refund_never_writes_new_account` |
+| R4 open_case 从未调用（都走 append），关闭后复发唯一键静默失败案件保持 closed | `PointsRefundReconcileRepo.ensure_open_case()`：① closed→open reopen（先按订单+原因，再按 unique_id——同一冲突身份）② 新建（同 unique_id 幂等）③ 已存在确认为 open；`_open_case_and_review` 与全部退款案件写点改走 ensure_open_case，案件 + attempt 状态同一专用 UoW；验证：`test_r4_closed_case_reopens_on_recurrence`（关闭→复发必为 open，版本递增） |
+| R5 `_commit_attempt_state` 忽略 CAS 返回值；错误分流依赖中文字符串 | 新增 `app/service/payment/errors.py::PaymentAccountError(code, message)`（account_missing / balance_insufficient / points_insufficient / account_changed / account_unresolved / legacy_unbound）；结算/预占分流改 **isinstance 判定**（账户型→manual_review，其余→settling_retry，预占不足→failed 契约不变）；`_commit_attempt_state(attempt_id, coro)` 检查 CAS 结果，落空重读仅接受已知幂等终态（succeeded/cancelled/expired/failed/manual_review），否则显式并发冲突；验证：`test_r5_points_insufficient_routes_to_manual_review`（积分余额不足→manual_review 而非 settling_retry）、`test_r5_cas_conflict_on_attempt_state_visible` |
+| R6 组合支付微信通知仍直接 mark_paid 绕过统一服务（余额 hold 不消费/释放、无结算 outbox） | **D1-C 硬门槛，本轮不改代码**（真实支付 No-Go 不变）：`payment_notification.py::mark_paid` 接入统一结算服务（hold 消费/释放 + order.settled outbox）列入 D1-C 必须项，与 P8 outbox fencing 并列 |
+
+## 十、D1-A.1 验证（exit=0，可复现）
+
+- `tests/service/test_payment_attempt_d1a.py`（24 项）：原 16 项 + R1–R5 验收 7 项 + v027 守卫
+- `tests/service/test_stored_value.py`、`tests/service/test_points_payment.py`（种子绑定不可变账户 ID 与真实流程对齐；unbound/bind_id 逃生口）、`tests/service/test_coupon_payment.py`（预占失败语义）全绿
+- 全量 `python -m pytest -q --no-cov -p no:cacheprovider --basetemp=D:\Temp\pytest-outside-repo-d1a` exit=0
+- `python scripts/check_project.py` D1-0 守卫 passed=True（显式写方法补 `ensure_open_case`）
+- ruff check/format、mypy（改动文件作用域无新增错误）、`git diff --check` 通过
+
+## 十一、不进范围 / 移交（D1-C 硬门槛清单）
+
+- **R6**：`payment_notification.py::mark_paid` 真实支付通知接入统一支付应用服务（余额 hold 消费/释放 + order.settled outbox）——真实支付 No-Go 维持，受控真实微信支付条件不具备
+- **P8**：outbox fencing（claim 租约 / 依赖 fail-closed 运行时 worker）
 - order.payment 降级为引用（D1-B）；真实支付/真实券/正式导入/真实用户开放/权威切换 No-Go；`POINTS_DEDUCTION_FENCE` 保持 True
-- 审阅分支追加提交，**不改写** `69a31c98333a49001033d1f791510e800e72beb8`（内容）/ `6c2b2a0ca3223afc16a2a0f69a7b7c627ad83f9a`（归档）；master 双远端保持 `b30b2066ac27ef2326edae01240ab33882a3bf6e` 直至项目负责人复核放行
+- 审阅分支追加提交，**不改写** `5bc022e…`（内容）/ `d438bc0…`（归档）；master 双远端保持 `b30b2066ac27ef2326edae01240ab33882a3bf6e` 直至项目负责人复核放行

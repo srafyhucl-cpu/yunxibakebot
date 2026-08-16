@@ -81,9 +81,25 @@ class StoredValueOrderPaymentService:
             user_id
         )
         if pay_fen > 0:
-            payment["memberBalanceId"] = str(member_balance_id)
+            # R2：创建 attempt 前生成唯一的**规范支付计划**并落库——固化支付方式
+            # （method=balance）、provider、总额、币种、余额腿金额、账户 ID 与
+            # 计划版本；attempt 冻结快照 / hash / outbox 均只引用该计划，避免
+            # 「腿有余额金额而快照与 order.settled 载荷缺失 balanceFen、默认
+            # method 为空时 provider 退化为 mock」的不一致
+            plan = build_balance_payment(now_text(), pay_fen)
+            plan["status"] = PAYMENT_STATUS_UNPAID
+            plan["paidAt"] = ""
+            plan["memberBalanceId"] = str(member_balance_id)
+            plan["planVersion"] = 1
+            plan["totalFen"] = total_fen
+            plan["currency"] = "CNY"
+            plan["couponId"] = str(payment.get("couponId", "") or "")
+            plan["couponFen"] = int(payment.get("couponFen", 0) or 0)
+            plan["pointsFen"] = int(payment.get("pointsFen", 0) or 0)
+            plan["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
+            plan["createdAt"] = str(payment.get("createdAt", "") or "") or now_text()
             await self._order_repo.update_payment(
-                order.id, dumps_payment(payment), now_text()
+                order.id, dumps_payment(plan), now_text()
             )
         # 重读最新订单：attempt 冻结的快照必须含账户绑定（与库中一致）
         fresh_order = await self._order_repo.get_order(order.id)
@@ -102,6 +118,11 @@ class StoredValueOrderPaymentService:
             paid_payment["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
             if pay_fen > 0:
                 paid_payment["memberBalanceId"] = str(member_balance_id)
+            # R2：paid 载荷延续规范支付计划（版本 / 总额 / 币种），保持与
+            # attempt 冻结快照同构（展示与 outbox 可还原完整计划）
+            paid_payment["planVersion"] = 1
+            paid_payment["totalFen"] = total_fen
+            paid_payment["currency"] = "CNY"
             updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
                 order.id,
                 dumps_payment(paid_payment),
@@ -172,6 +193,11 @@ class StoredValueOrderPaymentService:
         partial_payment["pointsFen"] = int(payment.get("pointsFen", 0) or 0)
         partial_payment["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
         partial_payment["memberBalanceId"] = str(member_balance_id)
+        # R2：组合支付中间态同样固化规范支付计划（总额 / 币种 / 计划版本），
+        # attempt 冻结快照与 outbox 载荷可还原完整计划
+        partial_payment["planVersion"] = 1
+        partial_payment["totalFen"] = total_fen
+        partial_payment["currency"] = "CNY"
         from app.service.payment.unified import UnifiedPaymentApplicationService
 
         unified = UnifiedPaymentApplicationService(order_repo=self._order_repo)
