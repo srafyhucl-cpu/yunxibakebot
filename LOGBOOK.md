@@ -1,3 +1,17 @@
+## [2026-08-16] - docs(governance): G0 B3.5 冻结基线确认（一次冻结清单复核 Go + master 快进不部署 + 时钟偏差留档 + D1 纵向切片路线）
+
+- 操作者: AI (Codex)
+- trace_id: `20260816-g0-freeze-review-b35`
+- parent_trace_id: `20260815-member-loyalty-accounting-contract-b35`
+- 来源: 项目负责人对 B3.5 的最终复核结论（冻结决定）——B3.5 已把前一轮发现的真实一致性缺陷转成代码和测试，应成为**最后一个冻结整改基线**，不再扩写 B3.6；4 项问题（3 高 1 中）均不阻断 B3.5，移交 D1 纵向切片；推荐路线 G0 → master 快进（不部署）→ D1-A → D1-B → D1-C → CT-1A → FP-4A → CT-1 → FP-3b → FP-1 → FP-4B2 → FP-2
+- G0 冻结清单复核（一次，不扩范围）: 仅核对 B3.5 既定 10 项收口与既定故障矩阵——10 项全部核实落地（代码/测试/ADR 三通道），故障矩阵关键场景全部可复现（券成功积分失败整体回滚、双连接 asyncio.Barrier 恰一次结算、账户缺失/切换阻断、webhook 租约接管、AST 守卫负向、v3 报文正反向）；复核报告 `reports/harness/g0-freeze-review-b35-20260816.md`（gitignored）；记录偏差：LOGBOOK B3.5 条目记 normalizer「16 项」实为 15 函数 / 23 项收集（参数化展开）
+- 评审 4 项问题归属: ①【高】D1 完整资金核心（payment_attempt / account_hold / accounting_outbox / provider event / 退款额度 / 券投影）未实现 → D1-A 最小纵向切片（mock 订单 预占→结算→取消释放→重放）；②【高】积分退回/扣减仍按手机号、账户删除重建退款可能入新账户 → D1-A 不可变账户 ID get/credit/deduct + 账户缺失 manual_review（禁止按手机号新建替代）；③【高】短缺债务/案件审计只有记录无偿还/关闭/自动重开 → D1-A 债务部分偿还、open→settled 条件更新、后续积分入账优先偿债、open_case 接入冲突重现；④【中】**时钟偏差**：审计日期 2026-08-15 vs `6523b5f`/`b30b206` Author/Commit 时间 2026-08-16（本机时钟）——不 amend/不重写已绑定 E-009 blob 的提交，本条目 + `docs/harness-engineering/core/g0-b35-freeze-decision-20260816.md` + 复核报告为正式留档，后续审批记录继续明确可信时间源，B3.5 提交不作为「截至 8 月 15 日已归档」的时间性证据
+- 批准范围（项目负责人确认）: master 双远端快进至 `b30b2066ac27ef2326edae01240ab33882a3bf6e`（代码基线决策，不部署、不开放资产写操作、不批准 D1 上线）；B3.5 冻结基线生效；D1 方向获批准但 **D1-A 立项与启动待下一次明确指示**；原则：每个切片只批准「开发测试能力」，合并/部署/真实支付/真实用户开放/权威切换各自独立 No-Go
+- 验证: `git ls-remote origin/server`（master 双远端 = `b30b2066...`，审阅分支双远端 = 本记录提交）；pre-commit 13 项 hook_id=status 清单（本提交）全部 Passed；证据索引 E-009 绑定不变（total=360 / failed=0 / verified_files=89）
+- changed_files: docs/harness-engineering/core/g0-b35-freeze-decision-20260816.md（新，G0 决定记录 + 时钟偏差留档 + D1 路线）；LOGBOOK.md（G0 条目）；项目进度与配置清单.md（G0 条目）；不改动任何 B3.5 提交内容（6523b5f / b30b206 各文件 blob 原样，E-009 绑定有效）
+- residual_risks: D1-A 尚未启动（待下一次指示）；时钟偏差 2026-08-15 vs 08-16 已留档但本机时钟仍为唯一时间源；master 合入 B3.5 后审阅分支将继续承载 D1 切片提交（master 保持 b30b2066 直至下一批准点）；2027-05-31 开发测试边界不变
+- 版本: 0.132.9（本提交无代码变更，sync-version 不递增）
+
 ## [2026-08-15] - docs(governance): 账务核心合同冻结整改 B3.5（B3.4 最终复核 10 项收口 + 单一 UoW + 真实协议 Normalizer + AST 守卫）
 
 - 操作者: AI (Codex)
