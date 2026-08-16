@@ -229,8 +229,11 @@ class PointsPaymentService:
             )
         if award > 0:
             # D1-A（验收 A6）：入账优先偿债——先偿还该账户未结清欠账，
-            # 剩余部分才作为可用积分入账；award 流水仍记全额（退款核验
-            # clawback 与 award 对账不受偿债分流影响，短口由债务机制兜底）
+            # 剩余部分才作为可用积分入账。
+            # D1-A 复核 P6：points_ledger award 流水记**实际入账** credit_amount
+            # （余额总额可对账），偿还部分为独立事实 ledger:debt_repay:*；
+            # 全额 award 事实仍记入 ledger_operation settle_award（退款核验
+            # clawback 与 award 对账使用该事实，短口由债务机制兜底）。
             repaid = await self._repay_open_debts(member_balance_id, award)
             credit_amount = award - repaid
             if credit_amount > 0:
@@ -256,7 +259,7 @@ class PointsPaymentService:
                     PointsLedgerEntry(
                         unique_id=f"points:award:{order.id}",
                         mobile=mobile,
-                        amount=award,
+                        amount=credit_amount,
                         total=int(balance_after),
                         event_type=POINTS_AWARD_EVENT,
                         source=LedgerSource.ORDER,
@@ -346,7 +349,7 @@ class PointsPaymentService:
                 PointsLedgerEntry(
                     unique_id=f"points:refund:{order.id}",
                     mobile=str(redeem_entry["mobile"]),
-                    amount=return_points,
+                    amount=credit_amount,
                     total=int(balance_after),
                     event_type=POINTS_REFUND_EVENT,
                     source=LedgerSource.ORDER,
@@ -377,6 +380,8 @@ class PointsPaymentService:
 
         返回实际偿还总额；剩余部分（amount - repaid）才作为可用积分入账。
         偿还 / 结案均 version CAS，重复入账天然幂等（D1-A，评审问题 3 闭环）。
+        D1-A 复核 P6：只偿还**积分扣回**欠账（operation_key 含 :clawback），
+        防止储值退款欠账被积分误偿（跨资产对账隔离）。
         """
         if member_balance_id is None or amount <= 0:
             return 0
@@ -388,6 +393,8 @@ class PointsPaymentService:
         for debt in debts:
             if remaining <= 0:
                 break
+            if ":clawback" not in str(debt["operation_key"] or ""):
+                continue
             debt_id = int(debt["id"])
             debt_remaining = int(debt["remaining"] or 0)
             debt_version = int(debt["version"] or 1)
@@ -522,7 +529,7 @@ class PointsPaymentService:
                 else:
                     case_extra, unfinished_extra = await self._refund_return_credit(
                         order,
-                        mobile=mobile,
+                        mobile=mobile or str(redeem_entry["mobile"]),
                         member_balance_id=member_balance_id,
                         redeem_entry=redeem_entry,
                         return_points=return_points,
@@ -541,7 +548,22 @@ class PointsPaymentService:
                     biz_id=order.id,
                 )
         if clawback_points > 0:
-            if award_entry is None:
+            # D1-A 复核 P6：全额 award 事实以 ledger_operation settle_award 为准
+            # （points_ledger award 流水记实际入账，偿债分流后可能小于全额）；
+            # 历史订单（无 settle_award 事实）回退按 award 流水校验。
+            settle_award_op = await self._ledger_operation_repo.get_by_unique_id(
+                f"ledger:settle_award:{order.id}"
+            )
+            if settle_award_op is not None:
+                award_amount = int(settle_award_op["amount"] or 0)
+                award_biz_id = str(settle_award_op["subject_id"] or "")
+            elif award_entry is not None:
+                award_amount = int(award_entry["amount"] or 0)
+                award_biz_id = str(award_entry["biz_id"] or "")
+            else:
+                award_amount = 0
+                award_biz_id = ""
+            if award_entry is None and settle_award_op is None:
                 unfinished = True
                 case_appended = True
                 await self._reconcile_repo.append(
@@ -552,10 +574,7 @@ class PointsPaymentService:
                     amount=clawback_points,
                     note="已结算订单未发现 points:award 流水，跳过已发积分收回，待人工核对后关闭",
                 )
-            elif (
-                int(award_entry["amount"] or 0) != clawback_points
-                or str(award_entry["biz_id"] or "") != order.id
-            ):
+            elif award_amount != clawback_points or award_biz_id != order.id:
                 unfinished = True
                 case_appended = True
                 await self._reconcile_repo.append(
@@ -566,18 +585,24 @@ class PointsPaymentService:
                     amount=clawback_points,
                     note=(
                         f"points:award 流水金额/归属不一致（amount="
-                        f"{award_entry['amount']}），跳过收回，待人工核对后关闭"
+                        f"{award_amount}，biz={award_biz_id}），跳过收回，"
+                        "待人工核对后关闭"
                     ),
                 )
             else:
                 # D1-A（验收 A5）：扣回一律按不可变账户 ID——原账户已删除（重建后
                 # 新 id）不命中新账户；无快照绑定则解析原发分手机号账户，查无即
                 # 欠账待人工结清，禁止按手机号新建替代账户
+                award_mobile = str(
+                    award_entry["mobile"]
+                    if award_entry is not None
+                    else (
+                        settle_award_op["mobile"] if settle_award_op is not None else ""
+                    )
+                )
                 clawback_target_id = member_balance_id
                 if clawback_target_id is None:
-                    legacy_row = await self._balance_repo.get_by_mobile(
-                        str(award_entry["mobile"])
-                    )
+                    legacy_row = await self._balance_repo.get_by_mobile(award_mobile)
                     if legacy_row is not None:
                         clawback_target_id = int(legacy_row["id"])
                 if clawback_target_id is not None:
@@ -598,7 +623,7 @@ class PointsPaymentService:
                     shortfall_amount = clawback_points
                     await self._shortfall_debt_repo.append(
                         order_id=order.id,
-                        mobile=str(award_entry["mobile"]),
+                        mobile=award_mobile,
                         member_balance_id=member_balance_id,
                         operation_key=f"points:refund:{order.id}:clawback",
                         amount=clawback_points,
@@ -612,7 +637,7 @@ class PointsPaymentService:
                     await self._ledger_operation_repo.append(
                         operation_type=REFUND_CLAWBACK,
                         subject_id=order.id,
-                        mobile=str(award_entry["mobile"]),
+                        mobile=award_mobile,
                         member_balance_id=member_balance_id,
                         amount=-clawback_points,
                         unique_id=f"ledger:refund_clawback:{order.id}",

@@ -111,3 +111,87 @@ class MemberBalanceService:
             )
         )
         return balance_after_fen
+
+    async def resolve_member_balance_id(self, user_id: str) -> int:
+        """解析会员余额账户的不可变 ID（首次储值操作固定，D1-A 复核 P2）。
+
+        手机号解析成功后查余额快照；快照缺失即账户不存在 → 阻断（禁止按
+        手机号新建账户替代），与积分侧 A5 语义一致。
+        """
+        mobile = await self.resolve_mobile(user_id)
+        balance_row = await self._balance_repo.get_by_mobile(mobile)
+        if balance_row is None:
+            raise ValueError("储值账户不存在，无法发起余额支付")
+        return int(balance_row["id"])
+
+    async def credit_by_id(
+        self,
+        *,
+        user_id: str,
+        member_balance_id: int,
+        mobile: str,
+        amount_fen: int,
+        biz_type: str,
+        biz_id: str,
+        unique_id: str,
+        source: str,
+    ) -> int | None:
+        """按不可变账户 ID 加款并记账（幂等）；账户不存在返回 None（不新建）。"""
+        if await self._ledger_repo.get_by_unique_id(unique_id):
+            return await self._balance_repo.get_stored_value_fen_by_id(
+                member_balance_id
+            )
+        balance_after_fen = await self._balance_repo.credit_stored_value_by_id(
+            member_balance_id, amount_fen
+        )
+        if balance_after_fen is None:
+            return None
+        await self._ledger_repo.insert(
+            BalanceLedgerEntry(
+                unique_id=unique_id,
+                user_id=user_id,
+                mobile=mobile,
+                amount_fen=amount_fen,
+                balance_after_fen=balance_after_fen,
+                biz_type=biz_type,
+                biz_id=biz_id,
+                source=source,
+                occurred_at=now_str(),
+            )
+        )
+        return balance_after_fen
+
+    async def deduct_by_id(
+        self,
+        *,
+        user_id: str,
+        member_balance_id: int,
+        mobile: str,
+        amount_fen: int,
+        biz_type: str,
+        biz_id: str,
+        unique_id: str,
+        source: str,
+    ) -> int | None:
+        """按不可变账户 ID 原子扣款并记账；余额不足 / 账户缺失返回 None。"""
+        if not await self._balance_repo.deduct_stored_value_if_sufficient_by_id(
+            member_balance_id, amount_fen
+        ):
+            return None
+        balance_after_fen = await self._balance_repo.get_stored_value_fen_by_id(
+            member_balance_id
+        )
+        await self._ledger_repo.insert(
+            BalanceLedgerEntry(
+                unique_id=unique_id,
+                user_id=user_id,
+                mobile=mobile,
+                amount_fen=-amount_fen,
+                balance_after_fen=balance_after_fen,
+                biz_type=biz_type,
+                biz_id=biz_id,
+                source=source,
+                occurred_at=now_str(),
+            )
+        )
+        return balance_after_fen

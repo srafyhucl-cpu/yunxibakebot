@@ -105,6 +105,20 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
         "存量职责评审：应用入口集中管理 lifespan、repository/service 装配和运行时路由，"
         "本轮仅增加 readiness Response 注入，不新增独立业务职责；禁止为单行超线机械拆分。"
     ),
+    "app/service/payment/unified.py": (
+        "本轮职责评审（D1-A 运行时整改包）：统一支付应用服务保持账务写唯一入口内聚——"
+        "两阶段结算（预占自有 UoW + 结算独立事务）、账户行真实预占/消费/释放、attempt 快照校验与"
+        "open_case、manual_review 处置矩阵、outbox attempt 快照载荷与储值腿 by-id 扣减共享同一套"
+        "attempt/hold/outbox/balance 仓储与 CAS 状态机；拆分会把两阶段事务边界与失败处置（回滚后"
+        "重读 state_version 持久化失败态）分散到多文件并复制 UoW 胶水，保留当前内聚边界，"
+        "后续按 subject 类型（order/recharge/balance）扩展时再评估拆分。"
+    ),
+    "app/service/stored_value/payment.py": (
+        "本轮职责评审（D1-A 运行时整改包）：储值支付服务保持统一入口内聚——余额支付/组合支付/"
+        "储值退款共享 resolve_member_balance_id 不可变账户绑定、attempt 快照绑定（先写 memberBalanceId"
+        "再重读订单）、未绑定退款债务化（operation_key order_refund:<id>）与统一服务结算闭包；"
+        "拆分会复制账户身份解析与债务化胶水，保留当前内聚边界。"
+    ),
 }
 
 UNREVIEWED_OVERSIZE_GUIDANCE = (

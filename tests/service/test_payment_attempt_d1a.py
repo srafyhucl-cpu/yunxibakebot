@@ -163,6 +163,13 @@ async def test_a1_preclaim_failure_keeps_hold_and_retry(
     assert len(holds) == 1
     assert holds[0]["asset_type"] == "points"
     assert holds[0]["status"] == "active"
+    # D1-A 复核 P3：真实预占——账户行 held 原子占用（可用额 = 余额 - 预占）
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 5000
 
     async def _boom() -> None:
         raise ValueError("模拟结算中途失败")
@@ -176,6 +183,12 @@ async def test_a1_preclaim_failure_keeps_hold_and_retry(
     assert "模拟结算中途失败" in attempt_after["last_error"]
     holds_after = await AccountHoldRepo(db).list_active_by_attempt(attempt["id"])
     assert len(holds_after) == 1  # 预占保持占用，未消费未释放
+    row_after = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row_after["held_points"]) == 5000  # 账户行预占保持
     ledger = await db.execute_fetchall(
         "SELECT COUNT(*) AS c FROM points_ledger WHERE mobile = ?", (MOBILE,)
     )
@@ -243,6 +256,19 @@ async def test_a2_settle_replay_after_retry_succeeds_once(
     assert int(ledger[0]["c"]) == 2  # redeem + award 恰一次
     order_after = await OrderRepo(db).get_order(order_id)
     assert str(loads_payment(order_after.payment).get("status")) == "paid"
+    # D1-A 复核 P4：outbox 载荷用 attempt 不可变快照 + 结算结果（不读调用前 order.payment）
+    import json as _json
+
+    payload_row = (
+        await db.execute_fetchall(
+            "SELECT payload_json FROM accounting_outbox WHERE operation_key = ?",
+            (f"order:settled:{order_id}",),
+        )
+    )[0]
+    payload = _json.loads(payload_row["payload_json"])
+    assert payload["attempt_id"] == attempt["id"]
+    assert payload["result"] == "settled"
+    assert payload["snapshot"]["pointsFen"] == 5000
 
     # 再重放：幂等返回，事实不重复
     order_again = await OrderRepo(db).get_order(order_id)
@@ -516,9 +542,9 @@ async def test_a5_settle_blocks_when_account_deleted(
 ) -> None:
     """A5（结算侧）：快照绑定账户行被删除 → 结算阻断，不新建替代账户。
 
-    公开路径（application 事务）：整体回滚，订单保持 partial、无残留尝试；
-    统一服务直接路径：账户型错误 → attempt manual_review（持久化），
-    未解除前同主体不可再结算。
+    公开路径（D1-A 复核 P1 两阶段持久化）：预占独立提交、结算失败回滚资产
+    副作用后，账户型错误 → attempt manual_review 持久化（不再整体回滚
+    抹掉尝试事实）；未解除前同主体不可再结算。
     """
     account_id = await _seed_member(db, points=100_000)
     order_service = _order_service(db)
@@ -533,7 +559,8 @@ async def test_a5_settle_blocks_when_account_deleted(
     await db.execute("DELETE FROM member_balance WHERE id = ?", (account_id,))
     await db.commit()
 
-    # (a) 公开路径：award 扣减发现账户缺失 → ValueError → application 事务整体回滚
+    # (a) 公开路径：预占阶段发现账户缺失 → 账户型错误 → manual_review 持久化，
+    #     订单保持 partial（paid 未写入），不新建替代账户
     with pytest.raises(ValueError, match="积分账户不存在"):
         await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
     order_after = await OrderRepo(db).get_order(order_id)
@@ -541,25 +568,46 @@ async def test_a5_settle_blocks_when_account_deleted(
     attempts = await db.execute_fetchall(
         "SELECT COUNT(*) AS c FROM payment_attempt WHERE subject_id = ?", (order_id,)
     )
-    assert int(attempts[0]["c"]) == 0
+    assert int(attempts[0]["c"]) == 1  # 两阶段：尝试事实持久化（manual_review）
+    attempt_row = await PaymentAttemptRepo(db).get_active("order", order_id)
+    assert attempt_row["status"] == "manual_review"
     accounts = await db.execute_fetchall(
         "SELECT COUNT(*) AS c FROM member_balance WHERE mobile = ?", (MOBILE,)
     )
     assert int(accounts[0]["c"]) == 0  # 未新建替代账户
 
-    # (b) 统一服务直接路径：账户型错误 → manual_review 持久化
+    # (b) 统一服务直接路径（结算中账户型错误）：预占成功后删除账户再结算 →
+    #     结算 UoW 回滚资产副作用后 manual_review 持久化
+    # 恢复原账户（(a) 已删除）供本笔预占成功
+    await db.execute(
+        "INSERT INTO member_balance (id, mobile, points) VALUES (?, ?, 100000)",
+        (account_id, MOBILE),
+    )
+    await db.commit()
+    order_id_b = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id_b,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
     unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
-    order = await OrderRepo(db).get_order(order_id)
+    order_b = await OrderRepo(db).get_order(order_id_b)
+    await unified.ensure_mock_attempt(order_b)  # 预占成功（账户仍存在）
+    await db.commit()
+    await db.execute("DELETE FROM member_balance WHERE id = ?", (account_id,))
+    await db.commit()
 
     async def _account_error() -> None:
         raise ValueError("积分账户不存在（已删除？），订单不得视为已支付")
 
     with pytest.raises(ValueError, match="积分账户不存在"):
-        await unified.settle_mock_order(order, settle_actions=_account_error)
+        await unified.settle_mock_order(order_b, settle_actions=_account_error)
     await db.commit()
 
-    attempt = await PaymentAttemptRepo(db).get_active("order", order_id)
-    assert attempt["status"] == "manual_review"
+    attempt_b = await PaymentAttemptRepo(db).get_active("order", order_id_b)
+    assert attempt_b["status"] == "manual_review"
     accounts = await db.execute_fetchall(
         "SELECT COUNT(*) AS c FROM member_balance WHERE mobile = ?", (MOBILE,)
     )
@@ -739,6 +787,389 @@ async def test_a6_repeated_repay_is_idempotent(
         )[0]["c"]
     )
     assert repay_count == 1
+
+
+# ==================== 复核 P1：公开路径两阶段持久化 ====================
+
+
+@pytest.mark.asyncio
+async def test_public_confirm_failure_persists_retry_then_replays(
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P1：公开 confirm 结算失败（非账户型）→ settling_retry 持久化（不再被
+    外层事务整体回滚抹掉），失败信息可追溯；修复后重放成功。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+
+    from app.service.points.payment import PointsPaymentService
+
+    real_award = PointsPaymentService.award_on_payment
+
+    async def _failing_award(self, order) -> None:
+        raise ValueError("模拟发分服务故障")
+
+    monkeypatch.setattr(PointsPaymentService, "award_on_payment", _failing_award)
+    with pytest.raises(ValueError, match="模拟发分服务故障"):
+        await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    # 失败终态持久化：settling_retry + 预占保持 + 订单未置 paid
+    attempt = await PaymentAttemptRepo(db).get_active("order", order_id)
+    assert attempt["status"] == "settling_retry"
+    assert "模拟发分服务故障" in attempt["last_error"]
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 5000
+    order_mid = await OrderRepo(db).get_order(order_id)
+    assert str(loads_payment(order_mid.payment).get("status")) == "partial"
+
+    # 修复后重放：公开 confirm 幂等结算成功
+    monkeypatch.setattr(PointsPaymentService, "award_on_payment", real_award)
+    paid = await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    assert paid["paymentStatus"] == "paid"
+    attempt_after = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_after["status"] == "succeeded"
+    ledger = await db.execute_fetchall(
+        "SELECT COUNT(*) AS c FROM points_ledger WHERE mobile = ?", (MOBILE,)
+    )
+    assert int(ledger[0]["c"]) == 2  # 结算事实恰一次
+
+
+# ==================== 复核 P3：真实预占（可用额 = 余额 - 活跃预占） ====================
+
+
+@pytest.mark.asyncio
+async def test_dual_orders_over_hold_blocked_then_release_frees(
+    db: aiosqlite.Connection,
+) -> None:
+    """P3：账户行 held 参与可用额——第二单预占超可用额被阻断（attempt failed，
+    前置失败）；释放第一单后 held 归零，第二单可重新发起（释放后重预占）。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    order_id_1 = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id_1,
+        points_used=95000,
+        points_fen=95000,
+        member_balance_id=account_id,
+    )
+    order_1 = await OrderRepo(db).get_order(order_id_1)
+    attempt_1 = await unified.ensure_mock_attempt(order_1)
+    await db.commit()
+    assert attempt_1["status"] == "prepay_ready"
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 95000
+
+    order_id_2 = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id_2,
+        points_used=10000,
+        points_fen=10000,
+        member_balance_id=account_id,
+    )
+    order_2 = await OrderRepo(db).get_order(order_id_2)
+    with pytest.raises(ValueError, match="积分不足（含预占）"):
+        await unified.ensure_mock_attempt(order_2)
+    await db.commit()
+    attempt_2 = await PaymentAttemptRepo(db).get_latest("order", order_id_2)
+    assert attempt_2["status"] == "failed"  # 前置失败（B3.5 合同）
+    holds_2 = await AccountHoldRepo(db).list_by_attempt(attempt_2["id"])
+    assert all(h["status"] == "released" for h in holds_2)
+    # 第二单失败不污染第一单预占
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 95000
+
+    # 释放第一单 → held 归零 → 第二单重新发起成功（释放后重预占）
+    await unified.release_order_holds(order_1, to_status="cancelled", reason="用户取消")
+    await db.commit()
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+    attempt_2b = await unified.ensure_mock_attempt(order_2)
+    await db.commit()
+    assert attempt_2b["status"] == "prepay_ready"
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 10000
+
+
+# ==================== 复核 P4：快照 / 腿一致性（案件 + manual_review） ====================
+
+
+@pytest.mark.asyncio
+async def test_plan_change_marks_manual_review_and_opens_case(
+    db: aiosqlite.Connection,
+) -> None:
+    """P4：支付计划在预占后变更（快照 hash 不一致）→ open_case + manual_review，
+    禁止按旧计划结算；预占保持占用待人工裁决（P5 矩阵可释放）。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    order = await OrderRepo(db).get_order(order_id)
+    attempt = await unified.ensure_mock_attempt(order)
+    await db.commit()
+    # 预占后变更支付计划（pointsFen 5000 → 6000）
+    payment = loads_payment(order.payment)
+    payment["pointsFen"] = 6000
+    payment["remainFen"] = 4000
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.commit()
+
+    order_changed = await OrderRepo(db).get_order(order_id)
+    with pytest.raises(ValueError, match="支付计划已变更"):
+        await unified.settle_mock_order(order_changed)
+    attempt_after = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_after["status"] == "manual_review"
+    cases = await db.execute_fetchall(
+        "SELECT reason FROM points_refund_reconcile WHERE unique_id = ?",
+        (f"points:settle:{order_id}",),
+    )
+    assert cases and cases[0]["reason"] == "plan_changed"
+    # 预占保持占用（待人工裁决；P5：无副作用 manual_review 可随取消释放）
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 5000
+    # 人工裁决后释放 → held 归零
+    await unified.release_order_holds(
+        order_changed, to_status="cancelled", reason="计划变更人工结案"
+    )
+    await db.commit()
+    row = (
+        await db.execute_fetchall(
+            "SELECT held_points FROM member_balance WHERE id = ?", (account_id,)
+        )
+    )[0]
+    assert int(row["held_points"]) == 0
+
+
+# ==================== 复核 P5：manual_review 状态矩阵 ====================
+
+
+@pytest.mark.asyncio
+async def test_manual_review_no_side_effect_releasable_via_cancel(
+    db: aiosqlite.Connection,
+) -> None:
+    """P5：无资产副作用的 manual_review（订单未置 paid）可随取消释放，slot 让位。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    await db.execute("DELETE FROM member_balance WHERE id = ?", (account_id,))
+    await db.commit()
+    with pytest.raises(ValueError, match="积分账户不存在"):
+        await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    attempt = await PaymentAttemptRepo(db).get_active("order", order_id)
+    assert attempt["status"] == "manual_review"
+
+    cancelled = await order_service.cancel_user_order(order_id, user_id=USER_ID)
+    assert cancelled["status"] == "cancelled"
+    attempt_after = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_after["status"] == "cancelled"
+    assert await PaymentAttemptRepo(db).get_active("order", order_id) is None
+
+
+@pytest.mark.asyncio
+async def test_manual_review_with_paid_side_effect_not_releasable(
+    db: aiosqlite.Connection,
+) -> None:
+    """P5：已产生资产副作用（订单已 paid）的 manual_review 禁止取消释放，仅可人工结案。"""
+    account_id = await _seed_member(db, points=100_000)
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=5000,
+        points_fen=5000,
+        member_balance_id=account_id,
+    )
+    unified = UnifiedPaymentApplicationService(order_repo=OrderRepo(db))
+    order = await OrderRepo(db).get_order(order_id)
+    attempt = await unified.ensure_mock_attempt(order)
+    await db.commit()
+    await unified.mark_manual_review(order, reason="人工复核中")
+    await db.commit()
+    # 构造矛盾态防御：manual_review 并存已 paid（有副作用）
+    payment = loads_payment(order.payment)
+    payment["status"] = "paid"
+    payment["paidAt"] = now_text()
+    await OrderRepo(db).update_payment(order_id, dumps_payment(payment), now_text())
+    await db.commit()
+
+    with pytest.raises(ValueError, match="仅可人工结案"):
+        await unified.release_order_holds(
+            order, to_status="cancelled", reason="用户取消"
+        )
+    attempt_after = await PaymentAttemptRepo(db).get_by_id(attempt["id"])
+    assert attempt_after["status"] == "manual_review"  # 未被释放
+
+
+# ==================== 复核 P6：偿债独立事实（可对账） ====================
+
+
+@pytest.mark.asyncio
+async def test_award_ledger_records_actual_credit_not_full_award(
+    db: aiosqlite.Connection,
+) -> None:
+    """P6：points_ledger award 记实际入账（credit_amount），偿还部分为独立
+    ledger_operation 事实；全额 award 事实在 ledger_operation settle_award
+    （退款 clawback 核验依据）——余额总额与流水可对账。"""
+    account_id = await _seed_member(db, points=100_000)
+    debt_repo = RefundShortfallDebtRepo(db)
+    await debt_repo.append(
+        order_id="debt_order_p6",
+        mobile=MOBILE,
+        member_balance_id=account_id,
+        operation_key="points:refund:debt_order_p6:clawback",
+        amount=60,
+        note="P6 对账测试欠账",
+    )
+    await db.commit()
+    order_service = _order_service(db)
+    order_id = await _create_order(order_service)
+    await _seed_points_partial(
+        db,
+        order_id,
+        points_used=0,
+        points_fen=0,
+        member_balance_id=account_id,
+    )
+    await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
+    await db.commit()
+
+    award_entry = (
+        await db.execute_fetchall(
+            "SELECT amount FROM points_ledger WHERE unique_id = ?",
+            (f"points:award:{order_id}",),
+        )
+    )[0]
+    assert int(award_entry["amount"]) == 40  # award 100 - 偿债 60 = 实际入账 40
+    settle_award = (
+        await db.execute_fetchall(
+            "SELECT amount FROM ledger_operation WHERE unique_id = ?",
+            (f"ledger:settle_award:{order_id}",),
+        )
+    )[0]
+    assert int(settle_award["amount"]) == 100  # 全额 award 事实
+    debt = await debt_repo.get_by_operation_key("points:refund:debt_order_p6:clawback")
+    assert int(debt["remaining"]) == 0
+    assert debt["status"] == "settled"  # 60 全额偿还
+    points = int(
+        (
+            await db.execute_fetchall(
+                "SELECT points FROM member_balance WHERE id = ?", (account_id,)
+            )
+        )[0]["points"]
+    )
+    assert points == 100_000 + 40  # 余额总额 = 期初 + 实际入账（可对账）
+
+
+# ==================== 复核 P7：迁移回填只覆盖 open 行 ====================
+
+
+@pytest.mark.asyncio
+async def test_debt_backfill_only_open_rows(db: aiosqlite.Connection) -> None:
+    """P7：v027 回填只对 status='open' 的历史行置 remaining=amount；
+    已结案行保持 remaining=0（status=settled 与 remaining>0 的矛盾态不存在）。"""
+    await db.execute(
+        "INSERT INTO refund_shortfall_debt (order_id, mobile, member_balance_id, "
+        "operation_key, amount, remaining, status, created_at, updated_at) "
+        "VALUES ('old_settled', '13800000000', NULL, "
+        "'points:refund:old_settled:clawback', 100, 0, 'settled', "
+        "datetime('now'), datetime('now'))"
+    )
+    await db.execute(
+        "INSERT INTO refund_shortfall_debt (order_id, mobile, member_balance_id, "
+        "operation_key, amount, remaining, status, created_at, updated_at) "
+        "VALUES ('old_open', '13800000000', NULL, "
+        "'points:refund:old_open:clawback', 100, 0, 'open', "
+        "datetime('now'), datetime('now'))"
+    )
+    await db.commit()
+    # 复现 v027 修复后的回填语义（仅 open）
+    await db.execute(
+        "UPDATE refund_shortfall_debt SET remaining = amount "
+        "WHERE remaining = 0 AND status = 'open'"
+    )
+    await db.commit()
+    settled = (
+        await db.execute_fetchall(
+            "SELECT remaining, status FROM refund_shortfall_debt "
+            "WHERE order_id = 'old_settled'"
+        )
+    )[0]
+    assert int(settled["remaining"]) == 0 and settled["status"] == "settled"
+    open_row = (
+        await db.execute_fetchall(
+            "SELECT remaining, status FROM refund_shortfall_debt "
+            "WHERE order_id = 'old_open'"
+        )
+    )[0]
+    assert int(open_row["remaining"]) == 100 and open_row["status"] == "open"
+
+
+@pytest.mark.asyncio
+async def test_v027_migration_text_backfill_guarded() -> None:
+    """P7（迁移文本守卫）：v027 回填 SQL 必须限定 status='open'，防止已结案行
+    被回填成 remaining>0 的矛盾态（评审 P7 回归）。"""
+    from pathlib import Path
+
+    v027 = (
+        Path(__file__).resolve().parents[2]
+        / "app"
+        / "migrations"
+        / "v027_accounting_d1a.sql"
+    )
+    text = v027.read_text(encoding="utf-8")
+    backfill_line = next(
+        line for line in text.splitlines() if "SET remaining = amount" in line
+    )
+    assert "status = 'open'" in backfill_line
+    assert "WHERE remaining = 0" in backfill_line
 
 
 __all__: list[str] = []

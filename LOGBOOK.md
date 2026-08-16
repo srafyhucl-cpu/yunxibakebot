@@ -1,3 +1,15 @@
+## [2026-08-16] - docs(governance): D1-A 运行时整改包（复核 P1–P7 聚焦整改，方案 B，不改写已归档提交）
+
+- 操作者: AI (Codex)
+- trace_id: `20260816-accounting-d1a-runtime-remediation`
+- parent_trace_id: `20260816-accounting-d1a-minimal-slice`
+- 来源: 项目负责人对 D1-A 正式收口的复核结论（2026-08-16，Go/No-Go=暂不通过）——「成功路径、CAS 和仓储去自提交方向正确，但公开支付入口的事务语义、真实预占和储值账户身份仍有高风险缺口；当前绿色测试不能证明真实入口满足 A1/A5」；8 项问题 P1–P8，方案 B（审阅分支追加整改包，不改写 69a31c9/6c2b2a0；整改通过后固定范围复核，届时才决定 D1-A 合入 master 与 D1-B 放行）
+- 范围: P1–P7 聚焦整改；P8（outbox fencing）不阻断本轮，D1-C 前必须实现；真实支付/真实券/正式导入/真实用户开放/权威切换保持 No-Go；`POINTS_DEDUCTION_FENCE=True` 保持
+- 实现: **P1 两阶段结算**（预占自有 UoW 提交 → 结算独立事务 → 失败回滚后以重读 state_version 持久化 settling_retry/manual_review 再抛；confirm_mock_payment 不再包外层事务；mark_retry WHERE 扩为 prepay_ready/settling_retry）；**P2 储值账户身份**（resolve_member_balance_id 首次储值操作即固定；pay_order_with_balance 先写 memberBalanceId 再重读订单；prepare_combined_payment 预占即绑定；未绑定退款债务化 operation_key `order_refund:<id>`）；**P3 账户行真实预占**（member_balance 增 held_points/held_stored_value_fen；原子 reserve/clear 条件 UPDATE；可用额=余额−预占；多腿部分失败回滚已预占账户行）；**P4 attempt 快照校验**（snapshot_hash+腿金额不一致 → open_case plan_changed + manual_review + 阻断；outbox 载荷=attempt 快照+结果）；**P5 manual_review 矩阵**（paid→仅可人工结案禁止释放；未付→可释放；succeeded→禁止）；**P6 可对账事实**（points_ledger 记实际入账 credit_amount、全量 award 事实 `ledger:settle_award:<id>`、偿债独立 ledger_operation、`_repay_open_debts` 只偿 `:clawback` 键、open_case 接入统一服务）；**P7 v027 回填限定 open**（`WHERE remaining = 0 AND status = 'open'`）；**串行化写锁**（无操作 UPDATE orders 先行，修复 WAL+deferred 下 UNIQUE 索引 COMMIT 不复查导致的双尝试）；check_project 守卫登记（unified.py 方法级 allowlist 增补内部写点、member.py {credit_by_id, deduct_by_id}、显式写方法补 mark_failed_preclaim/reserve_*/clear_*_hold）
+- 验证: 定向套件全绿（test_payment_attempt_d1a 16 项含 P1 公开路径失败→settling_retry→重放、P3 双订单超预占+释放重预占（held 断言）、P4 计划变更案件+快照 outbox 载荷、P5 矩阵两用例、P6 对账断言、P7 回填守卫；test_stored_value 按 P2/P3 语义更新（预占不扣减、结算才扣减、取消释放）；test_points_payment/test_order/test_coupon_payment）；D1-0 守卫 passed=True；ruff check/format、mypy 改动文件作用域无新增错误；全量回归提交前须 exit=0
+- 变更: VERSION 0.132.10 → 0.132.12（sync-version 自动递增：首次提交尝试被文件体量守卫阻断时已递增至 0.132.11，补登记职责评审后正式提交再递增至 0.132.12；含 .py/.sql）；ADR 0008 追加 D1-A 复核注记；docs/specs/2026-08-16-accounting-d1a-runtime-remediation.md（新）
+- residual_risks: P8 outbox fencing 移交 D1-C 前必须实现；order.payment 仍为展示缓存（降级为引用是 D1-B 范围）；master 双远端保持 b30b2066 直至项目负责人固定范围复核放行；POINTS_DEDUCTION_FENCE 保持 True；2027-05-31 开发测试边界不变；时钟偏差留档（G0）继续适用，不 amend 已归档提交
+
 ## [2026-08-16] - docs(governance): D1-A 最小资金核心纵向切片（mock 订单预占 / 结算 / 取消释放 / 重放 / 不可变账户 ID 与债务闭环）
 
 - 操作者: AI (Codex)

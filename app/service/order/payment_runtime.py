@@ -95,9 +95,10 @@ class OrderPaymentRuntimeService:
     async def confirm_mock_payment(self, order_id: str, *, user_id: str) -> dict:
         """MVP mock 支付确认，真实微信支付接入后复用同一状态流转。
 
-        D1-A：结算经统一支付应用服务（payment_attempt 事实源 + 预占消费 +
-        出站事件），真实资产动作（置 paid / 核销券 / 发分）在同一 UoW 内执行；
-        双连接并发恰一次结算由尝试状态 CAS 兜底。
+        D1-A：结算经统一支付应用服务两阶段持久化（预占独立 UoW + 结算 UoW +
+        失败新 UoW 持久化 settling_retry / manual_review，复核 P1）；真实资产
+        动作（置 paid / 核销券 / 发分）在结算 UoW 内执行；双连接并发恰一次
+        结算由尝试状态 CAS 兜底。
         """
         if not settings.ALLOW_MOCK_PAYMENT:
             raise ValueError("生产环境已禁用 mock 支付")
@@ -109,13 +110,16 @@ class OrderPaymentRuntimeService:
         payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
         if payment_status == PAYMENT_STATUS_PAID:
             # 兼容既有已支付快照（D1-A 前订单无尝试）：幂等补发券核销与发分
-            from app.service.coupon import CouponService
-            from app.service.points.payment import PointsPaymentService
+            async with self._order_repo.transaction():
+                from app.service.coupon import CouponService
+                from app.service.points.payment import PointsPaymentService
 
-            await CouponService(order_repo=self._order_repo).consume_on_payment(order)
-            await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
-                order
-            )
+                await CouponService(order_repo=self._order_repo).consume_on_payment(
+                    order
+                )
+                await PointsPaymentService(
+                    order_repo=self._order_repo
+                ).award_on_payment(order)
             return self._serializer.serialize(order)
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
@@ -125,7 +129,7 @@ class OrderPaymentRuntimeService:
         unified = UnifiedPaymentApplicationService(order_repo=self._order_repo)
 
         async def _perform_settle() -> None:
-            """真实资产动作：置 paid（CAS）→ 核销券 → 发分（同 UoW）。"""
+            """真实资产动作：置 paid（CAS）→ 核销券 → 发分（结算 UoW 内）。"""
             now = now_text()
             latest_order = await self._order_repo.get_order(order.id)
             if latest_order is None:

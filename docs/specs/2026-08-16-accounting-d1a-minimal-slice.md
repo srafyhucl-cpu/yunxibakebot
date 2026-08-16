@@ -1,7 +1,7 @@
 # D1-A 最小资金核心纵向切片（设计定稿）
 
 - trace_id: 20260816-accounting-d1a-minimal-slice
-- 状态: 设计定稿（G0 决定记录第四节的 D1-A 立项；项目负责人 2026-08-16 指示启动开发测试）
+- 状态: 设计定稿（G0 决定记录第四节的 D1-A 立项；项目负责人 2026-08-16 指示启动开发测试）——**2026-08-16 复核追加整改包：公开支付入口事务语义 / 真实预占 / 储值账户身份高风险缺口按方案 B 聚焦整改（P1–P7），见 `docs/specs/2026-08-16-accounting-d1a-runtime-remediation.md`（不改写 69a31c9/6c2b2a0）**
 - 范围边界: **仅 mock/余额订单**的 预占→结算→取消释放→重放 + 不可变账户 ID + 债务闭环；真实支付、真实券、正式导入、真实用户开放、权威切换保持 No-Go；`POINTS_DEDUCTION_FENCE=True` 保持
 - 对齐: ADR 0008 D1-A（统一支付应用服务 / payment_attempt / account_hold / accounting_outbox / 单一 UoW）+ G0 决定记录验收六项
 

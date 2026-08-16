@@ -469,6 +469,19 @@ D1_MATRIX_ALLOWED_WRITE_FUNCTIONS: dict[str, frozenset[str]] = {
             "replay_settle",
             "release_order_holds",
             "mark_manual_review",
+            # D1-A 复核 P1/P3/P4/P6：两阶段结算与真实预占的内部写点
+            "_ensure_committed",
+            "_commit_attempt_state",
+            "_settle_balance_legs",
+            "_consume_holds",
+            "_reserve_on_account",
+            "_clear_hold_on_account",
+            "_rollback_partial_reserve",
+            "_validate_attempt_consistency",
+            "_open_case_and_review",
+            "_outbox_payload",
+            "_leg_amounts_from_snapshot",
+            "_insufficient_message",
         }
     ),
     "app/service/points/ledger.py": frozenset(
@@ -485,9 +498,22 @@ D1_MATRIX_ALLOWED_WRITE_FUNCTIONS: dict[str, frozenset[str]] = {
             "_refund_return_credit",
         }
     ),
-    "app/service/stored_value/member.py": frozenset({"credit", "deduct"}),
+    "app/service/stored_value/member.py": frozenset(
+        {
+            "credit",
+            "deduct",
+            "credit_by_id",
+            "deduct_by_id",
+            "resolve_member_balance_id",
+        }
+    ),
     "app/service/stored_value/payment.py": frozenset(
-        {"pay_order_with_balance", "prepare_combined_payment"}
+        {
+            "pay_order_with_balance",
+            "prepare_combined_payment",
+            "refund_order_balance",
+            "_append_refund_debt",
+        }
     ),
     "app/service/stored_value/recharge.py": frozenset(
         {
@@ -565,6 +591,7 @@ _D1_EXPLICIT_WRITE_ATTRS: frozenset[str] = frozenset(
         "begin_settle",
         "complete_settle",
         "mark_retry",
+        "mark_failed_preclaim",
         "mark_manual_review",
         "release",
         "reserve",
@@ -576,6 +603,11 @@ _D1_EXPLICIT_WRITE_ATTRS: frozenset[str] = frozenset(
         "mark_succeeded",
         "repay",
         "settle_if_fully_repaid",
+        # D1-A 复核 P3：账户行真实预占（held_* 条件更新，原子）
+        "reserve_points",
+        "reserve_stored_value_fen",
+        "clear_points_hold",
+        "clear_stored_value_fen_hold",
     }
 )
 

@@ -28,7 +28,8 @@ class MemberBalanceRepo(BaseRepository):
         rows = await self._db.execute_fetchall(
             "SELECT id, customer_id, mobile, yz_open_id, display_name, is_member, "
             "card_alias, card_no, card_status, points, stored_value_fen, "
-            "created_at, updated_at FROM member_balance WHERE mobile = ? LIMIT 1",
+            "held_points, held_stored_value_fen, created_at, updated_at "
+            "FROM member_balance WHERE mobile = ? LIMIT 1",
             (mobile,),
         )
         return rows[0] if rows else None
@@ -43,7 +44,8 @@ class MemberBalanceRepo(BaseRepository):
         rows = await self._db.execute_fetchall(
             "SELECT id, customer_id, mobile, yz_open_id, display_name, is_member, "
             "card_alias, card_no, card_status, points, stored_value_fen, "
-            "created_at, updated_at FROM member_balance WHERE id = ? LIMIT 1",
+            "held_points, held_stored_value_fen, created_at, updated_at "
+            "FROM member_balance WHERE id = ? LIMIT 1",
             (member_balance_id,),
         )
         return rows[0] if rows else None
@@ -55,7 +57,8 @@ class MemberBalanceRepo(BaseRepository):
         rows = await self._db.execute_fetchall(
             "SELECT id, customer_id, mobile, yz_open_id, display_name, is_member, "
             "card_alias, card_no, card_status, points, stored_value_fen, "
-            "created_at, updated_at FROM member_balance WHERE yz_open_id = ? LIMIT 1",
+            "held_points, held_stored_value_fen, created_at, updated_at "
+            "FROM member_balance WHERE yz_open_id = ? LIMIT 1",
             (yz_open_id,),
         )
         return rows[0] if rows else None
@@ -150,6 +153,14 @@ class MemberBalanceRepo(BaseRepository):
         rows = await self._db.execute_fetchall(
             "SELECT stored_value_fen FROM member_balance WHERE mobile = ? LIMIT 1",
             (mobile,),
+        )
+        return int(rows[0]["stored_value_fen"]) if rows else 0
+
+    async def get_stored_value_fen_by_id(self, member_balance_id: int) -> int:
+        """按不可变账户 ID 读取储值余额（分），账户不存在返回 0。"""
+        rows = await self._db.execute_fetchall(
+            "SELECT stored_value_fen FROM member_balance WHERE id = ? LIMIT 1",
+            (member_balance_id,),
         )
         return int(rows[0]["stored_value_fen"]) if rows else 0
 
@@ -277,6 +288,53 @@ class MemberBalanceRepo(BaseRepository):
         cursor = await self._db.execute(
             "UPDATE member_balance SET stored_value_fen = stored_value_fen - ?, "
             "updated_at = ? WHERE id = ? AND stored_value_fen >= ?",
+            (amount_fen, now_str(), member_balance_id, amount_fen),
+        )
+        return bool(cursor.rowcount == 1)
+
+    # ── D1-A 复核 P3：真实预占（账户行 held_* 条件更新，原子）─────────────────
+    # 可用额 = 余额 - 活跃预占；预占在账户行单条 UPDATE 内完成可用性校验
+    # （points - held_points >= amount），双连接/多订单并发不会超额占用；
+    # 释放/消费统一走 clear（held 单调减），account_hold 表保留审计明细。
+
+    async def reserve_points(self, member_balance_id: int, amount: int) -> bool:
+        """原子预占积分：可用额（points - held_points）不足或账户不存在均失败。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET held_points = held_points + ?, updated_at = ? "
+            "WHERE id = ? AND points - held_points >= ?",
+            (amount, now_str(), member_balance_id, amount),
+        )
+        return bool(cursor.rowcount == 1)
+
+    async def clear_points_hold(self, member_balance_id: int, amount: int) -> bool:
+        """释放/消费积分预占：held_points 单调减（不触碰 points 余额本身）。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET held_points = held_points - ?, updated_at = ? "
+            "WHERE id = ? AND held_points >= ?",
+            (amount, now_str(), member_balance_id, amount),
+        )
+        return bool(cursor.rowcount == 1)
+
+    async def reserve_stored_value_fen(
+        self, member_balance_id: int, amount_fen: int
+    ) -> bool:
+        """原子预占储值：可用额（stored - held）不足或账户不存在均失败。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET held_stored_value_fen = "
+            "held_stored_value_fen + ?, updated_at = ? "
+            "WHERE id = ? AND stored_value_fen - held_stored_value_fen >= ?",
+            (amount_fen, now_str(), member_balance_id, amount_fen),
+        )
+        return bool(cursor.rowcount == 1)
+
+    async def clear_stored_value_fen_hold(
+        self, member_balance_id: int, amount_fen: int
+    ) -> bool:
+        """释放/消费储值预占：held_stored_value_fen 单调减（不触碰余额本身）。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET held_stored_value_fen = "
+            "held_stored_value_fen - ?, updated_at = ? "
+            "WHERE id = ? AND held_stored_value_fen >= ?",
             (amount_fen, now_str(), member_balance_id, amount_fen),
         )
         return bool(cursor.rowcount == 1)

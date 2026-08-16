@@ -132,6 +132,14 @@ async def _balance_fen(db: aiosqlite.Connection) -> int:
     return int(rows[0]["stored_value_fen"]) if rows else 0
 
 
+async def _held_fen(db: aiosqlite.Connection) -> int:
+    rows = await db.execute_fetchall(
+        "SELECT held_stored_value_fen FROM member_balance WHERE mobile = ? LIMIT 1",
+        (MOBILE,),
+    )
+    return int(rows[0]["held_stored_value_fen"]) if rows else 0
+
+
 async def _ledger_rows(db: aiosqlite.Connection) -> list[dict]:
     return await db.execute_fetchall(
         "SELECT unique_id, amount_fen, biz_type, biz_id, balance_after_fen "
@@ -284,11 +292,14 @@ async def test_combined_payment_flow_and_remainder_mock_pay(
     assert combined["payment"]["balanceFen"] == 2000
     assert combined["payment"]["remainFen"] == 3000
     assert combined["remainderPayment"]["paymentMethod"] == "mock"
-    assert await _balance_fen(db) == 98_000
+    # D1-A 复核 P3：组合支付预占只占用账户行 held，不提前扣减余额
+    assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 2000
     paid = await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
     assert paid["paymentStatus"] == "paid"
     assert paid["paymentMethod"] == "combined"
     assert await _balance_fen(db) == 98_000
+    assert await _held_fen(db) == 0  # 结算消费预占并扣减余额
     ledger = await _ledger_rows(db)
     assert len(ledger) == 1
     assert ledger[0]["biz_id"] == order_id
@@ -321,22 +332,25 @@ async def test_combined_payment_user_cancel_refunds_balance(
     stored_value_service: StoredValueService,
     order_service: OrderApplicationService,
 ) -> None:
-    """组合支付订单取消后应原路退回已扣余额，且不重复退款。"""
+    """组合支付订单取消后应释放预占（余额未扣减，无需退回）。"""
     await _seed_member(db, balance_fen=100_000)
     order_id = await _create_order(order_service, price_fen=5000)
     await stored_value_service.prepare_combined_payment(
         order_id, user_id=USER_ID, balance_fen=2000
     )
-    assert await _balance_fen(db) == 98_000
+    assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 2000
     cancelled = await order_service.cancel_user_order(order_id, user_id=USER_ID)
     assert cancelled["status"] == "cancelled"
     assert await _balance_fen(db) == 100_000
-    # 重复取消不重复退款
+    assert await _held_fen(db) == 0  # 预占释放
+    # 重复取消幂等（预占已释放）
     await order_service.cancel_user_order(order_id, user_id=USER_ID)
     assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 0
+    # 预占未扣减 → 无扣款流水也无退款流水
     ledger = await _ledger_rows(db)
-    assert [row["biz_type"] for row in ledger] == ["order_pay", "order_refund"]
-    assert ledger[1]["amount_fen"] == 2000
+    assert ledger == []
 
 
 @pytest.mark.asyncio
@@ -345,16 +359,18 @@ async def test_combined_payment_timeout_expire_refunds_balance(
     stored_value_service: StoredValueService,
     order_service: OrderApplicationService,
 ) -> None:
-    """组合支付订单超时关闭后应原路退回已扣余额。"""
+    """组合支付订单超时关闭后应释放预占（余额未扣减）。"""
     await _seed_member(db, balance_fen=100_000)
     order_id = await _create_order(order_service, price_fen=5000)
     await stored_value_service.prepare_combined_payment(
         order_id, user_id=USER_ID, balance_fen=2000
     )
-    assert await _balance_fen(db) == 98_000
+    assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 2000
     expired = await order_service.expire_unpaid_order(order_id)
     assert expired["status"] == "cancelled"
     assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 0
 
 
 @pytest.mark.asyncio
@@ -363,16 +379,18 @@ async def test_admin_cancel_partial_order_refunds_balance(
     stored_value_service: StoredValueService,
     order_service: OrderApplicationService,
 ) -> None:
-    """后台取消组合支付订单应原路退回已扣余额。"""
+    """后台取消组合支付订单应释放预占（余额未扣减）。"""
     await _seed_member(db, balance_fen=100_000)
     order_id = await _create_order(order_service, price_fen=5000)
     await stored_value_service.prepare_combined_payment(
         order_id, user_id=USER_ID, balance_fen=2000
     )
-    assert await _balance_fen(db) == 98_000
+    assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 2000
     cancelled = await order_service.update_admin_order_status(order_id, "cancelled")
     assert cancelled["status"] == "cancelled"
     assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 0
 
 
 @pytest.mark.asyncio
@@ -411,11 +429,13 @@ async def test_combined_payment_prepare_twice_and_mock_confirm_idempotent(
         await stored_value_service.prepare_combined_payment(
             order_id, user_id=USER_ID, balance_fen=1000
         )
-    assert await _balance_fen(db) == 98_000
+    assert await _balance_fen(db) == 100_000
+    assert await _held_fen(db) == 2000
     await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
     again = await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
     assert again["paymentStatus"] == "paid"
     assert await _balance_fen(db) == 98_000
+    assert await _held_fen(db) == 0
     ledger = await _ledger_rows(db)
     assert len(ledger) == 1
     assert ledger[0]["amount_fen"] == -2000

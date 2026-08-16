@@ -137,12 +137,15 @@ class OrderApplicationService:
         *,
         user_id: str = STOREFRONT_DEMO_USER_ID,
     ) -> dict:
-        """由订单领域接管 mock 支付链路。"""
-        async with self._order_repo.transaction():
-            return await self._payment_service.confirm_mock_payment(
-                order_id,
-                user_id=user_id,
-            )
+        """由订单领域接管 mock 支付链路。
+
+        D1-A 复核 P1：结算采用两阶段持久化（预占独立 UoW + 结算 UoW + 失败
+        新 UoW 持久化终态），事务边界由统一支付应用服务持有，本层不再包裹。
+        """
+        return await self._payment_service.confirm_mock_payment(
+            order_id,
+            user_id=user_id,
+        )
 
     async def prepare_payment(
         self,

@@ -127,11 +127,17 @@ class PaymentAttemptRepo(BaseRepository):
     async def mark_retry(
         self, attempt_id: int, expected_version: int, error: str
     ) -> bool:
-        """CAS：settling → settling_retry（结算失败保持预占，可重放）。"""
+        """CAS：未进入终态的活跃尝试（prepay_ready / settling_retry）→
+        settling_retry（结算失败保持预占，可重放）。
+
+        结算 UoW 回滚后状态已复原（回到 begin_settle 前），调用方须先重读
+        尝试取回滚后的当前版本再传 expected_version。
+        """
         cursor = await self._db.execute(
             "UPDATE payment_attempt SET status = 'settling_retry', updated_at = ?, "
             "state_version = state_version + 1, last_error = ? "
-            "WHERE id = ? AND status = 'settling' AND state_version = ?",
+            "WHERE id = ? AND status IN ('prepay_ready', 'settling_retry') "
+            "AND state_version = ?",
             (now_str(), error[:500], attempt_id, expected_version),
         )
         return int(cursor.rowcount or 0) == 1
@@ -143,13 +149,34 @@ class PaymentAttemptRepo(BaseRepository):
         to_status: str,
         reason: str,
     ) -> bool:
-        """CAS：未结算尝试（prepay_ready / settling_retry）→ cancelled / expired。"""
+        """CAS：未结算尝试（prepay_ready / settling_retry / 无副作用的
+        manual_review）→ cancelled / expired。
+
+        服务层按状态矩阵裁决（D1-A 复核 P5）：订单未置 paid 的 manual_review
+        可释放；已产生资产副作用的仅可人工结案，不调用本方法。
+        """
         cursor = await self._db.execute(
             "UPDATE payment_attempt SET status = ?, updated_at = ?, "
             "state_version = state_version + 1, last_error = ? "
-            "WHERE id = ? AND status IN ('prepay_ready', 'settling_retry') "
+            "WHERE id = ? AND status IN "
+            "('prepay_ready', 'settling_retry', 'manual_review') "
             "AND state_version = ?",
             (to_status, now_str(), reason[:500], attempt_id, expected_version),
+        )
+        return int(cursor.rowcount or 0) == 1
+
+    async def mark_failed_preclaim(
+        self,
+        attempt_id: int,
+        expected_version: int,
+        error: str,
+    ) -> bool:
+        """CAS：prepay_ready → failed（未进入结算的前置失败，如预占不足，B3.5 合同）。"""
+        cursor = await self._db.execute(
+            "UPDATE payment_attempt SET status = 'failed', updated_at = ?, "
+            "state_version = state_version + 1, last_error = ? "
+            "WHERE id = ? AND status = 'prepay_ready' AND state_version = ?",
+            (now_str(), error[:500], attempt_id, expected_version),
         )
         return int(cursor.rowcount or 0) == 1
 

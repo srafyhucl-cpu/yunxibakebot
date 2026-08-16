@@ -100,4 +100,11 @@ CREATE INDEX IF NOT EXISTS idx_accounting_outbox_status ON accounting_outbox(sta
 -- 债务闭环扩展（评审问题 3 / D1-A）：剩余未偿额 + 版本 CAS（部分偿还、结案、幂等）
 ALTER TABLE refund_shortfall_debt ADD COLUMN remaining INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE refund_shortfall_debt ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
-UPDATE refund_shortfall_debt SET remaining = amount WHERE remaining = 0;
+-- 仅对未结清历史行回填 remaining（已结案行保持 remaining=0，避免 status=settled
+-- 却 remaining>0 的矛盾状态；D1-A 复核 P7）
+UPDATE refund_shortfall_debt SET remaining = amount WHERE remaining = 0 AND status = 'open';
+
+-- 真实预占（D1-A 复核 P3）：账户行持有的活跃预占额——可用额 = 余额 - 活跃预占；
+-- 预占/释放/消费均为账户行条件更新（原子），account_hold 表保留审计明细
+ALTER TABLE member_balance ADD COLUMN held_points INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE member_balance ADD COLUMN held_stored_value_fen INTEGER NOT NULL DEFAULT 0;
