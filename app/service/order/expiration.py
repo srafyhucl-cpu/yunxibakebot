@@ -112,6 +112,12 @@ class OrderExpirationService:
         await self._inventory_service.release_reserved_inventory(
             self._inventory_service.items_from_order(closed)
         )
+        # D1-A（验收 A3）：超时/后台关闭释放未结算支付尝试的预占
+        from app.service.payment.unified import UnifiedPaymentApplicationService
+
+        await UnifiedPaymentApplicationService(
+            order_repo=self._order_repo
+        ).release_order_holds(closed, to_status="expired", reason="payment_timeout")
         return closed
 
     async def _record_expiration_event(

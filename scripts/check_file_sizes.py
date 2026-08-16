@@ -95,6 +95,9 @@ OVERSIZE_REVIEW_NOTES: dict[str, str] = {
     "app/repository/order_repo.py": (
         "本轮职责评审：订单仓储保持原子条件更新内聚，新增组合支付中间态条件写入（partial/unpaid 双态流转）与既有 unpaid 单态写入共享同一 PAYMENT_STATUS_SQL 合同；按支付状态拆方法只会复制 WHERE 条件与回读胶水，保留当前内聚边界。"
     ),
+    "app/repository/member_balance_repo.py": (
+        "本轮职责评审（D1-A）：会员余额仓储保持单一聚合根内聚——查询族（get_by_mobile / get_by_id / get_by_openid）与 by-id 原子读写族（积分 / 储值各 credit / deduct 四方法）共享同一行主键语义（None 不更新约定）与幂等键约定；拆分会把单行原子语义与行级协调分散到多文件，保留当前内聚边界。"
+    ),
     "app/service/points/payment.py": (
         "本轮职责评审（B3.4）：积分支付联动保持单一事实域内聚——围栏与快照写入、结算发分/扣减（含扣减失败阻断）、退款两命令分流（未结算释放 / 已结算核验原流水并按原账户入账）共享同一 ledger/reconcile 仓储与快照生命周期（pointsSettledAt 标记、_clear_awarded）；拆分会把核验-入账原子性分散到多文件并复制幂等键与对账胶水，保留当前内聚边界，后续按 D1 统一支付应用服务职责拆分。"
     ),

@@ -1,3 +1,15 @@
+## [2026-08-16] - docs(governance): D1-A 最小资金核心纵向切片（mock 订单预占 / 结算 / 取消释放 / 重放 / 不可变账户 ID 与债务闭环）
+
+- 操作者: AI (Codex)
+- trace_id: `20260816-accounting-d1a-minimal-slice`
+- parent_trace_id: `20260816-g0-freeze-review-b35`
+- 来源: 项目负责人 G0 后明确指示「启动 D1-A 的开发测试」——D1-A 最小资金核心纵向切片立项启动（G0 决定记录批准范围，不再另询）
+- 范围（A1–A6 验收矩阵，docs/specs/2026-08-16-accounting-d1a-minimal-slice.md）: A1 预占后失败保持占用可重放（settling_retry + hold active）；A2 结算重放幂等（重复 settle 只结算一次）；A3 取消/超时释放（cancelled/expired + hold released + outbox 事件，已结算禁止释放）；A4 双连接单主体竞争恰一次结算（含预占消费）；A5 账户删除重建（全部账务写按不可变 member_balance_id，禁止按手机号新建替代账户，转 account_missing 案件 + 欠账）；A6 短缺补足结案（remaining/version CAS 部分偿还、open→settled、入账优先偿债、偿债 ledger_operation 事实）
+- 实现: v027 迁移（payment_attempt / payment_attempt_leg / account_hold / accounting_outbox + refund_shortfall_debt 增 remaining/version）；三个新仓储（attempt CAS 状态机 + hold + outbox 租约与依赖 fail-closed）；member_balance 按 id 读写 + 债务 repay/settle CAS；UnifiedPaymentApplicationService（settle_mock_order 幂等/重放、release_order_holds、mark_manual_review）；confirm_mock_payment / pay_order_with_balance 以 settle_actions 闭包走统一服务；四类取消/超时入口统一释放；points 全链路按 member_balance_id + _repay_open_debts + _refund_return_credit；check_project 守卫登记（unified.py 白名单 19 模块 + 方法级 allowlist + 显式写方法补全 + 闭包归外层方法修复）
+- 验证: 定向套件全部通过（test_payment_attempt_d1a 9 项 A1–A6 + test_points_payment 26 + test_coupon_payment / test_stored_value / test_order / test_member_accounting / test_miniapp_payment_api / test_admin_coupons_api / test_inbox_repo / test_webhook_dispatcher / test_webhook_retry / test_check_project）；D1-0 守卫 passed=True；ruff check/format 通过；mypy 改动文件作用域无新增错误；全量回归进行中（提交前须 exit=0）
+- 变更: ADR 0008 revised_at 追加 D1-A 落地注记；VERSION 0.132.9 → 0.132.10（sync-version 自动递增，含 .py/.sql）
+- residual_risks: 生产请求作用域 settle 失败整体回滚（settling_retry 持久化仅测试显式 commit 场景）；order.payment 仍为展示缓存（降级为引用是 D1-B 范围）；POINTS_DEDUCTION_FENCE 保持 True；真实支付/真实券/正式导入/真实用户开放/权威切换 = No-Go（D1-B/D1-C/FP 后续）；2027-05-31 开发测试边界不变；时钟偏差留档（G0）：提交时间 2026-08-16 为可信时间源，不 amend 已归档提交
+
 ## [2026-08-16] - docs(governance): G0 B3.5 冻结基线确认（一次冻结清单复核 Go + master 快进不部署 + 时钟偏差留档 + D1 纵向切片路线）
 
 - 操作者: AI (Codex)

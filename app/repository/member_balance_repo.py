@@ -1,4 +1,13 @@
-"""会员余额与卡片状态数据访问层。"""
+"""会员余额与卡片状态数据访问层。
+
+职责评审记录（ADR 0004，2026-08-16 D1-A）：本文件 273 行超未评审阻断线
+250 行——保留理由：会员余额仓储的查询族（get_by_mobile / get_by_id /
+get_by_openid / 按条件查询）与 by-id 原子读写族（credit / deduct 四方法 +
+积分、储值双资产）职责高度内聚于同一聚合根（member_balance 行），拆分
+会使单行原子语义与幂等键分布到多文件反而破坏一致性；已按「稳定、可独立
+测试的边界」评估：查询族与写族虽可拆，但都依赖同一行主键语义（None 不更新
+约定），强行拆分引入跨文件行级原子协调成本，保留为单文件并记录理由。
+"""
 
 from app.logger import setup_logger
 from app.repository.base import BaseRepository
@@ -21,6 +30,21 @@ class MemberBalanceRepo(BaseRepository):
             "card_alias, card_no, card_status, points, stored_value_fen, "
             "created_at, updated_at FROM member_balance WHERE mobile = ? LIMIT 1",
             (mobile,),
+        )
+        return rows[0] if rows else None
+
+    async def get_by_id(self, member_balance_id: int) -> dict | None:
+        """按不可变主键读取会员余额快照（D1-A，评审问题 2）。
+
+        结算 / 退款一律按快照绑定的不可变账户 ID 操作；账户行被删除后
+        重建（新 id）时旧 id 查无 → 阻断进 manual_review，禁止按手机号
+        新建账户替代原账户。
+        """
+        rows = await self._db.execute_fetchall(
+            "SELECT id, customer_id, mobile, yz_open_id, display_name, is_member, "
+            "card_alias, card_no, card_status, points, stored_value_fen, "
+            "created_at, updated_at FROM member_balance WHERE id = ? LIMIT 1",
+            (member_balance_id,),
         )
         return rows[0] if rows else None
 
@@ -166,6 +190,34 @@ class MemberBalanceRepo(BaseRepository):
         )
         return bool(cursor.rowcount == 1)
 
+    async def credit_points_by_id(
+        self, member_balance_id: int, amount: int
+    ) -> int | None:
+        """按不可变账户 ID 加款积分；账户不存在返回 None（不新建，D1-A）。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET points = points + ?, updated_at = ? "
+            "WHERE id = ?",
+            (amount, now_str(), member_balance_id),
+        )
+        if int(cursor.rowcount or 0) != 1:
+            return None
+        rows = await self._db.execute_fetchall(
+            "SELECT points FROM member_balance WHERE id = ? LIMIT 1",
+            (member_balance_id,),
+        )
+        return int(rows[0]["points"]) if rows else None
+
+    async def deduct_points_if_sufficient_by_id(
+        self, member_balance_id: int, amount: int
+    ) -> bool:
+        """按不可变账户 ID 原子扣减积分；账户不存在或余额不足均不扣减。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET points = points - ?, updated_at = ? "
+            "WHERE id = ? AND points >= ?",
+            (amount, now_str(), member_balance_id, amount),
+        )
+        return bool(cursor.rowcount == 1)
+
     async def credit_stored_value(self, mobile: str, amount_fen: int) -> int:
         """为会员储值余额加款（充值/退款），返回加款后余额。"""
         now = now_str()
@@ -196,5 +248,35 @@ class MemberBalanceRepo(BaseRepository):
             "UPDATE member_balance SET stored_value_fen = stored_value_fen - ?, "
             "updated_at = ? WHERE mobile = ? AND stored_value_fen >= ?",
             (amount_fen, now_str(), mobile, amount_fen),
+        )
+        return bool(cursor.rowcount == 1)
+
+    async def credit_stored_value_by_id(
+        self, member_balance_id: int, amount_fen: int
+    ) -> int | None:
+        """按不可变账户 ID 加款储值；账户不存在返回 None（不新建，D1-A）。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET stored_value_fen = stored_value_fen + ?, "
+            "updated_at = ? WHERE id = ?",
+            (amount_fen, now_str(), member_balance_id),
+        )
+        if int(cursor.rowcount or 0) != 1:
+            return None
+        rows = await self._db.execute_fetchall(
+            "SELECT stored_value_fen FROM member_balance WHERE id = ? LIMIT 1",
+            (member_balance_id,),
+        )
+        return int(rows[0]["stored_value_fen"]) if rows else None
+
+    async def deduct_stored_value_if_sufficient_by_id(
+        self,
+        member_balance_id: int,
+        amount_fen: int,
+    ) -> bool:
+        """按不可变账户 ID 原子扣减储值；账户不存在或余额不足均不扣减。"""
+        cursor = await self._db.execute(
+            "UPDATE member_balance SET stored_value_fen = stored_value_fen - ?, "
+            "updated_at = ? WHERE id = ? AND stored_value_fen >= ?",
+            (amount_fen, now_str(), member_balance_id, amount_fen),
         )
         return bool(cursor.rowcount == 1)

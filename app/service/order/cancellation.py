@@ -72,6 +72,12 @@ class OrderCancellationService:
             created_at=updated.updated_at,
         )
         await self._release_inventory(updated)
+        # D1-A（验收 A3）：取消释放未结算支付尝试的预占（hold 释放 + 尝试终态）
+        from app.service.payment.unified import UnifiedPaymentApplicationService
+
+        await UnifiedPaymentApplicationService(
+            order_repo=self._order_repo
+        ).release_order_holds(updated, to_status="cancelled", reason="用户取消")
         return await self._timeline_service.serialize(updated)
 
     async def _get_owned_order(self, order_id: str, *, user_id: str) -> Order:

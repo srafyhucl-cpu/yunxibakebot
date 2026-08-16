@@ -434,6 +434,7 @@ D1_MATRIX_LEGACY_WRITE_MODULES: tuple[str, ...] = (
     "app/service/order/payment_notification.py",
     "app/service/order/payment_runtime.py",
     "app/service/order/status_flow.py",
+    "app/service/payment/unified.py",
     "app/service/points/ledger.py",
     "app/service/points/payment.py",
     "app/service/stored_value/member.py",
@@ -461,7 +462,18 @@ D1_MATRIX_ALLOWED_WRITE_FUNCTIONS: dict[str, frozenset[str]] = {
         {"_mark_wechat_payment_paid", "confirm_mock_payment"}
     ),
     "app/service/order/status_flow.py": frozenset({"_cancel_order"}),
-    "app/service/points/ledger.py": frozenset({"credit", "deduct"}),
+    "app/service/payment/unified.py": frozenset(
+        {
+            "ensure_mock_attempt",
+            "settle_mock_order",
+            "replay_settle",
+            "release_order_holds",
+            "mark_manual_review",
+        }
+    ),
+    "app/service/points/ledger.py": frozenset(
+        {"credit", "deduct", "credit_by_id", "deduct_by_id"}
+    ),
     "app/service/points/payment.py": frozenset(
         {
             "apply_points_snapshot",
@@ -469,6 +481,8 @@ D1_MATRIX_ALLOWED_WRITE_FUNCTIONS: dict[str, frozenset[str]] = {
             "_record_awarded",
             "_clear_awarded",
             "award_on_payment",
+            "_repay_open_debts",
+            "_refund_return_credit",
         }
     ),
     "app/service/stored_value/member.py": frozenset({"credit", "deduct"}),
@@ -541,6 +555,27 @@ _D1_EXPLICIT_WRITE_ATTRS: frozenset[str] = frozenset(
         "expire_if_unpaid",
         "close_open",
         "open_case",
+        # D1-A 统一支付应用服务受权写面（app/service/payment/unified.py 已登记
+        # 方法级 allowlist）：attempt / hold / outbox 状态机与债务闭环写方法
+        "credit_points_by_id",
+        "deduct_points_if_sufficient_by_id",
+        "credit_stored_value_by_id",
+        "deduct_stored_value_if_sufficient_by_id",
+        "create_active",
+        "begin_settle",
+        "complete_settle",
+        "mark_retry",
+        "mark_manual_review",
+        "release",
+        "reserve",
+        "consume_by_attempt",
+        "release_by_attempt",
+        "upsert_leg",
+        "mark_legs_consumed",
+        "mark_legs_released",
+        "mark_succeeded",
+        "repay",
+        "settle_if_fully_repaid",
     }
 )
 
@@ -628,7 +663,8 @@ def _d1_line_to_func(tree: ast.Module) -> dict[int, str]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for child in ast.walk(ast.Module(body=node.body, type_ignores=[])):
                 if hasattr(child, "lineno"):
-                    result.setdefault(child.lineno, ".".join(stack))
+                    # 归到最外层方法名（闭包归到其所在方法，写点以方法为裁决单位）
+                    result.setdefault(child.lineno, stack[0])
 
     visit(tree, ())
     return result

@@ -40,7 +40,12 @@ class StoredValueOrderPaymentService:
         self._wechat_pay_service = wechat_pay_service or WechatPayIntegrationService()
 
     async def pay_order_with_balance(self, order_id: str, *, user_id: str) -> dict:
-        """订单全额使用储值余额支付（防超扣，幂等）。"""
+        """订单全额使用储值余额支付（防超扣，幂等）。
+
+        D1-A：结算经统一支付应用服务（payment_attempt 事实源 + 余额腿预占 +
+        出站事件），真实资产动作（扣余额 / 置 paid / 核销券 / 发分）在同一
+        UoW 内执行；双连接并发恰一次结算由尝试状态 CAS 兜底。
+        """
         async with self._order_repo.transaction():
             order = await self._owned_order(order_id, user_id)
             if status_value(order) == OrderStatus.CANCELLED.value:
@@ -67,41 +72,58 @@ class StoredValueOrderPaymentService:
             coupon_fen = int(payment.get("couponFen", 0) or 0)
             points_fen = int(payment.get("pointsFen", 0) or 0)
             pay_fen = compute_remain_fen(total_fen, coupon_fen, 0, points_fen)
-            mobile = await self._member_service.resolve_mobile(user_id)
-            if pay_fen > 0:
-                deducted = await self._member_service.deduct(
-                    user_id=user_id,
-                    mobile=mobile,
-                    amount_fen=pay_fen,
-                    biz_type=BalanceBizType.ORDER_PAY,
-                    biz_id=order.id,
-                    unique_id=f"order_pay:{order.id}",
-                    source=BalanceSource.ORDER,
-                )
-                if deducted is None:
-                    raise ValueError("储值余额不足")
-            now = now_text()
-            paid_payment = build_balance_payment(now, pay_fen)
-            # 快照合并顺序不敏感：保留券/积分字段，支付核销与发分依赖它们
-            paid_payment["couponId"] = str(payment.get("couponId", "") or "")
-            paid_payment["couponFen"] = int(payment.get("couponFen", 0) or 0)
-            paid_payment["pointsFen"] = int(payment.get("pointsFen", 0) or 0)
-            paid_payment["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
-            updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
-                order.id,
-                dumps_payment(paid_payment),
-                now,
-            )
-            if updated is None:
-                raise ValueError("订单支付状态更新冲突")
-            from app.service.coupon import CouponService
-            from app.service.points.payment import PointsPaymentService
 
-            await CouponService(order_repo=self._order_repo).consume_on_payment(updated)
-            await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
-                updated
+            from app.service.payment.unified import UnifiedPaymentApplicationService
+
+            unified = UnifiedPaymentApplicationService(order_repo=self._order_repo)
+
+            async def _perform_settle() -> None:
+                """真实资产动作：扣余额（防超扣）→ 置 paid → 核销券 → 发分。"""
+                mobile = await self._member_service.resolve_mobile(user_id)
+                if pay_fen > 0:
+                    deducted = await self._member_service.deduct(
+                        user_id=user_id,
+                        mobile=mobile,
+                        amount_fen=pay_fen,
+                        biz_type=BalanceBizType.ORDER_PAY,
+                        biz_id=order.id,
+                        unique_id=f"order_pay:{order.id}",
+                        source=BalanceSource.ORDER,
+                    )
+                    if deducted is None:
+                        raise ValueError("储值余额不足")
+                now = now_text()
+                paid_payment = build_balance_payment(now, pay_fen)
+                # 快照合并顺序不敏感：保留券/积分字段，支付核销与发分依赖它们
+                paid_payment["couponId"] = str(payment.get("couponId", "") or "")
+                paid_payment["couponFen"] = int(payment.get("couponFen", 0) or 0)
+                paid_payment["pointsFen"] = int(payment.get("pointsFen", 0) or 0)
+                paid_payment["pointsUsed"] = int(payment.get("pointsUsed", 0) or 0)
+                updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
+                    order.id,
+                    dumps_payment(paid_payment),
+                    now,
+                )
+                if updated is None:
+                    raise ValueError("订单支付状态更新冲突")
+                from app.service.coupon import CouponService
+                from app.service.points.payment import PointsPaymentService
+
+                await CouponService(order_repo=self._order_repo).consume_on_payment(
+                    updated
+                )
+                await PointsPaymentService(
+                    order_repo=self._order_repo
+                ).award_on_payment(updated)
+
+            leg_amounts = {"balance": pay_fen} if pay_fen > 0 else None
+            await unified.settle_mock_order(
+                order, settle_actions=_perform_settle, leg_amounts=leg_amounts
             )
-            return self._serialize_order_payment(updated, paid_payment)
+            latest = await self._order_repo.get_order(order.id)
+            if latest is None:
+                raise ValueError("订单不存在")
+            return self._serialize_order_payment(latest, loads_payment(latest.payment))
 
     async def prepare_combined_payment(
         self,

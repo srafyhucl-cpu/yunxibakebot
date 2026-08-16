@@ -82,6 +82,79 @@ class PointsLedgerService:
         )
         return balance_after
 
+    async def credit_by_id(
+        self,
+        *,
+        member_balance_id: int,
+        amount: int,
+        biz_type: str,
+        biz_id: str,
+        unique_id: str,
+        event_type: str,
+    ) -> int | None:
+        """按不可变账户 ID 加款并写流水（D1-A）；账户不存在返回 None，不新建。"""
+        if await self._ledger_repo.get_by_unique_id(unique_id):
+            row = await self._balance_repo.get_by_id(member_balance_id)
+            return int(row["points"]) if row else None
+        balance_after = await self._balance_repo.credit_points_by_id(
+            member_balance_id, amount
+        )
+        if balance_after is None:
+            return None
+        row = await self._balance_repo.get_by_id(member_balance_id)
+        mobile = str(row["mobile"]) if row else ""
+        await self._ledger_repo.insert(
+            PointsLedgerEntry(
+                unique_id=unique_id,
+                mobile=mobile,
+                amount=amount,
+                total=balance_after,
+                event_type=event_type,
+                source=LedgerSource.ORDER,
+                biz_type=biz_type,
+                biz_id=biz_id,
+                occurred_at=now_str(),
+            )
+        )
+        return balance_after
+
+    async def deduct_by_id(
+        self,
+        *,
+        member_balance_id: int,
+        amount: int,
+        biz_type: str,
+        biz_id: str,
+        unique_id: str,
+        event_type: str,
+    ) -> int | None:
+        """按不可变账户 ID 原子扣款并写流水（D1-A）；账户缺失或余额不足返回 None。"""
+        if await self._ledger_repo.get_by_unique_id(unique_id):
+            row = await self._balance_repo.get_by_id(member_balance_id)
+            return int(row["points"]) if row else None
+        if not await self._balance_repo.deduct_points_if_sufficient_by_id(
+            member_balance_id, amount
+        ):
+            return None
+        row = await self._balance_repo.get_by_id(member_balance_id)
+        if row is None:
+            return None
+        balance_after = int(row["points"])
+        await self._ledger_repo.insert(
+            PointsLedgerEntry(
+                unique_id=unique_id,
+                mobile=str(row["mobile"]),
+                amount=-amount,
+                total=balance_after,
+                event_type=event_type,
+                source=LedgerSource.ORDER,
+                biz_type=biz_type,
+                biz_id=biz_id,
+                occurred_at=now_str(),
+            )
+        )
+        return balance_after
+
     async def list_by_mobile(self, mobile: str) -> list[dict]:
         """读取手机号积分流水。"""
         return await self._ledger_repo.list_by_mobile(mobile)

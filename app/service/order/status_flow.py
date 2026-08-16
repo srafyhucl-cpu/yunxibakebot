@@ -77,6 +77,12 @@ class OrderAdminStatusService:
             await self._refund_balance(updated)
             await self._refund_points(updated)
             await self._clear_coupon(updated)
+            # D1-A（验收 A3）：后台取消同样释放未结算支付尝试的预占
+            from app.service.payment.unified import UnifiedPaymentApplicationService
+
+            await UnifiedPaymentApplicationService(
+                order_repo=self._order_repo
+            ).release_order_holds(updated, to_status="cancelled", reason="后台取消")
         else:
             updated = await self._update_status(order_id, target_status)
         await self._release_inventory_if_needed(updated, target_status)

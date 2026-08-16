@@ -745,21 +745,26 @@ async def test_refund_shortfall_keeps_snapshot_and_writes_debt(
     points_service: PointsService,
     order_service: OrderApplicationService,
 ) -> None:
-    """问题 3：奖励积分扣回余额不足 → 欠账 + 保留事实快照（补偿未终结）。"""
+    """问题 3：奖励积分扣回余额不足 → 欠账 + 保留事实快照（补偿未终结）。
+
+    D1-A（验收 A5）：原账户删除后重建场景——退款退回与扣回一律按不可变
+    member_balance_id / 手机号查无账户即阻断，禁止按手机号新建替代账户。
+    """
     await _seed_member(db, points=100_000)
     order_id = await _create_order(order_service, price_fen=10_000)
     await _seed_points_partial(db, order_id, points_used=5000, points_fen=5000)
     await order_service.confirm_mock_payment(order_id, user_id=USER_ID)
-    # 已发积分账面划入无余额账户（模拟原发分账户已空），clawback 扣回失败
-    await db.execute(
-        "UPDATE points_ledger SET mobile = '13900000000' WHERE unique_id = ?",
-        (f"points:award:{order_id}",),
-    )
+    # 原积分账户行删除（模拟账户删除后未重建）：退款不得新建替代账户
+    await db.execute("DELETE FROM member_balance WHERE mobile = ?", (MOBILE,))
     await db.commit()
     order = await OrderRepo(db).get_order(order_id)
     await points_service.refund_points(order)
-    # return 退回 5000；clawback 失败 → 欠账 50，不静默跳过
-    assert await _points(db) == 100_050
+    # 账户已删除：return 退回不 credit（进 account_missing 案件）；clawback 扣回
+    # 失败 → 欠账 50，不静默跳过；**未新建任何替代账户**
+    accounts = await db.execute_fetchall(
+        "SELECT COUNT(*) AS c FROM member_balance WHERE mobile = ?", (MOBILE,)
+    )
+    assert int(accounts[0]["c"]) == 0
     debts = await db.execute_fetchall(
         "SELECT amount, status, operation_key FROM refund_shortfall_debt "
         "WHERE order_id = ?",
@@ -768,6 +773,11 @@ async def test_refund_shortfall_keeps_snapshot_and_writes_debt(
     assert debts and int(debts[0]["amount"]) == 50
     assert debts[0]["status"] == "open"
     assert debts[0]["operation_key"] == f"points:refund:{order_id}:clawback"
+    cases = await db.execute_fetchall(
+        "SELECT reason FROM points_refund_reconcile WHERE unique_id = ?",
+        (f"points:refund:{order_id}",),
+    )
+    assert cases and cases[0]["reason"] == "account_missing"
     ops = await db.execute_fetchall(
         "SELECT status, shortfall_amount FROM refund_operation WHERE order_id = ?",
         (order_id,),
@@ -899,9 +909,11 @@ async def test_dual_connection_concurrent_settle_single_winner(
                 return "locked"
 
         results = await asyncio.gather(attempt(svc_a), attempt(svc_b))
-        # 恰有一个活跃尝试胜出；败者要么 CAS 冲突，要么瞬时锁（读升写竞争）
-        assert results.count("ok") == 1
-        assert set(results) == {"ok", "conflict"} or set(results) == {"ok", "locked"}
+        # D1-A 契约：尝试状态 CAS 保证恰一次结算——胜者完成，败者要么读得
+        # succeeded 幂等返回（"ok"），要么 CAS 冲突，要么瞬时锁（读升写竞争）；
+        # 结算事实（积分流水 / 余额 / 订单状态 / 尝试行）只出现一次
+        assert results.count("ok") >= 1
+        assert set(results) <= {"ok", "conflict", "locked"}
         # 结算事实只出现一次：积分流水恰 2 条（redeem + award），余额唯一
         rows = await conn_a.execute_fetchall(
             "SELECT COUNT(*) AS c FROM points_ledger WHERE biz_id = ?", (order_id,)
@@ -916,6 +928,17 @@ async def test_dual_connection_concurrent_settle_single_winner(
         )
         assert orders
         assert str(loads_payment(str(orders[0]["payment"])).get("status")) == "paid"
+        # D1-A：恰好一条 succeeded 支付尝试，且 order.settled 出站事件唯一
+        attempts = await conn_a.execute_fetchall(
+            "SELECT status FROM payment_attempt WHERE subject_id = ?", (order_id,)
+        )
+        assert len(attempts) == 1
+        assert attempts[0]["status"] == "succeeded"
+        outbox = await conn_a.execute_fetchall(
+            "SELECT COUNT(*) AS c FROM accounting_outbox WHERE operation_key = ?",
+            (f"order:settled:{order_id}",),
+        )
+        assert int(outbox[0]["c"]) == 1
     finally:
         await close_db(conn_a)
         await close_db(conn_b)

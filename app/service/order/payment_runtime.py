@@ -93,7 +93,12 @@ class OrderPaymentRuntimeService:
         )
 
     async def confirm_mock_payment(self, order_id: str, *, user_id: str) -> dict:
-        """MVP mock 支付确认，真实微信支付接入后复用同一状态流转。"""
+        """MVP mock 支付确认，真实微信支付接入后复用同一状态流转。
+
+        D1-A：结算经统一支付应用服务（payment_attempt 事实源 + 预占消费 +
+        出站事件），真实资产动作（置 paid / 核销券 / 发分）在同一 UoW 内执行；
+        双连接并发恰一次结算由尝试状态 CAS 兜底。
+        """
         if not settings.ALLOW_MOCK_PAYMENT:
             raise ValueError("生产环境已禁用 mock 支付")
         order = await self._get_user_order(order_id, user_id=user_id)
@@ -103,6 +108,7 @@ class OrderPaymentRuntimeService:
         payment = loads_payment(order.payment)
         payment_status = str(payment.get("status", PAYMENT_STATUS_UNPAID))
         if payment_status == PAYMENT_STATUS_PAID:
+            # 兼容既有已支付快照（D1-A 前订单无尝试）：幂等补发券核销与发分
             from app.service.coupon import CouponService
             from app.service.points.payment import PointsPaymentService
 
@@ -113,51 +119,60 @@ class OrderPaymentRuntimeService:
             return self._serializer.serialize(order)
         if payment_status == PAYMENT_STATUS_EXPIRED:
             raise ValueError("订单支付已超时")
-        now = now_text()
-        if payment_status == PAYMENT_STATUS_PARTIAL:
-            payment.update(
-                {
-                    "status": PAYMENT_STATUS_PAID,
-                    "paidAt": now,
-                }
-            )
-            updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
-                order.id, dumps_payment(payment), now
-            )
-        else:
-            payment.update(
-                {
-                    "status": PAYMENT_STATUS_PAID,
-                    "method": PAYMENT_METHOD_MOCK,
-                    "paidAt": now,
-                }
-            )
-            updated = await self._order_repo.update_payment_if_unpaid_active(
-                order.id, dumps_payment(payment), now
-            )
-        if updated is None:
-            latest = await self._order_repo.get_order(order.id)
-            if latest is None:
-                raise ValueError("订单不存在")
-            latest_payment = loads_payment(latest.payment)
-            if status_value(latest) == OrderStatus.CANCELLED.value:
-                raise ValueError("订单已取消")
-            if (
-                str(latest_payment.get("status", PAYMENT_STATUS_UNPAID))
-                == PAYMENT_STATUS_PAID
-            ):
-                return self._serializer.serialize(latest)
-            raise ValueError("订单支付状态更新冲突")
-        # 支付成功后先核销券再发分：核销在支付事务内，双花 ValueError 可回滚支付；
-        # 发分内部自 commit 会破坏回滚边界，必须放在核销之后
-        from app.service.coupon import CouponService
-        from app.service.points.payment import PointsPaymentService
 
-        await CouponService(order_repo=self._order_repo).consume_on_payment(updated)
-        await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
-            updated
-        )
-        return self._serializer.serialize(updated)
+        from app.service.payment.unified import UnifiedPaymentApplicationService
+
+        unified = UnifiedPaymentApplicationService(order_repo=self._order_repo)
+
+        async def _perform_settle() -> None:
+            """真实资产动作：置 paid（CAS）→ 核销券 → 发分（同 UoW）。"""
+            now = now_text()
+            latest_order = await self._order_repo.get_order(order.id)
+            if latest_order is None:
+                raise ValueError("订单不存在")
+            latest_payment = loads_payment(latest_order.payment)
+            if str(latest_payment.get("status", PAYMENT_STATUS_UNPAID)) == (
+                PAYMENT_STATUS_PAID
+            ):
+                return
+            if latest_payment.get("status") == PAYMENT_STATUS_PARTIAL:
+                latest_payment.update(
+                    {
+                        "status": PAYMENT_STATUS_PAID,
+                        "paidAt": now,
+                    }
+                )
+                updated = await self._order_repo.update_payment_to_paid_if_unpaid_or_partial_active(
+                    order.id, dumps_payment(latest_payment), now
+                )
+            else:
+                latest_payment.update(
+                    {
+                        "status": PAYMENT_STATUS_PAID,
+                        "method": PAYMENT_METHOD_MOCK,
+                        "paidAt": now,
+                    }
+                )
+                updated = await self._order_repo.update_payment_if_unpaid_active(
+                    order.id, dumps_payment(latest_payment), now
+                )
+            if updated is None:
+                raise ValueError("订单支付状态更新冲突")
+            # 支付成功后先核销券再发分：核销在支付事务内，双花 ValueError 可回滚支付；
+            # 发分内部自 commit 会破坏回滚边界，必须放在核销之后
+            from app.service.coupon import CouponService
+            from app.service.points.payment import PointsPaymentService
+
+            await CouponService(order_repo=self._order_repo).consume_on_payment(updated)
+            await PointsPaymentService(order_repo=self._order_repo).award_on_payment(
+                updated
+            )
+
+        await unified.settle_mock_order(order, settle_actions=_perform_settle)
+        latest = await self._order_repo.get_order(order.id)
+        if latest is None:
+            raise ValueError("订单不存在")
+        return self._serializer.serialize(latest)
 
     async def handle_wechat_payment_notify(
         self,

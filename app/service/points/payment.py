@@ -1,10 +1,12 @@
 """积分支付联动：抵扣快照、支付发分、退款收回。"""
 
 from app.logger import setup_logger
+from app.models.member import LedgerSource, PointsLedgerEntry
 from app.models.order import Order
 from app.repository.customer_master_repo import CustomerMasterRepo
 from app.repository.ledger_operation_repo import (
     REFUND_CLAWBACK,
+    REFUND_DEBT_REPAY,
     REFUND_RETURN,
     SETTLE_AWARD,
     SETTLE_REDEEM,
@@ -37,6 +39,7 @@ from app.service.points.rules import (
     points_to_fen,
     refund_reversal,
 )
+from app.utils import now_str
 
 logger = setup_logger()
 
@@ -193,8 +196,11 @@ class PointsPaymentService:
         cash_fen = max(0, total_fen - coupon_fen - balance_fen - points_fen)
         award = award_points(cash_fen)
         if points_used > 0:
-            balance_after = await self._ledger_service.deduct(
-                mobile=mobile,
+            # D1-A（验收 A5）：扣减一律按快照绑定不可变账户 ID——账户行被删除后
+            # 重建（新 id）时旧 id 查无 → 阻断结算进 manual_review，禁止按手机号
+            # 新建账户替代原账户；余额不足同样阻断（禁止静默放行免费抵扣）
+            balance_after = await self._ledger_service.deduct_by_id(
+                member_balance_id=member_balance_id,
                 amount=points_used,
                 biz_type=POINTS_REDEEM_EVENT,
                 biz_id=order.id,
@@ -202,8 +208,11 @@ class PointsPaymentService:
                 event_type=POINTS_REDEEM_EVENT,
             )
             if balance_after is None:
-                # B3.4（评审问题 1）：扣减失败必须阻止订单进入已支付态，
-                # 禁止静默放行形成免费抵扣；外层事务随异常整体回滚。
+                account_row = await self._balance_repo.get_by_id(member_balance_id)
+                if account_row is None:
+                    raise ValueError(
+                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付"
+                    )
                 raise ValueError(
                     f"积分余额不足，抵扣扣减失败（订单 {order.id}），订单不得视为已支付"
                 )
@@ -219,14 +228,43 @@ class PointsPaymentService:
                 biz_id=order.id,
             )
         if award > 0:
-            await self._ledger_service.credit(
-                mobile=mobile,
-                amount=award,
-                biz_type=POINTS_AWARD_EVENT,
-                biz_id=order.id,
-                unique_id=f"points:award:{order.id}",
-                event_type=POINTS_AWARD_EVENT,
-            )
+            # D1-A（验收 A6）：入账优先偿债——先偿还该账户未结清欠账，
+            # 剩余部分才作为可用积分入账；award 流水仍记全额（退款核验
+            # clawback 与 award 对账不受偿债分流影响，短口由债务机制兜底）
+            repaid = await self._repay_open_debts(member_balance_id, award)
+            credit_amount = award - repaid
+            if credit_amount > 0:
+                balance_after = await self._balance_repo.credit_points_by_id(
+                    member_balance_id, credit_amount
+                )
+                if balance_after is None:
+                    # D1-A（验收 A5）：账户已删除 → 禁止按手机号新建替代账户
+                    raise ValueError(
+                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付"
+                    )
+            else:
+                balance_row = await self._balance_repo.get_by_id(member_balance_id)
+                if balance_row is None:
+                    raise ValueError(
+                        f"积分账户不存在（已删除？），订单 {order.id} 不得视为已支付"
+                    )
+                balance_after = int(balance_row["points"])
+            if not await self._ledger_service.ledger_repo.get_by_unique_id(
+                f"points:award:{order.id}"
+            ):
+                await self._ledger_service.ledger_repo.insert(
+                    PointsLedgerEntry(
+                        unique_id=f"points:award:{order.id}",
+                        mobile=mobile,
+                        amount=award,
+                        total=int(balance_after),
+                        event_type=POINTS_AWARD_EVENT,
+                        source=LedgerSource.ORDER,
+                        biz_type=POINTS_AWARD_EVENT,
+                        biz_id=order.id,
+                        occurred_at=now_str(),
+                    )
+                )
             await self._ledger_operation_repo.append(
                 operation_type=SETTLE_AWARD,
                 subject_id=order.id,
@@ -238,6 +276,148 @@ class PointsPaymentService:
                 biz_id=order.id,
             )
         await self._record_awarded(order, points_used, award)
+
+    async def _refund_return_credit(
+        self,
+        order: Order,
+        *,
+        mobile: str,
+        member_balance_id: int | None,
+        redeem_entry: dict,
+        return_points: int,
+    ) -> tuple[bool, bool]:
+        """退款退回入账：先偿债后入账（按不可变账户 ID），返回 (案件已追加, 未终结)。
+
+        账户缺失（删除/重建）→ 禁止按手机号新建替代账户，转可关闭人工对账案件
+        且不自动 credit（D1-A，验收 A5）；退款流水记全额 return_points 供对账。
+        """
+        case_appended = False
+        unfinished = False
+        credit_target_id = member_balance_id
+        if credit_target_id is None:
+            legacy_row = await self._balance_repo.get_by_mobile(
+                str(redeem_entry["mobile"])
+            )
+            if legacy_row is not None:
+                credit_target_id = int(legacy_row["id"])
+        if credit_target_id is not None:
+            repaid = await self._repay_open_debts(credit_target_id, return_points)
+            credit_amount = return_points - repaid
+            if credit_amount > 0:
+                balance_after = await self._balance_repo.credit_points_by_id(
+                    credit_target_id, credit_amount
+                )
+                if balance_after is None:
+                    case_appended = True
+                    unfinished = True
+                    await self._reconcile_repo.append(
+                        order_id=order.id,
+                        mobile=mobile or "",
+                        unique_id=f"points:refund:{order.id}",
+                        reason="account_missing",
+                        amount=return_points,
+                        note=(
+                            "已结算订单原积分账户已删除（member_balance_id="
+                            f"{credit_target_id}），禁止按手机号新建替代账户，"
+                            "待人工核对后关闭"
+                        ),
+                    )
+                    return case_appended, unfinished
+            else:
+                balance_row = await self._balance_repo.get_by_id(credit_target_id)
+                if balance_row is None:
+                    case_appended = True
+                    unfinished = True
+                    await self._reconcile_repo.append(
+                        order_id=order.id,
+                        mobile=mobile or "",
+                        unique_id=f"points:refund:{order.id}",
+                        reason="account_missing",
+                        amount=return_points,
+                        note=(
+                            "已结算订单原积分账户已删除（member_balance_id="
+                            f"{credit_target_id}），退款金额已全额偿债，"
+                            "待人工核对后关闭"
+                        ),
+                    )
+                    return case_appended, unfinished
+                balance_after = int(balance_row["points"])
+            await self._ledger_service.ledger_repo.insert(
+                PointsLedgerEntry(
+                    unique_id=f"points:refund:{order.id}",
+                    mobile=str(redeem_entry["mobile"]),
+                    amount=return_points,
+                    total=int(balance_after),
+                    event_type=POINTS_REFUND_EVENT,
+                    source=LedgerSource.ORDER,
+                    biz_type=POINTS_REFUND_EVENT,
+                    biz_id=order.id,
+                    occurred_at=now_str(),
+                )
+            )
+            return case_appended, unfinished
+        # 无账户绑定且手机号查无（账户已删除）：禁止新建替代账户
+        case_appended = True
+        unfinished = True
+        await self._reconcile_repo.append(
+            order_id=order.id,
+            mobile=mobile or "",
+            unique_id=f"points:refund:{order.id}",
+            reason="account_missing",
+            amount=return_points,
+            note=(
+                "已结算订单原积分账户已删除（无快照绑定，手机号查无），"
+                "禁止按手机号新建替代账户，待人工核对后关闭"
+            ),
+        )
+        return case_appended, unfinished
+
+    async def _repay_open_debts(self, member_balance_id: int, amount: int) -> int:
+        """积分入账优先偿债：按 min(入账额, remaining) 依次偿还 open 欠账。
+
+        返回实际偿还总额；剩余部分（amount - repaid）才作为可用积分入账。
+        偿还 / 结案均 version CAS，重复入账天然幂等（D1-A，评审问题 3 闭环）。
+        """
+        if member_balance_id is None or amount <= 0:
+            return 0
+        debts = await self._shortfall_debt_repo.list_open_by_member_balance_id(
+            member_balance_id
+        )
+        repaid = 0
+        remaining = amount
+        for debt in debts:
+            if remaining <= 0:
+                break
+            debt_id = int(debt["id"])
+            debt_remaining = int(debt["remaining"] or 0)
+            debt_version = int(debt["version"] or 1)
+            if debt_remaining <= 0:
+                continue
+            repay_amount = min(debt_remaining, remaining)
+            if not await self._shortfall_debt_repo.repay(
+                debt_id, debt_version, repay_amount
+            ):
+                continue
+            repaid += repay_amount
+            remaining -= repay_amount
+            await self._ledger_operation_repo.append(
+                operation_type=REFUND_DEBT_REPAY,
+                subject_id=str(debt["order_id"]),
+                mobile=str(debt["mobile"]),
+                member_balance_id=member_balance_id,
+                amount=repay_amount,
+                unique_id=(
+                    f"ledger:debt_repay:{debt['operation_key']}"
+                    f":{repay_amount}:{debt_version}"
+                ),
+                biz_type=POINTS_REFUND_EVENT,
+                biz_id=str(debt["order_id"]),
+            )
+            if debt_remaining == repay_amount:
+                await self._shortfall_debt_repo.settle_if_fully_repaid(
+                    debt_id, debt_version + 1
+                )
+        return repaid
 
     async def refund_points(self, order: Order) -> None:
         """按支付快照退回抵扣积分并收回已发积分（幂等）。
@@ -329,16 +509,27 @@ class PointsPaymentService:
                     ),
                 )
             else:
-                # 退款按原流水账户入账（原扣减发生的账户），不使用当前解析手机号
-                await self._ledger_service.credit(
-                    mobile=str(redeem_entry["mobile"]),
-                    amount=return_points,
-                    biz_type=POINTS_REFUND_EVENT,
-                    biz_id=order.id,
-                    unique_id=f"points:refund:{order.id}",
-                    event_type=POINTS_REFUND_EVENT,
+                # 退款按原流水账户入账（原扣减发生的账户，member_balance_id），
+                # 不使用当前解析手机号；先偿债后入账（D1-A，评审问题 3 闭环）。
+                # 整支幂等：points:refund 流水已存在（已退款过）则跳过入账
+                refund_key_exists = (
+                    await self._ledger_service.ledger_repo.get_by_unique_id(
+                        f"points:refund:{order.id}"
+                    )
                 )
-                return_amount = return_points
+                if refund_key_exists:
+                    return_amount = return_points
+                else:
+                    case_extra, unfinished_extra = await self._refund_return_credit(
+                        order,
+                        mobile=mobile,
+                        member_balance_id=member_balance_id,
+                        redeem_entry=redeem_entry,
+                        return_points=return_points,
+                    )
+                    return_amount = return_points
+                    case_appended = case_appended or case_extra
+                    unfinished = unfinished or unfinished_extra
                 await self._ledger_operation_repo.append(
                     operation_type=REFUND_RETURN,
                     subject_id=order.id,
@@ -379,14 +570,27 @@ class PointsPaymentService:
                     ),
                 )
             else:
-                balance_after = await self._ledger_service.deduct(
-                    mobile=str(award_entry["mobile"]),
-                    amount=clawback_points,
-                    biz_type=POINTS_REFUND_EVENT,
-                    biz_id=order.id,
-                    unique_id=f"points:refund:{order.id}:clawback",
-                    event_type=POINTS_REFUND_EVENT,
-                )
+                # D1-A（验收 A5）：扣回一律按不可变账户 ID——原账户已删除（重建后
+                # 新 id）不命中新账户；无快照绑定则解析原发分手机号账户，查无即
+                # 欠账待人工结清，禁止按手机号新建替代账户
+                clawback_target_id = member_balance_id
+                if clawback_target_id is None:
+                    legacy_row = await self._balance_repo.get_by_mobile(
+                        str(award_entry["mobile"])
+                    )
+                    if legacy_row is not None:
+                        clawback_target_id = int(legacy_row["id"])
+                if clawback_target_id is not None:
+                    balance_after = await self._ledger_service.deduct_by_id(
+                        member_balance_id=clawback_target_id,
+                        amount=clawback_points,
+                        biz_type=POINTS_REFUND_EVENT,
+                        biz_id=order.id,
+                        unique_id=f"points:refund:{order.id}:clawback",
+                        event_type=POINTS_REFUND_EVENT,
+                    )
+                else:
+                    balance_after = None
                 if balance_after is None:
                     # B3.5（评审问题 3）：扣回余额不足 → 欠账，不静默跳过；
                     # 补偿未终结，事实快照保留供重试

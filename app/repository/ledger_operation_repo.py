@@ -11,6 +11,7 @@ SETTLE_REDEEM = "settle_redeem"
 SETTLE_AWARD = "settle_award"
 REFUND_RETURN = "refund_return"
 REFUND_CLAWBACK = "refund_clawback"
+REFUND_DEBT_REPAY = "refund_debt_repay"
 
 
 class LedgerOperationRepo(BaseRepository):
